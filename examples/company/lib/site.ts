@@ -5,6 +5,7 @@ import { PAYWALL_BLOCK } from "@/blocks/paywall";
 import config from "@/goodfellow.config";
 import { buttonOn } from "@/lib/buttons";
 import { env } from "@/lib/env";
+import type { Reader } from "@/lib/paywall";
 import type { Button, ButtonPlace } from "@/lib/stripe";
 
 let live: (() => Promise<ContentSource>) | undefined;
@@ -38,6 +39,6 @@ export const site = goodfellowPages(config, { source, paywall: PAYWALL_BLOCK });
  * (`site.loadSite()`), from the content repository, once a request, with what pages read, or, in `next dev` and while
  * the site is built, the files pages render from.
  */
-export async function findButton(place: ButtonPlace): Promise<Button | undefined> {
-  return buttonOn(await site.loadSite(), place);
+export async function findButton(place: ButtonPlace, reader: Reader): Promise<Button | undefined> {
+  return buttonOn(await site.loadSite(), place, reader);
 }

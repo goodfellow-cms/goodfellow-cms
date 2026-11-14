@@ -2,12 +2,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type ContentSource, loadSiteContent, serializeContent, shownContent } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
-import { buttonOn } from "./buttons.ts";
+import { buttonOn, buttonsOn } from "./buttons.ts";
 import type { ButtonPlace } from "./stripe.ts";
 
 /** The Buy button at `place`, as `findButton()` finds it: on the site as visitors see it, as its pages render it. */
-async function buttonFrom(source: ContentSource, place: ButtonPlace) {
-  return buttonOn(shownContent(await loadSiteContent(source)), place);
+async function buttonFrom(source: ContentSource, place: ButtonPlace, reader?: "everyone" | "members") {
+  return buttonOn(shownContent(await loadSiteContent(source)), place, reader);
 }
 
 const PRICE = "price_monthly";
@@ -89,6 +89,8 @@ describe("Buy buttons", () => {
     footer.data.content.push({ ...button, props: { ...button.props, id: "BuyButton-footer" } });
     const content = await site({ "content/layout/header.json": header, "content/layout/footer.json": footer });
     expect(await buttonFrom(content, { page: "/about", block: "BuyButton-header" })).toEqual({ price: PRICE });
+    // On a page a block adds, or one the site doesn't have, whose header and footer are its language's.
+    expect(await buttonFrom(content, { page: "/events/2026-12", block: "BuyButton-header" })).toEqual({ price: PRICE });
     expect(await buttonFrom(content, { page: "/", block: "BuyButton-footer" })).toEqual({ price: PRICE });
   });
 
@@ -114,5 +116,52 @@ describe("Buy buttons", () => {
     const block = "SyncedBlock-offer-BuyButton-synced";
     expect(await buttonFrom(content, { page: "/subscribe", block })).toEqual({ price: PRICE });
     expect(await buttonFrom(content, { page: "/es/subscribe", block })).toEqual({ price: "price_mensual" });
+  });
+
+  it("after a members-only page's Paywall sell only to members, as only they're shown them", async () => {
+    const page = await subscribePage({ price: PRICE });
+    page.data.root.props = { ...page.data.root.props, visibility: "members" };
+    page.data.content.unshift({ type: "Paywall", props: { id: "Paywall-1" } });
+    const content = await site({ "content/pages/subscribe.json": page });
+    const place = { page: "/subscribe", block: "BuyButton-monthly" };
+    expect(await buttonFrom(content, place)).toBeUndefined();
+    expect(await buttonFrom(content, place, "everyone")).toBeUndefined();
+    expect(await buttonFrom(content, place, "members")).toEqual({ price: PRICE });
+    // Before the Paywall, they're for everyone.
+    const before = await subscribePage({ price: PRICE });
+    before.data.root.props = { ...before.data.root.props, visibility: "members" };
+    before.data.content.push({ type: "Paywall", props: { id: "Paywall-1" } });
+    expect(await buttonFrom(await site({ "content/pages/subscribe.json": before }), place)).toEqual({ price: PRICE });
+  });
+
+  it("are listed in a language's header where a synced block in the main language's has a version in that language", async () => {
+    const offer = (price: string) => ({
+      version: 1,
+      title: "Join",
+      data: {
+        content: [{ type: "BuyButton", props: { id: "BuyButton-synced", label: "Join", price, className: "" } }],
+        root: { props: {} },
+      },
+    });
+    const header = JSON.parse(await readFile("content/layout/header.json", "utf8"));
+    header.data.content.push({ type: "SyncedBlock", props: { id: "SyncedBlock-offer", block: "offer" } });
+    const settings = JSON.parse(await readFile("content/site.json", "utf8"));
+    const languages = { ...settings, languages: [{ code: "es", name: "Español" }] };
+    const listed = async (files: Record<string, unknown>) =>
+      buttonsOn(shownContent(await loadSiteContent(await site(files))))
+        .filter((button) => button.part === "header")
+        .map((button) => [button.page, button.price]);
+    const both = { "content/site.json": languages, "content/layout/header.json": header };
+    expect(await listed({ ...both, "content/synced-blocks/offer.json": offer(PRICE) })).toEqual([["/", PRICE]]);
+    expect(
+      await listed({
+        ...both,
+        "content/synced-blocks/offer.json": offer(PRICE),
+        "content/synced-blocks/offer.es.json": offer("price_mensual"),
+      }),
+    ).toEqual([
+      ["/", PRICE],
+      ["/es", "price_mensual"],
+    ]);
   });
 });

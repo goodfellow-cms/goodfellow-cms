@@ -5,8 +5,9 @@
 // event can only make the site ask Stripe again.
 import Stripe from "stripe";
 import { claimRow, type SiteAuth } from "./auth.ts";
-import { type EntitlementAdapter, grant } from "./entitlements.ts";
+import { type EntitlementAdapter, grant, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
+import type { Reader } from "./paywall.ts";
 import { fromThisSite } from "./sign-out.ts";
 import { sitePath } from "./site-path.ts";
 
@@ -38,16 +39,65 @@ export class PaymentsError extends Error {
   }
 }
 
+/** `text` written so HTML shows it as it is, in an element or an attribute's quotes. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
+}
+
+/**
+ * A page saying what went wrong, for a form a person pressed (a Buy button, "Manage your subscription"), which the
+ * browser shows in place of the page they were on: in plain words, with a link back to that page, where the browser
+ * said which it was and it's on this site (`refererPath()`), or else to the home page.
+ */
+function problemPage(message: string, status: number, request: Request): Response {
+  const back = refererPath(request, request.url) ?? "/";
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>That didn't go through</title>
+<style>:root{color-scheme:light dark}body{font:1.125rem/1.6 system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 1rem}</style>
+</head>
+<body>
+<main>
+<h1>That didn't go through</h1>
+<p>${escapeHtml(message)}</p>
+<p><a href="${escapeHtml(back)}">Go back to the page</a></p>
+</main>
+</body>
+</html>
+`;
+  return new Response(html, {
+    status,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
 /**
  * The answer a payments route gives for `error`: a `PaymentsError` in its own words and status, and anything else as
  * a 500 in words that say nothing about it, logged by its name only, with what was being done, so it can be found.
+ * For a `request` from a browser's form, which asks for HTML, it's a page with a link back (`problemPage()`), since
+ * the browser shows the answer in place of the page; otherwise, plain text.
  */
-export function paymentsProblem(error: unknown, doing: string): Response {
+export function paymentsProblem(error: unknown, doing: string, request?: Request): Response {
   const known = error instanceof PaymentsError;
   if (!known) console.error(`${doing} failed: ${error instanceof Error ? error.name : "error"}.`);
-  return new Response(known ? error.message : "Something went wrong. Try again in a moment.", {
-    status: known ? error.status : 500,
+  const message = known ? error.message : "Something went wrong. Try again in a moment.";
+  const status = known ? error.status : 500;
+  if (request?.headers.get("accept")?.includes("text/html")) return problemPage(message, status, request);
+  return new Response(message, {
+    status,
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
+/** What Stripe gives, or nothing where it has no such object (`isMissing()`): any other failure is thrown. */
+export function orMissing<T>(asked: Promise<T>): Promise<T | undefined> {
+  return asked.catch((error: unknown) => {
+    if (isMissing(error)) return undefined;
+    throw error;
   });
 }
 
@@ -72,6 +122,8 @@ export function isMetered(price: Pick<Stripe.Price, "recurring">): boolean {
 export interface ButtonPlace {
   page: string;
   block: string;
+  /** The address to come back to, where it isn't `page` itself, as on a page a block adds. */
+  back?: string;
 }
 
 /** What the site knows about a Buy button: the Stripe price its owners chose for it. */
@@ -79,20 +131,44 @@ export interface Button {
   price: string;
 }
 
-/** Finds a Buy button on the site as visitors see it now, never as the browser describes it. */
-export type FindButton = (place: ButtonPlace) => Promise<Button | undefined>;
+/**
+ * Finds a Buy button on the site as visitors see it now, never as the browser describes it, as `reader` sees it: a
+ * members-only page's teaser for someone who isn't a member.
+ */
+export type FindButton = (place: ButtonPlace, reader: Reader) => Promise<Button | undefined>;
 
-/** The place a Buy button's form names, checked, since anyone can post anything. */
-export function placeFrom(form: FormData): ButtonPlace {
-  const page = form.get("page");
+/** Whether `value` is one of this site's paths, as a Buy button's form gives one. */
+function isPagePath(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && value.length <= 500;
+}
+
+/**
+ * The place a Buy button's form names, checked, since anyone can post anything. A button a layout renders (a header's
+ * or footer's in Next.js), which doesn't know its page, names none, and is on `shownAt`, the page the browser came
+ * from on this site (`refererPath()`).
+ */
+export function placeFrom(form: FormData, shownAt?: string): ButtonPlace {
+  const named = form.get("page");
+  const page = named === "" && shownAt ? shownAt : named;
   const block = form.get("block");
-  if (typeof page !== "string" || !page.startsWith("/") || page.startsWith("//") || page.length > 500) {
-    throw new PaymentsError(400, "That button isn't on any of this site's pages.");
-  }
+  if (!isPagePath(page)) throw new PaymentsError(400, "That button isn't on any of this site's pages.");
   if (typeof block !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(block)) {
     throw new PaymentsError(400, "That button isn't on any of this site's pages.");
   }
-  return { page, block };
+  const back = form.get("back");
+  return { page, block, ...(isPagePath(back) && back !== page && { back }) };
+}
+
+/** The path of the page on this site a request came from, if its browser said and it's this site's. */
+export function refererPath(request: Request, siteUrl: string): string | undefined {
+  const referer = request.headers.get("referer");
+  if (!referer) return undefined;
+  try {
+    const url = new URL(referer);
+    return url.origin === new URL(siteUrl).origin ? url.pathname : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** What making a Checkout Session needs. */
@@ -127,29 +203,30 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   const form = await request.formData().catch(() => {
     throw new PaymentsError(400, "That button isn't on any of this site's pages.");
   });
-  const place = placeFrom(form);
+  const place = placeFrom(form, refererPath(request, siteUrl));
+  // Where to come back to, and to go on to after signing in: the page pressed on.
+  const shown = place.back ?? place.page;
   const session = await siteAuth.api.getSession({ headers: request.headers, query: { disableCookieCache: true } });
   if (!session || session.user.banned) {
     const signIn = new URL("/sign-in/", siteUrl);
-    signIn.searchParams.set("next", place.page);
+    signIn.searchParams.set("next", shown);
     return signIn.href;
   }
-  const button = await findButton(place);
+  // As the page shows it to them: someone who isn't a member sees a members-only page's teaser, and only its buttons.
+  const member = (await subscribedUntil(options.adapter, session.user.id)) !== undefined;
+  const button = await findButton(place, member ? "members" : "everyone");
   if (!button) throw new PaymentsError(404, "That button isn't on any of this site's pages.");
   // A price Stripe doesn't have isn't on sale; any other failure, such as a key without the permission, is the site's.
-  const price = await stripe.prices.retrieve(button.price).catch((error: unknown) => {
-    if (isMissing(error)) return undefined;
-    throw error;
-  });
+  const price = await orMissing(stripe.prices.retrieve(button.price));
   if (!price?.active) throw new PaymentsError(409, "This isn't on sale at the moment.");
   if (isMetered(price)) throw new PaymentsError(409, "This can't be bought here: its price is charged by use.");
   const subscribing = price.type === "recurring";
   const product = idOf(price.product as string | { id: string }) ?? price.id;
   const userId = session.user.id;
   const back = new URL("/api/checkout/done/", siteUrl);
-  back.searchParams.set("next", place.page);
+  back.searchParams.set("next", shown);
   const done = `${back.href}&session_id={CHECKOUT_SESSION_ID}`;
-  const page = new URL(place.page, siteUrl).href;
+  const page = new URL(shown, siteUrl).href;
   const user = { id: userId, email: session.user.email };
   // The one customer they pay as, so all they pay for is in one place in Stripe's portal: where Stripe no longer has
   // the one the site kept (deleted there, or the site moved from test mode), a new one in its place.
@@ -497,10 +574,7 @@ type Fence = (undo?: () => Promise<void>) => Promise<void>;
  */
 export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subscriptionId: string): Promise<void> {
   return withStripeLock(adapter, `subscription:${subscriptionId}`, async (fence) => {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId).catch((error: unknown) => {
-      if (isMissing(error)) return undefined;
-      throw error;
-    });
+    const subscription = await orMissing(stripe.subscriptions.retrieve(subscriptionId));
     // One Stripe no longer has, as once an owner deletes its customer or test data, gives nothing, whoever it was for.
     if (!subscription) {
       await adapter.deleteMany({
@@ -520,8 +594,8 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
     }
     const gives = SUBSCRIBED.has(subscription.status) && !(await periodTakenBack(stripe, subscription));
     // By the subscription alone, whoever it was for, so one whose metadata names someone else now moves to them.
-    const remove = (only: { field: string; operator?: "lte"; value: Date }) =>
-      adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }, only] });
+    const remove = (only: { field: string; value: Date }[] = []) =>
+      adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }, ...only] });
     // When this writes, which marks its own row, so taking it back never takes the row another request wrote.
     const written = new Date();
     // Where another request takes the lock over while this writes, the row this wrote, if it's still there, is taken
@@ -530,12 +604,13 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
     // nothing away, so a subscription cancelled meanwhile stays until the end of the period this read, which it had
     // paid for.
     await fence(async () => {
-      await remove({ field: "createdAt", value: written });
+      await remove([{ field: "createdAt", value: written }]);
     });
-    // Only rows written by now: a request that takes the lock over after this fence does so once it has run out, a
-    // minute on, so its row is later and stays, and this one's write fails on it and is taken back, never the other
-    // way round.
-    await remove({ field: "createdAt", operator: "lte", value: written });
+    // Every row for it, whenever it was written, since requests' clocks needn't agree: one a little behind the request
+    // before it would otherwise leave that one's row in place, and a cancellation with it. A request whose lock was
+    // taken over after this fence may take away the row the newer one wrote, and then its own (the undo), but it ends
+    // in `StripeBusy`, so its event is sent again, or coming back from Checkout writes it once more, as Stripe has it.
+    await remove();
     if (!gives) return;
     const ends = Math.max(...subscription.items.data.map((item) => item.current_period_end));
     if (!Number.isFinite(ends)) return;
@@ -545,14 +620,42 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
   });
 }
 
+/** How long before a period starts the invoice that pays for it can be made, as a renewal's is just before. */
+const INVOICE_SLACK_SECONDS = 24 * 60 * 60;
+
 /**
- * Whether the payment for the period a subscription is in, its latest invoice's, has been taken back (`takenBack()`):
- * refunded, or disputed and not won. Its first payment, or a renewal's: the period it paid for gives nothing, and the
- * next one paid for gives it again. A refund of an earlier period leaves this one as it is.
+ * Whether a subscription's period is paid for by `invoice`: one of its lines is for the period from its start, and
+ * isn't a proration. A change part way through the period, such as to another price, is charged on an invoice of its
+ * own, whose lines start when the change was made, so the period's own invoice is still the one that paid for it,
+ * however many came after (`latest_invoice` is only the newest).
+ */
+function paysForPeriod(invoice: Stripe.Invoice, starts: Set<number>): boolean {
+  return invoice.lines.data.some((line) => {
+    const proration =
+      line.parent?.subscription_item_details?.proration === true || line.parent?.invoice_item_details?.proration;
+    return !proration && starts.has(line.period.start);
+  });
+}
+
+/**
+ * Whether the payment for the period a subscription is in has been taken back (`takenBack()`): refunded, or disputed
+ * and not won. Its first payment, or a renewal's: the period it paid for gives nothing, and the next one paid for
+ * gives it again. A refund of an earlier period, or of a charge for a change part way through this one, leaves this
+ * one as it is. Its invoices are newest first, so they're read only as far back as the period's start.
  */
 async function periodTakenBack(stripe: Stripe, subscription: Stripe.Subscription): Promise<boolean> {
-  const invoice = idOf(subscription.latest_invoice);
-  if (!invoice) return false;
+  const starts = new Set(subscription.items.data.map((item) => item.current_period_start));
+  if (starts.size === 0) return false;
+  const earliest = Math.min(...starts);
+  for await (const invoice of stripe.invoices.list({ subscription: subscription.id, limit: 100 })) {
+    if (paysForPeriod(invoice, starts) && (await invoiceTakenBack(stripe, invoice.id))) return true;
+    if (invoice.created < earliest - INVOICE_SLACK_SECONDS) break;
+  }
+  return false;
+}
+
+/** Whether any payment that paid `invoice` has been taken back (`takenBack()`). */
+async function invoiceTakenBack(stripe: Stripe, invoice: string): Promise<boolean> {
   for await (const paid of stripe.invoicePayments.list({ invoice, status: "paid", limit: 100 })) {
     const payment = paid.payment.type === "payment_intent" ? idOf(paid.payment.payment_intent) : undefined;
     if (payment && (await takenBack(stripe, payment))) return true;
@@ -570,10 +673,7 @@ async function subscriptionsPaidBy(stripe: Stripe, paymentIntent: string): Promi
   for await (const paid of payments) {
     const invoiceId = idOf(paid.invoice);
     if (!invoiceId) continue;
-    const invoice = await stripe.invoices.retrieve(invoiceId).catch((error: unknown) => {
-      if (isMissing(error)) return undefined;
-      throw error;
-    });
+    const invoice = await orMissing(stripe.invoices.retrieve(invoiceId));
     const subscription = idOf(invoice?.parent?.subscription_details?.subscription);
     if (subscription) found.add(subscription);
   }
@@ -610,12 +710,7 @@ const KEPT_DISPUTE = new Set(["won", "warning_closed"]);
  * fails (`refund.failed`, `refund.updated`, or `charge.refund.updated`), which Stripe takes off `amount_refunded`.
  */
 async function takenBack(stripe: Stripe, paymentIntentId: string): Promise<boolean> {
-  const payment = await stripe.paymentIntents
-    .retrieve(paymentIntentId, { expand: ["latest_charge"] })
-    .catch((error: unknown) => {
-      if (isMissing(error)) return undefined;
-      throw error;
-    });
+  const payment = await orMissing(stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge"] }));
   // A payment Stripe no longer has paid for nothing.
   if (!payment) return true;
   const charge = payment.latest_charge;
@@ -647,10 +742,7 @@ export function applySession(adapter: PaymentsAdapter, stripe: Stripe, sessionId
 
 /** `applySession()`, with the Checkout Session's lock held. */
 async function writeSession(adapter: PaymentsAdapter, stripe: Stripe, sessionId: string, fence: Fence): Promise<void> {
-  const session = await stripe.checkout.sessions.retrieve(sessionId).catch((error: unknown) => {
-    if (isMissing(error)) return undefined;
-    throw error;
-  });
+  const session = await orMissing(stripe.checkout.sessions.retrieve(sessionId));
   // One Stripe no longer has bought nothing it can say; its payment's events, if any, take back what it did.
   if (!session) return;
   const userId = session.client_reference_id;
@@ -822,13 +914,25 @@ async function handle(adapter: PaymentsAdapter, stripe: Stripe, event: Stripe.Ev
 }
 
 /**
+ * How long coming back from Checkout waits each time for another request writing the same Session, in turn: about six
+ * seconds in all, which Stripe's event takes to write it, reading it from Stripe.
+ */
+export const RETURN_WAITS_MS = [500, 1000, 1500, 3000];
+
+/**
  * Where someone who has just paid comes back to: the Checkout Session is read from Stripe, and if it's theirs and paid,
  * what it bought is written now, so the page they bought it on shows it straight away rather than once the webhook
  * arrives. Gives where to send them on to: `next`, a page of this site, or the home page.
  */
 export async function returnFromCheckout(
   request: Request,
-  options: { siteAuth: SiteAuth; stripe: Stripe; adapter: PaymentsAdapter },
+  options: {
+    siteAuth: SiteAuth;
+    stripe: Stripe;
+    adapter: PaymentsAdapter;
+    /** Waits `ms`, for tests to wait their own way. */
+    wait?: (ms: number) => Promise<void>;
+  },
 ): Promise<string> {
   const url = new URL(request.url);
   const next = sitePath(url.searchParams.get("next"));
@@ -841,25 +945,25 @@ export async function returnFromCheckout(
   if (!session) return next;
   // A Session Stripe doesn't have bought nothing; any other failure is passed on, for the route to log, and the webhook
   // writes it anyway.
-  const checkout = await options.stripe.checkout.sessions.retrieve(sessionId).catch((error: unknown) => {
-    if (isMissing(error)) return undefined;
-    throw error;
-  });
+  const checkout = await orMissing(options.stripe.checkout.sessions.retrieve(sessionId));
   if (checkout?.client_reference_id !== session.user.id) return next;
-  // Another request writing it, usually Stripe's event, writes it as Stripe has it now, so that's as good as this
-  // writing it. One that took this one's lock over meanwhile took back what this wrote, and no event comes back here,
-  // so it's written once more.
-  const write = async () => {
+  // Written before going on, since the page it goes on to reads the paywall again, and remembers what it read for
+  // minutes: another request writing it, usually Stripe's event arriving at the same moment, is waited for and this
+  // writes it after (as Stripe has it, so the same); one that took this one's lock over meanwhile took back what this
+  // wrote, and no event comes back here, so it's written once more. Past the waits, it goes on, and the event writes it.
+  const wait = options.wait ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
+  for (let attempt = 0; ; attempt++) {
     try {
       await applySession(options.adapter, options.stripe, checkout.id);
-      return true;
+      return next;
     } catch (error) {
       if (!(error instanceof StripeBusy)) throw error;
-      return !error.takenOver;
+      const delay = RETURN_WAITS_MS[attempt];
+      if (delay === undefined) return next;
+      // Still being written by the other request: after a moment. Taken over, so what this wrote was taken back: at once.
+      if (!error.takenOver) await wait(delay);
     }
-  };
-  if (!(await write())) await write();
-  return next;
+  }
 }
 
 /**

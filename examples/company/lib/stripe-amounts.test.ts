@@ -8,6 +8,7 @@ describe("Stripe's amounts", () => {
     expect(stripeAmount(1500, "kwd")).toBe(1.5);
     // Whole krónur, which Stripe still gives in hundredths, though the currency has none.
     expect(stripeAmount(10000, "isk")).toBe(100);
+    expect(stripeAmount(500, "ugx")).toBe(5);
     // Intl writes a no-break space between the code and the amount.
     expect(stripeMoney(10000, "isk", "en-US").replace(/\s/g, " ")).toBe("ISK 100");
     expect(stripeMoney(1000, "usd", "en-US")).toBe("$10.00");

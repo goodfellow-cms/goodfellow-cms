@@ -2,40 +2,49 @@
 import {
   allPages,
   expandSyncedBlocks,
+  isMembersOnly,
   layoutIn,
   normalizePagePath,
   pathLanguage,
   type SiteContent,
   siteLanguages,
+  teaserData,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { BUY_BUTTON_BLOCK, PRICE_ID } from "../blocks/buy-button.tsx";
+import { PAYWALL_BLOCK } from "../blocks/paywall.tsx";
+import type { Reader } from "./paywall.ts";
 import type { Button, ButtonPlace } from "./stripe.ts";
 
 /**
  * The Buy button at `place` in `content`, the site as visitors see it (`shownContent()`): the price its owners gave
  * it, or nothing for a page the site doesn't have, or a button that isn't on it or has no price. It's looked for on the
  * page, then in the header and footer it's shown with, all in the page's language, with synced blocks put in place
- * first, as pages render them, so a button in one is found by the id it has there.
+ * first, as pages render them, so a button in one is found by the id it has there. On a members-only page, someone
+ * who isn't a member (`reader`) sees only its teaser (`teaserData()`), so a button after its Paywall is theirs only
+ * once they're members, as the page shows it.
  */
-export function buttonOn(content: SiteContent, place: ButtonPlace): Button | undefined {
+export function buttonOn(content: SiteContent, place: ButtonPlace, reader: Reader = "everyone"): Button | undefined {
   let path: string;
   try {
     path = normalizePagePath(place.page);
   } catch {
     return undefined;
   }
+  // A page of the site's, or one a block adds, or "Page not found": the header and footer show on every one, in its
+  // language; a page's own buttons are on the pages the site has, which a page a block adds names as its own.
   const page = allPages(content).find((candidate) => candidate.path === path);
-  if (!page) return undefined;
-  const language = pathLanguage(content.settings, page.path);
+  const language = pathLanguage(content.settings, path);
   const shown = [
-    page.content.data,
+    ...(page ? [page.content.data] : []),
     layoutIn(content, "header", language).data,
     layoutIn(content, "footer", language).data,
-  ];
-  const props = shown
-    .map((data) => buttonsIn(expandSyncedBlocks(data, content, language)).find((props) => props.id === place.block))
-    .find(Boolean);
+  ].map((data, index) => {
+    const expanded = expandSyncedBlocks(data, content, language);
+    const teaser = page && index === 0 && reader === "everyone" && isMembersOnly(page, content.collections);
+    return teaser ? teaserData(expanded, PAYWALL_BLOCK) : expanded;
+  });
+  const props = shown.map((data) => buttonsIn(data).find((props) => props.id === place.block)).find(Boolean);
   const price = typeof props?.price === "string" ? props.price : "";
   return PRICE_ID.test(price) ? { price } : undefined;
 }
@@ -73,27 +82,32 @@ function buttonsIn(value: unknown, found: Record<string, unknown>[] = []): Recor
  */
 export function buttonsOn(content: SiteContent): ListedButton[] {
   const listed: ListedButton[] = [];
-  const add = (page: string, part: ListedButton["part"], data: Data, language: string) => {
-    for (const props of buttonsIn(expandSyncedBlocks(data, content, language))) {
-      listed.push({
-        page,
-        part,
-        block: String(props.id ?? ""),
-        label: typeof props.label === "string" ? props.label : "",
-        price: typeof props.price === "string" ? props.price : "",
-      });
-    }
-  };
+  const found = (page: string, part: ListedButton["part"], data: Data, language: string): ListedButton[] =>
+    buttonsIn(expandSyncedBlocks(data, content, language)).map((props) => ({
+      page,
+      part,
+      block: String(props.id ?? ""),
+      label: typeof props.label === "string" ? props.label : "",
+      price: typeof props.price === "string" ? props.price : "",
+    }));
   for (const page of allPages(content)) {
-    add(page.path, "page", page.content.data, pathLanguage(content.settings, page.path));
+    listed.push(...found(page.path, "page", page.content.data, pathLanguage(content.settings, page.path)));
   }
-  // A language without a header or footer of its own shows the main language's, listed once, with the main one.
-  for (const language of siteLanguages(content.settings)) {
+  // A language without a header or footer of its own shows the main language's, listed once, with the main one,
+  // unless a synced block in it has a version of its own in that language, whose buttons are listed too.
+  const languages = siteLanguages(content.settings);
+  const main = languages.find((language) => language.main)?.code;
+  for (const language of languages) {
     const home = language.main ? "/" : language.prefix;
     for (const part of ["header", "footer"] as const) {
       const layout = layoutIn(content, part, language.code);
-      if (!language.main && layout === content[part]) continue;
-      add(home, part, layout.data, language.code);
+      const buttons = found(home, part, layout.data, language.code);
+      if (!language.main && layout === content[part] && main !== undefined) {
+        const same = (button: ListedButton) => [button.block, button.label, button.price].join("\n");
+        const mains = found("/", part, layout.data, main).map(same);
+        if (buttons.map(same).join("\n\n") === mains.join("\n\n")) continue;
+      }
+      listed.push(...buttons);
     }
   }
   return listed;

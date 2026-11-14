@@ -14,7 +14,6 @@ const ZERO_DECIMAL = new Set([
   "mga",
   "pyg",
   "rwf",
-  "ugx",
   "vnd",
   "vuv",
   "xaf",
@@ -26,8 +25,8 @@ const ZERO_DECIMAL = new Set([
 const THREE_DECIMAL = new Set(["bhd", "jod", "kwd", "omr", "tnd"]);
 
 /**
- * An amount Stripe gave, in `currency`'s units: every other currency, ISK among them (whole krónur, which Stripe still
- * gives in hundredths), is in hundredths.
+ * An amount Stripe gave, in `currency`'s units: every other currency, ISK and UGX among them (whole krónur and
+ * shillings, which Stripe still gives in hundredths), is in hundredths.
  */
 export function stripeAmount(amount: number, currency: string): number {
   const code = currency.toLowerCase();

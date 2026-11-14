@@ -55,7 +55,7 @@ export function priceNote(price: string): string | undefined {
 
 /** The form, or, without a price, a note in the editor and nothing on the site. */
 function BuyButtonView({ id, label, price, className }: BuyButtonProps & { id: string }) {
-  const { path, base, adminLink } = useSite();
+  const { path, base, adminLink, view } = useSite();
   const note = priceNote(price ?? "");
   if (note) {
     // Only the editor gives `adminLink`, so this shows there alone; on the site, the button isn't there.
@@ -67,7 +67,11 @@ function BuyButtonView({ id, label, price, className }: BuyButtonProps & { id: s
   }
   return (
     <form method="post" action={withBase("/api/checkout/", base)} className={cx("my-4", className)}>
-      <input type="hidden" name="page" value={path ?? "/"} />
+      {/* The page the button is on, which a page a block adds (a calendar's month, a list's page 2) is a variation
+          of, and the address to come back to. In a layout, which doesn't know the page, both are left empty, and the
+          server takes the page the browser came from. */}
+      <input type="hidden" name="page" value={view?.path || path || ""} />
+      <input type="hidden" name="back" value={path || ""} />
       <input type="hidden" name="block" value={String(id)} />
       <button type="submit" className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground">
         {label || "Subscribe"}

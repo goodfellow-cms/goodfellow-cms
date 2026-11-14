@@ -14,6 +14,8 @@ import {
   PaymentsError,
   paymentsProblem,
   placeFrom,
+  RETURN_WAITS_MS,
+  refererPath,
   returnFromCheckout,
   STRIPE_EVENT_IDENTIFIER,
   STRIPE_EVENT_LEASE_SECONDS,
@@ -53,8 +55,12 @@ async function payments() {
     metered: METERED.id,
     gone: "price_gone",
   };
-  const findButton = async (place: ButtonPlace) =>
-    place.page === "/subscribe" && buttons[place.block] ? { price: buttons[place.block] ?? "" } : undefined;
+  /** Who each button was looked for as. */
+  const readers: string[] = [];
+  const findButton = async (place: ButtonPlace, reader: string) => {
+    readers.push(reader);
+    return place.page === "/subscribe" && buttons[place.block] ? { price: buttons[place.block] ?? "" } : undefined;
+  };
   const readerId = await site.person("rita@example.org", MEMBER_ROLE);
   const reader = (await site.signIn("rita@example.org")).cookie;
   /** A Buy button's form, posted from the site's own pages, or from `from`. */
@@ -97,12 +103,84 @@ async function payments() {
     for (const event of stripe.pay(session?.id ?? "")) await deliver(event);
     return session;
   };
-  return { ...site, stripe, client, buttons, buying, checkout, deliver, buy, customer, readerId, reader };
+  return { ...site, stripe, client, buttons, readers, buying, checkout, deliver, buy, customer, readerId, reader };
 }
 
 afterEach(() => vi.unstubAllGlobals());
 
+describe("a Buy button's place", () => {
+  const form = (fields: Record<string, string>) => {
+    const named = new FormData();
+    for (const [name, value] of Object.entries(fields)) named.set(name, value);
+    return named;
+  };
+
+  it("is the page the browser came from for a button a layout renders, which names none", () => {
+    expect(placeFrom(form({ page: "", block: "BuyButton-1" }), "/about")).toEqual({
+      page: "/about",
+      block: "BuyButton-1",
+    });
+    // Without a page the browser came from, it's on no page.
+    expect(() => placeFrom(form({ page: "", block: "BuyButton-1" }))).toThrow(PaymentsError);
+    // A page the button names wins over the one the browser says.
+    expect(placeFrom(form({ page: "/subscribe", block: "BuyButton-1" }), "/about").page).toBe("/subscribe");
+  });
+
+  it("comes back to the page a block added, where the button is on the page it's added to", () => {
+    expect(placeFrom(form({ page: "/events", back: "/events/2026-12", block: "BuyButton-1" }))).toEqual({
+      page: "/events",
+      back: "/events/2026-12",
+      block: "BuyButton-1",
+    });
+    // Only one of the site's paths, and only where it's another page.
+    for (const back of ["//elsewhere.example", "https://elsewhere.example/", "/events"]) {
+      expect(placeFrom(form({ page: "/events", back, block: "BuyButton-1" }))).not.toHaveProperty("back");
+    }
+  });
+
+  it("takes the page the browser came from only from the site's own address", () => {
+    const from = (referer?: string) =>
+      refererPath(new Request(`${SITE}/api/checkout/`, { headers: referer ? { referer } : {} }), SITE);
+    expect(from(`${SITE}/about?x=1#top`)).toBe("/about");
+    expect(from("https://elsewhere.example/about")).toBeUndefined();
+    expect(from("not an address")).toBeUndefined();
+    expect(from()).toBeUndefined();
+  });
+});
+
 describe("checkout", () => {
+  it("looks for the button as the page shows it to the person: its teaser for someone who isn't a member", async () => {
+    const { buy, readers, checkout, buying, reader, close } = await payments();
+    try {
+      await buy("monthly");
+      await checkout(buying(reader, { page: "/subscribe", block: "yearly" })).catch(() => undefined);
+      expect(readers).toEqual(["everyone", "members"]);
+    } finally {
+      close();
+    }
+  });
+
+  it("sells a header's button on the page it was pressed on, coming back to that page", async () => {
+    const { stripe, checkout, reader, close } = await payments();
+    try {
+      const form = new FormData();
+      form.set("page", "");
+      form.set("back", "/subscribe/2026-12");
+      form.set("block", "monthly");
+      const request = new Request(`${SITE}/api/checkout/`, {
+        method: "POST",
+        headers: { cookie: reader ?? "", "sec-fetch-site": "same-origin", referer: `${SITE}/subscribe` },
+        body: form,
+      });
+      expect(await checkout(request)).toMatch(/^https:\/\/stripe\.test\/checkout\//);
+      const session = [...stripe.sessions.values()].at(-1);
+      expect(session?.cancel_url).toBe(`${SITE}/subscribe/2026-12`);
+      expect(session?.success_url).toContain("next=%2Fsubscribe%2F2026-12");
+    } finally {
+      close();
+    }
+  });
+
   it("sells the price the page's owners chose, to the person signed in, coming back to the site", async () => {
     const { stripe, buying, checkout, customer, readerId, reader, close } = await payments();
     try {
@@ -943,8 +1021,8 @@ describe("coming back from Checkout", () => {
     }
   });
 
-  it("goes on to the page where another request is writing the purchase, which writes it as Stripe has it", async () => {
-    const { auth, stripe, client, buying, checkout, context, reader, close } = await payments();
+  it("waits for another request writing the purchase, then writes it, and goes on past the waits", async () => {
+    const { auth, stripe, client, buying, checkout, context, readerId, reader, close } = await payments();
     try {
       await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
       const session = [...stripe.sessions.values()][0];
@@ -964,12 +1042,46 @@ describe("coming back from Checkout", () => {
         },
         forceAllowId: true,
       });
-      const back = new Request(`${SITE}/api/checkout/done/?next=%2Fsubscribe&session_id=${session?.id}`, {
-        headers: { cookie: reader ?? "" },
+      const back = () =>
+        new Request(`${SITE}/api/checkout/done/?next=%2Fsubscribe&session_id=${session?.id}`, {
+          headers: { cookie: reader ?? "" },
+        });
+      // The event finishes while coming back waits for the second time, so what was bought is written before the
+      // page it goes on to reads the paywall again.
+      const waited: number[] = [];
+      const finishing = async (ms: number) => {
+        waited.push(ms);
+        if (waited.length === 2) {
+          await context.adapter.deleteMany({ model: "verification", where: [{ field: "id", value: id }] });
+        }
+      };
+      expect(
+        await returnFromCheckout(back(), { siteAuth: auth, stripe: client, adapter: context.adapter, wait: finishing }),
+      ).toBe("/subscribe");
+      expect(waited).toEqual(RETURN_WAITS_MS.slice(0, 2));
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // One that never finishes is waited for as long as the waits go, and then it goes on.
+      await context.adapter.deleteMany({ model: "entitlement", where: [{ field: "userId", value: readerId }] });
+      await context.adapter.create({
+        model: "verification",
+        data: {
+          id,
+          identifier: id,
+          value: "the event",
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: now,
+          updatedAt: now,
+        },
+        forceAllowId: true,
       });
-      expect(await returnFromCheckout(back, { siteAuth: auth, stripe: client, adapter: context.adapter })).toBe(
-        "/subscribe",
-      );
+      const all: number[] = [];
+      const waiting = async (ms: number) => {
+        all.push(ms);
+      };
+      expect(
+        await returnFromCheckout(back(), { siteAuth: auth, stripe: client, adapter: context.adapter, wait: waiting }),
+      ).toBe("/subscribe");
+      expect(all).toEqual(RETURN_WAITS_MS);
     } finally {
       close();
     }
@@ -1365,7 +1477,61 @@ describe("a subscription's payments", () => {
     }
   });
 
-  it("never take away the row a request that took the lock over wrote, from one that stalled after its fence", async () => {
+  it("take the subscription away where the period's own payment is refunded, after a change charged part way through", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = bought?.subscription ?? "";
+      const paid = stripe.paymentOf(subscription);
+      // A change part way through, charged on an invoice of its own, which is then its latest.
+      expect((await deliver(stripe.prorate(subscription))).status).toBe(200);
+      const prorated = stripe.paymentOf(subscription);
+      expect(prorated).not.toBe(paid);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // The change's charge refunded leaves the period, which the first payment paid for, as it is...
+      expect((await deliver(stripe.refund(prorated))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // So does one made just as the period started, whose lines start with it, but as a proration.
+      expect((await deliver(stripe.prorate(subscription, "start"))).status).toBe(200);
+      expect((await deliver(stripe.refund(stripe.paymentOf(subscription)))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // ...and the period's own payment refunded takes it away.
+      expect((await deliver(stripe.refund(paid))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("take away a cancelled subscription's row whatever clock wrote it, as one a little ahead of this one's", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = stripe.subscriptions.get(bought?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      // Written by a request on another machine, whose clock is a second ahead of this one's.
+      const reference = `stripe:${subscription.id}`;
+      await context.adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }] });
+      await context.adapter.create({
+        model: "entitlement",
+        data: {
+          id: reference,
+          userId: readerId,
+          kind: "subscription",
+          reference,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          createdAt: new Date(Date.now() + 1000),
+        },
+        forceAllowId: true,
+      });
+      expect((await deliver(stripe.cancel(subscription.id))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("send the event again where a request that stalled after its fence finds its lock taken over", async () => {
     const { stripe, client, buy, deliver, context, readerId, close } = await payments();
     try {
       const bought = await buy("monthly");
@@ -1380,8 +1546,10 @@ describe("a subscription's payments", () => {
       // ...past its lock's time, while a renewal's event takes the lock over and writes the subscription.
       expect((await deliver(stripe.renew(subscription.id))).status).toBe(200);
       slow.release();
-      // The stalled write leaves the renewal's row alone, fails on it, and takes back only its own: there's none.
+      // The stalled write finds its lock taken over and ends in `StripeBusy`, so its event is sent again, which writes
+      // the subscription as Stripe has it, whatever the stalled write took away.
       await expect(coming).rejects.toMatchObject({ name: "StripeBusy" });
+      expect((await deliver(stripe.event("customer.subscription.updated", subscription))).status).toBe(200);
       expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
     } finally {
       vi.useRealTimers();
@@ -1588,6 +1756,25 @@ describe("payments' routes", () => {
       expect(log).toHaveBeenCalledWith("Opening the customer portal failed: TypeError.");
     } finally {
       log.mockRestore();
+    }
+  });
+
+  it("answer a browser's form with a page saying what went wrong, linking back to the page it was on", async () => {
+    const pressed = (referer?: string) =>
+      new Request(`${SITE}/api/checkout/`, {
+        method: "POST",
+        headers: { accept: "text/html,application/xhtml+xml", ...(referer && { referer }) },
+      });
+    const problem = new PaymentsError(409, "Your payment is <already> starting.");
+    const page = paymentsProblem(problem, "Checkout", pressed(`${SITE}/subscribe/?x=1`));
+    expect(page.status).toBe(409);
+    expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const html = await page.text();
+    expect(html).toContain("Your payment is &#60;already&#62; starting.");
+    expect(html).toContain('<a href="/subscribe/">');
+    // Back to the home page from anywhere else.
+    for (const referer of ["https://elsewhere.example/page", undefined]) {
+      expect(await paymentsProblem(problem, "Checkout", pressed(referer)).text()).toContain('<a href="/">');
     }
   });
 });

@@ -50,7 +50,15 @@ interface FakeSubscription {
   metadata: Record<string, string>;
   /** The invoice of the period it's in. */
   latest_invoice: string | null;
-  items: { object: "list"; data: { id: string; current_period_end: number; price: { id: string; product: string } }[] };
+  items: {
+    object: "list";
+    data: {
+      id: string;
+      current_period_start: number;
+      current_period_end: number;
+      price: { id: string; product: string };
+    }[];
+  };
 }
 
 /** A subscription's invoice, and the payment that paid it. */
@@ -58,6 +66,17 @@ interface FakeInvoice {
   id: string;
   object: "invoice";
   parent: { type: "subscription_details"; subscription_details: { subscription: string } };
+  /** When it was made: when the period it pays for started, or when a change mid-period was charged for. */
+  created: number;
+  /** Its lines, each for a period, and a proration's for the rest of one. */
+  lines: {
+    object: "list";
+    data: {
+      period: { start: number; end: number };
+      parent: { type: "subscription_item_details"; subscription_item_details: { proration: boolean } };
+    }[];
+    has_more: false;
+  };
   /** The payment that paid it, which the API gives as an invoice payment. */
   payment_intent: string;
 }
@@ -171,12 +190,26 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     });
     return id;
   };
-  /** A subscription's new invoice, paid by a payment of its own. */
-  const invoiceFor = (subscription: string) => {
+  /**
+   * A subscription's new invoice for the period from `start` to `end`, made at `created` (when the period starts,
+   * unless it's a `proration`), paid by a payment of its own.
+   */
+  const invoiceFor = (subscription: string, start: number, end: number, proration = false, created = start) => {
     const invoice: FakeInvoice = {
       id: next("in"),
       object: "invoice",
       parent: { type: "subscription_details", subscription_details: { subscription } },
+      created,
+      lines: {
+        object: "list",
+        data: [
+          {
+            period: { start, end },
+            parent: { type: "subscription_item_details", subscription_item_details: { proration } },
+          },
+        ],
+        has_more: false,
+      },
       payment_intent: payment(),
     };
     invoices.set(invoice.id, invoice);
@@ -312,6 +345,15 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
         ),
       );
     }
+    if (parts[1] === "invoices" && !parts[2] && request.method === "GET") {
+      // A subscription's, newest first, as Stripe lists them.
+      const subscription = url.searchParams.get("subscription");
+      const found = [...invoices.values()]
+        .filter((one) => one.parent.subscription_details.subscription === subscription)
+        .reverse()
+        .map(({ payment_intent: _, ...shown }) => shown);
+      return json(list(found));
+    }
     if (parts[1] === "invoices" && parts[2] && request.method === "GET") {
       const invoice = invoices.get(parts[2]);
       if (!invoice) return missing();
@@ -393,13 +435,19 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
             data: [
               {
                 id: next("si"),
+                current_period_start: Math.floor(Date.now() / 1000),
                 current_period_end: Math.floor(Date.now() / 1000) + days * 24 * 60 * 60,
                 price: { id: session.price, product: prices.get(session.price)?.product ?? "" },
               },
             ],
           },
         };
-        subscription.latest_invoice = invoiceFor(subscription.id).id;
+        const [item] = subscription.items.data;
+        subscription.latest_invoice = invoiceFor(
+          subscription.id,
+          item?.current_period_start ?? 0,
+          item?.current_period_end ?? 0,
+        ).id;
         subscriptions.set(subscription.id, subscription);
         session.subscription = subscription.id;
         events.push(event("customer.subscription.created", subscription));
@@ -416,8 +464,31 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     renew(subscriptionId: string, days = 30) {
       const subscription = subscriptions.get(subscriptionId);
       if (!subscription) throw new Error(`No subscription ${subscriptionId}.`);
-      subscription.latest_invoice = invoiceFor(subscription.id).id;
-      for (const item of subscription.items.data) item.current_period_end += days * 24 * 60 * 60;
+      for (const item of subscription.items.data) {
+        item.current_period_start = item.current_period_end;
+        item.current_period_end += days * 24 * 60 * 60;
+      }
+      const [item] = subscription.items.data;
+      subscription.latest_invoice = invoiceFor(
+        subscription.id,
+        item?.current_period_start ?? 0,
+        item?.current_period_end ?? 0,
+      ).id;
+      return event("customer.subscription.updated", subscription);
+    },
+    /**
+     * Charges for a change part way through a subscription's period, as a price change does, on an invoice of its own
+     * for the rest of the period, which is then its latest invoice: the period is still the one its first paid for.
+     * Made `at` the period's start where it says so, as a change made just as the period started is. Gives the event
+     * Stripe sends.
+     */
+    prorate(subscriptionId: string, at?: "start") {
+      const subscription = subscriptions.get(subscriptionId);
+      const [item] = subscription?.items.data ?? [];
+      if (!subscription || !item) throw new Error(`No subscription ${subscriptionId}.`);
+      const now = Math.floor(Date.now() / 1000);
+      const changed = at === "start" ? item.current_period_start : Math.max(now, item.current_period_start + 1);
+      subscription.latest_invoice = invoiceFor(subscription.id, changed, item.current_period_end, true, changed).id;
       return event("customer.subscription.updated", subscription);
     },
     /** The payment of a subscription's invoice for the period it's in. */
