@@ -219,23 +219,18 @@ export const { GET, POST } = goodfellowApi({ config, authorize, signIn: "/sign-i
 
 Give the root layout's `<html lang>` `await site.language()`, as above, rather than `loadSite()`, which doesn't know the sources: it reads the site as pages do, once a request.
 
-Pages read the items each time they render, which a page kept once it has rendered does only once it's `revalidate` old, or once `revalidatePath()` says it changed. A source can say what changed with `changed(since)`, which answers the items' names and what to pass next time; `sourceChanges()` from `@goodfellow-cms/core` turns that into the pages to render again, with each changed item's address in each of the site's languages, so an item removed or moved to another language leaves no page behind, for a scheduled route, or a webhook from the other system, to pass to `revalidatePath()`. A source whose `changed()` fails is named in its `failed`, keeping where it was to ask from next time, and the others' changes still come through. Pages that list the collection show its changes too, so `revalidatePath("/", "layout")` is the simplest. Your app keeps each source's `next` between calls, such as in its database, since only it knows where:
+Pages read the items each time they render, which a page kept once it has rendered does only once it's `revalidate` old, or once `revalidatePath()` says it changed. A source can say what changed with `changed(since)`, which answers the items' names and what to pass next time; `site.sourceChanges()`, from the same `goodfellowPages()` the pages use, so it asks the sources they read rather than making a second set (such as a second database pool), turns that into the pages to render again, with each changed item's address in each of the site's languages, so an item removed or moved to another language leaves no page behind, for a scheduled route, or a webhook from the other system, to pass to `revalidatePath()`. A source whose `changed()` fails is named in its `failed`, keeping where it was to ask from next time, and the others' changes still come through. Pages that list the collection show its changes too, so `revalidatePath("/", "layout")` is the simplest. Your app keeps each source's `next` between calls, such as in its database, since only it knows where:
 
 ```ts
 // app/api/sources-changed/route.ts, called by a scheduled job or the other system's webhook
-import { collectionSources, sourceChanges } from "@goodfellow-cms/core";
 import { revalidatePath } from "next/cache";
-import config from "@/goodfellow.config";
-import jobs from "@/lib/jobs";
 import { site } from "@/lib/site";
 // Your app's own: where it keeps each source's `next`, and how it knows the request is from your job.
 import { fromYourJob, keepPlaces, readPlaces } from "@/lib/sources-changed";
 
-const sources = collectionSources(config.collections, { jobs });
-
 export async function POST(request: Request): Promise<Response> {
   if (!fromYourJob(request)) return new Response(null, { status: 401 });
-  const { collections, next } = await sourceChanges(await site.loadSite(), sources, await readPlaces());
+  const { collections, next } = await site.sourceChanges(await readPlaces());
   // Every page, since lists show the items too; `paths` names only the items' own pages, for a site whose lists are
   // kept apart from them.
   if (collections.length > 0) revalidatePath("/", "layout");

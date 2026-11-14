@@ -6,6 +6,7 @@ import {
   builtSource,
   type CollectionSources,
   type ContentSource,
+  sourceChanges as changesInSources,
   checkSourceModules,
   collectionSources,
   colorSchemeMeta,
@@ -401,13 +402,17 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   checkSourceModules(config.collections, options.sources ?? {});
   const sourcedIds = Object.keys(config.collections ?? {});
   let made: CollectionSources | undefined;
-  const site = async () => {
+  const sources = () => {
     made ??= collectionSources(config.collections, options.sources ?? {});
-    if (source) return loadSourceSite(source, options.root, made);
+    return made;
+  };
+  const site = async () => {
+    sources();
+    if (source) return loadSourceSite(source, options.root, sources());
     // Without sources, the same arguments as the starter's root layout's `loadSite()`, so React's cache reads the site
     // once a request; with them, a root layout gives `<html lang>` from `language()`, which reads it as pages do.
     if (sourcedIds.length === 0) return options.root === undefined ? loadSite() : loadSite(options.root);
-    return loadSite(options.root, made);
+    return loadSite(options.root, sources());
   };
   const basePath = () => options.basePath ?? configuredBasePath();
 
@@ -511,6 +516,22 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
         // files their items replace.
         return (await loadSite(options.root, NO_SOURCES, sourcedIds)).settings.language;
       }
+    },
+
+    /**
+     * What has changed in the collections' sources since `since` (each
+     * source's `next` from last time, by collection id), from the sources
+     * these pages read, so a route that renders pages again for it
+     * (`revalidatePath()`) makes no second set of them, such as a second
+     * database pool (`sourceChanges()` in `@goodfellow-cms/core`).
+     */
+    async sourceChanges(since: Record<string, string> = {}): Promise<{
+      collections: string[];
+      paths: string[];
+      next: Record<string, string>;
+      failed: string[];
+    }> {
+      return changesInSources(await site(), sources(), since);
     },
 
     /** Every page's address, so Next.js builds them all. Any other address is "not found". */

@@ -202,6 +202,29 @@ describe("goodfellowPages with collections' sources", () => {
     expect(await live.generateStaticParams()).toContainEqual({ path: ["news", "from-the-database"] });
   });
 
+  it("says what changed in the sources its pages read, making no second set of them", async () => {
+    const asked: string[] = [];
+    const make = vi.fn(
+      (): CollectionSource => ({
+        items: async () => [welcome],
+        changed: async (since) => {
+          asked.push(since);
+          return { slugs: ["from-the-database"], next: "after" };
+        },
+      }),
+    );
+    const sourced = goodfellowPages(config, { root, sources: { news: make } });
+    await sourced.generateStaticParams();
+    const first = await sourced.sourceChanges();
+    expect(first.collections).toEqual(["news"]);
+    expect(first.paths).toContain("/news/from-the-database");
+    expect(first.next).toEqual({ news: "after" });
+    expect((await sourced.sourceChanges(first.next)).failed).toEqual([]);
+    expect(asked).toEqual(["", "after"]);
+    // One source, which the pages and the changes share.
+    expect(make).toHaveBeenCalledOnce();
+  });
+
   it("refuses a config naming a source the site's code didn't give", () => {
     expect(() => goodfellowPages(config, { root })).toThrow(/lib\/news\.ts/);
   });

@@ -13,6 +13,7 @@ import {
   type SourcedItem,
   sourceChanges,
   sourcedItemsFor,
+  takesAnyAddress,
   withSourcedCollections,
 } from "./collection-sources.js";
 import { ContentError, type ContentProblem } from "./errors.js";
@@ -421,6 +422,47 @@ describe("keptCollectionSources", () => {
     expect(make).toHaveBeenCalledTimes(4);
     expect(() => keptCollectionSources(config, {})).toThrow(CollectionSourceError);
   });
+
+  it("closes the source it made before, once it makes another in its place, and only then", async () => {
+    const closed: string[] = [];
+    const made = (name: string): CollectionSource => ({
+      items: async () => [],
+      close: () => {
+        closed.push(name);
+      },
+    });
+    const config = { jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } };
+    const first = { default: () => made("first") };
+    keptCollectionSources(config, { jobs: first });
+    keptCollectionSources(config, { jobs: first });
+    await Promise.resolve();
+    expect(closed).toEqual([]);
+    // The module changed, as when its file is edited: a new pool in place of the one before.
+    keptCollectionSources(config, { jobs: { default: () => made("second") } });
+    // New options, which make it again too.
+    keptCollectionSources(
+      { jobs: { ...config.jobs, options: { table: "roles" } } },
+      { jobs: { default: () => made("third") } },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closed).toEqual(["first", "second"]);
+    // One that fails to close is only warned about.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const failing = {
+        default: (): CollectionSource => ({
+          items: async () => [],
+          close: () => Promise.reject(new Error("Pool gone.")),
+        }),
+      };
+      keptCollectionSources(config, { jobs: failing });
+      keptCollectionSources(config, { jobs: { default: () => made("fifth") } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(warn).toHaveBeenCalledWith("source:jobs couldn't be closed: Pool gone.");
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe("sourceChanges", () => {
@@ -594,5 +636,24 @@ describe("readSources", () => {
     expect(Object.keys(read)).toEqual(["news"]);
     expect(failed).toEqual(["jobs"]);
     expect(errors).toEqual([new Error("Thrown at once.")]);
+  });
+
+  it("takes a source that gave something other than a list of items as failed, saying so", async () => {
+    for (const value of [undefined, { rows: [] }]) {
+      const jobs = { items: async () => value } as unknown as CollectionSource;
+      const { read, failed, errors } = await readSources({ jobs });
+      expect(read).toEqual({});
+      expect(failed).toEqual(["jobs"]);
+      expect(errors[0]).toBeInstanceOf(CollectionSourceError);
+      expect((errors[0] as Error).message).toBe('The source of the collection "jobs" didn\'t give a list of items.');
+    }
+  });
+});
+
+describe("takesAnyAddress", () => {
+  it("is a pattern of only the item's name, which every address of one part matches", () => {
+    expect(takesAnyAddress({ path: "/{slug}" })).toBe(true);
+    expect(takesAnyAddress({ path: "{slug}/" })).toBe(true);
+    for (const path of ["/jobs/{slug}", "/{slug}/apply", undefined, "/"]) expect(takesAnyAddress({ path })).toBe(false);
   });
 });

@@ -73,14 +73,30 @@ import {
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 export { NEXT_SITE_FILES, nextSiteFiles } from "./site-files.js";
 
+const loaded = new Map<string, Promise<SiteContent>>();
+
 /**
- * The site as an export shows it: from its files, with its collections'
- * sources read in where its config names any (`loadCollectionSources()`), and
- * without what its schedules hide.
+ * The site as it's loaded for an export: from its files, with its collections'
+ * sources read in where its config names any (`loadCollectionSources()`).
+ * Loaded once a process for each site, as its sources are read once, so the
+ * steps of `goodfellow-next finish` all show the same site, and a source's
+ * warnings are given once; one that fails to load is loaded again by the next
+ * step.
  */
-async function exportedSite(root: string): Promise<SiteContent> {
+function loadedSite(root: string): Promise<SiteContent> {
   const dir = resolve(root);
-  return shownContent(await loadSourcedContent(builtSiteSource(dir), loadCollectionSources(dir)));
+  let site = loaded.get(dir);
+  if (!site) {
+    site = loadSourcedContent(builtSiteSource(dir), loadCollectionSources(dir));
+    loaded.set(dir, site);
+    site.catch(() => loaded.delete(dir));
+  }
+  return site;
+}
+
+/** The site as an export shows it (`loadedSite()`), without what its schedules hide. */
+async function exportedSite(root: string): Promise<SiteContent> {
+  return shownContent(await loadedSite(root));
 }
 
 /**
@@ -301,7 +317,7 @@ export async function writeFontFiles(outDir: string, root = process.cwd()): Prom
 export async function writeBuildRecordFile(outDir: string, root = process.cwd()): Promise<string | undefined> {
   const dir = resolve(root);
   // With sourced items' schedules, which say when the site next changes, as the export's own pages had them.
-  const content = await loadSourcedContent(builtSiteSource(dir), loadCollectionSources(dir));
+  const content = await loadedSite(dir);
   const date = await reportedDate(join(await nextDistDir(dir), BUILD_DATES_DIR));
   const record = await writeBuildRecord(outDir, { root: dir, content, now: new Date(), ...(date && { date }) });
   return record.currentUntil;

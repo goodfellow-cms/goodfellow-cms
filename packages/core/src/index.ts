@@ -385,6 +385,7 @@ export {
   sourceChanges,
   sourcedItemFile,
   sourcedItemsFor,
+  takesAnyAddress,
   withoutUnreadLinks,
   withSourcedCollections,
 } from "./content/collection-sources.js";

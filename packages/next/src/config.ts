@@ -351,9 +351,12 @@ export function redirectDestination(to: string): string {
  * and the build reports the problem.
  */
 async function siteRedirects(root: string): Promise<Redirects> {
-  const { sourcedCollectionIds } = await import("./plugins.js");
-  // A config that can't be loaded here is the build's to report; its redirects are read without it.
-  const sourced = await sourcedCollectionIds(root).catch((): string[] => []);
+  const { configNamesCollections, sourcedCollectionIds } = await import("./plugins.js");
+  // A config that can't be loaded here is the build's to report; its redirects are read without it. One whose text
+  // never says `collections` names no sources, so it isn't bundled to find out.
+  const sourced = (await configNamesCollections(root))
+    ? await sourcedCollectionIds(root).catch((): string[] => [])
+    : [];
   const content = await loadSiteContent(builtSiteSource(root), { sourced }).then(shownContent, () => undefined);
   if (!content?.redirects) return [];
   const taken = new Set(allPages(content).map((page) => page.path));

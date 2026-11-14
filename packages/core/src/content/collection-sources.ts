@@ -9,7 +9,7 @@ import { type Collection, cleanEntryValues, type Entry, sortCollectionEntries } 
 import type { ContentProblem } from "./errors.js";
 import { entryLanguage, entryPathIn, isOtherLanguage, languagePattern, siteLanguages } from "./languages.js";
 import { allPages, type ContentSource, loadSiteContent, parseEntryFile, type SiteContent } from "./load.js";
-import { isAddressSegment, isReservedPagePath, matchesAddressPattern } from "./paths.js";
+import { isAddressSegment, isReservedPagePath, matchesAddressPattern, SLUG_PLACEHOLDER } from "./paths.js";
 import type { CollectionFile, EntryFile } from "./schemas.js";
 
 /**
@@ -44,6 +44,12 @@ export interface CollectionSource {
    * rendered again for some other reason, such as a publish or their age.
    */
   changed?(since: string): Promise<SourceChanges>;
+  /**
+   * Lets go of what the source holds, such as a database pool, once a
+   * development server has made another in its place (`keptCollectionSources()`)
+   * because its module or options changed. Sources that hold nothing leave it out.
+   */
+  close?(): void | Promise<void>;
 }
 
 /** Plain JSON, as the config's options for a source are. They're public, since the config loads in the browser too. */
@@ -78,7 +84,10 @@ export type CollectionSources = Record<string, CollectionSource>;
 /** What a site's code gives for a source's module: its default export, or the module itself as `import * as` gives it. */
 export type SourceModuleImport = CollectionSourceModule | { default: CollectionSourceModule };
 
-/** Why a site's sources can't be made: a collection whose source the server wasn't given. */
+/**
+ * Why a site's sources can't be made, such as a collection whose source the server wasn't given, or read, such as a
+ * source whose `items()` gave something other than a list.
+ */
 export class CollectionSourceError extends Error {
   override name = "CollectionSourceError";
 }
@@ -149,12 +158,26 @@ export function collectionSources(
 
 const kept = new WeakMap<object, Map<string, { options: string; source: CollectionSource }>>();
 
+/** The source `keptCollectionSources()` gives each collection now, by its id, to close once it's made again. */
+const current = new Map<string, CollectionSource>();
+
+/** Closes a source made again in its place (`CollectionSource.close()`), saying so where it can't. */
+function closeReplaced(id: string, source: CollectionSource): void {
+  Promise.resolve()
+    .then(() => source.close?.())
+    .catch((error: unknown) => {
+      console.warn(`source:${id} couldn't be closed: ${error instanceof Error ? error.message : String(error)}`);
+    });
+}
+
 /**
  * `collectionSources()` for development servers, which load the site again on
  * every request: each source is made once for the same module and options, so
  * a source that opens a database pool as it's made opens one, not one each
  * request. A changed module (a new module object) or new options make it again,
- * keeping only the latest for each collection, so the one before can be let go.
+ * keeping only the latest for each collection, and close the one before
+ * (`CollectionSource.close()`), so its pool doesn't stay open. Kept by
+ * collection id, for one site: a development server serves one.
  */
 export function keptCollectionSources(
   collections: Record<string, CollectionSourceConfig> | undefined,
@@ -176,6 +199,9 @@ export function keptCollectionSources(
       latest = { options, source: madeSource(id, config, modules) };
       made.set(id, latest);
     }
+    const before = current.get(id);
+    if (before && before !== latest.source) closeReplaced(id, before);
+    current.set(id, latest.source);
     sources[id] = latest.source;
   }
   return sources;
@@ -349,7 +375,11 @@ export async function readSources(
   const errors: unknown[] = [];
   asking.forEach(([id], index) => {
     const answer = answers[index] as PromiseSettledResult<SourcedItem[]>;
-    if (answer.status === "fulfilled") {
+    // A source that gave something other than a list, such as one that forgot to return its items, failed, saying so.
+    if (answer.status === "fulfilled" && !Array.isArray(answer.value)) {
+      failed.push(id);
+      errors.push(new CollectionSourceError(`The source of the collection "${id}" didn't give a list of items.`));
+    } else if (answer.status === "fulfilled") {
       const items = answer.value;
       lastRead.set(sources[id] as CollectionSource, items);
       read[id] = { items: async () => items };
@@ -509,6 +539,18 @@ export async function sourceChanges(
     }
   }
   return { collections, paths: [...paths].sort(), next, failed };
+}
+
+/**
+ * Whether a collection's address pattern is only its item's name (`/{slug}`),
+ * which every address of one part matches: the admin panel doesn't refuse new
+ * pages there for its items' sake (`useMayBeItem()`), since that would refuse
+ * almost every page, and where an item has a page's address, the page wins
+ * and the item is left out, saying so (`withSourcedCollections()`).
+ */
+export function takesAnyAddress(settings: Pick<CollectionFile, "path">): boolean {
+  const parts = (settings.path ?? "").split("/").filter((part) => part !== "");
+  return parts.length > 0 && parts.every((part) => part === SLUG_PLACEHOLDER);
 }
 
 /**

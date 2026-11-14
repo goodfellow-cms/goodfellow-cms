@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cloudflareSiteHeaders, editorPolicy, startsWithGuard } from "@goodfellow-cms/core";
 import sharp from "sharp";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   blockPageRender,
   buildFileFolders,
@@ -231,8 +231,9 @@ describe("collections' sources in an export", () => {
       );
       await file(
         "lib/jobs.ts",
-        'const reads = globalThis as { jobsReads?: number };\nexport default (options: { title: string }) => ({ items: async () => { reads.jobsReads = (reads.jobsReads ?? 0) + 1; return [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }, { slug: "later", fields: { title: "Later", posted: "2026-11-02" }, showFrom: "2031-03-04T05:06" }]; } });\n',
+        'const reads = globalThis as { jobsReads?: number };\nexport default (options: { title: string }) => ({ items: async () => { reads.jobsReads = (reads.jobsReads ?? 0) + 1; return [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }, { slug: "later", fields: { title: "Later", posted: "2026-11-02" }, showFrom: "2031-03-04T05:06" }, { slug: "?", fields: { title: "Bad" } }]; } });\n',
       );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       expect(await writeFeedFiles(out, site)).toBe(2);
       expect(await readFile(join(out, "feeds/jobs.rss"), "utf8")).toContain("https://example.org/jobs/welder/");
       // The item's exported page is checked, as the source's.
@@ -248,8 +249,10 @@ describe("collections' sources in an export", () => {
       expect(JSON.parse(await readFile(join(out, "goodfellow-build.json"), "utf8")).currentUntil).toContain(
         "2031-03-04",
       );
-      // Every step showed the items of one read of the source, which may change while they're written.
+      // Every step showed the items of one read of the source, which may change while they're written, and its item
+      // with a name that can't be used was warned about once.
       expect((globalThis as { jobsReads?: number }).jobsReads).toBe(1);
+      expect(warn.mock.calls.filter(([text]) => String(text).startsWith("source:jobs/?"))).toHaveLength(1);
       // `next dev` reads the sources on every request, keeping each while its code is the same, so a source that opens
       // a database pool as it's made opens one.
       const first = await readCollectionSources(site);
@@ -266,6 +269,7 @@ describe("collections' sources in an export", () => {
       expect((await readCollectionSources(other)).jobs).not.toBe(changed.jobs);
       expect((await readCollectionSources(site)).jobs).toBe(changed.jobs);
     } finally {
+      vi.restoreAllMocks();
       await rm(site, { recursive: true, force: true });
       if (other) await rm(other, { recursive: true, force: true });
     }

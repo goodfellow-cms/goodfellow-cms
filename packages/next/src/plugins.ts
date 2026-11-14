@@ -208,6 +208,17 @@ export async function readCollectionSources(root: string): Promise<CollectionSou
   return loadSourceModules(dir, collections, (path) => loadKeptSiteModule(dir, path));
 }
 
+/**
+ * Whether the site's config could name collections' sources, read from its
+ * text: a config that never says `collections`, however it's written, names
+ * none, so steps that only need to know which collections are sourced, such
+ * as `next build`'s and `next dev`'s redirects, don't bundle it to find out.
+ */
+export async function configNamesCollections(root: string): Promise<boolean> {
+  const file = findConfigFile(resolve(root));
+  return Boolean(file && /\bcollections\b/.test(await readFile(file, "utf8")));
+}
+
 const sourcedIds = new Map<string, Promise<string[]>>();
 
 /**

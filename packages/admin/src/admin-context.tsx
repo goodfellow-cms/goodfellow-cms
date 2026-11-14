@@ -48,6 +48,7 @@ import {
   type SiteEditors,
   type SiteUpdates,
   type SourcedItem,
+  takesAnyAddress,
   upcomingChanges,
   writeChanges,
 } from "@goodfellow-cms/core";
@@ -1240,7 +1241,8 @@ export function shownPaths(shown: SiteContent | undefined): string[] {
  * The name of a collection whose items the admin panel can't read
  * (`unreadCollections`) that could have a page at `path`, if any: a new or
  * moved page or item there is refused, since the site would show only one of
- * them, and nobody could tell which until it's built.
+ * them, and nobody could tell which until it's built. A collection whose
+ * pattern is only its item's name refuses nothing (`takesAnyAddress()`).
  */
 export function useMayBeItem(): (path: string | undefined) => string | undefined {
   const { state, unreadCollections } = useAdmin();
@@ -1249,7 +1251,10 @@ export function useMayBeItem(): (path: string | undefined) => string | undefined
     (path) => {
       if (!content || !path || unreadCollections.size === 0) return undefined;
       const collection = content.collections.find(
-        (one) => unreadCollections.has(one.id) && mayBeUnreadPage(content, new Set([one.id]), path),
+        (one) =>
+          unreadCollections.has(one.id) &&
+          !takesAnyAddress(one.settings) &&
+          mayBeUnreadPage(content, new Set([one.id]), path),
       );
       return collection?.settings.name;
     },

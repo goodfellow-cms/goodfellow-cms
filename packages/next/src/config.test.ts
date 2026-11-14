@@ -212,6 +212,29 @@ describe("withGoodfellow", () => {
     }
   });
 
+  it("reads redirects without loading a config that names no collections", async () => {
+    const site = await mkdtemp(join(tmpdir(), "goodfellow-next-plain-"));
+    const write = async (path: string, text: string) => {
+      await mkdir(join(site, path, ".."), { recursive: true });
+      await writeFile(join(site, path), text);
+    };
+    const seen = globalThis as { plainConfigLoaded?: boolean };
+    try {
+      await write("content/site.json", '{"version":1}\n');
+      await write(
+        "goodfellow.config.tsx",
+        "(globalThis as { plainConfigLoaded?: boolean }).plainConfigLoaded = true;\nexport default { blocks: {} };\n",
+      );
+      await write("content/redirects.json", JSON.stringify({ version: 1, redirects: [{ from: "/old", to: "/" }] }));
+      const config = await withGoodfellow({}, { root: site })("phase-production-build");
+      expect(await config.redirects?.()).toEqual([{ source: "/old", destination: "/", permanent: true }]);
+      expect(seen.plainConfigLoaded).toBeUndefined();
+    } finally {
+      delete seen.plainConfigLoaded;
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+
   it("writes redirects' targets so Next.js never reads them as patterns", () => {
     expect(redirectDestination(" https://example.org:8443/a/:b(c)*?q=:d#e:f ")).toBe(
       "https://example.org:8443/a/%3Ab%28c%29%2A?q=:d#e%3Af",
