@@ -205,18 +205,32 @@ export async function readCollectionSources(root: string): Promise<CollectionSou
   const { collections } = (await loadKeptSiteModule(dir, configFile)).default as GoodfellowConfig;
   // Each module kept too, and made into a source once for the same modules, since `next dev` reads the sources again
   // on every request.
-  return loadSourceModules(dir, collections, (path) => loadKeptSiteModule(dir, path));
+  return loadSourceModules(dir, collections, (path) => loadSourceModule(dir, path));
 }
 
 /**
- * Whether the site's config could name collections' sources, read from its
- * text: a config that never says `collections`, however it's written, names
- * none, so steps that only need to know which collections are sourced, such
- * as `next build`'s and `next dev`'s redirects, don't bundle it to find out.
+ * One source's module: the site's own files bundled (`loadKeptSiteModule()`),
+ * and a package's export (`goodfellow-plugin-airtable/source`) imported by
+ * Node from the site's packages, as everything a bundle imports from packages
+ * is: a bundle of a package's name alone reads none of the site's files, so
+ * it would be bundled again on every request. Node keeps it once imported, so
+ * it's the same module, and the same source, every request.
  */
-export async function configNamesCollections(root: string): Promise<boolean> {
-  const file = findConfigFile(resolve(root));
-  return Boolean(file && /\bcollections\b/.test(await readFile(file, "utf8")));
+export async function loadSourceModule(
+  root: string,
+  path: string,
+  // Tests count the bundles it starts with their own.
+  bundle: typeof loadKeptSiteModule = loadKeptSiteModule,
+): Promise<Record<string, unknown>> {
+  if (isAbsolute(path) || path.startsWith("@/")) return bundle(root, path);
+  // A file in the site's own packages' folder, so Node finds the package from the site, named by the package's name.
+  const dir = join(root, "node_modules/.goodfellow");
+  const file = join(dir, `source-${createHash("sha256").update(path).digest("hex").slice(0, 16)}.mjs`);
+  if (!existsSync(file)) {
+    await mkdir(dir, { recursive: true });
+    await writeFile(file, `export * as module from ${JSON.stringify(path)};\n`);
+  }
+  return ((await import(pathToFileURL(file).href)) as { module: Record<string, unknown> }).module;
 }
 
 const sourcedIds = new Map<string, Promise<string[]>>();

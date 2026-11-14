@@ -987,6 +987,32 @@ describe("appApi", () => {
     expect(response.status).toBe(502);
     expect(await response.text()).not.toContain("ghp_secret");
     expect(errors).toHaveLength(1);
+    // A sourced collection's items read its settings from the repository, whose failure is the repository's, not
+    // the source's, which is never asked.
+    const items = vi.fn(async (): Promise<SourcedItem[]> => []);
+    const sourced = appApi({
+      git: {
+        revision: async () => {
+          throw new GitApiError(401, "GitHub answered 401: Bad credentials ghp_secret");
+        },
+        at: async () => {
+          throw new Error("unused");
+        },
+      },
+      authorize: () => ALICE,
+      signIn: "/",
+      onError: (error) => errors.push(error),
+      sources: { jobs: { items } },
+    });
+    const answer = await sourced(
+      new Request("https://parish.example/api/goodfellow/collections/jobs/items", {
+        headers: { [APP_API_HEADER]: "1", "sec-fetch-site": "same-origin" },
+      }),
+      "collections/jobs/items",
+    );
+    expect(answer.status).toBe(502);
+    expect(await answer.json()).toEqual({ error: "git", status: 401 });
+    expect(items).not.toHaveBeenCalled();
   });
 
   it("sends AI requests on only for the services the server has keys for", async () => {

@@ -407,6 +407,27 @@ describe("changing a site", () => {
     expect(refused.text).toContain("links to /gone");
   });
 
+  it("leaves pages' addresses to pages where a sourced collection's pattern is only its item's name", async () => {
+    const files = starterFiles();
+    files["content/collections/people/_collection.json"] = `${JSON.stringify(
+      {
+        version: 1,
+        name: "People",
+        entryName: "Person",
+        path: "/{slug}",
+        fields: [{ type: "text", label: "Name", name: "title" }],
+      },
+      null,
+      2,
+    )}\n`;
+    const { call } = await connect({
+      files,
+      description: { ...describeSite({ blocks }), collections: { people: { source: "./lib/people.ts" } } },
+    });
+    // A page wins over an item there, as in the admin panel, so the tools don't refuse every address of one part.
+    expect((await call("save_page", { address: "/visit", blocks: [] })).isError).toBe(false);
+  });
+
   it("checks items' values against their collection's fields", async () => {
     const { call } = await connect();
     expect((await call("save_item", { collection: "news", slug: "x", values: { colour: "red" } })).text).toContain(

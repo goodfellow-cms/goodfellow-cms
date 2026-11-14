@@ -460,6 +460,8 @@ describe("a site whose collection has a source", () => {
           'import { defineCollectionSource } from "@goodfellow-cms/core";',
           "export default defineCollectionSource<{ speaker: string }>((options) => ({",
           '  items: async () => [{ slug: "from-the-source", fields: { title: "From the source", speaker: options.speaker, given: "2026-11-01" } }],',
+          // A source holding a pool, which would keep the build running.
+          "  close: async () => { (globalThis as { talksClosed?: number }).talksClosed = 1; },",
           "}));",
           "",
         ].join("\n"),
@@ -488,6 +490,8 @@ describe("a site whose collection has a source", () => {
       const description = await readFile(join(out, "goodfellow-site.json"), "utf8");
       expect(JSON.parse(description).collections).toEqual({ talks: { source: "./lib/talks.ts" } });
       expect(description).not.toContain("Sourced Speaker");
+      // Closed once the build is done.
+      expect((globalThis as { talksClosed?: number }).talksClosed).toBe(1);
     } finally {
       await rm(site, { recursive: true, force: true });
     }

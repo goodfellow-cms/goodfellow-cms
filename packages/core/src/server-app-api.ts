@@ -367,29 +367,38 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
         if (!asked.success) throw new BadRequest("Send the collection's settings.");
         proposed = asked.data;
       }
+      // What the source's system answered stays on the server, as the repository's does.
+      const failed = (error: unknown) => {
+        onError(error);
+        return json(502, { error: "source" });
+      };
+      let source: CollectionSource | undefined;
       try {
         const sources = options.sources;
-        const source =
+        source =
           typeof sources === "function" ? sources(id) : sources && Object.hasOwn(sources, id) ? sources[id] : undefined;
-        if (!source) return json(404, { error: "not-found" });
+      } catch (error) {
+        return failed(error);
+      }
+      if (!source) return json(404, { error: "not-found" });
+      // The settings first, so a collection that isn't published asks its system nothing, and says so. Read outside
+      // the source's `try`, so the repository's failures are told apart as everywhere else (`git`, `git-sign-in`).
+      let settings = proposed;
+      if (!settings) {
+        const path = collectionSettingsFile(id);
+        const text = await (await reader(await options.git.revision())).read(path);
+        const parsed =
+          text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
+        if (!parsed?.ok) return json(404, { error: "not-found" });
+        settings = parsed.value;
+      }
+      try {
         // Only what the collection's fields name, from its settings as they're published now, so a row's other
         // columns never reach editors, and only items a file could hold, so one value JSON can't hold leaves out
         // only its item.
-        // The settings first, so a collection that isn't published asks its system nothing, and says so.
-        let settings = proposed;
-        if (!settings) {
-          const path = collectionSettingsFile(id);
-          const text = await (await reader(await options.git.revision())).read(path);
-          const parsed =
-            text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
-          if (!parsed?.ok) return json(404, { error: "not-found" });
-          settings = parsed.value;
-        }
         return json(200, { items: sourcedItemsFor(id, settings, await source.items()) });
       } catch (error) {
-        // What the source's system answered stays on the server, as the repository's does.
-        onError(error);
-        return json(502, { error: "source" });
+        return failed(error);
       }
     }
     if (get && endpoint === "file") {

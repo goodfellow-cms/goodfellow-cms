@@ -384,7 +384,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     const ids = sourcedOf(site);
     if (ids.length === 0) return;
     const [settings, collections] = await Promise.all([readSettings(source), collectionSettingsOf(source, ids)]);
-    const collection = collections.find((one) => mayBeUnreadPage({ settings, collections }, new Set([one.id]), path));
+    // Not for a collection whose pattern is only its item's name, where a page wins over an item, as in the admin panel.
+    const collection = collections.find((one) =>
+      mayBeUnreadPage({ settings, collections }, new Set([one.id]), path, { anyAddress: false }),
+    );
     if (collection) {
       throw new ToolError(
         `One of ${collection.settings.name}'s items could have ${path} as its address: they come from another system, which these tools can't read. Choose another address.`,

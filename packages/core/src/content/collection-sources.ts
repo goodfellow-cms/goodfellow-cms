@@ -178,6 +178,26 @@ function closeReplaced(id: string, source: CollectionSource): void {
 }
 
 /**
+ * Closes every one of `sources` (`CollectionSource.close()`), as a command does
+ * once it's done with them, such as `goodfellow build`: a source holding a
+ * database pool would otherwise keep the process from ending. A source that
+ * fails to close is only warned about, and none is given out again by
+ * `keptCollectionSources()`.
+ */
+export async function closeSources(sources: CollectionSources): Promise<void> {
+  await Promise.all(
+    Object.entries(sources).map(async ([id, source]) => {
+      closed.add(source);
+      try {
+        await source.close?.();
+      } catch (error) {
+        console.warn(`source:${id} couldn't be closed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }),
+  );
+}
+
+/**
  * `collectionSources()` for development servers, which load the site again on
  * every request: each source is made once for the same module and options, so
  * a source that opens a database pool as it's made opens one, not one each
@@ -203,13 +223,13 @@ export function keptCollectionSources(
       made = new Map();
       kept.set(module, made);
     }
-    let latest = made.get(id);
+    const key = `${site}\0${id}`;
+    let latest = made.get(key);
     // Made again for new options, and where the one kept was closed, as when the module changed and changed back.
     if (latest?.options !== options || closed.has(latest.source)) {
       latest = { options, source: madeSource(id, config, modules) };
-      made.set(id, latest);
+      made.set(key, latest);
     }
-    const key = `${site}\0${id}`;
     const before = current.get(key);
     if (before && before !== latest.source) closeReplaced(id, before);
     current.set(key, latest.source);
@@ -278,10 +298,19 @@ function checkedItem(
     };
   }
   const { slug: _, ...rest } = item;
+  // Only the collection's own fields from the first, so a row's other columns, such as a database's BigInt id or its
+  // dates, are never written out or checked: they couldn't refuse an item that has nothing wrong with its fields.
+  const names = new Set(settings.fields.map((field) => field.name));
+  // Anything but an object of fields is left as it is, for the check below to refuse.
+  const given = rest.fields;
+  const own =
+    given && typeof given === "object" && !Array.isArray(given)
+      ? Object.fromEntries(Object.entries(given).filter(([name]) => names.has(name)))
+      : given;
   let text: string;
   try {
     // As this release writes items, which is what a source gives: never migrated as though it were older.
-    text = JSON.stringify({ ...rest, version: CURRENT_VERSION.entry });
+    text = JSON.stringify({ ...rest, fields: own, version: CURRENT_VERSION.entry });
   } catch {
     // Such as a BigInt, or a value that holds itself, which a file couldn't either.
     return { ok: false, problem: { file, message: "has a value that can't be written as JSON." } };
@@ -289,13 +318,8 @@ function checkedItem(
   // Checked as an item's JSON file would be, so a Markdown collection's body is a field like any other here.
   const parsed = parseEntryFile({ ...settings, markdown: undefined }, file, text);
   if (!parsed.ok) return parsed;
-  // Only the collection's own fields, and in a group's rows only the group's, as a file is saved
-  // (`cleanEntryValues()`), so a row's other columns never reach pages or the admin panel.
-  const names = new Set(settings.fields.map((field) => field.name));
-  const fields = cleanEntryValues(
-    settings.fields,
-    Object.fromEntries(Object.entries(parsed.value.fields).filter(([name]) => names.has(name))),
-  );
+  // In a group's rows, only the group's own fields, as a file is saved (`cleanEntryValues()`).
+  const fields = cleanEntryValues(settings.fields, parsed.value.fields);
   return { ok: true, slug, file, value: { ...parsed.value, fields } };
 }
 
@@ -590,10 +614,17 @@ export function mayBeUnreadPage(
   content: Pick<SiteContent, "settings"> & { collections: readonly Pick<Collection, "id" | "settings">[] },
   unread: ReadonlySet<string>,
   target: string,
+  /**
+   * Whether a collection whose pattern is only its item's name (`takesAnyAddress()`) counts: where a page, or a
+   * redirect, at an address one of its items could have is refused, it doesn't, since every address of one part would
+   * be refused, and the page wins over the item.
+   */
+  { anyAddress = true }: { anyAddress?: boolean } = {},
 ): boolean {
   return content.collections.some(
     (collection) =>
       unread.has(collection.id) &&
+      (anyAddress || !takesAnyAddress(collection.settings)) &&
       siteLanguages(content.settings).some((language) => {
         const pattern = languagePattern(content.settings, collection.settings, language.code);
         return pattern !== undefined && matchesAddressPattern(pattern, target);

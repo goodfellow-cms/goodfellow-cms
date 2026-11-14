@@ -351,12 +351,13 @@ export function redirectDestination(to: string): string {
  * and the build reports the problem.
  */
 async function siteRedirects(root: string): Promise<Redirects> {
-  const { configNamesCollections, sourcedCollectionIds } = await import("./plugins.js");
-  // A config that can't be loaded here is the build's to report; its redirects are read without it. One whose text
-  // never says `collections` names no sources, so it isn't bundled to find out.
-  const sourced = (await configNamesCollections(root))
-    ? await sourcedCollectionIds(root).catch((): string[] => [])
-    : [];
+  const { sourcedCollectionIds } = await import("./plugins.js");
+  // The config is bundled to find its sources only where there are redirects to check against them.
+  // Item files a source replaces may not load; then the config is read to leave them out, as below.
+  const files = await loadSiteContent(builtSiteSource(root)).catch(() => undefined);
+  if (files && !files.redirects?.length) return [];
+  // A config that can't be loaded here is the build's to report; its redirects are read without it.
+  const sourced = await sourcedCollectionIds(root).catch((): string[] => []);
   const content = await loadSiteContent(builtSiteSource(root), { sourced }).then(shownContent, () => undefined);
   if (!content?.redirects) return [];
   const taken = new Set(allPages(content).map((page) => page.path));
@@ -364,7 +365,9 @@ async function siteRedirects(root: string): Promise<Redirects> {
   const problems = redirectProblems(content.redirects);
   return content.redirects.flatMap((redirect, index) => {
     const from = redirectFrom(redirect.from);
-    if (problems[index] || !from.ok || taken.has(from.path) || mayBeUnreadPage(content, unread, from.path)) return [];
+    // A collection whose pattern is only its item's name doesn't take every redirect of one part: the redirect wins.
+    const item = from.ok && mayBeUnreadPage(content, unread, from.path, { anyAddress: false });
+    if (problems[index] || !from.ok || taken.has(from.path) || item) return [];
     return [{ source: redirectSource(from.path), destination: redirectDestination(redirect.to), permanent: true }];
   });
 }

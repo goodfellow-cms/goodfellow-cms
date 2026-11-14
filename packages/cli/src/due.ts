@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import {
   type CollectionSources,
   type ContentSource,
+  closeSources,
   loadReadableSources,
   loadSiteContent,
   type SiteContent,
@@ -14,20 +14,21 @@ import { baseViteConfig, findConfigFile, loadCollectionSources, loadServerEntry 
  * How `goodfellow due` loads the site (`DueOptions.load`): as `goodfellow
  * build` does, with its collections' sources read in, so their items'
  * schedules come due, and the item files they replace, left in their folders,
- * don't. Where the config names no sources, the files alone, without starting
- * Vite. A source that can't be read here, as where the hourly check has none
+ * don't. The config is loaded whatever its text says, since it can name its
+ * collections in any way JavaScript allows; where it names no sources, the
+ * files alone. Where the site has no config, the files, without starting Vite.
+ * The sources are closed once read (`closeSources()`), so a database pool
+ * doesn't keep the check running. A source that can't be read here, as where the hourly check has none
  * of its secrets, leaves its collection's items out, saying so, rather than
  * fail every check.
  */
 export async function dueSite(root: string, files: ContentSource): Promise<SiteContent> {
-  // A config whose text never says `collections`, however it's written, names no sources.
   let configFile: string;
   try {
     configFile = findConfigFile(root);
   } catch {
     return loadSiteContent(files);
   }
-  if (!/\bcollections\b/.test(await readFile(configFile, "utf8"))) return loadSiteContent(files);
   const modules: ClientModules = new Map();
   const server = await createServer({
     ...baseViteConfig(root, configFile, modules),
@@ -46,10 +47,14 @@ export async function dueSite(root: string, files: ContentSource): Promise<SiteC
       warnUnread(sourced, [error]);
       return await loadSiteContent(files, { sourced });
     }
-    // Only the sources that can't be read are left out, so the others' schedules still come due.
-    const { content, failed, errors } = await loadReadableSources(files, sources);
-    if (failed.length > 0) warnUnread(failed, errors);
-    return content;
+    try {
+      // Only the sources that can't be read are left out, so the others' schedules still come due.
+      const { content, failed, errors } = await loadReadableSources(files, sources);
+      if (failed.length > 0) warnUnread(failed, errors);
+      return content;
+    } finally {
+      await closeSources(sources);
+    }
   } finally {
     await server.close();
   }

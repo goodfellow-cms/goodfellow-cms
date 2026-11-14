@@ -25,7 +25,13 @@ import {
   writeRedirectFiles,
 } from "./export.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
-import { loadCollectionSources, loadKeptSiteModule, loadSiteModule, readCollectionSources } from "./plugins.js";
+import {
+  loadCollectionSources,
+  loadKeptSiteModule,
+  loadSiteModule,
+  loadSourceModule,
+  readCollectionSources,
+} from "./plugins.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -270,6 +276,26 @@ describe("collections' sources in an export", () => {
       await cp(site, other, { recursive: true });
       expect((await readCollectionSources(other)).jobs).not.toBe(changed.jobs);
       expect((await readCollectionSources(site)).jobs).toBe(changed.jobs);
+      // A source named by a package's export is imported from the site's packages, the same module every request.
+      await file(
+        "node_modules/goodfellow-plugin-talks/package.json",
+        JSON.stringify({ name: "goodfellow-plugin-talks", type: "module", exports: { "./source": "./source.js" } }),
+      );
+      await file(
+        "node_modules/goodfellow-plugin-talks/source.js",
+        'export default () => ({ items: async () => [{ slug: "keynote", fields: { title: "Keynote" } }] });\n',
+      );
+      const talks = await loadSourceModule(site, "goodfellow-plugin-talks/source");
+      expect(await (talks.default as () => { items: () => Promise<unknown[]> })().items()).toEqual([
+        { slug: "keynote", fields: { title: "Keynote" } },
+      ]);
+      expect(await loadSourceModule(site, "goodfellow-plugin-talks/source")).toBe(talks);
+      // Without bundling it, which would start again on every request, as nothing of the site's is in the bundle.
+      const bundle = vi.fn(loadKeptSiteModule);
+      await loadSourceModule(site, "goodfellow-plugin-talks/source", bundle);
+      expect(bundle).not.toHaveBeenCalled();
+      await loadSourceModule(site, join(site, "lib/jobs.ts"), bundle);
+      expect(bundle).toHaveBeenCalledOnce();
       // `goodfellow-next due` reads the source's items, schedules and all, and leaves out the file they replace.
       const due = await dueSite(builtSiteSource(site), site);
       expect(due.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toContain("later");

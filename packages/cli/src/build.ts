@@ -6,8 +6,10 @@ import {
   allPages,
   applyBasePath,
   CLOUDFLARE_REDIRECTS_PATH,
+  type CollectionSources,
   calendarFiles,
   checkSite,
+  closeSources,
   cloudflareRedirects,
   DEMO_CONTENT_PATH,
   demoContent,
@@ -15,6 +17,7 @@ import {
   feedFiles,
   framedPlugins,
   IMAGE_WIDTHS,
+  loadSourcedContent,
   MEDIA_DIR,
   membersPages,
   normalizeBase,
@@ -63,7 +66,7 @@ import { type ClientModules, ISLANDS_ENTRY, needReact } from "./islands.js";
 import { cssFiles, findEntry, type Manifest } from "./manifest.js";
 import { buildPluginFrame } from "./plugin-frames.js";
 import { preactAliases, preactIslands } from "./preact.js";
-import { baseViteConfig, findConfigFile, loadServerEntry, loadSourcedSite, writeStylesEntries } from "./site.js";
+import { baseViteConfig, findConfigFile, loadCollectionSources, loadServerEntry, writeStylesEntries } from "./site.js";
 
 export interface BuildOptions {
   /** The site's folder. Defaults to the current directory. */
@@ -202,6 +205,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
   });
 
   let stopPreact: (() => Promise<void>) | undefined;
+  let sources: CollectionSources | undefined;
   try {
     const { config, renderPage, describe, admin: adminSite, api } = await loadServerEntry(server);
     const base = normalizeBase(options.base ?? config.base);
@@ -223,11 +227,11 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const now = new Date();
     // Rendering pages reports when what they show by today's date changes, for the build record.
     resetDateChanges();
-    const loaded = await loadSourcedSite(
-      server,
-      root,
-      config,
+    // Made here, so they're closed once the build is done (`closeSources()`), or a source's pool keeps it running.
+    sources = config.collections ? await loadCollectionSources(server, root, config) : {};
+    const loaded = await loadSourcedContent(
       builtSiteSource(root, withConfiguredTrailingSlash(process.env, config.trailingSlash ?? true)),
+      sources,
     );
     const content = shownContent(loaded, now);
     const styles = await writeStylesEntries(root, config);
@@ -471,6 +475,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     };
   } finally {
     await stopPreact?.();
+    if (sources) await closeSources(sources);
     await server.close();
   }
 }

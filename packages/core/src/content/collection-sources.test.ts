@@ -3,6 +3,7 @@ import {
   type CollectionSource,
   CollectionSourceError,
   checkSourceModules,
+  closeSources,
   collectionSource,
   collectionSources,
   defineCollectionSource,
@@ -149,21 +150,23 @@ describe("withSourcedCollections", () => {
     expect(problems.map((problem) => problem.message)).toEqual([expect.stringContaining("reserved")]);
   });
 
-  it("leaves out an item whose values JSON can't hold, keeping the rest", async () => {
+  it("leaves out an item whose fields' values JSON can't hold, keeping the rest", async () => {
     const problems: ContentProblem[] = [];
-    const circular: Record<string, unknown> = { title: "Loops" };
+    const circular: Record<string, unknown> = {};
     circular.self = circular;
     const items = [
       { slug: "big", fields: { title: "Big", posted: 1n } },
-      { slug: "loops", fields: circular },
+      { slug: "loops", fields: { title: "Loops", about: circular } },
+      // A row's other columns, as a database gives them, aren't the collection's, so they can't refuse it.
+      { slug: "row", fields: { title: "From a row", id: 7n, created: new Date(0), self: circular } },
       welder,
     ] as unknown as SourcedItem[];
     const content = await withSourcedCollections(await site(), { jobs: jobsSource(items).source }, (problem) =>
       problems.push(problem),
     );
-    expect(content.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toEqual([
-      "welder",
-    ]);
+    const jobs = content.collections.find((one) => one.id === "jobs");
+    expect(jobs?.entries.map((entry) => entry.slug).sort()).toEqual(["row", "welder"]);
+    expect(jobs?.entries.find((entry) => entry.slug === "row")?.content.fields).toEqual({ title: "From a row" });
     expect(problems).toEqual([
       { file: "source:jobs/big", message: expect.stringContaining("JSON") },
       { file: "source:jobs/loops", message: expect.stringContaining("JSON") },
@@ -482,6 +485,11 @@ describe("keptCollectionSources", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(closed).toEqual([]);
     expect(keptCollectionSources(config, { jobs: one }, "/sites/one").jobs).toBe(first);
+    // The same module, as one package both sites import, still gives each site its own, with its own options.
+    const shared = keptCollectionSources(config, { jobs: one }, "/sites/three").jobs;
+    expect(shared).not.toBe(first);
+    expect(keptCollectionSources(config, { jobs: one }, "/sites/three").jobs).toBe(shared);
+    expect(keptCollectionSources(config, { jobs: one }, "/sites/one").jobs).toBe(first);
   });
 
   it("never gives out a source it closed, as when the module changes and changes back", () => {
@@ -502,6 +510,36 @@ describe("keptCollectionSources", () => {
     expect(made).toHaveLength(2);
     // And that one is kept while nothing changes.
     expect(keptCollectionSources(config, { jobs: module }).jobs).toBe(again);
+  });
+});
+
+describe("closeSources", () => {
+  it("closes every source, warning about one that fails, and never gives out one it closed", async () => {
+    const closed: string[] = [];
+    const module = {
+      default: (): CollectionSource => ({
+        items: async () => [],
+        close: async () => {
+          closed.push("jobs");
+        },
+      }),
+    };
+    const failing = {
+      default: (): CollectionSource => ({ items: async () => [], close: () => Promise.reject(new Error("Gone.")) }),
+    };
+    const config = { jobs: { source: "./lib/jobs.ts" }, news: { source: "./lib/news.ts" } };
+    const sources = keptCollectionSources(config, { jobs: module, news: failing }, "/sites/closing");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await closeSources(sources);
+      expect(closed).toEqual(["jobs"]);
+      expect(warn).toHaveBeenCalledWith("source:news couldn't be closed: Gone.");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(keptCollectionSources(config, { jobs: module, news: failing }, "/sites/closing").jobs).not.toBe(
+      sources.jobs,
+    );
   });
 });
 

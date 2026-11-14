@@ -48,7 +48,6 @@ import {
   type SiteEditors,
   type SiteUpdates,
   type SourcedItem,
-  takesAnyAddress,
   upcomingChanges,
   writeChanges,
 } from "@goodfellow-cms/core";
@@ -1252,9 +1251,7 @@ export function useMayBeItem(): (path: string | undefined) => string | undefined
       if (!content || !path || unreadCollections.size === 0) return undefined;
       const collection = content.collections.find(
         (one) =>
-          unreadCollections.has(one.id) &&
-          !takesAnyAddress(one.settings) &&
-          mayBeUnreadPage(content, new Set([one.id]), path),
+          unreadCollections.has(one.id) && mayBeUnreadPage(content, new Set([one.id]), path, { anyAddress: false }),
       );
       return collection?.settings.name;
     },

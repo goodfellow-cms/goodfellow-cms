@@ -212,23 +212,50 @@ describe("withGoodfellow", () => {
     }
   });
 
-  it("reads redirects without loading a config that names no collections", async () => {
+  it("loads the config only where there are redirects, finding its collections however it names them", async () => {
     const site = await mkdtemp(join(tmpdir(), "goodfellow-next-plain-"));
     const write = async (path: string, text: string) => {
       await mkdir(join(site, path, ".."), { recursive: true });
       await writeFile(join(site, path), text);
     };
     const seen = globalThis as { plainConfigLoaded?: boolean };
+    const collection = (name: string, path: string) =>
+      JSON.stringify({
+        version: 1,
+        name,
+        entryName: name,
+        path,
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      });
     try {
       await write("content/site.json", '{"version":1}\n');
+      // The collections from a module of the site's own, so the config's text never says the word.
       await write(
         "goodfellow.config.tsx",
-        "(globalThis as { plainConfigLoaded?: boolean }).plainConfigLoaded = true;\nexport default { blocks: {} };\n",
+        'import { shared } from "./lib/shared";\n(globalThis as { plainConfigLoaded?: boolean }).plainConfigLoaded = true;\nexport default { blocks: {}, ...shared };\n',
       );
-      await write("content/redirects.json", JSON.stringify({ version: 1, redirects: [{ from: "/old", to: "/" }] }));
+      await write(
+        "lib/shared.ts",
+        'export const shared = { collections: { jobs: { source: "./lib/jobs.ts" }, people: { source: "./lib/people.ts" } } };\n',
+      );
+      await write("content/collections/jobs/_collection.json", collection("Jobs", "/jobs/{slug}"));
+      // Only its item's name, which takes no redirect: a redirect wins over a page there.
+      await write("content/collections/people/_collection.json", collection("People", "/{slug}"));
       const config = await withGoodfellow({}, { root: site })("phase-production-build");
-      expect(await config.redirects?.()).toEqual([{ source: "/old", destination: "/", permanent: true }]);
+      expect(await config.redirects?.()).toEqual([]);
       expect(seen.plainConfigLoaded).toBeUndefined();
+      await write(
+        "content/redirects.json",
+        JSON.stringify({
+          version: 1,
+          redirects: [
+            { from: "/old", to: "/" },
+            { from: "/jobs/engineer", to: "/" },
+          ],
+        }),
+      );
+      expect(await config.redirects?.()).toEqual([{ source: "/old", destination: "/", permanent: true }]);
+      expect(seen.plainConfigLoaded).toBe(true);
     } finally {
       delete seen.plainConfigLoaded;
       await rm(site, { recursive: true, force: true });

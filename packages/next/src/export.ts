@@ -68,7 +68,6 @@ import { DIST_DIR_RECORD, IMAGE_SIZES_MARK, SITE_SERVING, type SiteServing } fro
 import {
   buildPluginFrames,
   configHasPlugins,
-  configNamesCollections,
   loadCollectionSources,
   loadSiteConfig,
   loadSiteFiles,
@@ -103,14 +102,14 @@ function loadedSite(root: string): Promise<SiteContent> {
 /**
  * How `goodfellow-next due` loads the site: as `goodfellow-next finish`
  * does, with its collections' sources read in, so their items' schedules come
- * due and the item files they replace don't. Where the config's text never
- * says `collections`, the files alone, without loading the config. A source
+ * due and the item files they replace don't. Where the config names no
+ * sources, the files alone. The config is loaded whatever its text says, since
+ * it can name its collections in any way JavaScript allows. A source
  * that can't be read here, as where the hourly check has none of its secrets,
  * leaves its collection's items out, saying so, rather than fail every check.
  */
 export async function dueSite(files: ContentSource, root = process.cwd()): Promise<SiteContent> {
   const dir = resolve(root);
-  if (!(await configNamesCollections(dir))) return loadSiteContent(files);
   const sourced = await sourcedCollectionIds(dir);
   if (sourced.length === 0) return loadSiteContent(files);
   let sources: CollectionSources;

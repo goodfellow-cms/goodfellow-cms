@@ -55,6 +55,37 @@ describe("goodfellow due's site", () => {
     }
   });
 
+  it("finds sources however the config names them, and closes them once read", async () => {
+    const site = await sourcedSite(
+      '[{ slug: "later", showFrom: "2031-03-04T05:06", fields: { title: "Later", speaker: "Someone", given: "2026-11-01" } }]',
+    );
+    // The collections from a module of the site's own, so the config's text never says the word.
+    const configFile = join(site, "goodfellow.config.tsx");
+    const config = (await readFile(configFile, "utf8"))
+      .replace(/\n {2}collections: .*\n/, "\n  ...shared,\n")
+      .replace(/^/, 'import { shared } from "./lib/shared";\n');
+    expect(config).not.toMatch(/\bcollections\b/);
+    await writeFile(configFile, config);
+    await writeFile(
+      join(site, "lib/shared.ts"),
+      'export const shared = { collections: { talks: { source: "./lib/talks.ts" }, news: { source: "./lib/news.ts" } } };\n',
+    );
+    // A source holding a pool, which would keep the check running.
+    await writeFile(
+      join(site, "lib/news.ts"),
+      "const closed = globalThis as { newsClosed?: number };\nexport default () => ({ items: async () => [], close: async () => { closed.newsClosed = (closed.newsClosed ?? 0) + 1; } });\n",
+    );
+    try {
+      const content = await dueSite(site, builtSiteSource(site));
+      expect(content.collections.find((one) => one.id === "talks")?.entries.map((entry) => entry.slug)).toEqual([
+        "later",
+      ]);
+      expect((globalThis as { newsClosed?: number }).newsClosed).toBe(1);
+    } finally {
+      await rm(site, { recursive: true, force: true });
+    }
+  });
+
   it("leaves out the items of a source it can't read, saying so, keeping the others' schedules", async () => {
     const site = await sourcedSite(
       'Promise.reject(new Error("No database here."))',
