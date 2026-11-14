@@ -144,7 +144,7 @@ The two secrets need no command line. Either add them to the code repository on 
 
 Try it with Stripe's test cards, then do the same in live mode, with the live key, webhook secret, and price. In `npm run dev`, put the test key and the secret `stripe listen --forward-to localhost:4321/api/stripe/webhook/` prints in `.dev.vars`.
 
-What test cards buy on the site online stays in its database once it has the live key, since Stripe's live mode says nothing of test mode's purchases: something bought once keeps giving what it bought, and a subscription lasts to the end of its period. Try test mode in `npm run dev` where you can; on the site online, refund every test payment and cancel every test subscription in Stripe's test mode while the site still has the test key, so its webhook takes them away, before giving it the live key.
+What test cards buy on the site online stays in its database once it has the live key, since Stripe's live mode says nothing of test mode's purchases: something bought once keeps giving what it bought, and a subscription lasts to the end of its period. Try test mode in `npm run dev` where you can; on the site online, refund every test payment and cancel every test subscription in Stripe's test mode while the site still has the test key, so its webhook takes them away, then check that each of those events was delivered (**Developers → Webhooks**, the destination's **Event deliveries**) and that **Subscribers** shows none of those readers subscribed, before giving it the live key.
 
 ## Rendering
 
