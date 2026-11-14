@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, COMPANY_TOTP_SECRET } from "../scripts/site.mjs";
-import { editor } from "./helpers.js";
+import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, COMPANY_TOTP_SECRET, companySite } from "../scripts/site.mjs";
+import { editor, tailwindScans } from "./helpers.js";
 
 // The company example, built into a Cloudflare Worker with vinext and served in workerd with a local D1 database,
 // as Cloudflare would: the full-stack contract `next-server.spec.ts` checks on Node, here on Workers, with the
@@ -57,6 +57,12 @@ test.beforeEach(async () => {
   await fetch(`${GITHUB}/__reset`, { method: "POST" });
 });
 
+test("keeps Tailwind to the copy's own files, never the packages its node_modules links to", async () => {
+  const files = await tailwindScans(companySite, "app/site.css");
+  expect(files.filter((file) => /[\\/]node_modules[\\/]/.test(file))).toEqual([]);
+  expect(files.some((file) => file.endsWith("goodfellow.config.tsx"))).toBe(true);
+});
+
 test("renders each page once from the content repository, then serves it without rendering", async ({ request }) => {
   const asked = async () => ((await (await fetch(`${GITHUB}/__requests`)).json()) as { requests: number }).requests;
   for (const address of ["/", "/about/", "/news/", "/news/welcome/"]) {
@@ -83,6 +89,20 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   });
   expect(madeUp.status()).toBe(307);
 
+  // The header's Sign in comes back to the page it was pressed on, its query and fragment too.
+  await page.goto(`${SITE}/about/?from=letter#team`);
+  const header = page.getByRole("banner");
+  await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    "href",
+    "/sign-in/?next=%2Fabout%2F%3Ffrom%3Dletter%23team",
+  );
+  await expect(header.getByRole("link", { name: "Your account" })).toHaveCount(0);
+  // After moving to another page through the menu, which keeps the header as it is, it comes back to that one.
+  await header.getByRole("link", { name: "News", exact: true }).click();
+  await expect(page).toHaveURL(`${SITE}/news/`);
+  await header.getByRole("link", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fnews%2F`);
+
   await page.goto(`${SITE}/members/`);
   await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fmembers%2F`);
   await page.getByLabel("Email address").fill(COMPANY_PEOPLE.editor.email);
@@ -95,9 +115,13 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   await expect(page).toHaveURL(`${SITE}/members/`);
   // The page is the same for everyone; the browser fills in who's here.
   await expect(page.getByText(`Signed in as ${COMPANY_PEOPLE.editor.name}.`)).toBeVisible();
+  // Once signed in, the header has their account and Sign out instead.
+  await expect(header.getByRole("link", { name: "Your account" })).toHaveAttribute("href", "/account/");
+  await expect(header.getByRole("link", { name: "Sign in" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("main").getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(`${SITE}/`);
+  await expect(header.getByRole("link", { name: "Sign in" })).toBeVisible();
   await page.goto(`${SITE}/members/`);
   await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fmembers%2F`);
 });
@@ -363,7 +387,7 @@ test("sells subscriptions through Stripe Checkout, and ends them when Stripe say
 
   // Someone not signed in is asked to first, and comes back to the Subscribe page.
   await page.goto(`${SITE}/handbook/`);
-  await page.getByRole("link", { name: "Subscribe", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Subscribe", exact: true }).click();
   await expect(page).toHaveURL(`${SITE}/subscribe/`);
   await page.getByRole("button", { name: "Subscribe for a month at a time" }).click();
   await expect(page).toHaveURL(new RegExp(`^${SITE}/sign-in/\\?next=`));

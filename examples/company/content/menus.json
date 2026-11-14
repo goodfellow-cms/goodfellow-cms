@@ -19,6 +19,14 @@
       {
         "href": "/news",
         "label": "News"
+      },
+      {
+        "href": "/handbook",
+        "label": "Handbook"
+      },
+      {
+        "href": "/subscribe",
+        "label": "Subscribe"
       }
     ]
   }
