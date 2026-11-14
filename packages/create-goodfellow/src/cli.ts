@@ -37,6 +37,7 @@ import {
   type TemplateName,
 } from "./scaffold.js";
 import { type Choice, select } from "./select.js";
+import { createServerSite, isInteractive } from "./server-cli.js";
 
 const HELP = `Creates a new Goodfellow site.
 
@@ -64,6 +65,11 @@ Options:
                       Plugins screen would. Give it once for each plugin
   --wordpress <from>  Brings a WordPress site's pages, posts, menus, and media into the new site,
                       from its export file (Tools → Export) or its address
+  --server cloudflare A full-stack site, whose editors sign in with the site's own accounts, on a
+                      Cloudflare Worker with a D1 database. Its code and content are kept in GitHub
+                      repositories of their own (--github and --content), and it offers to put the
+                      site online with wrangler
+  --url <address>     With --server: the site's address, such as https://www.example.org
   --no-install        Don't run npm install
   --no-git            Don't make the site a git repository, or commit it
   -y, --yes           Don't ask anything: use the options given, and defaults for the rest
@@ -158,6 +164,8 @@ async function main(): Promise<void> {
       admin: { type: "string" },
       broker: { type: "string" },
       "broker-domain": { type: "string" },
+      server: { type: "string" },
+      url: { type: "string" },
       "no-git": { type: "boolean" },
       "no-install": { type: "boolean" },
       yes: { type: "boolean", short: "y" },
@@ -166,6 +174,32 @@ async function main(): Promise<void> {
   });
   if (values.help) {
     stdout.write(HELP);
+    return;
+  }
+
+  if (values.server !== undefined) {
+    if (values.template !== undefined || values.host !== undefined || values.wordpress !== undefined) {
+      throw new ScaffoldError("--server makes a site of its own kind: leave out --template, --host, and --wordpress.");
+    }
+    await createServerSite(
+      {
+        server: values.server,
+        folder: positionals[0],
+        github: values.github,
+        content: values.content,
+        url: values.url,
+        otherHost: values.gitlab ?? values.bitbucket,
+        install: !values["no-install"],
+        git: !values["no-git"],
+        interactive: isInteractive(values.yes),
+      },
+      {
+        ask,
+        say: (text) => stdout.write(`${text}\n`),
+        templatesDir,
+        versions: JSON.parse(readFileSync(join(templatesDir, "versions.json"), "utf8")) as Record<string, string>,
+      },
+    );
     return;
   }
 

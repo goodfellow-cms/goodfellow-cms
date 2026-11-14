@@ -44,6 +44,10 @@ describe("planServerSite", () => {
     expect(pkg.name).toBe("acme-works");
     expect(pkg.scripts.deploy).toContain("apply acme-works --remote");
     expect(pkg.dependencies["@goodfellow-cms/core"]).toBe("^1.2.3");
+    // The README's steps still say where the placeholders were, and its first section what's there now.
+    const readme = text("README.md");
+    expect(readme).toContain("in place of `your-name/your-site-content`");
+    expect(readme).toContain("**acme/site-content**");
     // Nothing of the example's own names is left, but where the README says what was put in their place.
     for (const [path, file] of files) {
       if (path === "README.md" || typeof file !== "string") continue;

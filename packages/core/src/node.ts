@@ -1,3 +1,4 @@
+export { cmdArgument, commandToRun } from "./node-command.js";
 export {
   type AdminAddressResult,
   AdminSetupError,
