@@ -19,6 +19,8 @@ export interface FakePrice {
   interval?: { unit: string; count: number };
   /** `metered` for a recurring price charged by use, which Stripe sells with no quantity. */
   usage?: "licensed" | "metered";
+  /** A price in tiers, by how many are bought, which has no amount of its own. */
+  tiered?: boolean;
 }
 
 interface FakeSession {
@@ -161,7 +163,9 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     active: price.active,
     type: price.type,
     product: price.product,
-    unit_amount: price.amount === undefined ? 1000 : price.amount,
+    unit_amount: price.tiered ? null : price.amount === undefined ? 1000 : price.amount,
+    billing_scheme: price.tiered ? "tiered" : "per_unit",
+    custom_unit_amount: !price.tiered && price.amount === null ? { maximum: null, minimum: null, preset: null } : null,
     currency: "usd",
     nickname: price.nickname ?? null,
     recurring:

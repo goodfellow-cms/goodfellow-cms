@@ -126,14 +126,35 @@ describe("a Buy button's place", () => {
     expect(placeFrom(form({ page: "/subscribe", block: "BuyButton-1" }), "/about").page).toBe("/subscribe");
   });
 
+  it("is never on another site, however its address is spelled, so Checkout and the portal never send people there", () => {
+    for (const page of [
+      "//elsewhere.example",
+      "/\\elsewhere.example",
+      "/.//elsewhere.example",
+      "https://elsewhere.example/",
+    ]) {
+      expect(() => placeFrom(form({ page, block: "BuyButton-1" }))).toThrow(PaymentsError);
+      // Nor where the browser says it came from one, as a layout's button has it.
+      expect(() => placeFrom(form({ page: "", block: "BuyButton-1" }), page)).toThrow(PaymentsError);
+    }
+    // A path of this site's is read as a browser reads it.
+    expect(placeFrom(form({ page: "/a/../subscribe", block: "BuyButton-1" })).page).toBe("/subscribe");
+  });
+
   it("comes back to the page a block added, where the button is on the page it's added to", () => {
     expect(placeFrom(form({ page: "/events", back: "/events/2026-12", block: "BuyButton-1" }))).toEqual({
       page: "/events",
       back: "/events/2026-12",
       block: "BuyButton-1",
     });
-    // Only one of the site's paths, and only where it's another page.
-    for (const back of ["//elsewhere.example", "https://elsewhere.example/", "/events"]) {
+    // Only one of the site's paths, however another site's address is spelled, and only where it's another page.
+    for (const back of [
+      "//elsewhere.example",
+      "/\\elsewhere.example",
+      "/.//elsewhere.example",
+      "https://elsewhere.example/",
+      "/events",
+    ]) {
       expect(placeFrom(form({ page: "/events", back, block: "BuyButton-1" }))).not.toHaveProperty("back");
     }
   });
@@ -1195,21 +1216,46 @@ describe("what Stripe and the site's accounts can come to", () => {
     }
   });
 
-  it("asks to try again where the other price's Checkout can't be expired, as once it's paid meanwhile", async () => {
-    const { stripe, buying, checkout, reader, close } = await payments();
+  it("goes on where the other price's Checkout finished between finding it and expiring it", async () => {
+    const { stripe, buying, checkout, customer, readerId, reader, close } = await payments();
     try {
+      // Paid for meanwhile: Stripe won't expire it, and the person now subscribes, so they go to the portal.
       await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
-      const refusing = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input instanceof Request ? input.url : input);
-        if (url.endsWith("/expire")) {
-          return Response.json({ error: { type: "invalid_request_error", message: "Not open." } }, { status: 400 });
-        }
-        return stripe.fetch(input, init);
-      }) as typeof fetch);
-      await expect(checkout(buying(reader, { page: "/subscribe", block: "yearly" }), refusing)).rejects.toMatchObject({
-        status: 409,
+      const [first] = [...stripe.sessions.values()];
+      /** Stripe's client, with the open Checkout finished (`finish`) just before it's asked to expire it. */
+      const finishing = (finish: (id: string) => void) =>
+        stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input instanceof Request ? input.url : input);
+          const id = /checkout\/sessions\/([^/]+)\/expire$/.exec(url)?.[1];
+          if (id) finish(id);
+          return stripe.fetch(input, init);
+        }) as typeof fetch);
+      const paid = finishing((id) => {
+        stripe.pay(id);
       });
-      expect(stripe.sessions.size).toBe(1);
+      expect(await checkout(buying(reader, { page: "/subscribe", block: "yearly" }), paid)).toBe(
+        `${STRIPE}/portal/${await customer(readerId)}`,
+      );
+      expect(first?.status).toBe("complete");
+      // Expired on its own meanwhile: nothing was bought, so the price chosen now goes to Checkout.
+      const second = await payments();
+      try {
+        await second.checkout(second.buying(second.reader, { page: "/subscribe", block: "monthly" }));
+        const [stale] = [...second.stripe.sessions.values()];
+        const expired = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input instanceof Request ? input.url : input);
+          if (url.endsWith("/expire") && stale) stale.status = "expired";
+          return second.stripe.fetch(input, init);
+        }) as typeof fetch);
+        const address = await second.checkout(
+          second.buying(second.reader, { page: "/subscribe", block: "yearly" }),
+          expired,
+        );
+        expect(address).toMatch(/\/checkout\//);
+        expect([...second.stripe.sessions.values()].at(-1)?.price).toBe(YEARLY.id);
+      } finally {
+        second.close();
+      }
     } finally {
       close();
     }
@@ -1770,7 +1816,7 @@ describe("payments' routes", () => {
     expect(page.status).toBe(409);
     expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
     const html = await page.text();
-    expect(html).toContain("Your payment is &#60;already&#62; starting.");
+    expect(html).toContain("Your payment is &lt;already&gt; starting.");
     expect(html).toContain('<a href="/subscribe/">');
     // Back to the home page from anywhere else.
     for (const referer of ["https://elsewhere.example/page", undefined]) {

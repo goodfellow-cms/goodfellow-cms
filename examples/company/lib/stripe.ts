@@ -5,6 +5,7 @@
 // event can only make the site ask Stripe again.
 import Stripe from "stripe";
 import { claimRow, type SiteAuth } from "./auth.ts";
+import { escapeHtml } from "./email.ts";
 import { type EntitlementAdapter, grant, subscribedUntil } from "./entitlements.ts";
 import type { SiteEnv } from "./env.ts";
 import type { Reader } from "./paywall.ts";
@@ -37,11 +38,6 @@ export class PaymentsError extends Error {
   ) {
     super(message);
   }
-}
-
-/** `text` written so HTML shows it as it is, in an element or an attribute's quotes. */
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
 }
 
 /**
@@ -137,9 +133,16 @@ export interface Button {
  */
 export type FindButton = (place: ButtonPlace, reader: Reader) => Promise<Button | undefined>;
 
-/** Whether `value` is one of this site's paths, as a Buy button's form gives one. */
-function isPagePath(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && value.length <= 500;
+/** What a payments route says of a Buy button it can't find, however the request names it. */
+const NOT_ON_PAGE = "That button isn't on any of this site's pages.";
+
+/**
+ * `value` as one of this site's paths, as a Buy button's form gives one, read as a browser reads it (`sitePath()`), so
+ * no spelling of another site's address (`//other.example`, `/\other.example`) gets through; otherwise nothing.
+ */
+function pagePathOf(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.startsWith("/") || value.length > 500) return undefined;
+  return sitePath(value, "") || undefined;
 }
 
 /**
@@ -149,14 +152,13 @@ function isPagePath(value: unknown): value is string {
  */
 export function placeFrom(form: FormData, shownAt?: string): ButtonPlace {
   const named = form.get("page");
-  const page = named === "" && shownAt ? shownAt : named;
+  const page = pagePathOf(named === "" && shownAt ? shownAt : named);
   const block = form.get("block");
-  if (!isPagePath(page)) throw new PaymentsError(400, "That button isn't on any of this site's pages.");
-  if (typeof block !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(block)) {
-    throw new PaymentsError(400, "That button isn't on any of this site's pages.");
+  if (!page || typeof block !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(block)) {
+    throw new PaymentsError(400, NOT_ON_PAGE);
   }
-  const back = form.get("back");
-  return { page, block, ...(isPagePath(back) && back !== page && { back }) };
+  const back = pagePathOf(form.get("back"));
+  return { page, block, ...(back && back !== page && { back }) };
 }
 
 /** The path of the page on this site a request came from, if its browser said and it's this site's. */
@@ -201,7 +203,7 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   if (!siteUrl) throw new PaymentsError(503, "This site doesn't take payments yet.");
   // Anything but a form, as a Buy button posts, is the sender's mistake, not the site's.
   const form = await request.formData().catch(() => {
-    throw new PaymentsError(400, "That button isn't on any of this site's pages.");
+    throw new PaymentsError(400, NOT_ON_PAGE);
   });
   const place = placeFrom(form, refererPath(request, siteUrl));
   // Where to come back to, and to go on to after signing in: the page pressed on.
@@ -215,7 +217,7 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   // As the page shows it to them: someone who isn't a member sees a members-only page's teaser, and only its buttons.
   const member = (await subscribedUntil(options.adapter, session.user.id)) !== undefined;
   const button = await findButton(place, member ? "members" : "everyone");
-  if (!button) throw new PaymentsError(404, "That button isn't on any of this site's pages.");
+  if (!button) throw new PaymentsError(404, NOT_ON_PAGE);
   // A price Stripe doesn't have isn't on sale; any other failure, such as a key without the permission, is the site's.
   const price = await orMissing(stripe.prices.retrieve(button.price));
   if (!price?.active) throw new PaymentsError(409, "This isn't on sale at the moment.");
@@ -272,7 +274,11 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
           return (await stripe.billingPortal.sessions.create({ customer, return_url: page })).url;
         }
         const open = await openCheckout(stripe, customer, product, price.id);
-        if (open) return open;
+        if (open.url) return open.url;
+        // One for another price finished between being found and being expired: paid for, they now subscribe.
+        if (open.finished && (await subscribed(stripe, customer, product))) {
+          return (await stripe.billingPortal.sessions.create({ customer, return_url: page })).url;
+        }
         // Renewed just before starting one: a press that took longer than the lock to look, so another may have
         // started one meanwhile, stops here rather than start a second.
         await fence();
@@ -331,8 +337,9 @@ async function openCheckout(
   customer: string,
   product: string,
   price: string,
-): Promise<string | undefined> {
+): Promise<{ url?: string; finished: boolean }> {
   let found: string | undefined;
+  let finished = false;
   const others: string[] = [];
   try {
     for await (const session of stripe.checkout.sessions.list({ customer, status: "open", limit: 100 })) {
@@ -344,15 +351,15 @@ async function openCheckout(
     if (!isMissing(error, "customer")) throw error;
   }
   for (const id of others) {
-    // One paid for or expired meanwhile can't be expired, which Stripe refuses as a bad request: the next press finds
-    // the subscription it made, if any. Anything else, such as Stripe being down or a key without the permission, is
-    // the site's, and passed on.
+    // One paid for or expired meanwhile can't be expired, which Stripe refuses as a bad request: it's no longer open,
+    // so the press goes on, and `finished` says to look again for the subscription it may have made. Anything else,
+    // such as Stripe being down or a key without the permission, is the site's, and passed on.
     await stripe.checkout.sessions.expire(id).catch((error: unknown) => {
       if (!(error instanceof Stripe.errors.StripeInvalidRequestError)) throw error;
-      throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
+      finished = true;
     });
   }
-  return found;
+  return { ...(found && { url: found }), finished };
 }
 
 /** Stripe's id of whatever's in `value`: the id itself, or an object Stripe expanded. */

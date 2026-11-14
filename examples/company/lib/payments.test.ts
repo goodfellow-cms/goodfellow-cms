@@ -6,7 +6,8 @@ import { priceNote } from "../blocks/buy-button.tsx";
 import { MEMBER_ROLE } from "./auth.ts";
 import { buttonsOn } from "./buttons.ts";
 import type { SiteEnv } from "./env.ts";
-import { checkPrices, paymentsOverview } from "./payments.ts";
+import { checkPrices, PRICE_CHECKS_AT_ONCE, paymentsOverview } from "./payments.ts";
+import { checkWords } from "./price-words.ts";
 import { stripeFor } from "./stripe.ts";
 import { SITE_ENV, testSite } from "./testing/site.ts";
 import { fakeStripe } from "./testing/stripe.ts";
@@ -70,6 +71,34 @@ describe("the Payments page", () => {
     expect(buttonsOn(await content()).map((one) => one.price)).toEqual([""]);
   });
 
+  it("asks Stripe about no more prices at once than its limit allows, however many the site has", async () => {
+    const prices = Array.from({ length: 25 }, (_, index) => ({
+      id: `price_${index}`,
+      product: "prod_members",
+      type: "recurring" as const,
+    }));
+    const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices });
+    let asking = 0;
+    let most = 0;
+    const counting = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      asking++;
+      most = Math.max(most, asking);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return await stripe.fetch(input, init);
+      } finally {
+        asking--;
+      }
+    }) as typeof fetch;
+    const checks = await checkPrices(
+      stripeFor(PAYMENTS_ENV, counting),
+      prices.map((price) => price.id),
+    );
+    expect([...checks.values()].every((check) => check.state === "on-sale")).toBe(true);
+    expect(checks.size).toBe(25);
+    expect(most).toBe(PRICE_CHECKS_AT_ONCE);
+  });
+
   it("says what Stripe says of each price: on sale and for how much, or what's wrong with it", async () => {
     const stripe = fakeStripe({
       key: "rk_test_only",
@@ -80,6 +109,8 @@ describe("the Payments page", () => {
         { id: "price_report", product: "prod_report", type: "one_time", amount: 2500 },
         { id: "price_old", product: "prod_report", type: "one_time", active: false },
         { id: "price_used", product: "prod_api", type: "recurring", usage: "metered" },
+        { id: "price_tiers", product: "prod_seats", type: "recurring", tiered: true },
+        { id: "price_gift", product: "prod_gift", type: "one_time", amount: null },
       ],
     });
     const client = stripeFor(PAYMENTS_ENV, stripe.fetch);
@@ -89,6 +120,8 @@ describe("the Payments page", () => {
       "price_report",
       "price_old",
       "price_used",
+      "price_tiers",
+      "price_gift",
       "price_typo",
       "prod_members",
       "",
@@ -113,10 +146,24 @@ describe("the Payments page", () => {
       price_report: { state: "on-sale", subscription: false, amount: 2500, currency: "usd" },
       price_old: { state: "not-on-sale" },
       price_used: { state: "metered" },
+      price_tiers: {
+        state: "on-sale",
+        subscription: true,
+        amount: null,
+        pricing: "tiered",
+        currency: "usd",
+        interval: { every: 1, unit: "month" },
+      },
+      price_gift: { state: "on-sale", subscription: false, amount: null, pricing: "chosen", currency: "usd" },
       price_typo: { state: "missing" },
       prod_members: { state: "not-a-price" },
       "": { state: "not-a-price" },
     });
+    // The page says which way a price without an amount of its own is set.
+    expect(checkWords(checks.get("price_tiers")).words).toBe(
+      "A subscription, priced in tiers, by how many are bought a month.",
+    );
+    expect(checkWords(checks.get("price_gift")).words).toBe("Bought once, an amount the buyer chooses.");
     // A key Stripe refuses is the site's to fix, not the price's.
     stripe.settings.forbidden = true;
     expect(Object.fromEntries(await checkPrices(client, ["price_monthly"]))).toEqual({

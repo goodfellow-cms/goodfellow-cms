@@ -19,6 +19,8 @@ export type PriceCheck =
       subscription: boolean;
       /** In the currency's smallest unit, as Stripe gives it, or `null` for a price that isn't a fixed amount. */
       amount: number | null;
+      /** For a price that isn't a fixed amount, how it's set: in tiers, by how many are bought, or by the buyer. */
+      pricing?: "tiered" | "chosen";
       currency: string;
       /** How often a subscription's price repeats, such as `month`, and every how many of them. */
       interval?: { every: number; unit: string };
@@ -45,12 +47,21 @@ export interface PaymentsOverview {
   buttons: (ListedButton & { check?: PriceCheck })[];
 }
 
+/** How many prices are asked about at once, well within Stripe's limit on requests a second. */
+export const PRICE_CHECKS_AT_ONCE = 10;
+
 /** What Stripe says of each of `prices`, asked once each. */
 export async function checkPrices(stripe: Stripe, prices: Iterable<string>): Promise<Map<string, PriceCheck>> {
   const ids = [...new Set(prices)];
-  // Every price at once, so the page waits for the slowest rather than all of them in turn.
-  const checked = await Promise.all(ids.map((id) => checkPrice(stripe, id)));
-  return new Map(ids.map((id, index) => [id, checked[index] as PriceCheck]));
+  const checks = new Map<string, PriceCheck>();
+  // `PRICE_CHECKS_AT_ONCE` at a time, so the page waits for the slowest of each batch rather than every price in
+  // turn, and a site with many prices doesn't ask Stripe more than its limit allows.
+  for (let start = 0; start < ids.length; start += PRICE_CHECKS_AT_ONCE) {
+    const batch = ids.slice(start, start + PRICE_CHECKS_AT_ONCE);
+    const checked = await Promise.all(batch.map((id) => checkPrice(stripe, id)));
+    batch.forEach((id, index) => checks.set(id, checked[index] as PriceCheck));
+  }
+  return checks;
 }
 
 /** What Stripe says of one price. */
@@ -64,6 +75,9 @@ async function checkPrice(stripe: Stripe, id: string): Promise<PriceCheck> {
       state: "on-sale",
       subscription: price.type === "recurring",
       amount: price.unit_amount,
+      ...(price.unit_amount === null && {
+        pricing: price.billing_scheme === "tiered" ? ("tiered" as const) : ("chosen" as const),
+      }),
       currency: price.currency,
       ...(price.recurring && { interval: { every: price.recurring.interval_count, unit: price.recurring.interval } }),
       ...(price.nickname && { name: price.nickname }),
@@ -81,8 +95,8 @@ async function checkPrice(stripe: Stripe, id: string): Promise<PriceCheck> {
 
 /**
  * The Payments page's overview, for an owner: the site's settings for payments, and every Buy button on the site as
- * visitors see it (`content`, read only once the person is known to be an owner), each with what Stripe says of its price where the site has Stripe's key. Stripe's client is
- * the site's own (`stripeFor()`) unless `stripe` is given.
+ * visitors see it (`content`, read only once the person is known to be an owner), each with what Stripe says of its
+ * price where the site has Stripe's key. Stripe's client is the site's own (`stripeFor()`) unless `stripe` is given.
  */
 export async function paymentsOverview(
   siteAuth: SiteAuth,

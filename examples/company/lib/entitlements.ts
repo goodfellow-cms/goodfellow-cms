@@ -1,7 +1,7 @@
 // What each person is entitled to: a subscription, which the site's paywall asks for, or something bought once, such
 // as a download. Payments decide when someone becomes entitled (Stripe's, in lib/stripe.ts), and admins can give a
-// subscription by hand (lib/subscribers.ts); this is the only file that reads the table. It's a Better Auth model, so it's read through Better Auth's own adapter, which is the
-// same on D1, Postgres, and the tests' SQLite.
+// subscription by hand (lib/subscribers.ts); this is the only file that reads the table. It's a Better Auth model,
+// so it's read through Better Auth's own adapter, which is the same on D1, Postgres, and the tests' SQLite.
 import type { BetterAuthPlugin, Where } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 
