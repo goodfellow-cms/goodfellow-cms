@@ -5,6 +5,7 @@ import type { SiteEnv } from "./env.ts";
 import {
   accountCustomer,
   applySession,
+  applySubscription,
   type ButtonPlace,
   billingAddress,
   CHECKOUT_LOCK_SECONDS,
@@ -1305,6 +1306,223 @@ describe("what Stripe and the site's accounts can come to", () => {
       await deliver(stripe.dispute(lost?.payment_intent ?? ""));
       await deliver(stripe.closeDispute(lost?.payment_intent ?? "", "lost"));
       expect(await can(context.adapter, readerId, REPORT.product)).toBe(false);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe("a subscription's payments", () => {
+  it("take the subscription away while the period's payment is refunded or disputed, and give it back once it isn't", async () => {
+    const { stripe, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = bought?.subscription ?? "";
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // Its first payment refunded, by either of the events Stripe sends, takes it away...
+      for (const type of ["charge.refunded", "refund.created"] as const) {
+        expect((await deliver(stripe.refund(stripe.paymentOf(subscription), undefined, type))).status).toBe(200);
+        expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+        // ...until the refund fails, which gives it back.
+        expect((await deliver(stripe.failRefund(stripe.paymentOf(subscription)))).status).toBe(200);
+        expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      }
+      // A dispute takes it away while it's open or lost, and a renewal paid for gives it again.
+      expect((await deliver(stripe.dispute(stripe.paymentOf(subscription)))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+      const disputed = stripe.paymentOf(subscription);
+      expect((await deliver(stripe.closeDispute(disputed, "lost"))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+      expect((await deliver(stripe.renew(subscription))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+      // An earlier period's payment refunded now leaves the period paid for as it is.
+      expect((await deliver(stripe.refund(disputed))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("never take away the row a request that took the lock over wrote, from one that stalled after its fence", async () => {
+    const { stripe, client, buy, deliver, context, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = stripe.subscriptions.get(bought?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      // Writing the subscription stalls right after its fence, before taking away the row it replaces...
+      const slow = pausingWrites(context.adapter, "deleteMany");
+      const coming = applySubscription(slow.adapter, client, subscription.id);
+      await slow.paused;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (STRIPE_LOCK_SECONDS + 1) * 1000);
+      // ...past its lock's time, while a renewal's event takes the lock over and writes the subscription.
+      expect((await deliver(stripe.renew(subscription.id))).status).toBe(200);
+      slow.release();
+      // The stalled write leaves the renewal's row alone, fails on it, and takes back only its own: there's none.
+      await expect(coming).rejects.toMatchObject({ name: "StripeBusy" });
+      expect(await subscribedUntil(context.adapter, readerId)).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("move to the account the subscription names now", async () => {
+    const { stripe, buy, deliver, context, person, readerId, close } = await payments();
+    try {
+      const bought = await buy("monthly");
+      const subscription = stripe.subscriptions.get(bought?.subscription ?? "");
+      if (!subscription) throw new Error("No subscription.");
+      const otherId = await person("otto@example.org", MEMBER_ROLE);
+      subscription.metadata = { ...subscription.metadata, userId: otherId };
+      expect((await deliver(stripe.event("customer.subscription.updated", subscription))).status).toBe(200);
+      expect(await subscribedUntil(context.adapter, otherId)).toBeDefined();
+      expect(await subscribedUntil(context.adapter, readerId)).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+});
+
+describe("what Stripe refuses", () => {
+  it("is a customer another Checkout is making at that moment: that one's, or try again while it's coming", async () => {
+    const { stripe, context, readerId, close } = await payments();
+    try {
+      const user = { id: readerId, email: "rita@example.org" };
+      // The other Checkout keeps its customer while this one's request gets Stripe's conflict...
+      const meanwhile = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (init?.method === "POST" && url.endsWith("/v1/customers")) {
+          await context.adapter.updateMany({
+            model: "user",
+            where: [{ field: "id", value: readerId }],
+            update: { stripeCustomerId: "cus_other" },
+          });
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      stripe.settings.customerConflict = 1;
+      expect(await accountCustomer(context.adapter, meanwhile, user)).toBe("cus_other");
+      // ...and where it hasn't kept one yet, this one asks to try again.
+      await context.adapter.updateMany({
+        model: "user",
+        where: [{ field: "id", value: readerId }],
+        update: { stripeCustomerId: null },
+      });
+      stripe.settings.customerConflict = 1;
+      await expect(accountCustomer(context.adapter, stripeFor(PAYMENTS_ENV, stripe.fetch), user)).rejects.toMatchObject(
+        { status: 409 },
+      );
+    } finally {
+      close();
+    }
+  });
+
+  it("starting a Checkout is passed on, even where the press's lock ran out meanwhile", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      let creating = () => {};
+      const created = new Promise<void>((resolve) => {
+        creating = resolve;
+      });
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const failing = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (init?.method === "POST" && url.endsWith("/v1/checkout/sessions")) {
+          creating();
+          await released;
+          return Response.json(
+            { error: { type: "invalid_request_error", message: "The key doesn't have that permission." } },
+            { status: 403 },
+          );
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      // A press stalls while Stripe refuses to make its Checkout, until another press has taken its lock over.
+      const pressed = checkout(buying(reader, { page: "/subscribe", block: "monthly" }), failing);
+      await created;
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(Date.now() + (CHECKOUT_LOCK_SECONDS + 1) * 1000);
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      release();
+      // What went wrong is Stripe's refusal, not another press.
+      await expect(pressed).rejects.toMatchObject({ type: "StripePermissionError" });
+    } finally {
+      vi.useRealTimers();
+      close();
+    }
+  });
+
+  it("expiring another price's Checkout, other than as one that isn't open, is passed on", async () => {
+    const { stripe, buying, checkout, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const refusing = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.endsWith("/expire")) {
+          return Response.json(
+            { error: { type: "invalid_request_error", message: "The key doesn't have that permission." } },
+            { status: 403 },
+          );
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      await expect(checkout(buying(reader, { page: "/subscribe", block: "yearly" }), refusing)).rejects.toMatchObject({
+        type: "StripePermissionError",
+      });
+    } finally {
+      close();
+    }
+  });
+
+  it("reading a Checkout Session on the way back is passed on, unless Stripe doesn't have it", async () => {
+    const { auth, stripe, buying, checkout, context, reader, close } = await payments();
+    try {
+      await checkout(buying(reader, { page: "/subscribe", block: "monthly" }));
+      const session = [...stripe.sessions.values()][0];
+      const back = (id: string, through = stripeFor(PAYMENTS_ENV, stripe.fetch)) =>
+        returnFromCheckout(
+          new Request(`${SITE}/api/checkout/done/?next=%2Fsubscribe&session_id=${id}`, {
+            headers: { cookie: reader ?? "" },
+          }),
+          { siteAuth: auth, stripe: through, adapter: context.adapter },
+        );
+      // One Stripe doesn't have goes on to the page...
+      expect(await back("cs_test_none")).toBe("/subscribe");
+      // ...and any other failure is the route's to log.
+      const refusing = stripeFor(PAYMENTS_ENV, (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.includes("/v1/checkout/sessions/cs_")) {
+          return Response.json(
+            { error: { type: "invalid_request_error", message: "The key doesn't have that permission." } },
+            { status: 403 },
+          );
+        }
+        return stripe.fetch(input, init);
+      }) as typeof fetch);
+      await expect(back(session?.id ?? "", refusing)).rejects.toMatchObject({ type: "StripePermissionError" });
+    } finally {
+      close();
+    }
+  });
+
+  it("nothing where the site has no key yet: the webhook says payments aren't set up, for Stripe to try again", async () => {
+    const { context, close } = await payments();
+    try {
+      const { STRIPE_SECRET_KEY: _, ...withoutKey } = PAYMENTS_ENV;
+      const signed = signEvent("whsec_test_only", { id: "evt_test", object: "event", type: "ping", data: {} });
+      const answer = await webhookResponse(
+        new Request(`${SITE}/api/stripe/webhook/`, {
+          method: "POST",
+          headers: { "stripe-signature": signed.signature },
+          body: signed.body,
+        }),
+        { siteEnv: withoutKey, adapter: context.adapter },
+      );
+      expect(answer.status).toBe(503);
     } finally {
       close();
     }

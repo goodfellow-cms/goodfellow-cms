@@ -1,6 +1,7 @@
-// A stand-in for the parts of Stripe's API the site uses (lib/stripe.ts), for tests: prices, customers, Checkout Sessions and
-// their line items, payments and their charges and disputes, subscriptions, and customer portal sessions, kept in memory, with a checkout page that pays and
-// sends the site Stripe's events, signed as Stripe signs them. Never used by the site itself.
+// A stand-in for the parts of Stripe's API the site uses (lib/stripe.ts), for tests: prices, customers, Checkout
+// Sessions and their line items, payments and their charges and disputes, subscriptions and the invoices they're paid
+// by, and customer portal sessions, kept in memory, with a checkout page that pays and sends the site Stripe's events,
+// signed as Stripe signs them. Never used by the site itself.
 import { createHmac } from "node:crypto";
 
 /** A price the stand-in sells. */
@@ -10,6 +11,12 @@ export interface FakePrice {
   /** `recurring` for a subscription, `one_time` for something bought once. */
   type: "recurring" | "one_time";
   active?: boolean;
+  /** In cents, 1000 unless a test says otherwise, and `null` for a price the buyer chooses. */
+  amount?: number | null;
+  /** Its name in Stripe. */
+  nickname?: string;
+  /** How often a recurring price repeats: `month` unless a test says otherwise, every `count` of them. */
+  interval?: { unit: string; count: number };
 }
 
 interface FakeSession {
@@ -39,7 +46,18 @@ interface FakeSubscription {
   status: string;
   customer: string;
   metadata: Record<string, string>;
+  /** The invoice of the period it's in. */
+  latest_invoice: string | null;
   items: { object: "list"; data: { id: string; current_period_end: number; price: { id: string; product: string } }[] };
+}
+
+/** A subscription's invoice, and the payment that paid it. */
+interface FakeInvoice {
+  id: string;
+  object: "invoice";
+  parent: { type: "subscription_details"; subscription_details: { subscription: string } };
+  /** The payment that paid it, which the API gives as an invoice payment. */
+  payment_intent: string;
 }
 
 interface FakeCharge {
@@ -97,11 +115,15 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
   const madeWithKey = new Map<string, { id: string; object: "customer"; email: string | null; metadata: object }>();
   /** Each payment's disputes, by the payment's id. */
   const disputes = new Map<string, { id: string; object: "dispute"; payment_intent: string; status: string }[]>();
+  /** Subscriptions' invoices, by id. */
+  const invoices = new Map<string, FakeInvoice>();
   /**
    * `idempotency` off makes each request a new one whatever its idempotency key, as once the key's 24 hours have
-   * passed; `forbidden` refuses every request as a restricted key without the permission would be.
+   * passed; `forbidden` refuses every request as a restricted key without the permission would be; `customerConflict`
+   * answers that many requests to make a customer with Stripe's conflict, as one made with the same key at that
+   * moment is, telling the SDK not to retry, as it would once its retries ran out.
    */
-  const settings = { idempotency: true, forbidden: false };
+  const settings = { idempotency: true, forbidden: false, customerConflict: 0 };
   let count = 0;
   const next = (prefix: string) => `${prefix}_test${++count}`;
   const json = (value: unknown, status = 200) => Response.json(value, { status });
@@ -118,10 +140,41 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     active: price.active,
     type: price.type,
     product: price.product,
+    unit_amount: price.amount === undefined ? 1000 : price.amount,
+    currency: "usd",
+    nickname: price.nickname ?? null,
+    recurring:
+      price.type === "recurring"
+        ? { interval: price.interval?.unit ?? "month", interval_count: price.interval?.count ?? 1 }
+        : null,
   });
   const shownSession = (session: FakeSession) => {
     const { price: _, subscriptionMetadata: __, ...shown } = session;
     return shown;
+  };
+  /** A new payment and its charge, by the payment's id. */
+  const payment = () => {
+    const id = next("pi");
+    charges.set(id, {
+      id: next("ch"),
+      object: "charge",
+      amount: 1000,
+      amount_refunded: 0,
+      refunded: false,
+      disputed: false,
+    });
+    return id;
+  };
+  /** A subscription's new invoice, paid by a payment of its own. */
+  const invoiceFor = (subscription: string) => {
+    const invoice: FakeInvoice = {
+      id: next("in"),
+      object: "invoice",
+      parent: { type: "subscription_details", subscription_details: { subscription } },
+      payment_intent: payment(),
+    };
+    invoices.set(invoice.id, invoice);
+    return invoice;
   };
   const event = (type: string, object: unknown) => ({
     id: next("evt"),
@@ -210,6 +263,15 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
       return json(shownSession(session));
     }
     if (parts[1] === "customers" && !parts[2] && request.method === "POST") {
+      if (settings.customerConflict > 0) {
+        settings.customerConflict--;
+        return new Response(
+          JSON.stringify({
+            error: { type: "idempotency_error", message: "Another request with this key is in progress." },
+          }),
+          { status: 409, headers: { "content-type": "application/json", "stripe-should-retry": "false" } },
+        );
+      }
       const key = request.headers.get("idempotency-key");
       const earlier = key && settings.idempotency ? madeWithKey.get(key) : undefined;
       if (earlier) return json(earlier);
@@ -235,6 +297,30 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
           [...subscriptions.values()].filter(
             (one) => one.customer === customer && (!price || one.items.data.some((item) => item.price.id === price)),
           ),
+        ),
+      );
+    }
+    if (parts[1] === "invoices" && parts[2] && request.method === "GET") {
+      const invoice = invoices.get(parts[2]);
+      if (!invoice) return missing();
+      const { payment_intent: _, ...shown } = invoice;
+      return json(shown);
+    }
+    if (parts[1] === "invoice_payments" && !parts[2] && request.method === "GET") {
+      // By the invoice, or by the payment, as the request names them.
+      const [invoiceId, intent] = ["invoice", "payment[payment_intent]"].map((name) => url.searchParams.get(name));
+      const found = [...invoices.values()].filter(
+        (one) => (invoiceId === null || one.id === invoiceId) && (intent === null || one.payment_intent === intent),
+      );
+      return json(
+        list(
+          found.map((one) => ({
+            id: `inpay_${one.id}`,
+            object: "invoice_payment",
+            invoice: one.id,
+            status: "paid",
+            payment: { type: "payment_intent", payment_intent: one.payment_intent },
+          })),
         ),
       );
     }
@@ -266,6 +352,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
     prices,
     customers,
     disputes,
+    invoices,
     settings,
     /**
      * Pays a Checkout Session, as the customer would: one-off payments get a payment, subscriptions a subscription
@@ -288,6 +375,7 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
           status: "active",
           customer: session.customer ?? next("cus"),
           metadata: session.subscriptionMetadata,
+          latest_invoice: null,
           items: {
             object: "list",
             data: [
@@ -299,22 +387,32 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
             ],
           },
         };
+        subscription.latest_invoice = invoiceFor(subscription.id).id;
         subscriptions.set(subscription.id, subscription);
         session.subscription = subscription.id;
         events.push(event("customer.subscription.created", subscription));
       } else {
-        session.payment_intent = next("pi");
-        charges.set(session.payment_intent, {
-          id: next("ch"),
-          object: "charge",
-          amount: 1000,
-          amount_refunded: 0,
-          refunded: false,
-          disputed: false,
-        });
+        session.payment_intent = payment();
       }
       events.push(event("checkout.session.completed", shownSession(session)));
       return events;
+    },
+    /**
+     * Renews a subscription for another `days`, paid by a new invoice's payment, as Stripe does at the end of each
+     * period. Gives the event Stripe sends.
+     */
+    renew(subscriptionId: string, days = 30) {
+      const subscription = subscriptions.get(subscriptionId);
+      if (!subscription) throw new Error(`No subscription ${subscriptionId}.`);
+      subscription.latest_invoice = invoiceFor(subscription.id).id;
+      for (const item of subscription.items.data) item.current_period_end += days * 24 * 60 * 60;
+      return event("customer.subscription.updated", subscription);
+    },
+    /** The payment of a subscription's invoice for the period it's in. */
+    paymentOf(subscriptionId: string) {
+      const invoice = invoices.get(subscriptions.get(subscriptionId)?.latest_invoice ?? "");
+      if (!invoice) throw new Error(`No invoice of ${subscriptionId}.`);
+      return invoice.payment_intent;
     },
     /** Ends a subscription, as cancelling it in Stripe would. Gives the event Stripe sends. */
     cancel(subscriptionId: string) {

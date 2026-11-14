@@ -27,7 +27,7 @@ export const BuyButton: ComponentConfig<BuyButtonProps> = {
     label: { type: "text", label: "Button's words", contentEditable: true },
     price: {
       type: "text",
-      label: "Stripe price (only the site's owners can change it)",
+      label: "Stripe price ID: price_…, copied from the price in Stripe (only the site's owners can change it)",
       placeholder: "price_…",
       metadata: { owners: true },
     },
@@ -37,14 +37,31 @@ export const BuyButton: ComponentConfig<BuyButtonProps> = {
   render: (props) => <BuyButtonView {...props} id={String(props.id)} />,
 };
 
+/**
+ * What the editor says of a price that isn't a Stripe price's id, if anything: none at all, or something else, such as
+ * a product's id (`prod_…`) or the amount, which owners put there most often. Whether Stripe has a price with the id is
+ * for the server to ask, on the Payments page, since the editor has no key.
+ */
+export function priceNote(price: string): string | undefined {
+  if (PRICE_ID.test(price)) return undefined;
+  const where =
+    "In Stripe, open the product (Product catalog), then its price, and copy its ID, which starts with price_.";
+  if (!price.trim()) return `A site owner puts a Stripe price ID in this button's settings before it's shown. ${where}`;
+  if (price.trim().startsWith("prod_")) {
+    return `That's a product's ID, not a price's, so the button isn't shown on the site. ${where}`;
+  }
+  return `"${price}" isn't a Stripe price ID, so the button isn't shown on the site. ${where}`;
+}
+
 /** The form, or, without a price, a note in the editor and nothing on the site. */
 function BuyButtonView({ id, label, price, className }: BuyButtonProps & { id: string }) {
   const { path, base, adminLink } = useSite();
-  if (!PRICE_ID.test(price ?? "")) {
+  const note = priceNote(price ?? "");
+  if (note) {
     // Only the editor gives `adminLink`, so this shows there alone; on the site, the button isn't there.
     return adminLink ? (
       <p className={cx("rounded-md border border-dashed border-border p-4 text-muted-foreground", className)}>
-        A site owner chooses this button's Stripe price before it's shown on the site.
+        {note} Owners can check every button's price with Stripe on the Payments page, /admin/payments/.
       </p>
     ) : null;
   }

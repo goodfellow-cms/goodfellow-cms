@@ -194,6 +194,8 @@ export async function checkoutAddress(request: Request, options: CheckoutOptions
   } catch (error) {
     if (error instanceof StripeBusy) {
       if (error.takenOver && started) return started;
+      // Starting it failed, whoever holds the lock now: that's what went wrong, not another press.
+      if (error.takenOver && error.failure !== undefined) throw error.failure;
       throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
     }
     throw error;
@@ -252,8 +254,11 @@ async function openCheckout(
     if (!isMissing(error, "customer")) throw error;
   }
   for (const id of others) {
-    // One paid for or expired meanwhile can't be expired: the next press finds the subscription it made, if any.
-    await stripe.checkout.sessions.expire(id).catch(() => {
+    // One paid for or expired meanwhile can't be expired, which Stripe refuses as a bad request: the next press finds
+    // the subscription it made, if any. Anything else, such as Stripe being down or a key without the permission, is
+    // the site's, and passed on.
+    await stripe.checkout.sessions.expire(id).catch((error: unknown) => {
+      if (!(error instanceof Stripe.errors.StripeInvalidRequestError)) throw error;
       throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
     });
   }
@@ -309,11 +314,21 @@ export async function accountCustomer(
   if (kept) return kept;
   const address = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(user.email)));
   const hash = Array.from(address.subarray(0, 12), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  const made = await stripe.customers.create(
-    { email: user.email, metadata: { userId: user.id } },
-    // In place of a stale one, a key of its own, or Stripe would give back the customer the key first made.
-    { idempotencyKey: `customer:${user.id}:${hash}${stale ? `:${stale}` : ""}` },
-  );
+  let made: Stripe.Customer;
+  try {
+    made = await stripe.customers.create(
+      { email: user.email, metadata: { userId: user.id } },
+      // In place of a stale one, a key of its own, or Stripe would give back the customer the key first made.
+      { idempotencyKey: `customer:${user.id}:${hash}${stale ? `:${stale}` : ""}` },
+    );
+  } catch (error) {
+    // Another Checkout making the same customer at this moment, which Stripe answers with a conflict once the SDK's
+    // retries run out: that one keeps the customer, so this one uses it, or asks to try again while it's still coming.
+    if (!(error instanceof Stripe.errors.StripeError && error.statusCode === 409)) throw error;
+    const other = await customerOf(adapter, user.id);
+    if (other) return other;
+    throw new PaymentsError(409, "Your payment is already starting. Try again in a moment.");
+  }
   await rememberCustomer(adapter, user.id, made.id);
   return (await customerOf(adapter, user.id)) ?? made.id;
 }
@@ -366,9 +381,12 @@ export class StripeBusy extends Error {
    * taken back; otherwise the other request is writing it, and this one wrote nothing.
    */
   readonly takenOver: boolean;
-  constructor(message: string, takenOver = false) {
+  /** What writing threw, where it also found its lock taken over: the real failure, for a request that wrote nothing. */
+  readonly failure?: unknown;
+  constructor(message: string, takenOver = false, failure?: unknown) {
     super(message);
     this.takenOver = takenOver;
+    this.failure = failure;
   }
 }
 
@@ -442,7 +460,11 @@ async function withStripeLock<T>(
   // which only asks Stripe, keeps what it got.
   if ((await release()) === 0 && fenced) {
     await undo?.();
-    throw new StripeBusy("Another request took over writing what this gave while it wrote.", true);
+    throw new StripeBusy(
+      "Another request took over writing what this gave while it wrote.",
+      true,
+      "failure" in done ? done.failure : undefined,
+    );
   }
   if ("failure" in done) throw done.failure;
   return done.written;
@@ -456,8 +478,9 @@ type Fence = (undo?: () => Promise<void>) => Promise<void>;
 
 /**
  * Writes a Stripe subscription's state, as Stripe has it now, into the person's entitlements: until its current
- * period ends while it's active (or trialing), and none at all otherwise, nor where Stripe no longer has it. The person is the one
- * the site named when it made the Checkout Session, in the subscription's metadata, never anything the event says.
+ * period ends while it's active (or trialing) and that period's payment hasn't been taken back (`periodTakenBack()`),
+ * and none at all otherwise, nor where Stripe no longer has it. The person is the one the site named when it made the
+ * Checkout Session, in the subscription's metadata, never anything the event says.
  */
 export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subscriptionId: string): Promise<void> {
   return withStripeLock(adapter, `subscription:${subscriptionId}`, async (fence) => {
@@ -477,29 +500,66 @@ export function applySubscription(adapter: PaymentsAdapter, stripe: Stripe, subs
     // An account deleted since took its entitlements with it, and writing one for it would fail on every retry.
     if (!userId || !(await stillHere(adapter, userId))) return;
     const reference = subscriptionReference(subscription.id);
-    const remove = (only: { field: string; value: Date }[] = []) =>
-      adapter.deleteMany({
-        model: "entitlement",
-        where: [{ field: "userId", value: userId }, { field: "reference", value: reference }, ...only],
-      });
+    const gives = SUBSCRIBED.has(subscription.status) && !(await periodTakenBack(stripe, subscription));
+    // By the subscription alone, whoever it was for, so one whose metadata names someone else now moves to them.
+    const remove = (only: { field: string; operator?: "lte"; value: Date }) =>
+      adapter.deleteMany({ model: "entitlement", where: [{ field: "reference", value: reference }, only] });
     // When this writes, which marks its own row, so taking it back never takes the row another request wrote.
     const written = new Date();
     // Where another request takes the lock over while this writes, the row this wrote, if it's still there, is taken
     // away again, so a stale read never keeps a cancelled subscription, and the event, sent again, writes it as Stripe
-    // has it then; a row the other request wrote is left as it is. Accepted: a request stopped (as a Worker can be)
-    // after writing and before letting the lock go takes nothing away, so a subscription cancelled meanwhile stays
-    // until the end of the period this read, which it had paid for.
+    // has it then. Accepted: a request stopped (as a Worker can be) after writing and before letting the lock go takes
+    // nothing away, so a subscription cancelled meanwhile stays until the end of the period this read, which it had
+    // paid for.
     await fence(async () => {
-      await remove([{ field: "createdAt", value: written }]);
+      await remove({ field: "createdAt", value: written });
     });
-    await remove();
-    if (!SUBSCRIBED.has(subscription.status)) return;
+    // Only rows written by now: a request that takes the lock over after this fence does so once it has run out, a
+    // minute on, so its row is later and stays, and this one's write fails on it and is taken back, never the other
+    // way round.
+    await remove({ field: "createdAt", operator: "lte", value: written });
+    if (!gives) return;
     const ends = Math.max(...subscription.items.data.map((item) => item.current_period_end));
     if (!Number.isFinite(ends)) return;
     // Its id is the subscription's own, so however it's written there's one row for it.
     const expiresAt = new Date(ends * 1000);
     await grant(adapter, { id: reference, userId, kind: "subscription", reference, expiresAt, createdAt: written });
   });
+}
+
+/**
+ * Whether the payment for the period a subscription is in, its latest invoice's, has been taken back (`takenBack()`):
+ * refunded, or disputed and not won. Its first payment, or a renewal's: the period it paid for gives nothing, and the
+ * next one paid for gives it again. A refund of an earlier period leaves this one as it is.
+ */
+async function periodTakenBack(stripe: Stripe, subscription: Stripe.Subscription): Promise<boolean> {
+  const invoice = idOf(subscription.latest_invoice);
+  if (!invoice) return false;
+  for await (const paid of stripe.invoicePayments.list({ invoice, status: "paid", limit: 100 })) {
+    const payment = paid.payment.type === "payment_intent" ? idOf(paid.payment.payment_intent) : undefined;
+    if (payment && (await takenBack(stripe, payment))) return true;
+  }
+  return false;
+}
+
+/** The subscriptions a payment paid an invoice of, by their ids: none for a one-off payment's. */
+async function subscriptionsPaidBy(stripe: Stripe, paymentIntent: string): Promise<string[]> {
+  const found = new Set<string>();
+  const payments = stripe.invoicePayments.list({
+    payment: { type: "payment_intent", payment_intent: paymentIntent },
+    limit: 10,
+  });
+  for await (const paid of payments) {
+    const invoiceId = idOf(paid.invoice);
+    if (!invoiceId) continue;
+    const invoice = await stripe.invoices.retrieve(invoiceId).catch((error: unknown) => {
+      if (isMissing(error)) return undefined;
+      throw error;
+    });
+    const subscription = idOf(invoice?.parent?.subscription_details?.subscription);
+    if (subscription) found.add(subscription);
+  }
+  return [...found];
 }
 
 /** The products a one-off payment's Checkout Session sold, by their Stripe product ids. */
@@ -623,23 +683,24 @@ export const STRIPE_EVENT_LEASE_SECONDS = 5 * 60;
 const HANDLING = "handling";
 const HANDLED = "handled";
 
-/** What the webhook needs of Better Auth's database adapter: entitlements, and the rows that record handled events. */
-
 /**
  * Answers Stripe's webhook: checks the event's signature against the body exactly as it came, with
  * `STRIPE_WEBHOOK_SECRET`, before reading anything in it; does each event once, by its id, kept as long as Stripe
  * retries; and reads what the event is about from Stripe again, so its order, and anything in it but which object
  * changed, doesn't matter. An event is claimed while it's handled and marked handled only once it is: one that failed
  * lets go of its claim, one whose request stopped is taken over once its claim has run out, and one still being
- * handled is answered 409, so Stripe tries again later rather than taking it as done.
+ * handled is answered 409, so Stripe tries again later rather than taking it as done. Without the webhook's secret or
+ * the site's key it answers 503, so Stripe tries again once they're set. Stripe's client is the site's own
+ * (`stripeFor()`) unless `stripe` is given.
  */
 export async function webhookResponse(
   request: Request,
-  options: { siteEnv: SiteEnv; stripe: Stripe; adapter: PaymentsAdapter },
+  options: { siteEnv: SiteEnv; stripe?: Stripe; adapter: PaymentsAdapter },
 ): Promise<Response> {
-  const { siteEnv, stripe, adapter } = options;
+  const { siteEnv, adapter } = options;
   const secret = siteEnv.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return new Response("Payments aren't set up.", { status: 503 });
+  if (!secret || !siteEnv.STRIPE_SECRET_KEY) return new Response("Payments aren't set up.", { status: 503 });
+  const stripe = options.stripe ?? stripeFor(siteEnv);
   const signature = request.headers.get("stripe-signature");
   const body = await request.text();
   let event: Stripe.Event;
@@ -725,11 +786,15 @@ async function handle(adapter: PaymentsAdapter, stripe: Stripe, event: Stripe.Ev
     case "charge.dispute.created":
     case "charge.dispute.closed": {
       // Refunded or disputed, open or lost, what the payment bought is taken back; a refund that failed, or a dispute
-      // won, gives it back: `applySession()` reads which from Stripe as it is now, so events in any order agree.
+      // won, gives it back: `applySession()` and `applySubscription()` read which from Stripe as it is now, so events
+      // in any order agree. A one-off payment is its Checkout Session's; a subscription's are its invoices'.
       const paymentIntent = idOf(event.data.object.payment_intent);
       if (!paymentIntent) return;
       for await (const session of stripe.checkout.sessions.list({ payment_intent: paymentIntent, limit: 10 })) {
         await applySession(adapter, stripe, session.id);
+      }
+      for (const subscription of await subscriptionsPaidBy(stripe, paymentIntent)) {
+        await applySubscription(adapter, stripe, subscription);
       }
       return;
     }
@@ -756,7 +821,12 @@ export async function returnFromCheckout(
     query: { disableCookieCache: true },
   });
   if (!session) return next;
-  const checkout = await options.stripe.checkout.sessions.retrieve(sessionId).catch(() => undefined);
+  // A Session Stripe doesn't have bought nothing; any other failure is passed on, for the route to log, and the webhook
+  // writes it anyway.
+  const checkout = await options.stripe.checkout.sessions.retrieve(sessionId).catch((error: unknown) => {
+    if (isMissing(error)) return undefined;
+    throw error;
+  });
   if (checkout?.client_reference_id !== session.user.id) return next;
   // Another request writing it, usually Stripe's event, writes it as Stripe has it now, so that's as good as this
   // writing it. One that took this one's lock over meanwhile took back what this wrote, and no event comes back here,
