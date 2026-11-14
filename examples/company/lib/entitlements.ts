@@ -1,7 +1,7 @@
 // What each person is entitled to: a subscription, which the site's paywall asks for, or something bought once, such
-// as a download. Payments decide when someone becomes entitled (Stripe, in a pull request to come); this is the only
-// file that reads the table. It's a Better Auth model, so it's read through Better Auth's own adapter, which is the
-// same on D1, Postgres, and the tests' SQLite.
+// as a download. Payments decide when someone becomes entitled (Stripe's, in lib/stripe.ts), and admins can give a
+// subscription by hand (lib/subscribers.ts); this is the only file that reads the table. It's a Better Auth model,
+// so it's read through Better Auth's own adapter, which is the same on D1, Postgres, and the tests' SQLite.
 import type { BetterAuthPlugin, Where } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 
@@ -40,6 +40,9 @@ export function entitlements() {
           createdAt: { type: "date", required: true },
         },
       },
+      // The Stripe customer a person pays as (lib/stripe.ts), which the site makes the first time they go to Checkout,
+      // and nothing they send can set, so it lasts when what they bought ends, for Stripe's portal.
+      user: { fields: { stripeCustomerId: { type: "string", required: false, input: false } } },
     },
   } satisfies BetterAuthPlugin;
 }
@@ -168,17 +171,23 @@ export async function subscribedUntil(
 /** Records that someone is entitled to something, as a payment does. */
 export async function grant(
   adapter: EntitlementAdapter,
-  entitlement: Pick<Entitlement, "userId" | "kind" | "reference"> & { expiresAt?: Date | null },
+  entitlement: Pick<Entitlement, "userId" | "kind" | "reference"> & {
+    expiresAt?: Date | null;
+    id?: string;
+    /** When it's written, where the caller marks its own row by it (now, otherwise). */
+    createdAt?: Date;
+  },
 ): Promise<void> {
   await adapter.create({
     model: "entitlement",
     data: {
-      id: generateRandomString(32),
+      // An id of the caller's own names what gave it, such as one payment, so that alone can be taken back.
+      id: entitlement.id ?? generateRandomString(32),
       userId: entitlement.userId,
       kind: entitlement.kind,
       reference: entitlement.reference,
       expiresAt: entitlement.expiresAt ?? null,
-      createdAt: new Date(),
+      createdAt: entitlement.createdAt ?? new Date(),
     },
     forceAllowId: true,
   });

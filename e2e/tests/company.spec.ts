@@ -352,6 +352,61 @@ test("lets readers sign up, and admins give them a subscription by hand and take
   await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
 });
 
+test("sells subscriptions through Stripe Checkout, and ends them when Stripe says they've ended", async ({ page }) => {
+  const membersOnly = "Replace this with what only subscribers read.";
+  const paywall = "The rest is for subscribers";
+  const STRIPE = `http://127.0.0.1:${COMPANY.stripe}`;
+  const signOut = async () => {
+    await page.goto(`${SITE}/sign-out/`);
+    await page.getByRole("button", { name: "Sign out" }).click();
+  };
+
+  // Someone not signed in is asked to first, and comes back to the Subscribe page.
+  await page.goto(`${SITE}/handbook/`);
+  await page.getByRole("link", { name: "Subscribe", exact: true }).click();
+  await expect(page).toHaveURL(`${SITE}/subscribe/`);
+  await page.getByRole("button", { name: "Subscribe for a month at a time" }).click();
+  await expect(page).toHaveURL(new RegExp(`^${SITE}/sign-in/\\?next=`));
+  await signIn(page, "buyer", "/subscribe/");
+  await page.getByRole("button", { name: "Subscribe for a month at a time" }).click();
+
+  // At Stripe, paying sends the site Stripe's events and comes back to the page, which is now the whole handbook's
+  // subscribers can read.
+  await expect(page).toHaveURL(new RegExp(`^${STRIPE}/checkout/cs_`));
+  await page.getByRole("button", { name: "Pay" }).click();
+  await expect(page).toHaveURL(`${SITE}/subscribe/`);
+  await page.goto(`${SITE}/handbook/`);
+  await expect(page.getByText(membersOnly)).toBeVisible();
+
+  // The account page goes to Stripe's customer portal for it.
+  await page.goto(`${SITE}/account/`);
+  await page.getByRole("button", { name: "Manage your subscription" }).click();
+  await expect(page).toHaveURL(new RegExp(`^${STRIPE}/portal/cus_`));
+  await expect(page.getByRole("heading", { name: "Your subscription" })).toBeVisible();
+
+  // The admins' Subscribers page lists it, as paid for, which they can't take away.
+  await signOut();
+  await signIn(page, "admin", "/admin/subscribers/");
+  const row = page.getByRole("row", { name: new RegExp(COMPANY_PEOPLE.buyer.email) });
+  await expect(row).toContainText("Paid, until");
+  await expect(row.getByRole("button", { name: "Take away the subscription you gave" })).toHaveCount(0);
+  await signOut();
+
+  // Cancelled in Stripe, it's the teaser again, from their next sign-in.
+  const subscriptions = (await (await fetch(`${STRIPE}/__subscriptions`)).json()) as Array<{
+    id: string;
+    status: string;
+    metadata: { userId?: string };
+  }>;
+  const bought = subscriptions.filter((one) => one.metadata.userId === "buyer" && one.status === "active");
+  expect(bought).toHaveLength(1);
+  const cancelled = await fetch(`${STRIPE}/__cancel?subscription=${bought[0]?.id}`, { method: "POST" });
+  expect(cancelled.status).toBe(204);
+  await signIn(page, "buyer", "/handbook/");
+  await expect(page.getByRole("heading", { name: paywall })).toBeVisible();
+  await expect(page.getByText(membersOnly)).toHaveCount(0);
+});
+
 test("lets admins invite editors, who choose a password, and lets anyone choose a new one", async ({ page }) => {
   // The database lasts the whole run, so each run invites someone new.
   const email = `ivy-${Date.now()}@example.org`;

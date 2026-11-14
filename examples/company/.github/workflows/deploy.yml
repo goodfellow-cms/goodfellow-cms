@@ -7,6 +7,8 @@
 # - GOODFELLOW_CONTENT_KEY, if the content repository is private: the private half of a deploy key that can only read
 #   it, whose public half is added to the content repository (Settings → Deploy keys, without write access).
 # - EMAIL_API_KEY, the email service's key, which each deploy gives the Worker.
+# - STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, for taking payments (README.md's "Payments"), which each deploy gives
+#   the Worker too.
 #
 # And these variables (the same page's Variables tab), which say how the site sends email, so its owners can change
 # them and run this workflow to move to another service (README.md's "Email"): EMAIL_PROVIDER, EMAIL_FROM, and, for
@@ -86,9 +88,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # The repository's email variables become the Worker's, every one of them each time, empty where the repository
       # has none, so one taken away there goes from the Worker too (wrangler.jsonc keeps variables a deploy isn't
-      # given, so deploys from a computer don't touch them). The key goes up with the deploy, from a file only this
-      # job reads, removed however the deploy ends; without the secret, the Worker keeps the key it has. Values reach
-      # the script through `env`, never its text.
+      # given, so deploys from a computer don't touch them). The keys go up with the deploy, from a file only this
+      # job reads, removed however the deploy ends; for a secret the repository doesn't have, the Worker keeps the one
+      # it has. Values reach the script through `env`, never its text.
       - name: Deploy
         run: |
           secrets="$RUNNER_TEMP/secrets.json"
@@ -97,8 +99,12 @@ jobs:
           for name in EMAIL_PROVIDER EMAIL_FROM EMAIL_DOMAIN EMAIL_REGION EMAIL_KEY_ID; do
             args+=(--var "$name:${!name}")
           done
-          if [ -n "$EMAIL_API_KEY" ]; then
-            (umask 077 && node -e 'process.stdout.write(JSON.stringify({ EMAIL_API_KEY: process.env.EMAIL_API_KEY }))' > "$secrets")
+          (umask 077 && node -e '
+            const names = ["EMAIL_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
+            const given = Object.fromEntries(names.filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
+            process.stdout.write(JSON.stringify(given));
+          ' > "$secrets")
+          if [ "$(cat "$secrets")" != "{}" ]; then
             args+=(--secrets-file "$secrets")
           fi
           npx wrangler deploy "${args[@]}"
@@ -111,3 +117,5 @@ jobs:
           EMAIL_REGION: ${{ vars.EMAIL_REGION }}
           EMAIL_KEY_ID: ${{ vars.EMAIL_KEY_ID }}
           EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}

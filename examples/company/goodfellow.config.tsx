@@ -1,14 +1,16 @@
 import { blocks, categories } from "@goodfellow-cms/blocks";
 import { defineConfig } from "@goodfellow-cms/core";
 import { github } from "@goodfellow-cms/github";
+import { BuyButton } from "./blocks/buy-button";
 import { installedBlocks, installedCategories } from "./blocks/installed";
 import { Paywall } from "./blocks/paywall";
 import { installedPlugins } from "./plugins/installed";
 
 export default defineConfig({
   // The built-in blocks, those installed from the admin panel's Blocks screen, and the site's own: the Paywall, where
-  // a page for members only stops for everyone else (lib/site.ts).
-  blocks: { ...blocks, ...installedBlocks, Paywall },
+  // a page for members only stops for everyone else (lib/site.ts), and the Buy button, which sells a subscription, or
+  // something bought once, through Stripe (lib/stripe.ts).
+  blocks: { ...blocks, ...installedBlocks, Paywall, BuyButton },
   categories: { ...categories, ...installedCategories },
 
   // Plugins installed from the admin panel's Plugins screen. Add your own here too,

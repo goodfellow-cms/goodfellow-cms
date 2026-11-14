@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-subscribe",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-subscribe",
+                "align": "left",
+                "className": "",
+                "level": "h1",
+                "text": "Subscribe"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-subscribe",
+                "align": "left",
+                "className": "mt-6",
+                "content": "<p>Subscribers read the whole handbook, and every report we write each quarter. Stop whenever you like from your account page.</p>"
+              }
+            },
+            {
+              "type": "BuyButton",
+              "props": {
+                "id": "BuyButton-monthly",
+                "className": "",
+                "label": "Subscribe for a month at a time",
+                "price": ""
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "narrow"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Subscribe to read the whole handbook and every quarterly report.",
+        "image": "",
+        "title": "Subscribe"
+      }
+    }
+  }
+}

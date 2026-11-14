@@ -95,6 +95,14 @@ function cookieHeader(request: Request, value: string, seconds: number): string 
   return `${PAYWALL_COOKIE}=${value}; Path=/; Max-Age=${seconds}; HttpOnly; SameSite=Lax${secure}`;
 }
 
+/**
+ * The `set-cookie` header that forgets which version of members-only pages someone gets, so the next page they open
+ * asks the database again: after they've just paid (lib/stripe.ts), rather than wait out `PAYWALL_SECONDS`.
+ */
+export function forgetReader(request: Request): string {
+  return cookieHeader(request, "", 0);
+}
+
 /** What deciding who a request is for needs, loaded only for someone signed in. */
 export interface PaywallSettings {
   siteAuth: SiteAuth;

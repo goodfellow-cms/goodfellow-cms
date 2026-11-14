@@ -3,7 +3,10 @@ import { goodfellowPages } from "@goodfellow-cms/next";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { PAYWALL_BLOCK } from "@/blocks/paywall";
 import config from "@/goodfellow.config";
+import { buttonOn } from "@/lib/buttons";
 import { env } from "@/lib/env";
+import type { Reader } from "@/lib/paywall";
+import type { Button, ButtonPlace } from "@/lib/stripe";
 
 let live: (() => Promise<ContentSource>) | undefined;
 
@@ -30,3 +33,12 @@ async function source(): Promise<ContentSource | undefined> {
  * Paywall block, for everyone but subscribers, whom proxy.ts sends to the pages' members' versions.
  */
 export const site = goodfellowPages(config, { source, paywall: PAYWALL_BLOCK });
+
+/**
+ * The Buy button at `place`, as visitors see the site now: read from the site as its pages render it
+ * (`site.loadSite()`), from the content repository, once a request, with what pages read, or, in `next dev` and while
+ * the site is built, the files pages render from.
+ */
+export async function findButton(place: ButtonPlace, reader: Reader): Promise<Button | undefined> {
+  return buttonOn(await site.loadSite(), place, reader);
+}

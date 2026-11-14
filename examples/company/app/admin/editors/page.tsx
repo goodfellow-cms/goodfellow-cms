@@ -11,7 +11,7 @@ export default function EditorsPage() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <p className="mb-2">
         <a href="/admin/">Back to the admin panel</a> · <a href="/admin/subscribers/">Subscribers</a> ·{" "}
-        <a href="/account/">Your account</a>
+        <a href="/admin/payments/">Payments</a> · <a href="/account/">Your account</a>
       </p>
       <h1 className="mb-6 text-2xl font-semibold">Editors</h1>
       <EditorsScreen />
