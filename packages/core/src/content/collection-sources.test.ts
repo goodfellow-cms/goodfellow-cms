@@ -351,8 +351,11 @@ describe("keptCollectionSources", () => {
     expect(keptCollectionSources(config, { jobs: module }).jobs).toBe(first.jobs);
     expect(make).toHaveBeenCalledOnce();
     keptCollectionSources({ jobs: { ...config.jobs, options: { table: "roles" } } }, { jobs: module });
-    keptCollectionSources(config, { jobs: { default: make } });
+    // Only the latest options' source is kept, so going back makes it again, and the one before can be let go.
+    keptCollectionSources(config, { jobs: module });
     expect(make).toHaveBeenCalledTimes(3);
+    keptCollectionSources(config, { jobs: { default: make } });
+    expect(make).toHaveBeenCalledTimes(4);
     expect(() => keptCollectionSources(config, {})).toThrow(CollectionSourceError);
   });
 });

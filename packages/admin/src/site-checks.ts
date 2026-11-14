@@ -1,6 +1,7 @@
 import {
   allPages,
   type CollectionFile,
+  type CollectionSource,
   type CollectionSources,
   type ContentSource,
   checkSite,
@@ -9,11 +10,13 @@ import {
   type FileChange,
   FOOTER_FILE,
   HEADER_FILE,
+  itemsAsSources,
   loadSiteContent,
   MEDIA_DIR,
   MENUS_FILE,
   publishProblems,
   REDIRECTS_FILE,
+  readSources,
   SITE_FILE,
   SignInError,
   type SiteContent,
@@ -87,25 +90,24 @@ function contentWithChanges(
 
 /**
  * The site as visitors see it, with its sourced collections' items
- * (`LoadState.shown`, left out where nothing is sourced), or, where a source
- * can't be read just now, `unreadSources`, so the rest of the site can still
- * be edited. A `SignInError` is thrown, since signing in again is for
+ * (`LoadState.shown`, left out where nothing is sourced), each source read on
+ * its own (`readSources()`): one that can't be read just now is named in
+ * `unreadSources`, and the others' items are shown, so the rest of the site
+ * can still be edited. A `SignInError` is thrown, since signing in again is for
  * everything. Problems with a source's items are the server's to report: here
  * they're left out, as on the site.
  */
 export async function readShown(
   content: SiteContent,
   sourcesFor: CollectionSources | SourcesFor | undefined,
-): Promise<{ shown?: SiteContent; unreadSources?: true }> {
+): Promise<{ shown?: SiteContent; unreadSources?: string[] }> {
   const sources = typeof sourcesFor === "function" ? sourcesFor(content) : sourcesFor;
   if (!sources) return {};
-  try {
-    const shown = await withSourcedCollections(content, sources, () => {});
-    return shown === content ? {} : { shown };
-  } catch (error) {
-    if (error instanceof SignInError) throw error;
-    return { unreadSources: true };
-  }
+  const { read, failed, errors } = await readSources(sources);
+  const signIn = errors.find((error) => error instanceof SignInError);
+  if (signIn) throw signIn;
+  const shown = await withSourcedCollections(content, read, () => {});
+  return { ...(shown !== content && { shown }), ...(failed.length > 0 && { unreadSources: failed }) };
 }
 
 /** The sources to ask for a copy of the site: what the admin panel reads, for the site as it's loaded or checked. */
@@ -141,7 +143,7 @@ export function askedWithSettings(
  */
 export async function checkPublish(
   source: ContentSource,
-  loaded: { content: SiteContent; shown?: SiteContent; media: string[] },
+  loaded: { content: SiteContent; shown?: SiteContent; unreadSources?: string[]; media: string[] },
   changes: FileChange[],
   site: {
     blocks: Record<string, ComponentConfig>;
@@ -168,32 +170,43 @@ export async function checkPublish(
     return { blocking: [], warnings: [], content: before };
   }
   const sources = typeof site.sources === "function" ? site.sources(after) : site.sources;
-  let read: [SiteContent, SiteContent] | undefined;
   if (sources) {
-    // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded, and
-    // for the site as it is now too, so an item the other system removed since the site loaded isn't counted as one
-    // the publish leaves out. Items left out are named below (`leftOut`), so nothing is logged in the editor's
-    // browser, as `readShown()`.
+    const ids = Object.keys(sources);
+    // Read again only what the publish could change, or what couldn't be read as the site loaded: a collection
+    // whose settings it changes, before and after, since its items are checked against them; one that couldn't be
+    // read, once, for both, since its settings are the same. The others show the items read as the site loaded,
+    // checked again, so a typo's publish asks no other system anything, and an item removed there since isn't
+    // counted as one the publish leaves out. Items left out are named below (`leftOut`), so nothing is logged in
+    // the editor's browser, as `readShown()`.
+    const changedSettings = ids.filter((id) => changes.some((change) => change.path === collectionSettingsFile(id)));
+    const unreadAtLoad = new Set(loaded.shown ? (loaded.unreadSources ?? []) : ids);
+    const again = ids.filter((id) => !changedSettings.includes(id) && unreadAtLoad.has(id));
+    const kept = itemsAsSources(
+      loaded.shown ?? loaded.content,
+      ids.filter((id) => !changedSettings.includes(id) && !unreadAtLoad.has(id)),
+    );
     const sourcesBefore = (typeof site.sources === "function" ? site.sources(loaded.content) : site.sources) ?? {};
-    try {
-      read = await Promise.all([
-        withSourcedCollections(loaded.content, sourcesBefore, () => {}),
-        withSourcedCollections(after, sources, () => {}),
-      ]);
-    } catch (error) {
-      if (error instanceof SignInError) throw error;
-      const ids = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
-      // Changes to a sourced collection's settings can't be checked without its items, so they wait for the source.
-      // Anything else is checked as a static site's is: without the items, and leaving alone links that could go to
-      // their pages (`unreachable`), so an outage elsewhere never stops a change that can't touch them.
-      if (ids.some((id) => changes.some((change) => change.path === collectionSettingsFile(id)))) {
-        return { blocking: [], warnings: [], unread: ids, content: after };
-      }
-      for (const id of ids) unreachable.add(id);
-    }
-  }
-  if (sources && read) {
-    [before, after] = read;
+    const pick = (from: CollectionSources, chosen: readonly string[]) =>
+      Object.fromEntries(chosen.flatMap((id) => (Object.hasOwn(from, id) ? [[id, from[id] as CollectionSource]] : [])));
+    const [now, then] = await Promise.all([
+      readSources(pick(sources, [...changedSettings, ...again])),
+      readSources(pick(sourcesBefore, changedSettings)),
+    ]);
+    const signIn = [...now.errors, ...then.errors].find((error) => error instanceof SignInError);
+    if (signIn) throw signIn;
+    const failed = [...new Set([...now.failed, ...then.failed])];
+    // Changes to a sourced collection's settings can't be checked without its items, so they wait for the source.
+    // Anything else is checked as a static site's is: without the items, and leaving alone links that could go to
+    // their pages (`unreachable`), so an outage elsewhere never stops a change that can't touch them.
+    const waiting = failed.filter((id) => changedSettings.includes(id));
+    if (waiting.length > 0) return { blocking: [], warnings: [], unread: waiting, content: after };
+    for (const id of failed) unreachable.add(id);
+    const shownNow = { ...kept, ...now.read };
+    const shownThen = { ...kept, ...pick(now.read, again), ...then.read };
+    [before, after] = await Promise.all([
+      withSourcedCollections(loaded.content, shownThen, () => {}),
+      withSourcedCollections(after, shownNow, () => {}),
+    ]);
     // Items shown before that the changes would leave out, whether the site's checks refuse them here or the server
     // already left them out, as it does an item that doesn't fit the settings it's asked with.
     const shownAfter = new Set(

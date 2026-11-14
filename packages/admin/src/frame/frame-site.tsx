@@ -153,6 +153,7 @@ export function FrameProviders({
       readBytes: async () => refused(),
       registries: {},
       outOfReach: false,
+      unreadCollections: new Set(),
       contentOnly: false,
       ...(timing && { scheduledBuilds: { timing: async () => timing, sync: undefined } }),
       ...(visibility && { repositoryVisibility: async () => visibility }),

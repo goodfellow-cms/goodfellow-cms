@@ -80,11 +80,30 @@ async function unchanged(files: Map<string, number> | undefined): Promise<boolea
  * bundled again only once a file bundled into it has changed, and the same module again while its bundled code is
  * the same, so `keptCollectionSources()` makes each source once until its code changes.
  */
-export async function loadKeptSiteModule(root: string, input: string): Promise<Record<string, unknown>> {
-  const kept = keptModules.get(JSON.stringify([root, input]));
+export async function loadKeptSiteModule(
+  root: string,
+  input: string,
+  // Tests count the bundles it starts with their own.
+  load: typeof loadSiteModule = loadSiteModule,
+): Promise<Record<string, unknown>> {
+  const key = JSON.stringify([root, input]);
+  const kept = keptModules.get(key);
   if (kept && (await unchanged(kept.files))) return kept.module;
-  return loadSiteModule(root, input, { keep: true });
+  // Requests that arrive together, as a page's feed and calendar do, wait on the one bundle, so they get one module,
+  // and one source is made from it, not one each.
+  const pending = bundling.get(key);
+  if (pending) return pending;
+  const loading = load(root, input, { keep: true });
+  bundling.set(key, loading);
+  try {
+    return await loading;
+  } finally {
+    if (bundling.get(key) === loading) bundling.delete(key);
+  }
 }
+
+/** The bundles `loadKeptSiteModule()` is making, by the same key as `keptModules`. */
+const bundling = new Map<string, Promise<Record<string, unknown>>>();
 
 export async function loadSiteModule(
   root: string,

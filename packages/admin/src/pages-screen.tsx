@@ -10,7 +10,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
-import { shownPaths, useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import { stayingPaths, useAdmin, useCanChangeSettings, useMayBeItem, useSiteContent } from "./admin-context.js";
 import {
   type AddressProblem,
   checkPageAddress,
@@ -61,15 +61,24 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
 
-  // Entries' pages count too: a new page can't take an entry's address.
+  // Entries' pages count too: a new page can't take an entry's address, or one an item the admin panel can't read
+  // could have.
   const check = checkPageAddress(address, allPages(shown ?? content));
+  const mayBeItem = useMayBeItem();
+  const item = check.ok ? mayBeItem(check.path) : undefined;
   const titleError = submitted && !title.trim() ? t("field.required") : undefined;
-  const addressError = submitted && !check.ok ? t(addressErrors[check.problem]) : undefined;
+  const addressError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(addressErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!title.trim() || !check.ok) return;
+    if (!title.trim() || !check.ok || item) return;
     setBusy(true);
     const data = from ? duplicatePageData(from.content.data as Data, title.trim()) : newPageData(title.trim());
     const result = await publish(
@@ -125,7 +134,7 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
 
 function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
-  const { blocks, publish } = useAdmin();
+  const { blocks, publish, unreadCollections } = useAdmin();
   const { content, shown } = useSiteContent();
   const owner = useCanChangeSettings();
   const [address, setAddress] = useState(page.path);
@@ -140,16 +149,28 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
 
   // As visitors see the site, so a sourced item's address counts as taken.
   const check = checkPageAddress(address, allPages(shown ?? content), page.path);
-  const addressError = submitted && !check.ok ? t(addressErrors[check.problem]) : undefined;
+  const mayBeItem = useMayBeItem();
+  const item = check.ok && check.path !== page.path ? mayBeItem(check.path) : undefined;
+  const addressError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(addressErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!check.ok) return;
+    if (!check.ok || item) return;
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(content, page, check.path, { blocks, redirect, pages: shownPaths(shown) }),
+      movePageChanges(content, page, check.path, {
+        blocks,
+        redirect,
+        pages: stayingPaths(content, shown, unreadCollections),
+      }),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);

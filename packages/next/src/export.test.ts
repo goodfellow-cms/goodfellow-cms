@@ -273,6 +273,20 @@ describe("collections' sources in an export", () => {
 });
 
 describe("loadSiteModule", () => {
+  it("bundles a module not kept yet once for requests that arrive together", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-together-"));
+    const entry = join(out, "source.mjs");
+    await writeFile(entry, "export default {};\n");
+    let bundles = 0;
+    const counting: typeof loadSiteModule = (...args) => {
+      bundles++;
+      return loadSiteModule(...args);
+    };
+    const loaded = await Promise.all(Array.from({ length: 8 }, () => loadKeptSiteModule(out, entry, counting)));
+    for (const module of loaded) expect(module).toBe(loaded[0]);
+    expect(bundles).toBe(1);
+  });
+
   it("loads modules started at once each as itself", async () => {
     out = await mkdtemp(join(tmpdir(), "goodfellow-modules-"));
     const count = 12;

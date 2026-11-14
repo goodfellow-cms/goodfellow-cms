@@ -12,7 +12,7 @@ import { type Collection, cleanEntryValues, type Entry, isEmptyValue } from "./c
 import { cleanTags, type MediaDetails } from "./credits.js";
 import { changeItemLinks } from "./item-links.js";
 import { entryPathIn } from "./languages.js";
-import { relinkSite } from "./links.js";
+import { relinkSite, type Staying } from "./links.js";
 import type { Page, SiteCode, SiteContent, SyncedBlock } from "./load.js";
 import { serializeMarkdownEntry } from "./markdown.js";
 import {
@@ -312,7 +312,7 @@ export function movePageChanges(
     blocks,
     redirect = false,
     pages = [],
-  }: { blocks?: Record<string, ComponentConfig>; redirect?: boolean; pages?: Iterable<string> } = {},
+  }: { blocks?: Record<string, ComponentConfig>; redirect?: boolean; pages?: Staying } = {},
 ): FileChange[] {
   const relinked = relinkSite(content, [{ from: page.path, to }], blocks, pages);
   const moved = relinked.content.pages.find((candidate) => candidate.file === page.file) ?? page;
@@ -599,7 +599,7 @@ export function moveEntryChanges(
   slug: string,
   path: string | undefined,
   blocks?: Record<string, ComponentConfig>,
-  pages: Iterable<string> = [],
+  pages: Staying = [],
 ): FileChange[] {
   const relinkedPages =
     entry.path && path ? relinkSite(content, [{ from: entry.path, to: path }], blocks, pages) : { content, files: [] };

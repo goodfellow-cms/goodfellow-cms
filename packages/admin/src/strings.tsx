@@ -359,6 +359,8 @@ export const defaultStrings = {
   "address.reserved":
     "This address can't be used: the admin panel uses it, or it ends in /index, which is the page above it. Choose another.",
   "address.taken": "Another page already uses this address.",
+  "address.mayBeItem":
+    "One of {collection}'s items could have this address, and the admin panel can't read them to tell, since they come from another system. Choose another address.",
   "field.required": "This can't be empty.",
 
   "editPage.message": 'Update page "{title}"',

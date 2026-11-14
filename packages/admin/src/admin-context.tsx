@@ -25,6 +25,7 @@ import {
   loadSiteContent,
   MEDIA_DIR,
   type MediaStorage,
+  mayBeUnreadPage,
   newDraftName,
   type OwnerAccess,
   outsideLimits,
@@ -105,11 +106,11 @@ export type LoadState =
        */
       shown?: SiteContent;
       /**
-       * Whether a source of a collection's items couldn't be read as the site
-       * loaded. Its collections show no items, with a way to try again, and the
-       * publish checks ask the source again.
+       * The collections whose sources couldn't be read as the site loaded, by
+       * id. They show no items, with a way to try again, and the publish checks
+       * ask their sources again; the other sourced collections show theirs.
        */
-      unreadSources?: boolean;
+      unreadSources?: string[];
       revision: string;
       media: string[];
       /**
@@ -257,6 +258,13 @@ export interface AdminContextValue {
    * which holds no tokens. Only then is code other than Goodfellow's installed.
    */
   outOfReach: boolean;
+  /**
+   * The sourced collections whose items the admin panel doesn't know: every
+   * one, where it can't read their sources (a site without a server), or
+   * those whose sources couldn't be read as the site loaded. Addresses their
+   * items could have are taken as theirs (`mayBeUnreadPage()`).
+   */
+  unreadCollections: ReadonlySet<string>;
   /**
    * How plugins are installed here: published, where the admin panel runs at
    * the site's checked admin address or with a token broker, or submitted for
@@ -913,6 +921,11 @@ export function AdminProvider({
           ? ("publish" as const)
           : undefined;
 
+  const unreadSources = state.status === "ready" ? state.unreadSources : undefined;
+  const unreadCollections = useMemo(
+    (): ReadonlySet<string> => new Set(sources ? (unreadSources ?? []) : sourced),
+    [sources, sourced, unreadSources],
+  );
   const value = useMemo(
     () => ({
       site,
@@ -933,6 +946,7 @@ export function AdminProvider({
       readBytes,
       registries,
       outOfReach,
+      unreadCollections,
       pluginInstalls,
       demo,
       pages,
@@ -968,6 +982,7 @@ export function AdminProvider({
       readBytes,
       registries,
       outOfReach,
+      unreadCollections,
       pluginInstalls,
       demo,
       pages,
@@ -1219,6 +1234,43 @@ export function useSiteContent(): { content: SiteContent; shown?: SiteContent; r
  */
 export function shownPaths(shown: SiteContent | undefined): string[] {
   return shown ? allPages(shown).map((page) => page.path) : [];
+}
+
+/**
+ * The name of a collection whose items the admin panel can't read
+ * (`unreadCollections`) that could have a page at `path`, if any: a new or
+ * moved page or item there is refused, since the site would show only one of
+ * them, and nobody could tell which until it's built.
+ */
+export function useMayBeItem(): (path: string | undefined) => string | undefined {
+  const { state, unreadCollections } = useAdmin();
+  const content = state.status === "ready" ? state.content : undefined;
+  return useCallback(
+    (path) => {
+      if (!content || !path || unreadCollections.size === 0) return undefined;
+      const collection = content.collections.find(
+        (one) => unreadCollections.has(one.id) && mayBeUnreadPage(content, new Set([one.id]), path),
+      );
+      return collection?.settings.name;
+    },
+    [content, unreadCollections],
+  );
+}
+
+/**
+ * The addresses whose links stay as they are when an address above them moves
+ * (`movePageChanges()`'s `pages`): every page visitors see that the site's
+ * files don't hold (`shownPaths()`), and any address the items of a collection
+ * the admin panel can't read could have (`mayBeUnreadPage()`), since a move
+ * can't follow links to pages it doesn't know.
+ */
+export function stayingPaths(
+  content: SiteContent,
+  shown: SiteContent | undefined,
+  unread: ReadonlySet<string>,
+): (path: string) => boolean {
+  const known = new Set(shownPaths(shown));
+  return (path) => known.has(path) || mayBeUnreadPage(content, unread, path);
 }
 
 /**

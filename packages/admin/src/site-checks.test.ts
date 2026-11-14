@@ -43,15 +43,18 @@ async function loaded() {
 
 describe("readShown", () => {
   it("gives the site with its sources' items, or says a source can't be read, leaving signing in to its handler", async () => {
+    const settings = (name: string, path: string) =>
+      JSON.stringify({
+        version: 1,
+        name,
+        entryName: name,
+        path,
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      });
     const files: Record<string, string> = {
       ...FILES,
-      "content/collections/jobs/_collection.json": JSON.stringify({
-        version: 1,
-        name: "Jobs",
-        entryName: "Job",
-        path: "/jobs/{slug}",
-        fields: [{ name: "title", label: "Title", type: "text" }],
-      }),
+      "content/collections/jobs/_collection.json": settings("Jobs", "/jobs/{slug}"),
+      "content/collections/events/_collection.json": settings("Events", "/events/{slug}"),
     };
     const content = await loadSiteContent({
       read: async (path) => files[path],
@@ -72,12 +75,19 @@ describe("readShown", () => {
       "welder",
     ]);
     expect(read.unreadSources).toBeUndefined();
+    // One source that's down leaves the others' items shown, and names only itself.
+    const events = { items: async () => [{ slug: "fair", fields: { title: "Fair" } }] };
+    const partly = await readShown(content, { ...failing(new Error("The database didn't answer.")), events });
+    expect(partly.unreadSources).toEqual(["jobs"]);
+    expect(partly.shown?.collections.find((one) => one.id === "events")?.entries.map((entry) => entry.slug)).toEqual([
+      "fair",
+    ]);
     expect(await readShown(content, failing(new Error("The database didn't answer.")))).toEqual({
-      unreadSources: true,
+      unreadSources: ["jobs"],
     });
-    await expect(readShown(content, failing(new SignInError("invalid", "Sign in again.")))).rejects.toBeInstanceOf(
-      SignInError,
-    );
+    await expect(
+      readShown(content, { ...failing(new SignInError("invalid", "Sign in again.")), events }),
+    ).rejects.toBeInstanceOf(SignInError);
   });
 });
 
@@ -242,6 +252,89 @@ describe("checkPublish", () => {
     expect(onStaticMoved.blocking.map((problem) => problem.kind === "missing-page" && problem.target)).toEqual([
       "/jobs/welder",
     ]);
+  });
+
+  it("reads again only the sources a publish could change, or that couldn't be read, each on its own", async () => {
+    const settings = (name: string, path: string) => ({
+      version: 1,
+      name,
+      entryName: name,
+      path,
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    });
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(settings("Jobs", "/jobs/{slug}")),
+      "content/collections/events/_collection.json": JSON.stringify(settings("Events", "/events/{slug}")),
+    };
+    const withBoth: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const asked = { jobs: 0, events: 0 };
+    let jobsDown = false;
+    const sources = {
+      jobs: {
+        items: async () => {
+          asked.jobs++;
+          if (jobsDown) throw new Error("The database didn't answer.");
+          return [{ slug: "welder", fields: { title: "Welder" } }];
+        },
+      },
+      events: {
+        items: async () => {
+          asked.events++;
+          return [{ slug: "fair", fields: { title: "Fair" } }];
+        },
+      },
+    };
+    const site = { blocks: config.blocks, code: localSiteCode(config), sources };
+    const content = await loadSiteContent(withBoth, { sourced: ["jobs", "events"] });
+    const read = await readShown(content, sources);
+    const loadedBoth = { content, ...read, media: [] };
+    const linking = [
+      {
+        path: "content/pages/new.json",
+        content: page("New", [button("Button-1", "/jobs/welder"), button("Button-2", "/events/fair")]),
+      },
+    ];
+    const renamed = (id: "jobs" | "events") => [
+      {
+        path: `content/collections/${id}/_collection.json`,
+        content: JSON.stringify(settings(id === "jobs" ? "Work" : "Dates", `/${id}/{slug}`)),
+      },
+    ];
+    // A publish that changes no sourced collection's settings asks no source anything: the items read as the site
+    // loaded are checked again, so links to their pages are still known.
+    asked.jobs = 0;
+    asked.events = 0;
+    const plain = await checkPublish(withBoth, loadedBoth, linking, site);
+    expect(plain.blocking).toEqual([]);
+    expect(asked).toEqual({ jobs: 0, events: 0 });
+    // One that changes a collection's settings asks only its source, for the site before and after.
+    const events = await checkPublish(withBoth, loadedBoth, [...linking, ...renamed("events")], site);
+    expect(events.unread).toBeUndefined();
+    expect(events.blocking).toEqual([]);
+    expect(asked).toEqual({ jobs: 0, events: 2 });
+    // A source that couldn't be read as the site loaded is asked again, once; still down, it stops only a change to
+    // its own collection's settings, and links that could go to its pages are left alone.
+    jobsDown = true;
+    const partly = await readShown(content, sources);
+    expect(partly.unreadSources).toEqual(["jobs"]);
+    const loadedPartly = { content, ...partly, media: [] };
+    asked.jobs = 0;
+    asked.events = 0;
+    const meanwhile = await checkPublish(withBoth, loadedPartly, [...linking, ...renamed("events")], site);
+    expect(meanwhile.unread).toBeUndefined();
+    expect(meanwhile.blocking).toEqual([]);
+    expect(asked).toEqual({ jobs: 1, events: 2 });
+    const waiting = await checkPublish(withBoth, loadedPartly, renamed("jobs"), site);
+    expect(waiting.unread).toEqual(["jobs"]);
+    // Answering again, its items are read for the site before the publish too, so one the publish's new page takes
+    // the address of is named as left out.
+    jobsDown = false;
+    const taking = [{ path: "content/pages/jobs/welder.json", content: page("Welder's page") }];
+    expect((await checkPublish(withBoth, loadedPartly, taking, site)).leftOut).toEqual(["Welder"]);
   });
 
   it("names the items a publish would take off the site, and never reads the files their source replaces", async () => {

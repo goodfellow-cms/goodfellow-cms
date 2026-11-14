@@ -13,7 +13,14 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { shownPaths, useAdmin, useCanChangeSettings, useCollectionSource, useSiteContent } from "./admin-context.js";
+import {
+  stayingPaths,
+  useAdmin,
+  useCanChangeSettings,
+  useCollectionSource,
+  useMayBeItem,
+  useSiteContent,
+} from "./admin-context.js";
 import {
   checkEntrySlug,
   collectionFileChange,
@@ -116,13 +123,21 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
     undefined,
     { settings: content.settings, code: language },
   );
+  const mayBeItem = useMayBeItem();
+  const item = check.ok ? mayBeItem(check.path) : undefined;
   const titleError = submitted && !title.trim() ? t("field.required") : undefined;
-  const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
+  const slugError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(nameErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!title.trim() || !check.ok) return;
+    if (!title.trim() || !check.ok || item) return;
     setBusy(true);
     const result = await publish(
       [
@@ -214,7 +229,7 @@ function MoveEntryDialog({
   onClose: () => void;
 }) {
   const t = useStrings();
-  const { blocks, publish } = useAdmin();
+  const { blocks, publish, unreadCollections } = useAdmin();
   const { content, shown } = useSiteContent();
   const [slug, setSlug] = useState(entry.slug);
   const [submitted, setSubmitted] = useState(false);
@@ -232,16 +247,32 @@ function MoveEntryDialog({
     entry,
     language,
   );
-  const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
+  const mayBeItem = useMayBeItem();
+  const item = check.ok && check.slug !== entry.slug ? mayBeItem(check.path) : undefined;
+  const slugError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(nameErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!check.ok) return;
+    if (!check.ok || item) return;
     if (check.slug === entry.slug) return onClose();
     setBusy(true);
     const result = await publish(
-      moveEntryChanges(content, collection, entry, check.slug, check.path, blocks, shownPaths(shown)),
+      moveEntryChanges(
+        content,
+        collection,
+        entry,
+        check.slug,
+        check.path,
+        blocks,
+        stayingPaths(content, shown, unreadCollections),
+      ),
       t("moveEntry.message", {
         entry: inSentence(collection.settings.entryName),
         title,
@@ -414,8 +445,9 @@ function SourcedEntries({ collection, source }: { collection: Collection; source
   const t = useStrings();
   const { account, state, reload } = useAdmin();
   const { settings } = collection;
-  // The source couldn't be read as the site loaded: what's listed would be the folder's files, which the site doesn't show.
-  const unread = state.status === "ready" && state.unreadSources === true;
+  // Its source couldn't be read as the site loaded: what's listed would be the folder's files, which the site doesn't
+  // show. Other collections' sources may have been read.
+  const unread = state.status === "ready" && (state.unreadSources ?? []).includes(collection.id);
   return (
     <CollectionLayout collection={collection} tab="entries">
       <div className="gfa-screen">

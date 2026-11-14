@@ -36,6 +36,7 @@ import {
   MEDIA_DIR,
   type MenuItem,
   mainLanguage,
+  mayBeUnreadPage,
   menusFileChange,
   menusFileSchema,
   movePageChanges,
@@ -374,6 +375,33 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     return withoutSourcedItems(source, sourcedOf(site));
   }
 
+  /**
+   * Refuses an address one of a sourced collection's items could have, for a new or moved page or item: the tools
+   * don't know which items there are, and the site would show only one of the two.
+   */
+  async function refuseSourcedAddress(site: OpenedSite, source: ContentSource, path: string) {
+    const ids = sourcedOf(site);
+    if (ids.length === 0) return;
+    const [settings, collections] = await Promise.all([
+      readSettings(source),
+      Promise.all(
+        ids.map((id) =>
+          readCollection(source, id).then(
+            (collection) => ({ id, settings: collection.settings }),
+            () => undefined,
+          ),
+        ),
+      ),
+    ]);
+    const known = collections.filter((collection) => collection !== undefined);
+    const collection = known.find((one) => mayBeUnreadPage({ settings, collections: known }, new Set([one.id]), path));
+    if (collection) {
+      throw new ToolError(
+        `One of ${collection.settings.name}'s items could have ${path} as its address: they come from another system, which these tools can't read. Choose another address.`,
+      );
+    }
+  }
+
   /** Refuses changing a sourced collection's items, which only the system they come from changes. */
   function refuseSourced(site: OpenedSite, id: string) {
     const collections = site.description.collections ?? {};
@@ -640,9 +668,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (!existing) {
         if (isReservedPagePath(path))
           throw new ToolError(`${path} is kept for the admin panel. Choose another address.`);
-        if ((await takenAddresses(draft.store)).has(path)) {
+        if ((await takenAddresses(shown(site, draft.store))).has(path)) {
           throw new ToolError(`${path} is already a collection item's address. Choose another one.`);
         }
+        await refuseSourcedAddress(site, draft.store, path);
       }
       const before: Data = existing?.content.data ?? { root: { props: {} }, content: [] };
       const props = {
@@ -721,12 +750,20 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       const content = await loadWholeSite(shown(site, draft.store));
       const page = content.pages.find((candidate) => candidate.path === from);
       if (!page) throw new ToolError(`The site has no page at ${from}. get_site lists its pages.`);
-      if (content.pages.some((candidate) => candidate.path === to) || (await takenAddresses(draft.store)).has(to)) {
+      if (
+        content.pages.some((candidate) => candidate.path === to) ||
+        (await takenAddresses(shown(site, draft.store))).has(to)
+      ) {
         throw new ToolError(`${to} is already taken on the site. Choose another address.`);
       }
+      await refuseSourcedAddress(site, draft.store, to);
+      // Links to addresses a sourced collection's items could have stay as they are, since these tools don't know
+      // which items there are: a move can't follow links to pages it doesn't know.
+      const unread = new Set(sourcedOf(site));
       const changes = movePageChanges(content, page, to, {
         blocks: site.pageConfig.components as Record<string, ComponentConfig>,
         redirect: redirect !== false,
+        pages: (path) => mayBeUnreadPage(content, unread, path),
       });
       await save(draft, changes, `Move page ${from} to ${to}`);
       return text({ draft: draft.name, address: to, from, saved: "moved", filesChanged: changes.length });
@@ -960,9 +997,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           throw new ToolError(`"${slug}" can't be an item's name: use lowercase letters, numbers, and hyphens.`);
         }
         const path = entryPathIn(siteSettings, collection.settings, slug, inLanguage ?? mainLanguage(siteSettings));
-        if (path && (isReservedPagePath(path) || (await takenAddresses(draft.store)).has(path))) {
+        if (path && (isReservedPagePath(path) || (await takenAddresses(shown(site, draft.store))).has(path))) {
           throw new ToolError(`${path} is already taken on the site. Choose another name.`);
         }
+        if (path) await refuseSourcedAddress(site, draft.store, path);
       }
       const known = new Set(collection.settings.fields.map((field) => field.name));
       const unknown = Object.keys(values).filter((field) => !known.has(field));

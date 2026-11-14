@@ -10,6 +10,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
+import { stayingPaths } from "./admin-context.js";
 import {
   addressPatternFor,
   checkEntrySlug,
@@ -206,6 +207,30 @@ describe("movePageChanges", () => {
     expect(movePageChanges(moving, jobs, "/careers", { pages: ["/jobs/welder"] })).toHaveLength(2);
     // Without them, the link would move with the page.
     expect(movePageChanges(moving, jobs, "/careers").map((change) => change.path)).toContain("content/menus.json");
+  });
+
+  it("leaves links that could go to items it can't read under the old address, whatever items there are", () => {
+    const careers = page("/careers");
+    const menus = { main: [{ label: "Engineer", href: "/careers/engineer" }] };
+    const jobs: Collection = {
+      id: "jobs",
+      file: "content/collections/jobs/_collection.json",
+      settings: collectionFileSchema.parse({
+        version: 1,
+        name: "Jobs",
+        entryName: "Job",
+        path: "/careers/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      }),
+      entries: [],
+    };
+    const moving = site({ pages: [careers], menus, collections: [jobs] });
+    // As on a static site, or where the source couldn't be read: the admin panel doesn't know the items.
+    const paths = (pages: (path: string) => boolean) =>
+      movePageChanges(moving, careers, "/work", { pages }).map((change) => change.path);
+    expect(paths(stayingPaths(moving, undefined, new Set(["jobs"])))).not.toContain("content/menus.json");
+    // Where it reads them all, a link to an item it doesn't have moves with the page.
+    expect(paths(stayingPaths(moving, undefined, new Set()))).toContain("content/menus.json");
   });
 });
 

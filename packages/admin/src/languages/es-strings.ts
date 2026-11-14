@@ -359,6 +359,8 @@ export const strings: Strings = {
   "address.reserved":
     "Esta dirección no se puede usar: la usa el panel de administración, o termina en /index, que es la página de arriba. Elige otra.",
   "address.taken": "Otra página ya usa esta dirección.",
+  "address.mayBeItem":
+    "Uno de los elementos de {collection} podría tener esta dirección, y el panel de administración no puede leerlos para saberlo, porque vienen de otro sistema. Elige otra dirección.",
   "field.required": "Esto no puede quedar vacío.",
   "editPage.message": "Actualizar la página «{title}»",
   "editPage.notFound": "Esta página no existe. Puede que se haya movido o eliminado.",

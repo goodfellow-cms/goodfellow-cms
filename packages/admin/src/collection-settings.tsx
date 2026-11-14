@@ -675,7 +675,7 @@ export function CollectionSettingsScreen({ collection }: { collection: Collectio
     [source, visible, collection.id],
   );
   // A source that couldn't be read leaves its items' addresses unknown, so a new pattern can't move their pages yet.
-  const unread = Boolean(source) && state.status === "ready" && state.unreadSources === true;
+  const unread = Boolean(source) && state.status === "ready" && (state.unreadSources ?? []).includes(collection.id);
   // Without a server that reads the items, as on a static site, the admin panel never knows their pages.
   const elsewhere = Boolean(source) && !account?.sourcedItems;
   const [draft, setDraft] = useState(() => toDraft(collection.settings));

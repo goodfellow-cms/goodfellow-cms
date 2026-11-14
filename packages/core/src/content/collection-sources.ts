@@ -3,6 +3,7 @@
 // admin panel as for any collection, and its source gives the items. Loading the site reads them in as entries
 // (`withSourcedCollections()`), so pages, feeds, calendars, and the content API see ordinary items.
 
+import { CURRENT_VERSION } from "../migrations/index.js";
 import type { SiteProblem } from "./checks.js";
 import { type Collection, cleanEntryValues, type Entry, sortCollectionEntries } from "./collections.js";
 import type { ContentProblem } from "./errors.js";
@@ -146,13 +147,14 @@ export function collectionSources(
   return sources;
 }
 
-const kept = new WeakMap<object, Map<string, CollectionSource>>();
+const kept = new WeakMap<object, Map<string, { options: string; source: CollectionSource }>>();
 
 /**
  * `collectionSources()` for development servers, which load the site again on
  * every request: each source is made once for the same module and options, so
  * a source that opens a database pool as it's made opens one, not one each
- * request. A changed module (a new module object) or new options make it again.
+ * request. A changed module (a new module object) or new options make it again,
+ * keeping only the latest for each collection, so the one before can be let go.
  */
 export function keptCollectionSources(
   collections: Record<string, CollectionSourceConfig> | undefined,
@@ -169,12 +171,12 @@ export function keptCollectionSources(
       made = new Map();
       kept.set(module, made);
     }
-    let source = made.get(options);
-    if (!source) {
-      source = madeSource(id, config, modules);
-      made.set(options, source);
+    let latest = made.get(id);
+    if (latest?.options !== options) {
+      latest = { options, source: madeSource(id, config, modules) };
+      made.set(id, latest);
     }
-    sources[id] = source;
+    sources[id] = latest.source;
   }
   return sources;
 }
@@ -241,7 +243,8 @@ function checkedItem(
   const { slug: _, ...rest } = item;
   let text: string;
   try {
-    text = JSON.stringify({ ...rest, version: 1 });
+    // As this release writes items, which is what a source gives: never migrated as though it were older.
+    text = JSON.stringify({ ...rest, version: CURRENT_VERSION.entry });
   } catch {
     // Such as a BigInt, or a value that holds itself, which a file couldn't either.
     return { ok: false, problem: { file, message: "has a value that can't be written as JSON." } };
@@ -321,6 +324,50 @@ function sourcedEntries(
     entries.push({ collection: collection.id, slug, file, ...(path && { path }), content: value });
   }
   return sortCollectionEntries(collection.settings, entries);
+}
+
+/**
+ * Each source's items read on its own, at once: `read` gives the items of
+ * those that could be read, without asking their sources again, and `failed`
+ * names the others, with what each threw in `errors`, so one source that's
+ * down leaves the others' items shown (`withSourcedCollections()` of `read`).
+ */
+export async function readSources(
+  sources: CollectionSources,
+): Promise<{ read: CollectionSources; failed: string[]; errors: unknown[] }> {
+  const asking = Object.entries(sources);
+  const answers = await Promise.allSettled(asking.map(([, source]) => source.items()));
+  const read: CollectionSources = {};
+  const failed: string[] = [];
+  const errors: unknown[] = [];
+  asking.forEach(([id], index) => {
+    const answer = answers[index] as PromiseSettledResult<SourcedItem[]>;
+    if (answer.status === "fulfilled") {
+      const items = answer.value;
+      read[id] = { items: async () => items };
+    } else {
+      failed.push(id);
+      errors.push(answer.reason);
+    }
+  });
+  return { read, failed, errors };
+}
+
+/**
+ * Sources that give the items `content` already shows for the collections
+ * `ids` name, as `withSourcedCollections()` gave them, to read in again
+ * (checked again, as for another copy of the site) without asking the system
+ * they come from.
+ */
+export function itemsAsSources(content: SiteContent, ids: Iterable<string>): CollectionSources {
+  const sources: CollectionSources = {};
+  for (const id of ids) {
+    const collection = content.collections.find((one) => one.id === id && one.sourced);
+    if (!collection) continue;
+    const items = collection.entries.map(({ slug, content: { version: _, ...rest } }) => ({ slug, ...rest }));
+    sources[id] = { items: async () => items };
+  }
+  return sources;
 }
 
 /**
@@ -427,7 +474,11 @@ export async function sourceChanges(
  * read here, such as a static site's, whose build reads them, or one whose
  * source is down: its pages aren't known, so a link to one can't be checked.
  */
-export function mayBeUnreadPage(content: SiteContent, unread: ReadonlySet<string>, target: string): boolean {
+export function mayBeUnreadPage(
+  content: Pick<SiteContent, "settings"> & { collections: readonly Pick<Collection, "id" | "settings">[] },
+  unread: ReadonlySet<string>,
+  target: string,
+): boolean {
   return content.collections.some(
     (collection) =>
       unread.has(collection.id) &&

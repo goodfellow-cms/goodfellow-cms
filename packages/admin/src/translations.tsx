@@ -18,7 +18,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
-import { useAdmin, useSiteContent } from "./admin-context.js";
+import { useAdmin, useMayBeItem, useSiteContent } from "./admin-context.js";
 import {
   type AddressProblem,
   checkEntrySlug,
@@ -168,18 +168,22 @@ function AddPageTranslationDialog({
 
   const check = checkPageAddress(address, allPages(shown ?? content));
   const inLanguage = check.ok && (check.path === language.prefix || check.path.startsWith(`${language.prefix}/`));
+  const mayBeItem = useMayBeItem();
+  const item = check.ok ? mayBeItem(check.path) : undefined;
   const addressError = !submitted
     ? undefined
     : !check.ok
       ? t(addressErrors[check.problem])
       : !inLanguage
         ? t("translations.addressLanguage", { prefix: language.prefix, language: language.name })
-        : undefined;
+        : item
+          ? t("address.mayBeItem", { collection: item })
+          : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!check.ok || !inLanguage) return;
+    if (!check.ok || !inLanguage || item) return;
     setBusy(true);
     const result = await publish(
       [
@@ -342,12 +346,20 @@ function AddEntryTranslationDialog({
     undefined,
     { settings: content.settings, code: language.code },
   );
-  const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
+  const mayBeItem = useMayBeItem();
+  const item = check.ok ? mayBeItem(check.path) : undefined;
+  const slugError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(nameErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!check.ok) return;
+    if (!check.ok || item) return;
     setBusy(true);
     const result = await publish(
       [

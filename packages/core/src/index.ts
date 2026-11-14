@@ -373,9 +373,11 @@ export {
   collectionSources,
   defineCollectionSource,
   isSourcedItem,
+  itemsAsSources,
   keptCollectionSources,
   loadSourcedContent,
   mayBeUnreadPage,
+  readSources,
   type SourceChanges,
   type SourcedItem,
   type SourceModuleImport,
@@ -514,6 +516,7 @@ export {
   type LinkVisitor,
   mapSiteLinks,
   relinkSite,
+  type Staying,
   siteLinks,
 } from "./content/links.js";
 export {

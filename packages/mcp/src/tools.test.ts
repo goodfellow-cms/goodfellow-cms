@@ -340,7 +340,13 @@ describe("changing a site", () => {
       '"author": "ann",\n    "date":',
     );
     files["content/collections/staff/_collection.json"] = `${JSON.stringify(
-      { version: 1, name: "Staff", entryName: "Person", fields: [{ type: "text", label: "Name", name: "title" }] },
+      {
+        version: 1,
+        name: "Staff",
+        entryName: "Person",
+        path: "/news/{slug}",
+        fields: [{ type: "text", label: "Name", name: "title" }],
+      },
       null,
       2,
     )}\n`;
@@ -380,6 +386,21 @@ describe("changing a site", () => {
       '"author": "ann"',
     );
     await call("discard_draft", { draft: deleted.draft });
+    // Addresses its items could have are refused for new pages, moved pages, and new items, whatever files are in
+    // its folder, since which items it has isn't known here.
+    for (const refused of [
+      await call("save_page", { address: "/news/welcome", blocks: [] }),
+      await call("move_page", { address: "/about-us", to: "/news/welcome" }),
+      await call("save_item", { collection: "staff", slug: "welcome", values: { title: "Welcome" } }),
+    ]) {
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toContain("One of News's items could have /news/");
+    }
+    // Moving the page above them leaves links to them as they are.
+    const linked = (await call("save_menu", { menu: "main", items: [{ label: "Fair", href: "/news/fair" }] })).json();
+    await call("move_page", { address: "/news", to: "/stories", draft: linked.draft });
+    expect(fake.repo.files(`goodfellow-draft-${linked.draft}`).get("content/menus.json")).toContain('"/news/fair"');
+    await call("discard_draft", { draft: linked.draft });
     const broken = (await call("save_menu", { menu: "main", items: [{ label: "Gone", href: "/gone" }] })).json();
     const refused = await call("publish", { draft: broken.draft, message: "Link" });
     expect(refused.isError).toBe(true);
