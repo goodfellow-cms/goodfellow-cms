@@ -88,6 +88,11 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   const header = page.getByRole("banner");
   await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in/?next=%2Fabout%2F");
   await expect(header.getByRole("link", { name: "Your account" })).toHaveCount(0);
+  // After moving to another page through the menu, which keeps the header as it is, it comes back to that one.
+  await header.getByRole("link", { name: "News", exact: true }).click();
+  await expect(page).toHaveURL(`${SITE}/news/`);
+  await header.getByRole("link", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fnews%2F`);
 
   await page.goto(`${SITE}/members/`);
   await expect(page).toHaveURL(`${SITE}/sign-in/?next=%2Fmembers%2F`);

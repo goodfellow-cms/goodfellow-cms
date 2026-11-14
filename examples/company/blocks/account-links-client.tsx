@@ -1,7 +1,7 @@
 "use client";
 
 import { cx } from "@goodfellow-cms/react";
-import { useEffect, useState } from "react";
+import { type SyntheticEvent, useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
 /**
@@ -31,7 +31,12 @@ export function AccountLinksView({
       <div className={links}>
         <a
           className="font-medium text-primary hover:underline"
-          href={`/sign-in/?${new URLSearchParams({ next: here })}`}
+          href={signInAddress(here)}
+          // Read again as it's used: the header stays as it is while Next.js moves between pages, so the page it was
+          // shown on may not be the page it's pressed on. The browser follows the address the link has once these run.
+          onPointerDown={followHere}
+          onFocus={followHere}
+          onClick={followHere}
         >
           {signInLabel}
         </a>
@@ -50,4 +55,14 @@ export function AccountLinksView({
       </form>
     </div>
   );
+}
+
+/** Sign-in's address, coming back to `path`. */
+function signInAddress(path: string): string {
+  return `/sign-in/?${new URLSearchParams({ next: path })}`;
+}
+
+/** Points a Sign in link at sign-in coming back to the page the browser is on now. */
+function followHere(event: SyntheticEvent<HTMLAnchorElement>): void {
+  event.currentTarget.href = signInAddress(window.location.pathname);
 }
