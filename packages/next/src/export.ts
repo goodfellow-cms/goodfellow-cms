@@ -7,6 +7,7 @@ import {
   allPages,
   CALENDARS_DIR,
   CLOUDFLARE_REDIRECTS_PATH,
+  type ContentSource,
   calendarFiles,
   cloudflareRedirects,
   EDITOR_PRELUDE,
@@ -15,6 +16,7 @@ import {
   feedFiles,
   type GoodfellowConfig,
   hasLanguages,
+  loadSiteContent,
   loadSourcedContent,
   membersPages,
   type Page,
@@ -64,10 +66,12 @@ import { DIST_DIR_RECORD, IMAGE_SIZES_MARK, SITE_SERVING, type SiteServing } fro
 import {
   buildPluginFrames,
   configHasPlugins,
+  configNamesCollections,
   loadCollectionSources,
   loadSiteConfig,
   loadSiteFiles,
   loadSiteModule,
+  sourcedCollectionIds,
 } from "./plugins.js";
 
 export { EDITOR_FRAMES_PAGE, EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
@@ -92,6 +96,29 @@ function loadedSite(root: string): Promise<SiteContent> {
     site.catch(() => loaded.delete(dir));
   }
   return site;
+}
+
+/**
+ * How `goodfellow-next due` loads the site: as `goodfellow-next finish`
+ * does, with its collections' sources read in, so their items' schedules come
+ * due and the item files they replace don't. Where the config's text never
+ * says `collections`, the files alone, without loading the config. A source
+ * that can't be read here, as where the hourly check has none of its secrets,
+ * leaves its collection's items out, saying so, rather than fail every check.
+ */
+export async function dueSite(files: ContentSource, root = process.cwd()): Promise<SiteContent> {
+  const dir = resolve(root);
+  if (!(await configNamesCollections(dir))) return loadSiteContent(files);
+  const sourced = await sourcedCollectionIds(dir);
+  if (sourced.length === 0) return loadSiteContent(files);
+  try {
+    return await loadSourcedContent(files, loadCollectionSources(dir));
+  } catch (error) {
+    console.warn(
+      `The items of ${sourced.join(", ")} couldn't be read from their sources, so their schedules are left out: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return loadSiteContent(files, { sourced });
+  }
 }
 
 /** The site as an export shows it (`loadedSite()`), without what its schedules hide. */

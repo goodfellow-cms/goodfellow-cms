@@ -100,6 +100,27 @@ describe("restoring a version", () => {
   });
 });
 
+describe("restoring a version on a site with a sourced collection", () => {
+  it("leaves out the item files left in its folder, which its source's items replace", async () => {
+    // A file left in the folder that loading would refuse, written before the collection's fields changed.
+    const left: ContentSource = {
+      read: (path) =>
+        path === "content/collections/news/old.json"
+          ? Promise.resolve(JSON.stringify({ version: 1, fields: { title: "Old", summary: 5 } }))
+          : source.read(path),
+      list: async (dir) => [
+        ...(await source.list(dir)),
+        ...("content/collections/news/old.json".startsWith(`${dir}/`) ? ["content/collections/news/old.json"] : []),
+      ],
+    };
+    const about = "content/pages/about.json";
+    await expect(contentWithVersion(left, about, page("Who we are"))).rejects.toBeInstanceOf(ContentError);
+    const content = await contentWithVersion(left, about, page("Who we are"), ["news"]);
+    expect(content.collections.find((one) => one.id === "news")?.entries).toEqual([]);
+    expect(versionSubject(content, about)).toBeDefined();
+  });
+});
+
 describe("unknownBlocks", () => {
   it("names blocks the site doesn't have, including inside other blocks", () => {
     const config = { components: { Heading: {}, Section: {} } } as unknown as Config;

@@ -3,12 +3,14 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cloudflareSiteHeaders, editorPolicy, startsWithGuard } from "@goodfellow-cms/core";
+import { builtSiteSource } from "@goodfellow-cms/core/node";
 import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   blockPageRender,
   buildFileFolders,
   checkPages,
+  dueSite,
   exportedPages,
   fixSegmentFiles,
   guardExport,
@@ -268,6 +270,17 @@ describe("collections' sources in an export", () => {
       await cp(site, other, { recursive: true });
       expect((await readCollectionSources(other)).jobs).not.toBe(changed.jobs);
       expect((await readCollectionSources(site)).jobs).toBe(changed.jobs);
+      // \`goodfellow-next due\` reads the source's items, schedules and all, and leaves out the file they replace.
+      const due = await dueSite(builtSiteSource(site), site);
+      expect(due.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toContain("later");
+      // A source it can't read leaves its items out, saying so, rather than fail every check.
+      await writeFile(
+        join(other, "lib/jobs.ts"),
+        'export default () => ({ items: async () => { throw new Error("No database here."); } });\n',
+      );
+      const down = await dueSite(builtSiteSource(other), other);
+      expect(down.collections.find((one) => one.id === "jobs")?.entries).toEqual([]);
+      expect(warn.mock.calls.some(([text]) => String(text).includes("No database here."))).toBe(true);
     } finally {
       vi.restoreAllMocks();
       await rm(site, { recursive: true, force: true });
