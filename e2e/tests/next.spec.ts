@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test as base, expect as baseExpect } from "@playwright/test";
 import { nextSite, resetNextContent } from "../scripts/site.mjs";
-import { editor, expectSandboxed } from "./helpers.js";
+import { editor, expectSandboxed, tailwindScans } from "./helpers.js";
 
 // The Next.js template under `next dev`: see playwright.config.ts.
 const BASE = "http://localhost:4403";
@@ -17,6 +17,12 @@ const test = base.extend({
     resetNextContent();
     await use(page);
   },
+});
+
+test("keeps Tailwind to the copy's own files, never the packages its node_modules links to", async () => {
+  const files = await tailwindScans(nextSite, "app/site.css");
+  expect(files.filter((file) => /[\\/]node_modules[\\/]/.test(file))).toEqual([]);
+  expect(files.some((file) => file.endsWith("goodfellow.config.tsx"))).toBe(true);
 });
 
 test("serves the site's pages, header, and footer with Next.js", async ({ page }) => {

@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, COMPANY_TOTP_SECRET } from "../scripts/site.mjs";
-import { editor } from "./helpers.js";
+import { COMPANY, COMPANY_PASSWORD, COMPANY_PEOPLE, COMPANY_TOTP_SECRET, companySite } from "../scripts/site.mjs";
+import { editor, tailwindScans } from "./helpers.js";
 
 // The company example, built into a Cloudflare Worker with vinext and served in workerd with a local D1 database,
 // as Cloudflare would: the full-stack contract `next-server.spec.ts` checks on Node, here on Workers, with the
@@ -55,6 +55,12 @@ async function signIn(page: Page, as: keyof typeof COMPANY_PEOPLE, next = "/admi
 
 test.beforeEach(async () => {
   await fetch(`${GITHUB}/__reset`, { method: "POST" });
+});
+
+test("keeps Tailwind to the copy's own files, never the packages its node_modules links to", async () => {
+  const files = await tailwindScans(companySite, "app/site.css");
+  expect(files.filter((file) => /[\\/]node_modules[\\/]/.test(file))).toEqual([]);
+  expect(files.some((file) => file.endsWith("goodfellow.config.tsx"))).toBe(true);
 });
 
 test("renders each page once from the content repository, then serves it without rendering", async ({ request }) => {

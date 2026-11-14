@@ -262,11 +262,19 @@ function copyNextTemplate(dir) {
   }
   // A junction on Windows, which needs no administrator rights; a symlink elsewhere.
   symlinkSync(join(nextTemplate, "node_modules"), join(dir, "node_modules"), "junction");
-  // This repository ignores the whole copy, so Tailwind doesn't follow the copy's own `.gitignore`
-  // and scans everything in it, `.next/`'s binary cache included, whose bytes it can take for class
-  // names that break the site's CSS. A real site's `.gitignore` keeps Tailwind out of `.next/`.
-  const css = join(dir, "app/site.css");
-  writeFileSync(css, `${readFileSync(css, "utf8")}@source not "../.next";\n`);
+  keepTailwindOut(join(dir, "app/site.css"), [".next"]);
+}
+
+/**
+ * Leaves a copy's packages, and what else is named, out of what Tailwind scans for class names. This repository
+ * ignores the whole copy, so Tailwind doesn't follow the copy's own `.gitignore` and scans everything in it: through
+ * the `node_modules` link, the workspace's whole store (some 390,000 files, which took `next dev` past the memory CI's
+ * runners have), and `.next/`'s binary cache, whose bytes it can take for class names that break the site's CSS. A
+ * real site's `.gitignore` keeps Tailwind out of both.
+ */
+function keepTailwindOut(css, more = []) {
+  const rules = ["node_modules", ...more].map((folder) => `@source not "../${folder}";\n`).join("");
+  writeFileSync(css, `${readFileSync(css, "utf8")}${rules}`);
 }
 
 /** Creates the Next.js test site, with an extra block whose component runs in the browser. */
@@ -528,6 +536,8 @@ export function createCompanySite() {
   cpSync(join(companyExample, "public/media"), join(companySite, "public/media"), { recursive: true });
   // At the same depth as the example, so pnpm's links into the workspace's store resolve the same way.
   symlinkSync(join(companyExample, "node_modules"), join(companySite, "node_modules"), "junction");
+  // And what vinext builds.
+  keepTailwindOut(join(companySite, "app/site.css"), ["dist", ".vinext"]);
   const config = join(companySite, "goodfellow.config.tsx");
   const backend = 'github({ repo: "your-name/your-site-content", contentOnly: true })';
   const text = readFileSync(config, "utf8");
@@ -555,7 +565,4 @@ export function createCompanySite() {
       "",
     ].join("\n"),
   );
-  // This repository ignores the whole copy, so Tailwind would scan the build's output too.
-  const css = join(companySite, "app/site.css");
-  writeFileSync(css, `${readFileSync(css, "utf8")}@source not "../dist";\n@source not "../.vinext";\n`);
 }
