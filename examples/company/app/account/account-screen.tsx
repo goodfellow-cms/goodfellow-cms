@@ -113,6 +113,18 @@ export function AccountScreen() {
       </p>
       {notice && <p role="status">{notice}</p>}
       <section className="grid gap-4">
+        <h2 className="text-xl font-semibold">Your subscription</h2>
+        <p>
+          If you pay for a subscription, change how you pay or stop it at Stripe, which takes the site's payments. Once
+          it ends, members' pages show their teasers again.
+        </p>
+        <form method="post" action="/api/billing/">
+          <button type="submit" className="rounded border px-4 py-2">
+            Manage your subscription
+          </button>
+        </form>
+      </section>
+      <section className="grid gap-4">
         <h2 className="text-xl font-semibold">Two-factor sign-in</h2>
         <p>
           Asks for a code from an authenticator app on your phone, such as Google Authenticator or 1Password, after your

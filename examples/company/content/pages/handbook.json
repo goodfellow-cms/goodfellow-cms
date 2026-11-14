@@ -41,7 +41,7 @@
           "className": "",
           "heading": "The rest is for subscribers",
           "signInLabel": "Already subscribed? Sign in",
-          "subscribeHref": "",
+          "subscribeHref": "/subscribe",
           "subscribeLabel": "Subscribe",
           "text": "Subscribe to read the whole handbook."
         }
