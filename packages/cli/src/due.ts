@@ -1,11 +1,4 @@
-import {
-  type CollectionSources,
-  type ContentSource,
-  closeSources,
-  loadReadableSources,
-  loadSiteContent,
-  type SiteContent,
-} from "@goodfellow-cms/core";
+import { type ContentSource, dueContent, loadSiteContent, type SiteContent } from "@goodfellow-cms/core";
 import { createServer } from "vite";
 import type { ClientModules } from "./islands.js";
 import { baseViteConfig, findConfigFile, loadCollectionSources, loadServerEntry } from "./site.js";
@@ -37,33 +30,15 @@ export async function dueSite(root: string, files: ContentSource): Promise<SiteC
   });
   try {
     const { config } = await loadServerEntry(server);
-    const sourced = Object.keys(config.collections ?? {});
-    if (sourced.length === 0) return await loadSiteContent(files);
-    let sources: CollectionSources;
-    try {
-      sources = await loadCollectionSources(server, root, config);
-    } catch (error) {
-      // Sources that can't even be made leave every sourced collection's items out.
-      warnUnread(sourced, [error]);
-      return await loadSiteContent(files, { sourced });
-    }
-    try {
-      // Only the sources that can't be read are left out, so the others' schedules still come due.
-      const { content, failed, errors } = await loadReadableSources(files, sources);
-      if (failed.length > 0) warnUnread(failed, errors);
-      return content;
-    } finally {
-      await closeSources(sources);
-    }
+    return await dueContent(
+      files,
+      Object.keys(config.collections ?? {}),
+      () => loadCollectionSources(server, root, config),
+      {
+        close: true,
+      },
+    );
   } finally {
     await server.close();
   }
-}
-
-/** Says which collections' schedules are left out, since their sources couldn't be read, and why. */
-function warnUnread(ids: readonly string[], errors: readonly unknown[]): void {
-  const why = errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
-  console.warn(
-    `The items of ${ids.join(", ")} couldn't be read from their sources, so their schedules are left out: ${why}`,
-  );
 }

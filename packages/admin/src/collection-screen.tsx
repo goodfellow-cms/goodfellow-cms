@@ -6,6 +6,7 @@ import {
   entryLanguage,
   entryPathIn,
   entryTitle,
+  isOnSite,
   itemsLinkingTo,
   mainLanguage,
   siteLanguages,
@@ -379,11 +380,21 @@ function DeleteEntryDialog({
 
 type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "delete"; entry: Entry } | null;
 
-/** A link that opens an item's page on the site, in a new tab, unless it isn't published. */
+/**
+ * Whether an item has a page on the site now: an address, published, and
+ * shown by its schedule, since the site leaves out what its schedule hides, a
+ * source's items as much as files'.
+ */
+export function isViewable(item: Entry, now: Date, timeZone: string | undefined): boolean {
+  return Boolean(item.path) && isOnSite(item.content, now, timeZone);
+}
+
+/** A link that opens an item's page on the site, in a new tab, unless it isn't there now (`isViewable()`). */
 function ViewEntry({ item }: { item: Entry }) {
   const t = useStrings();
   const { siteUrl } = useAdmin();
-  if (!item.path || item.content.notPublished) return null;
+  const { content } = useSiteContent();
+  if (!isViewable(item, new Date(), content.settings.timeZone)) return null;
   return (
     <a
       className="gfa-button gfa-button-ghost"
@@ -444,6 +455,7 @@ function EntriesTable({
 function SourcedEntries({ collection, source }: { collection: Collection; source: string }) {
   const t = useStrings();
   const { account, state, reload } = useAdmin();
+  const { content } = useSiteContent();
   const { settings } = collection;
   // Its source couldn't be read as the site loaded: what's listed would be the folder's files, which the site doesn't
   // show. Other collections' sources may have been read.
@@ -467,7 +479,12 @@ function SourcedEntries({ collection, source }: { collection: Collection; source
           <EntriesTable
             collection={collection}
             actionsLabel={t("pages.view")}
-            title={(item) => entryTitle(item)}
+            title={(item) => (
+              <>
+                {entryTitle(item)}
+                <ScheduleStatus schedule={item.content} content={content} />
+              </>
+            )}
             actions={(item) => <ViewEntry item={item} />}
           />
         )}

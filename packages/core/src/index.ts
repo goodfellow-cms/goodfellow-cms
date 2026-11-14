@@ -373,6 +373,7 @@ export {
   collectionSource,
   collectionSources,
   defineCollectionSource,
+  dueContent,
   isSourcedItem,
   itemsAsSources,
   keptCollectionSources,

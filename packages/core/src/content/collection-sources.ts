@@ -444,6 +444,48 @@ export async function loadReadableSources(
 }
 
 /**
+ * The site as the hourly check for scheduled changes reads it (`goodfellow
+ * due`, `goodfellow-next due`), shared so both say the same: the files where
+ * the config's collections, `sourced`, have no sources, and otherwise the
+ * items of each source that can be read (`loadReadableSources()`), warning
+ * about the rest, since the check may not have their secrets, and about every
+ * sourced collection where `make` can't make the sources at all. With
+ * `close`, the sources are closed once read (`closeSources()`), so a pool
+ * doesn't keep the check running.
+ */
+export async function dueContent(
+  files: ContentSource,
+  sourced: readonly string[],
+  make: () => Promise<CollectionSources>,
+  { close = false }: { close?: boolean } = {},
+): Promise<SiteContent> {
+  if (sourced.length === 0) return loadSiteContent(files);
+  let sources: CollectionSources;
+  try {
+    sources = await make();
+  } catch (error) {
+    warnUnread(sourced, [error]);
+    return loadSiteContent(files, { sourced: [...sourced] });
+  }
+  try {
+    // Only the sources that can't be read are left out, so the others' schedules still come due.
+    const { content, failed, errors } = await loadReadableSources(files, sources);
+    if (failed.length > 0) warnUnread(failed, errors);
+    return content;
+  } finally {
+    if (close) await closeSources(sources);
+  }
+}
+
+/** Says which collections' schedules are left out, since their sources couldn't be read, and why. */
+function warnUnread(ids: readonly string[], errors: readonly unknown[]): void {
+  const why = errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
+  console.warn(
+    `The items of ${ids.join(", ")} couldn't be read from their sources, so their schedules are left out: ${why}`,
+  );
+}
+
+/**
  * Sources that give the items `content` already shows for the collections
  * `ids` name, as `withSourcedCollections()` gave them, to read in again
  * (checked again, as for another copy of the site) without asking the system
