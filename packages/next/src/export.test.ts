@@ -311,6 +311,21 @@ describe("loadSiteModule", () => {
     const third = await loadKeptSiteModule(out, entry);
     expect(third.default).toBe(1);
     expect(third).not.toBe(first);
+    // A file whose time is ahead of the computer's clock, as on a mounted folder, is kept like any other.
+    const ahead = new Date(Date.now() + 3_600_000);
+    await utimes(part, ahead, ahead);
+    const fourth = await loadKeptSiteModule(out, entry);
+    await writeFile(part, "export default 3;\n");
+    await utimes(part, ahead, ahead);
+    expect(await loadKeptSiteModule(out, entry)).toBe(fourth);
+    // And so is a new bundle of one.
+    const further = new Date(Date.now() + 7_200_000);
+    await utimes(part, further, further);
+    const fifth = await loadKeptSiteModule(out, entry);
+    expect(fifth.default).toBe(3);
+    await writeFile(part, "export default 4;\n");
+    await utimes(part, further, further);
+    expect(await loadKeptSiteModule(out, entry)).toBe(fifth);
   });
 });
 

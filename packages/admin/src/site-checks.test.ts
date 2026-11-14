@@ -128,7 +128,8 @@ describe("checkPublish", () => {
       code: localSiteCode(config),
     });
     expect(without.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
-    // A source that can't be read just now stops the publish, rather than pass it unchecked, naming the collection.
+    // A source that can't be read just now stops a publish that changes its collection's settings, rather than pass
+    // it unchecked, naming the collection...
     let answering = false;
     const flaky = {
       jobs: {
@@ -139,12 +140,29 @@ describe("checkPublish", () => {
       },
     };
     const site = { blocks: config.blocks, code: localSiteCode(config), sources: flaky };
-    const unread = await checkPublish(withJobs, { content, media: [] }, linking, site);
+    const settings = [
+      {
+        path: "content/collections/jobs/_collection.json",
+        content: JSON.stringify({
+          ...JSON.parse(files["content/collections/jobs/_collection.json"] ?? "{}"),
+          name: "Work",
+        }),
+      },
+    ];
+    const unread = await checkPublish(withJobs, { content, media: [] }, settings, site);
     expect(unread.unread).toEqual(["jobs"]);
     expect(unread.blocking).toEqual([]);
+    // ...while any other publish is checked as a static site's is: a link that could go to the collection's pages
+    // is left alone, and any other broken link still stops it.
+    const meanwhile = await checkPublish(withJobs, { content, media: [] }, linking, site);
+    expect(meanwhile.unread).toBeUndefined();
+    expect(meanwhile.blocking).toEqual([]);
+    const broken = [{ path: "content/pages/new.json", content: page("New", [button("Button-1", "/gone")]) }];
+    const stillChecked = await checkPublish(withJobs, { content, media: [] }, broken, site);
+    expect(stillChecked.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
     // Publishing again asks the source again.
     answering = true;
-    const read = await checkPublish(withJobs, { content, media: [] }, linking, site);
+    const read = await checkPublish(withJobs, { content, media: [] }, settings, site);
     expect(read.unread).toBeUndefined();
     expect(read.blocking).toEqual([]);
     // A sign-in that ran out is for signing in again, whether reading the source or the site's own files finds it.
@@ -266,6 +284,40 @@ describe("checkPublish", () => {
     expect(broken.blocking.map((problem) => problem.kind)).toEqual(["missing-page"]);
   });
 
+  it("names no item the other system removed since the site loaded as one the publish leaves out", async () => {
+    const jobs = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const files: Record<string, string> = {
+      ...FILES,
+      "content/collections/jobs/_collection.json": JSON.stringify(jobs),
+    };
+    const withJobs: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    let rows = [
+      { slug: "welder", fields: { title: "Welder" } },
+      { slug: "nurse", fields: { title: "Nurse" } },
+    ];
+    const sources = { jobs: { items: async () => rows } };
+    const content = await loadSiteContent(withJobs, { sourced: ["jobs"] });
+    const { shown } = await readShown(content, sources);
+    // The nurse's opening is filled, and taken out of the other system, after the site loaded.
+    rows = rows.filter((row) => row.slug !== "nurse");
+    const typo = [{ path: "content/pages/about.json", content: page("About us") }];
+    const checks = await checkPublish(withJobs, { content, ...(shown && { shown }), media: [] }, typo, {
+      blocks: config.blocks,
+      code: localSiteCode(config),
+      sources,
+    });
+    expect(checks.leftOut).toBeUndefined();
+  });
+
   it("asks a source with the settings a publish gives its collection, so a new field's values are checked", async () => {
     const jobs = {
       version: 1,
@@ -348,7 +400,8 @@ describe("checkPublish", () => {
       sources,
     });
     expect(checks.unread).toBeUndefined();
-    expect(asked).toEqual([undefined, undefined]);
+    // Loading it, and the checks' reads of the site as it is and as the publish leaves it.
+    expect(asked).toEqual([undefined, undefined, undefined]);
   });
 
   it("reads a draft's new collection with the draft's settings, which the server doesn't have yet", async () => {

@@ -54,6 +54,7 @@ import {
   siteSettingsSchema,
   syncedBlockFileChange,
   wallClock,
+  withoutUnreadLinks,
   withSchedule,
   writeChanges,
 } from "@goodfellow-cms/core";
@@ -83,6 +84,7 @@ import {
   readSyncedBlock,
   ToolError,
   takenAddresses,
+  withoutSourcedItems,
 } from "./content.js";
 import { type ConnectorContext, type OpenedSite, openSite } from "./site.js";
 
@@ -359,7 +361,28 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   /** Where to read from: a draft, or the live site. */
   async function reading(site: OpenedSite, name: string | undefined): Promise<ContentSource> {
-    return name ? (await draftOf(site, name)).store : site.backend;
+    return shown(site, name ? (await draftOf(site, name)).store : site.backend);
+  }
+
+  /** The collections whose items come from the site's code, which only its build and server read. */
+  function sourcedOf(site: OpenedSite): string[] {
+    return Object.keys(site.description.collections ?? {});
+  }
+
+  /** What the site reads of `source`: without sourced collections' item files (`withoutSourcedItems()`). */
+  function shown(site: OpenedSite, source: ContentSource): ContentSource {
+    return withoutSourcedItems(source, sourcedOf(site));
+  }
+
+  /** Refuses changing a sourced collection's items, which only the system they come from changes. */
+  function refuseSourced(site: OpenedSite, id: string) {
+    const collections = site.description.collections ?? {};
+    const config = Object.hasOwn(collections, id) ? collections[id] : undefined;
+    if (config) {
+      throw new ToolError(
+        `The items of "${id}" come from another system (${config.source} in the site's code), so they're changed there, not here.`,
+      );
+    }
   }
 
   /**
@@ -395,9 +418,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
    * the site's code.
    */
   async function publishProblemsOf(site: OpenedSite, draft: Draft) {
+    const sourced = sourcedOf(site);
     const [before, after, media, changed] = await Promise.all([
-      loadSiteContent(site.backend),
-      loadSiteContent(draft.store),
+      loadSiteContent(site.backend, { sourced }),
+      loadSiteContent(draft.store, { sourced }),
       site.backend.list(MEDIA_DIR),
       draft.paths(),
     ]);
@@ -405,7 +429,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       media: media.map(mediaAddress),
       blocks: site.templateConfig.components as Record<string, ComponentConfig>,
     };
-    return publishProblems(checkSite(before, options), checkSite(after, options), changed);
+    // Sourced items aren't read here, so links that could go to their pages, or name them, aren't checked, as on
+    // a static site in the admin panel.
+    const unread = new Set(sourced);
+    return publishProblems(
+      withoutUnreadLinks(checkSite(before, options), before, unread),
+      withoutUnreadLinks(checkSite(after, options), after, unread),
+      changed,
+    );
   }
 
   async function save(draft: Draft, changes: FileChange[], message: string): Promise<void> {
@@ -687,7 +718,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (isReservedPagePath(to)) throw new ToolError(`${to} is kept for the admin panel. Choose another address.`);
       const draft = await changing(site, name);
       // Links anywhere on the site can point to it, so this reads the whole site, in batches.
-      const content = await loadWholeSite(draft.store);
+      const content = await loadWholeSite(shown(site, draft.store));
       const page = content.pages.find((candidate) => candidate.path === from);
       if (!page) throw new ToolError(`The site has no page at ${from}. get_site lists its pages.`);
       if (content.pages.some((candidate) => candidate.path === to) || (await takenAddresses(draft.store)).has(to)) {
@@ -852,6 +883,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         itemName: settings.entryName,
         ...(settings.path !== undefined && { address: settings.path }),
         ...(settings.markdown && { markdownField: settings.markdown.body }),
+        ...(Object.hasOwn(site.description.collections ?? {}, id) && {
+          itemsFrom: `Another system, through ${site.description.collections?.[id]?.source} in the site's code: its items aren't listed or changed here.`,
+        }),
         fields: settings.fields,
         items: collection.entries.map((entry) => ({
           slug: entry.slug,
@@ -901,6 +935,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     },
     async ({ site: given, collection: id, slug, values, language, draft: name, showFrom, hideAfter }) => {
       const site = await open(given);
+      refuseSourced(site, id);
       const draft = await changing(site, name);
       const collection = await readCollection(draft.store, id);
       const existing = await readEntry(draft.store, collection, slug);
@@ -964,13 +999,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     { site: siteArg, collection: z.string(), slug: z.string(), draft: draftArg },
     async ({ site: given, collection: id, slug, draft: name }) => {
       const site = await open(given);
+      refuseSourced(site, id);
       const draft = await changing(site, name);
       const collection = await readCollection(draft.store, id);
       const entry = collection.entries.find((candidate) => candidate.slug === slug);
       if (!entry) throw new ToolError(`The collection "${id}" has no item "${slug}".`);
       const translations = await entryTranslationChanges(draft.store, collection, slug);
       // Items that link to it stop linking to it, as in the admin panel.
-      const unlinked = (await itemLinkChanges(draft.store, id, slug)).filter(
+      const unlinked = (await itemLinkChanges(shown(site, draft.store), id, slug)).filter(
         (change) => change.path !== entry.file && !translations.some((other) => other.path === change.path),
       );
       await save(

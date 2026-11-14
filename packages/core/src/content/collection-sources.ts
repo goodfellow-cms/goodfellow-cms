@@ -2,11 +2,13 @@
 // system's API: the collection's settings, template, and list pages stay in its `_collection.json`, designed in the
 // admin panel as for any collection, and its source gives the items. Loading the site reads them in as entries
 // (`withSourcedCollections()`), so pages, feeds, calendars, and the content API see ordinary items.
+
+import type { SiteProblem } from "./checks.js";
 import { type Collection, cleanEntryValues, type Entry, sortCollectionEntries } from "./collections.js";
 import type { ContentProblem } from "./errors.js";
-import { entryLanguage, entryPathIn, isOtherLanguage, siteLanguages } from "./languages.js";
+import { entryLanguage, entryPathIn, isOtherLanguage, languagePattern, siteLanguages } from "./languages.js";
 import { allPages, type ContentSource, loadSiteContent, parseEntryFile, type SiteContent } from "./load.js";
-import { isAddressSegment, isReservedPagePath } from "./paths.js";
+import { isAddressSegment, isReservedPagePath, matchesAddressPattern } from "./paths.js";
 import type { CollectionFile, EntryFile } from "./schemas.js";
 
 /**
@@ -368,23 +370,34 @@ export async function withSourcedCollections(
  * What has changed in the site's sources since `since` (each source's `next`
  * from the time before, by collection id; missing means from the start): the
  * collections whose items changed, the pages of their items, those removed
- * too, and what to pass next time. Sources without `changed()` are left out.
+ * too, and what to pass next time, for the sources there are now. Sources
+ * without `changed()` are left out. One whose `changed()` fails is named in
+ * `failed`, keeping what it was given to ask from next time, and never stops
+ * another's.
  */
 export async function sourceChanges(
   content: SiteContent,
   sources: CollectionSources,
   since: Record<string, string> = {},
-): Promise<{ collections: string[]; paths: string[]; next: Record<string, string> }> {
+): Promise<{ collections: string[]; paths: string[]; next: Record<string, string>; failed: string[] }> {
   const collections: string[] = [];
   const paths = new Set<string>();
-  const next: Record<string, string> = { ...since };
+  // Only the sources there are now, so a removed one's is let go.
+  const next: Record<string, string> = {};
+  const failed: string[] = [];
+  const asking = Object.entries(sources).flatMap(([id, source]) => (source.changed ? [[id, source] as const] : []));
   // Every source is asked at once, so a scheduled route waits for the slowest rather than all of them in turn.
-  const asked = await Promise.all(
-    Object.entries(sources).map(async ([id, source]) =>
-      source.changed ? ([id, await source.changed(since[id] ?? "")] as const) : undefined,
-    ),
-  );
-  for (const [id, changes] of asked.filter((one) => one !== undefined)) {
+  const answers = await Promise.allSettled(asking.map(([id, source]) => source.changed?.(since[id] ?? "")));
+  const asked: [string, SourceChanges][] = [];
+  asking.forEach(([id], index) => {
+    const answer = answers[index];
+    if (answer?.status === "fulfilled" && answer.value) asked.push([id, answer.value]);
+    else {
+      failed.push(id);
+      if (Object.hasOwn(since, id)) next[id] = since[id] as string;
+    }
+  });
+  for (const [id, changes] of asked) {
     next[id] = changes.next;
     if (changes.slugs.length === 0) continue;
     // A collection the site has no settings for has no pages, nor anything to show its items.
@@ -406,5 +419,39 @@ export async function sourceChanges(
       }
     }
   }
-  return { collections, paths: [...paths].sort(), next };
+  return { collections, paths: [...paths].sort(), next, failed };
+}
+
+/**
+ * Whether a link's address could be a page of a collection whose items can't be
+ * read here, such as a static site's, whose build reads them, or one whose
+ * source is down: its pages aren't known, so a link to one can't be checked.
+ */
+export function mayBeUnreadPage(content: SiteContent, unread: ReadonlySet<string>, target: string): boolean {
+  return content.collections.some(
+    (collection) =>
+      unread.has(collection.id) &&
+      siteLanguages(content.settings).some((language) => {
+        const pattern = languagePattern(content.settings, collection.settings, language.code);
+        return pattern !== undefined && matchesAddressPattern(pattern, target);
+      }),
+  );
+}
+
+/**
+ * The problems without links that might go to unread collections' items: to
+ * their pages (`mayBeUnreadPage()`), and from item fields that name one of
+ * them, since which items they have isn't known.
+ */
+export function withoutUnreadLinks(
+  problems: SiteProblem[],
+  content: SiteContent,
+  unread: ReadonlySet<string>,
+): SiteProblem[] {
+  if (unread.size === 0) return problems;
+  return problems.filter((problem) => {
+    if (problem.kind === "missing-page") return !mayBeUnreadPage(content, unread, problem.target);
+    if (problem.kind === "missing-item") return !unread.has(problem.collection);
+    return true;
+  });
 }

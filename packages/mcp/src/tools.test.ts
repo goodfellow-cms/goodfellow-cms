@@ -321,6 +321,71 @@ describe("changing a site", () => {
     expect(refused.text).toContain("links to /about, which isn't a page or item on the site");
   });
 
+  it("leaves a sourced collection's items to the system they come from", async () => {
+    const files = starterFiles();
+    // A file the site never reads, since the news collection's items come from its source, which links to /about.
+    files["content/collections/news/welcome.json"] = (files["content/collections/news/welcome.json"] ?? "").replace(
+      "<strong>Collections</strong>",
+      '<a href="/about">Collections</a>',
+    );
+    files["public/media/placeholder.svg"] = "<svg xmlns='http://www.w3.org/2000/svg'/>";
+    // One the site would refuse, which would stop every publish's checks if it were read.
+    files["content/collections/news/broken.json"] = "not JSON";
+    // A collection of the site's own, an item of which the news file names.
+    const news = JSON.parse(files["content/collections/news/_collection.json"] ?? "{}");
+    news.fields.push({ type: "item", label: "Author", name: "author", collection: "staff" });
+    files["content/collections/news/_collection.json"] = `${JSON.stringify(news, null, 2)}\n`;
+    files["content/collections/news/welcome.json"] = (files["content/collections/news/welcome.json"] ?? "").replace(
+      '"date":',
+      '"author": "ann",\n    "date":',
+    );
+    files["content/collections/staff/_collection.json"] = `${JSON.stringify(
+      { version: 1, name: "Staff", entryName: "Person", fields: [{ type: "text", label: "Name", name: "title" }] },
+      null,
+      2,
+    )}\n`;
+    files["content/collections/staff/ann.json"] = '{\n  "version": 1,\n  "fields": {\n    "title": "Ann"\n  }\n}\n';
+    const { call, fake } = await connect({
+      files,
+      description: { ...describeSite({ blocks }), collections: { news: { source: "./lib/news.ts" } } },
+    });
+    expect((await call("get_site")).json().collections).toEqual([
+      { id: "news", entries: 0 },
+      { id: "staff", entries: 1 },
+    ]);
+    const collection = (await call("get_collection", { collection: "news" })).json();
+    expect(collection.items).toEqual([]);
+    expect(collection.itemsFrom).toContain("./lib/news.ts");
+    expect((await call("get_item", { collection: "news", slug: "welcome" })).text).toContain('no item "welcome"');
+    for (const refused of [
+      await call("save_item", { collection: "news", slug: "new", values: { title: "New", date: "2026-10-02" } }),
+      await call("delete_item", { collection: "news", slug: "welcome" }),
+    ]) {
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toContain("come from another system (./lib/news.ts");
+    }
+    expect((await call("list_drafts")).json()).toEqual({ drafts: [] });
+
+    // Moving a page leaves the files alone, and a link to a sourced item's page, which can't be checked here,
+    // doesn't stop publishing, while one to a page the site doesn't have still does.
+    const { draft } = (await call("move_page", { address: "/about", to: "/about-us" })).json();
+    expect(fake.repo.files(`goodfellow-draft-${draft}`).get("content/collections/news/welcome.json")).toContain(
+      'href="/about"',
+    );
+    await call("save_menu", { menu: "main", items: [{ label: "Open day", href: "/news/open-day" }], draft });
+    expect((await call("publish", { draft, message: "Move About" })).isError).toBe(false);
+    // Deleting an item the file names leaves the file alone too.
+    const deleted = (await call("delete_item", { collection: "staff", slug: "ann" })).json();
+    expect(fake.repo.files(`goodfellow-draft-${deleted.draft}`).get("content/collections/news/welcome.json")).toContain(
+      '"author": "ann"',
+    );
+    await call("discard_draft", { draft: deleted.draft });
+    const broken = (await call("save_menu", { menu: "main", items: [{ label: "Gone", href: "/gone" }] })).json();
+    const refused = await call("publish", { draft: broken.draft, message: "Link" });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("links to /gone");
+  });
+
   it("checks items' values against their collection's fields", async () => {
     const { call } = await connect();
     expect((await call("save_item", { collection: "news", slug: "x", values: { colour: "red" } })).text).toContain(

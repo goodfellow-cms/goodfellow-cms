@@ -94,7 +94,9 @@ describe("goodfellowApi", () => {
     expect((await call("collections/news/items/")).status).toBe(200);
     expect(await (await call("collections/news/items/")).json()).toEqual({ items: [hello] });
     expect(makeNews).toHaveBeenCalledOnce();
-    // A module the config names but the site's code didn't give is refused at the first request.
+    // A module the config names but the site's code didn't give is said on the server, and fails only its
+    // collection's items: signing in, reading and publishing go on.
+    const said: unknown[] = [];
     const missing = caller(
       goodfellowApi({
         config,
@@ -102,9 +104,13 @@ describe("goodfellowApi", () => {
         authorize: () => ALICE,
         signIn: "/sign-in",
         sources: { news: makeNews },
+        onError: (error) => said.push(error),
       }),
     );
-    await expect(missing("revision/")).rejects.toThrow(/lib\/jobs\.ts/);
+    expect((await missing("revision/")).status).toBe(200);
+    expect(String(said[0])).toMatch(/lib\/jobs\.ts/);
+    expect((await missing("collections/jobs/items/")).status).toBe(502);
+    expect((await missing("collections/news/items/")).status).toBe(200);
   });
 
   it("tells the site's onPublish what each publish changed", async () => {

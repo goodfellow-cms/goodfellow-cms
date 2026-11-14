@@ -375,6 +375,7 @@ export {
   isSourcedItem,
   keptCollectionSources,
   loadSourcedContent,
+  mayBeUnreadPage,
   type SourceChanges,
   type SourcedItem,
   type SourceModuleImport,
@@ -382,6 +383,7 @@ export {
   sourceChanges,
   sourcedItemFile,
   sourcedItemsFor,
+  withoutUnreadLinks,
   withSourcedCollections,
 } from "./content/collection-sources.js";
 export {

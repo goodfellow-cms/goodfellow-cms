@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { withSourcedCollections } from "./content/collection-sources.js";
+import { ContentError } from "./content/errors.js";
 import { loadSiteContent } from "./content/load.js";
 import {
   DEV_API_PREFIX,
@@ -118,6 +119,34 @@ describe("sendBuildFile", () => {
     expect(said.at(-1)).toBe("/feeds/jobs.rss couldn't be made: null");
     // Without anywhere to say it, the failure is the caller's.
     await expect(sendBuildFile(files, "/feeds/jobs.rss", answer() as never, failing)).rejects.toThrow("database");
+  });
+
+  it("says a content file's problem in the answer, and nothing else a failure says", async () => {
+    const answered = () => {
+      const res = {
+        statusCode: 200,
+        body: "",
+        setHeader() {},
+        end(body?: string) {
+          res.body = body ?? "";
+        },
+      };
+      return res;
+    };
+    const broken: SiteLoader = async () => {
+      throw new ContentError([{ file: "content/pages/about.json", message: "has no title" }]);
+    };
+    const res = answered();
+    await sendBuildFile(files, "/feeds/jobs.rss", res as never, broken, () => {});
+    expect(res).toMatchObject({ statusCode: 500 });
+    expect(res.body).toContain("content/pages/about.json: has no title");
+    // What a source said stays on the computer.
+    const secret: SiteLoader = async () => {
+      throw new Error("postgres://user:hunter2@db.example/jobs refused");
+    };
+    const quiet = answered();
+    await sendBuildFile(files, "/feeds/jobs.rss", quiet as never, secret, () => {});
+    expect(quiet).toMatchObject({ statusCode: 500, body: "" });
   });
 
   it("answers a failure where the site loads but its file can't be made from it, rather than throw", async () => {

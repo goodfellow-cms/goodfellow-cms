@@ -394,7 +394,6 @@ export function pageMetadata(
 export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPagesOptions = {}) {
   const configs = createPuckConfigs(config);
   const root = options.root ?? process.cwd();
-  // The same arguments as the layout's `loadSite()`, so a request reads the site once.
   const source = options.source;
   // Every collection's module must be there from the start, but the sources themselves are made only once the
   // site is read, where a failure (such as a missing setting a source checks for) fails that read, and the root
@@ -404,7 +403,11 @@ export function goodfellowPages(config: GoodfellowConfig, options: GoodfellowPag
   let made: CollectionSources | undefined;
   const site = async () => {
     made ??= collectionSources(config.collections, options.sources ?? {});
-    return source ? loadSourceSite(source, options.root, made) : loadSite(options.root, made);
+    if (source) return loadSourceSite(source, options.root, made);
+    // Without sources, the same arguments as the starter's root layout's `loadSite()`, so React's cache reads the site
+    // once a request; with them, a root layout gives `<html lang>` from `language()`, which reads it as pages do.
+    if (sourcedIds.length === 0) return options.root === undefined ? loadSite() : loadSite(options.root);
+    return loadSite(options.root, made);
   };
   const basePath = () => options.basePath ?? configuredBasePath();
 

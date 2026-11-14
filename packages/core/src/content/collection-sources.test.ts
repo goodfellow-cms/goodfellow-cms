@@ -387,6 +387,7 @@ describe("sourceChanges", () => {
       collections: [],
       paths: [],
       next: { jobs: "1" },
+      failed: [],
     });
     jobs.set([welder, baker], ["welder", "gone", "Not A Name"]);
     const after = await withSourcedCollections(await site(), { jobs: jobs.source });
@@ -395,6 +396,7 @@ describe("sourceChanges", () => {
       collections: ["jobs"],
       paths: ["/jobs/gone", "/jobs/welder"],
       next: { jobs: "1" },
+      failed: [],
     });
     // In each of the site's languages, since a removed item's language isn't known.
     const spanish = await withSourcedCollections(await site({ languages: [{ code: "es", name: "Español" }] }), {
@@ -417,7 +419,30 @@ describe("sourceChanges", () => {
       collections: [],
       paths: [],
       next: { jobs: "1" },
+      failed: [],
     });
+  });
+
+  it("lets go of a removed source's place, and keeps a failing one's without stopping the rest", async () => {
+    const jobs = jobsSource([welder]);
+    jobs.set([welder], ["welder"]);
+    const failing: CollectionSource = {
+      items: async () => [],
+      changed: async () => {
+        throw new Error("The news API didn't answer.");
+      },
+    };
+    const content = await withSourcedCollections(await site(), { jobs: jobs.source });
+    const changes = await sourceChanges(
+      content,
+      { jobs: jobs.source, news: failing },
+      { jobs: "0", news: "7", gone: "3" },
+    );
+    // Jobs' changes come through, news keeps where it was to ask from again, and the removed source's place goes.
+    expect(changes.collections).toEqual(["jobs"]);
+    expect(changes.paths).toEqual(["/jobs/welder"]);
+    expect(changes.next).toEqual({ jobs: "1", news: "7" });
+    expect(changes.failed).toEqual(["news"]);
   });
 
   it("names no collection the site has no settings for, which has no pages", async () => {
@@ -426,6 +451,7 @@ describe("sourceChanges", () => {
       collections: [],
       paths: [],
       next: { events: "2" },
+      failed: [],
     });
   });
 });

@@ -100,11 +100,15 @@ export async function loadCollectionSources(
   root: string,
   config: GoodfellowConfig,
 ): Promise<CollectionSources> {
-  const modules: Record<string, SourceModuleImport> = {};
-  for (const [id, collection] of Object.entries(config.collections ?? {})) {
-    const specifier = /^\.\.?\//.test(collection.source) ? resolve(root, collection.source) : collection.source;
-    modules[id] = (await server.ssrLoadModule(specifier)) as SourceModuleImport;
-  }
+  // Every module at once, so a request after an edit waits for the slowest rather than all of them in turn.
+  const modules: Record<string, SourceModuleImport> = Object.fromEntries(
+    await Promise.all(
+      Object.entries(config.collections ?? {}).map(async ([id, collection]) => {
+        const specifier = /^\.\.?\//.test(collection.source) ? resolve(root, collection.source) : collection.source;
+        return [id, (await server.ssrLoadModule(specifier)) as SourceModuleImport] as const;
+      }),
+    ),
+  );
   // Made once for the same modules, since `goodfellow dev` loads the site again on every request.
   return keptCollectionSources(config.collections, modules);
 }

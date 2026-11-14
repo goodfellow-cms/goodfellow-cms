@@ -4,15 +4,14 @@ import {
   type CollectionSources,
   type ContentSource,
   checkSite,
+  collectionSettingsFile,
   entryTitle,
   type FileChange,
   FOOTER_FILE,
   HEADER_FILE,
-  languagePattern,
   loadSiteContent,
   MEDIA_DIR,
   MENUS_FILE,
-  matchesAddressPattern,
   publishProblems,
   REDIRECTS_FILE,
   SITE_FILE,
@@ -22,6 +21,7 @@ import {
   type SourcedItem,
   siteLanguages,
   todayIn,
+  withoutUnreadLinks,
   withSourcedCollections,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
@@ -108,40 +108,6 @@ export async function readShown(
   }
 }
 
-/**
- * Whether a link's address could be a page of a collection whose items the
- * admin panel can't read, such as a static site's, whose build reads them: its
- * pages aren't known here, so a link to one can't be checked.
- */
-function unreachablePage(content: SiteContent, unreachable: ReadonlySet<string>, target: string): boolean {
-  return content.collections.some(
-    (collection) =>
-      unreachable.has(collection.id) &&
-      siteLanguages(content.settings).some((language) => {
-        const pattern = languagePattern(content.settings, collection.settings, language.code);
-        return pattern !== undefined && matchesAddressPattern(pattern, target);
-      }),
-  );
-}
-
-/**
- * The problems without links that might go to an unreachable collection's
- * items: to their pages (`unreachablePage()`), and from item fields that name
- * one of them, since the admin panel doesn't know which items it has.
- */
-function withoutUnreachable(
-  problems: SiteProblem[],
-  content: SiteContent,
-  unreachable: ReadonlySet<string>,
-): SiteProblem[] {
-  if (unreachable.size === 0) return problems;
-  return problems.filter((problem) => {
-    if (problem.kind === "missing-page") return !unreachablePage(content, unreachable, problem.target);
-    if (problem.kind === "missing-item") return !unreachable.has(problem.collection);
-    return true;
-  });
-}
-
 /** The sources to ask for a copy of the site: what the admin panel reads, for the site as it's loaded or checked. */
 export type SourcesFor = (content: SiteContent) => CollectionSources | undefined;
 
@@ -192,7 +158,7 @@ export async function checkPublish(
   const unreachable = new Set(sourced.filter((id) => !site.sources || (given && !Object.hasOwn(given, id))));
   let leftOut: string[] | undefined;
   // As visitors see it, with sourced collections' items, so links to their pages aren't missing.
-  const before = loaded.shown ?? loaded.content;
+  let before = loaded.shown ?? loaded.content;
   let after: SiteContent;
   try {
     after = await contentWithChanges(source, changes, sourced);
@@ -202,16 +168,32 @@ export async function checkPublish(
     return { blocking: [], warnings: [], content: before };
   }
   const sources = typeof site.sources === "function" ? site.sources(after) : site.sources;
+  let read: [SiteContent, SiteContent] | undefined;
   if (sources) {
-    // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded.
+    // Asked each time, so publishing again retries a source that couldn't be read, here or as the site loaded, and
+    // for the site as it is now too, so an item the other system removed since the site loaded isn't counted as one
+    // the publish leaves out. Items left out are named below (`leftOut`), so nothing is logged in the editor's
+    // browser, as `readShown()`.
+    const sourcesBefore = (typeof site.sources === "function" ? site.sources(loaded.content) : site.sources) ?? {};
     try {
-      // Items left out are named below (`leftOut`), so nothing is logged in the editor's browser, as `readShown()`.
-      after = await withSourcedCollections(after, sources, () => {});
+      read = await Promise.all([
+        withSourcedCollections(loaded.content, sourcesBefore, () => {}),
+        withSourcedCollections(after, sources, () => {}),
+      ]);
     } catch (error) {
       if (error instanceof SignInError) throw error;
-      const unread = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
-      return { blocking: [], warnings: [], unread, content: after };
+      const ids = after.collections.filter((one) => Object.hasOwn(sources, one.id)).map((one) => one.id);
+      // Changes to a sourced collection's settings can't be checked without its items, so they wait for the source.
+      // Anything else is checked as a static site's is: without the items, and leaving alone links that could go to
+      // their pages (`unreachable`), so an outage elsewhere never stops a change that can't touch them.
+      if (ids.some((id) => changes.some((change) => change.path === collectionSettingsFile(id)))) {
+        return { blocking: [], warnings: [], unread: ids, content: after };
+      }
+      for (const id of ids) unreachable.add(id);
     }
+  }
+  if (sources && read) {
+    [before, after] = read;
     // Items shown before that the changes would leave out, whether the site's checks refuse them here or the server
     // already left them out, as it does an item that doesn't fit the settings it's asked with.
     const shownAfter = new Set(
@@ -242,7 +224,7 @@ export async function checkPublish(
     code.renderedProblems(after, pagesToRender(after, changed), today).catch((): SiteProblem[] => []),
   ]);
   const problemsBefore = [
-    ...withoutUnreachable(
+    ...withoutUnreadLinks(
       checkSite(before, { media: mediaAddresses(loaded.media), blocks, pages: pagesBefore }),
       before,
       unreachable,
@@ -250,7 +232,7 @@ export async function checkPublish(
     ...renderedBefore,
   ];
   const problems = [
-    ...withoutUnreachable(
+    ...withoutUnreadLinks(
       checkSite(after, { media: mediaAddresses(media), blocks, pages: pagesAfter }),
       after,
       unreachable,

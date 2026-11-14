@@ -6,6 +6,7 @@ import { parseEnv } from "node:util";
 import {
   CALENDARS_DIR,
   ConflictError,
+  ContentError,
   type ContentSource,
   type ContentStore,
   calendarFiles,
@@ -248,7 +249,12 @@ export async function sendBuildFile(
     // A source can reject with anything, null included.
     onError(`${pathname} couldn't be made: ${error instanceof Error ? error.message : String(error)}`);
     res.statusCode = 500;
-    res.end();
+    // A content file's problem is the developer's own content, said in the answer too, as pages say theirs; what a
+    // source or anything else says, which can name a database's address, stays on the computer.
+    if (error instanceof ContentError) {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end(`${pathname} couldn't be made from the site's content: ${error.message}`);
+    } else res.end();
     return true;
   }
   if (!file) {

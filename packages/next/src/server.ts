@@ -111,8 +111,15 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
         throw new Error(`goodfellowApi() needs a token: set ${GIT_TOKEN_VARIABLE}, or pass \`token\`.`);
       })();
     const ai = options.ai && aiServer(options.ai);
-    // Every collection's module must be there, but each source is made only when the admin panel asks for its items.
-    checkSourceModules(options.config.collections, options.sources ?? {});
+    // Every collection's module should be there, which is said here, on the server; but one that's missing fails only
+    // its collection's items (`collectionSource()`), never signing in or publishing, and each source is made only when
+    // the admin panel asks for its items.
+    try {
+      checkSourceModules(options.config.collections, options.sources ?? {});
+    } catch (error) {
+      if (options.onError) options.onError(error);
+      else console.error(error instanceof Error ? error.message : String(error));
+    }
     const sources = new Map<string, CollectionSource | undefined>();
     api = appApi({
       git: backend.server({ token }),

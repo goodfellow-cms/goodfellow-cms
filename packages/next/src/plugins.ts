@@ -53,7 +53,7 @@ export async function configHasPlugins(root: string): Promise<boolean> {
 /**
  * Modules kept by site and input (`loadKeptSiteModule()`): one for each, the latest, so an older one, and the source
  * `keptCollectionSources()` made from it, can be let go once the code changes. With it, the hash of its bundled code,
- * and when each file bundled into it last changed, or none where one changed while it was bundled.
+ * and when each file bundled into it had last changed as it was read.
  */
 const keptModules = new Map<
   string,
@@ -96,9 +96,9 @@ export async function loadSiteModule(
   await mkdir(outDir, { recursive: true });
   // Each call a file of its own, since several can start in the same millisecond.
   const file = join(outDir, `module-${process.pid}-${Date.now()}-${randomUUID()}.mjs`);
-  const started = Date.now();
-  // Every file the bundle reads, which its output doesn't list where a module's code was inlined into another's.
-  const read = new Set<string>();
+  // Every file the bundle reads, which its output doesn't list where a module's code was inlined into another's, with
+  // when it last changed, as it's read: a file changed later, even while this bundles, is then bundled again.
+  const read = new Map<string, Promise<number | undefined>>();
   await build({
     input,
     cwd: root,
@@ -111,8 +111,9 @@ export async function loadSiteModule(
     plugins: [
       {
         name: "goodfellow:no-styles",
-        load: (id) => {
-          read.add(id);
+        load: async (id) => {
+          if (isAbsolute(id)) read.set(id, changedAt(id));
+          await read.get(id);
           return id.endsWith(".css") ? { code: "", moduleType: "js" } : undefined;
         },
       },
@@ -130,21 +131,19 @@ export async function loadSiteModule(
     const hash = createHash("sha256")
       .update(await readFile(file))
       .digest("hex");
-    // The site's own files bundled into it, and when each changed: one changed while it was bundled may not be in it.
+    // The site's own files bundled into it, and when each had changed as it was read.
     const files = new Map<string, number>();
-    for (const id of read) {
-      if (!isAbsolute(id)) continue;
-      const time = await changedAt(id);
-      if (time !== undefined) files.set(id, time);
+    for (const [id, time] of read) {
+      const at = await time;
+      if (at !== undefined) files.set(id, at);
     }
-    const settled = [...files.values()].every((time) => time < started) ? files : undefined;
     const kept = keptModules.get(key);
     if (kept?.hash === hash) {
-      kept.files = settled;
+      kept.files = files;
       return await kept.module;
     }
     const module = import(pathToFileURL(file).href) as Promise<Record<string, unknown>>;
-    const entry = { hash, files: settled, module };
+    const entry = { hash, files, module };
     // Replacing the one kept before, so it's let go.
     keptModules.set(key, entry);
     module.catch(() => {
@@ -177,10 +176,15 @@ export async function readCollectionSources(root: string): Promise<CollectionSou
   if (!configFile) return {};
   // Kept as the sources' modules are, so a request bundles nothing while nothing has changed.
   const { collections } = (await loadKeptSiteModule(dir, configFile)).default as GoodfellowConfig;
-  const modules: Record<string, SourceModuleImport> = {};
-  for (const [id, collection] of Object.entries(collections ?? {})) {
-    modules[id] = (await loadKeptSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport;
-  }
+  // Every module at once, so a request after an edit waits for the slowest bundle rather than all of them in turn.
+  const modules: Record<string, SourceModuleImport> = Object.fromEntries(
+    await Promise.all(
+      Object.entries(collections ?? {}).map(
+        async ([id, collection]) =>
+          [id, (await loadKeptSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport] as const,
+      ),
+    ),
+  );
   // Made once for the same modules, since `next dev` reads the sources again on every request.
   return keptCollectionSources(collections, modules);
 }
