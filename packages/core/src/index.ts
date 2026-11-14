@@ -375,6 +375,7 @@ export {
   isSourcedItem,
   itemsAsSources,
   keptCollectionSources,
+  loadReadableSources,
   loadSourcedContent,
   mayBeUnreadPage,
   readSources,

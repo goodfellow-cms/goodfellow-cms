@@ -6,16 +6,31 @@ import { dueSite } from "./due.js";
 
 const fixture = resolve(import.meta.dirname, "../test/fixtures/site");
 
-/** The fixture with its talks given a source, `lib/talks.ts`, whose items are `items`. */
-async function sourcedSite(items: string): Promise<string> {
+/**
+ * The fixture with its talks given a source, `lib/talks.ts`, whose items are `items`, and a collection of news
+ * given one too, `lib/news.ts`, whose items are `news`.
+ */
+async function sourcedSite(items: string, news = "[]"): Promise<string> {
   const site = await mkdtemp(join(import.meta.dirname, "../test/.due-"));
   await cp(fixture, site, { recursive: true, filter: (path) => !path.includes("node_modules") });
   await mkdir(join(site, "lib"), { recursive: true });
   await writeFile(join(site, "lib/talks.ts"), `export default () => ({ items: async () => ${items} });\n`);
+  await writeFile(join(site, "lib/news.ts"), `export default () => ({ items: async () => ${news} });\n`);
+  await mkdir(join(site, "content/collections/news"), { recursive: true });
+  await writeFile(
+    join(site, "content/collections/news/_collection.json"),
+    JSON.stringify({
+      version: 1,
+      name: "News",
+      entryName: "Story",
+      path: "/news/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    }),
+  );
   const configFile = join(site, "goodfellow.config.tsx");
   const config = (await readFile(configFile, "utf8")).replace(
     '  base: "/from-config/",',
-    '  base: "/from-config/",\n  collections: { talks: { source: "./lib/talks.ts" } },',
+    '  base: "/from-config/",\n  collections: { talks: { source: "./lib/talks.ts" }, news: { source: "./lib/news.ts" } },',
   );
   expect(config).toContain("collections:");
   await writeFile(configFile, config);
@@ -40,13 +55,20 @@ describe("goodfellow due's site", () => {
     }
   });
 
-  it("leaves out the items of a source it can't read, saying so, rather than fail", async () => {
-    const site = await sourcedSite('Promise.reject(new Error("No database here."))');
+  it("leaves out the items of a source it can't read, saying so, keeping the others' schedules", async () => {
+    const site = await sourcedSite(
+      'Promise.reject(new Error("No database here."))',
+      '[{ slug: "soon", showFrom: "2031-03-04T05:06", fields: { title: "Soon" } }]',
+    );
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const content = await dueSite(site, builtSiteSource(site));
       expect(content.collections.find((one) => one.id === "talks")?.entries).toEqual([]);
-      expect(warn.mock.calls.some(([text]) => String(text).includes("No database here."))).toBe(true);
+      expect(content.collections.find((one) => one.id === "news")?.entries.map((entry) => entry.slug)).toEqual([
+        "soon",
+      ]);
+      const said = warn.mock.calls.map(([text]) => String(text));
+      expect(said.some((text) => text.includes("talks") && text.includes("No database here."))).toBe(true);
     } finally {
       warn.mockRestore();
       await rm(site, { recursive: true, force: true });

@@ -25,7 +25,7 @@ import {
   writeRedirectFiles,
 } from "./export.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
-import { loadKeptSiteModule, loadSiteModule, readCollectionSources } from "./plugins.js";
+import { loadCollectionSources, loadKeptSiteModule, loadSiteModule, readCollectionSources } from "./plugins.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -270,17 +270,21 @@ describe("collections' sources in an export", () => {
       await cp(site, other, { recursive: true });
       expect((await readCollectionSources(other)).jobs).not.toBe(changed.jobs);
       expect((await readCollectionSources(site)).jobs).toBe(changed.jobs);
-      // \`goodfellow-next due\` reads the source's items, schedules and all, and leaves out the file they replace.
+      // `goodfellow-next due` reads the source's items, schedules and all, and leaves out the file they replace.
       const due = await dueSite(builtSiteSource(site), site);
       expect(due.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toContain("later");
-      // A source it can't read leaves its items out, saying so, rather than fail every check.
+      // A source it can't read leaves its items out, saying so, rather than fail every check: one that's down at
+      // first, and answers after.
       await writeFile(
         join(other, "lib/jobs.ts"),
-        'export default () => ({ items: async () => { throw new Error("No database here."); } });\n',
+        'let asked = 0;\nexport default () => ({ items: async () => { if (asked++ === 0) throw new Error("No database here."); return [{ slug: "back", fields: { title: "Back" } }]; } });\n',
       );
       const down = await dueSite(builtSiteSource(other), other);
       expect(down.collections.find((one) => one.id === "jobs")?.entries).toEqual([]);
       expect(warn.mock.calls.some(([text]) => String(text).includes("No database here."))).toBe(true);
+      // The failed read isn't kept, so the next step asks the source again.
+      const back = await (await loadCollectionSources(other)).jobs?.items();
+      expect(back?.map((item) => item.slug)).toEqual(["back"]);
     } finally {
       vi.restoreAllMocks();
       await rm(site, { recursive: true, force: true });

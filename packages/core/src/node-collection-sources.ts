@@ -37,5 +37,5 @@ export async function loadSourceModules(
       ),
     ),
   );
-  return keptCollectionSources(collections, modules);
+  return keptCollectionSources(collections, modules, root);
 }

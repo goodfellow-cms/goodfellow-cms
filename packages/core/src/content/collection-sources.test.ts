@@ -8,6 +8,7 @@ import {
   defineCollectionSource,
   isSourcedItem,
   keptCollectionSources,
+  loadReadableSources,
   loadSourcedContent,
   readSources,
   type SourcedItem,
@@ -463,6 +464,45 @@ describe("keptCollectionSources", () => {
       warn.mockRestore();
     }
   });
+
+  it("never closes another site's source, as two sites in one process have their own", async () => {
+    const closed: string[] = [];
+    const made = (name: string) => ({
+      default: (): CollectionSource => ({
+        items: async () => [],
+        close: () => {
+          closed.push(name);
+        },
+      }),
+    });
+    const config = { jobs: { source: "./lib/jobs.ts" } };
+    const one = made("one");
+    const first = keptCollectionSources(config, { jobs: one }, "/sites/one").jobs;
+    keptCollectionSources(config, { jobs: made("two") }, "/sites/two");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closed).toEqual([]);
+    expect(keptCollectionSources(config, { jobs: one }, "/sites/one").jobs).toBe(first);
+  });
+
+  it("never gives out a source it closed, as when the module changes and changes back", () => {
+    const config = { jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } };
+    const made: CollectionSource[] = [];
+    const module = {
+      default: (): CollectionSource => {
+        const source = { items: async () => [], close: () => {} };
+        made.push(source);
+        return source;
+      },
+    };
+    const first = keptCollectionSources(config, { jobs: module }).jobs;
+    keptCollectionSources(config, { jobs: { default: () => ({ items: async () => [] }) } });
+    // Back to the first module, with the same options: its source was closed, so another is made.
+    const again = keptCollectionSources(config, { jobs: module }).jobs;
+    expect(again).not.toBe(first);
+    expect(made).toHaveLength(2);
+    // And that one is kept while nothing changes.
+    expect(keptCollectionSources(config, { jobs: module }).jobs).toBe(again);
+  });
 });
 
 describe("sourceChanges", () => {
@@ -647,6 +687,23 @@ describe("readSources", () => {
       expect(errors[0]).toBeInstanceOf(CollectionSourceError);
       expect((errors[0] as Error).message).toBe('The source of the collection "jobs" didn\'t give a list of items.');
     }
+  });
+});
+
+describe("loadReadableSources", () => {
+  it("shows the items of the sources it can read, leaving the others' collections empty and naming them", async () => {
+    // Jobs' folder still has an item file, which is never read.
+    const files = siteFiles();
+    const down = new Error("No database here.");
+    const { content, failed, errors } = await loadReadableSources(files, {
+      jobs: { items: async () => Promise.reject(down) },
+      news: { items: async () => [{ slug: "hello", fields: { title: "Hello" } }] },
+    });
+    expect(failed).toEqual(["jobs"]);
+    expect(errors).toEqual([down]);
+    const entries = (id: string) => content.collections.find((one) => one.id === id)?.entries.map((e) => e.slug);
+    expect(entries("news")).toEqual(["hello"]);
+    expect(entries("jobs")).toEqual([]);
   });
 });
 

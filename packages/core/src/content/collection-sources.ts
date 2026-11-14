@@ -158,11 +158,18 @@ export function collectionSources(
 
 const kept = new WeakMap<object, Map<string, { options: string; source: CollectionSource }>>();
 
-/** The source `keptCollectionSources()` gives each collection now, by its id, to close once it's made again. */
+/** Sources closed once another was made in their place, which are never given out again. */
+const closed = new WeakSet<CollectionSource>();
+
+/**
+ * The source `keptCollectionSources()` gives each collection now, by its site and id, to close once it's made
+ * again: only the same site's, since two sites in one process (a test's, say) each keep their own.
+ */
 const current = new Map<string, CollectionSource>();
 
 /** Closes a source made again in its place (`CollectionSource.close()`), saying so where it can't. */
 function closeReplaced(id: string, source: CollectionSource): void {
+  closed.add(source);
   Promise.resolve()
     .then(() => source.close?.())
     .catch((error: unknown) => {
@@ -177,11 +184,13 @@ function closeReplaced(id: string, source: CollectionSource): void {
  * request. A changed module (a new module object) or new options make it again,
  * keeping only the latest for each collection, and close the one before
  * (`CollectionSource.close()`), so its pool doesn't stay open. Kept by
- * collection id, for one site: a development server serves one.
+ * `site`, such as its folder, and collection id, so another site's sources in
+ * the same process are never closed.
  */
 export function keptCollectionSources(
   collections: Record<string, CollectionSourceConfig> | undefined,
   modules: Record<string, SourceModuleImport>,
+  site = "",
 ): CollectionSources {
   checkSourceModules(collections, modules);
   const sources: CollectionSources = {};
@@ -195,13 +204,15 @@ export function keptCollectionSources(
       kept.set(module, made);
     }
     let latest = made.get(id);
-    if (latest?.options !== options) {
+    // Made again for new options, and where the one kept was closed, as when the module changed and changed back.
+    if (latest?.options !== options || closed.has(latest.source)) {
       latest = { options, source: madeSource(id, config, modules) };
       made.set(id, latest);
     }
-    const before = current.get(id);
+    const key = `${site}\0${id}`;
+    const before = current.get(key);
     if (before && before !== latest.source) closeReplaced(id, before);
-    current.set(id, latest.source);
+    current.set(key, latest.source);
     sources[id] = latest.source;
   }
   return sources;
@@ -389,6 +400,23 @@ export async function readSources(
     }
   });
   return { read, failed, errors };
+}
+
+/**
+ * The site as `files` hold it, with the items of each source that can be read
+ * now, for checks that would rather go on without a source than stop, such as
+ * the hourly check for scheduled changes (`goodfellow due`): sourced
+ * collections' item files are never read, a source that can't be read leaves
+ * its collection without items, and `failed` names those, with what each threw
+ * in `errors`. Builds and pages use `loadSourcedContent()`, which stops instead.
+ */
+export async function loadReadableSources(
+  files: ContentSource,
+  sources: CollectionSources,
+): Promise<{ content: SiteContent; failed: string[]; errors: unknown[] }> {
+  const content = await loadSiteContent(files, { sourced: Object.keys(sources) });
+  const { read, failed, errors } = await readSources(sources);
+  return { content: await withSourcedCollections(content, read), failed, errors };
 }
 
 /**

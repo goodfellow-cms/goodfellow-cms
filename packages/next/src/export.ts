@@ -7,6 +7,7 @@ import {
   allPages,
   CALENDARS_DIR,
   CLOUDFLARE_REDIRECTS_PATH,
+  type CollectionSources,
   type ContentSource,
   calendarFiles,
   cloudflareRedirects,
@@ -16,6 +17,7 @@ import {
   feedFiles,
   type GoodfellowConfig,
   hasLanguages,
+  loadReadableSources,
   loadSiteContent,
   loadSourcedContent,
   membersPages,
@@ -111,14 +113,25 @@ export async function dueSite(files: ContentSource, root = process.cwd()): Promi
   if (!(await configNamesCollections(dir))) return loadSiteContent(files);
   const sourced = await sourcedCollectionIds(dir);
   if (sourced.length === 0) return loadSiteContent(files);
+  let sources: CollectionSources;
   try {
-    return await loadSourcedContent(files, loadCollectionSources(dir));
+    sources = await loadCollectionSources(dir);
   } catch (error) {
-    console.warn(
-      `The items of ${sourced.join(", ")} couldn't be read from their sources, so their schedules are left out: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    // Sources that can't even be made leave every sourced collection's items out.
+    warnUnread(sourced, [error]);
     return loadSiteContent(files, { sourced });
   }
+  const { content, failed, errors } = await loadReadableSources(files, sources);
+  if (failed.length > 0) warnUnread(failed, errors);
+  return content;
+}
+
+/** Says which collections' schedules are left out, since their sources couldn't be read, and why. */
+function warnUnread(ids: readonly string[], errors: readonly unknown[]): void {
+  const why = errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
+  console.warn(
+    `The items of ${ids.join(", ")} couldn't be read from their sources, so their schedules are left out: ${why}`,
+  );
 }
 
 /** The site as an export shows it (`loadedSite()`), without what its schedules hide. */

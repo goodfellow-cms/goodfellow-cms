@@ -262,7 +262,15 @@ export function loadCollectionSources(root: string): Promise<CollectionSources> 
         Object.entries(sources).map(([id, source]): [string, CollectionSource] => {
           let items: ReturnType<CollectionSource["items"]> | undefined;
           const changed = source.changed?.bind(source);
-          return [id, { items: () => (items ??= source.items()), ...(changed && { changed }) }];
+          // A read that fails is forgotten, so the next step asks the source again rather than fail the same way.
+          const read = () =>
+            (items ??= Promise.resolve()
+              .then(() => source.items())
+              .catch((error: unknown) => {
+                items = undefined;
+                throw error;
+              }));
+          return [id, { items: read, ...(changed && { changed }) }];
         }),
       ),
     );
