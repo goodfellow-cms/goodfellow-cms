@@ -235,8 +235,10 @@ const sources = collectionSources(config.collections, { jobs });
 
 export async function POST(request: Request): Promise<Response> {
   if (!fromYourJob(request)) return new Response(null, { status: 401 });
-  const { paths, next } = await sourceChanges(await site.loadSite(), sources, await readPlaces());
-  for (const path of paths) revalidatePath(path);
+  const { collections, next } = await sourceChanges(await site.loadSite(), sources, await readPlaces());
+  // Every page, since lists show the items too; `paths` names only the items' own pages, for a site whose lists are
+  // kept apart from them.
+  if (collections.length > 0) revalidatePath("/", "layout");
   await keepPlaces(next);
   return new Response(null, { status: 204 });
 }

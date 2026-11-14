@@ -237,6 +237,37 @@ describe("withSourcedCollections", () => {
     expect(newsAsked).toBe(3);
   });
 
+  it("shows a collection called constructor's last items while its source is down", async () => {
+    const files = siteFiles();
+    // News's settings at an address of its own, so its item doesn't take news's.
+    const settings = JSON.stringify({
+      ...JSON.parse((await files.read("content/collections/news/_collection.json")) ?? "{}"),
+      path: "/constructor/{slug}",
+    });
+    const named: ContentSource = {
+      read: async (path) => (path === "content/collections/constructor/_collection.json" ? settings : files.read(path)),
+      list: async (dir) => [
+        ...(await files.list(dir)),
+        ...(dir === "content/collections" ? ["content/collections/constructor/_collection.json"] : []),
+      ],
+    };
+    let down = false;
+    const jobs: CollectionSource = {
+      items: async () => {
+        if (down) throw new Error("Down.");
+        return [{ slug: "hello", fields: { title: "Hello" } }];
+      },
+    };
+    const content = await loadSiteContent(named);
+    expect(content.collections.some((one) => one.id === "constructor")).toBe(true);
+    await withSourcedCollections(content, { constructor: jobs }, () => {});
+    down = true;
+    const shown = await withSourcedCollections(content, { constructor: jobs }, () => {});
+    expect(shown.collections.find((one) => one.id === "constructor")?.entries.map((entry) => entry.slug)).toEqual([
+      "hello",
+    ]);
+  });
+
   it("reads an item as a file of this version, whatever the source calls a version", async () => {
     const content = await withSourcedCollections(await site(), {
       jobs: jobsSource([{ ...welder, version: 2 } as SourcedItem]).source,
@@ -499,6 +530,19 @@ describe("sourceChanges", () => {
     expect(changes.paths).toEqual(["/jobs/welder"]);
     expect(changes.next).toEqual({ jobs: "1", news: "7" });
     expect(changes.failed).toEqual(["news", "odd", "notNames"]);
+  });
+
+  it("asks a source called constructor from the start, not from what objects have of their own", async () => {
+    const asked: unknown[] = [];
+    const named: CollectionSource = {
+      items: async () => [],
+      changed: async (since) => {
+        asked.push(since);
+        return { slugs: [], next: "1" };
+      },
+    };
+    await sourceChanges(await site(), { constructor: named });
+    expect(asked).toEqual([""]);
   });
 
   it("names no collection the site has no settings for, which has no pages", async () => {

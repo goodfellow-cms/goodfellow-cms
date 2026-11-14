@@ -224,6 +224,29 @@ export async function readCollection(source: ContentSource, id: string): Promise
   };
 }
 
+/**
+ * The settings of each of the collections `ids` names that the site has, by id: one it has no settings for, or whose
+ * settings can't be read as the site would read them, has no pages, and is left out; any other failure, such as the
+ * host not answering, is thrown, so a check that needs them never goes on without them.
+ */
+export async function collectionSettingsOf(
+  source: ContentSource,
+  ids: readonly string[],
+): Promise<{ id: string; settings: CollectionFile }[]> {
+  const read = await Promise.all(
+    ids.map((id) =>
+      readCollection(source, id).then(
+        (collection) => ({ id, settings: collection.settings }),
+        (error: unknown) => {
+          if (error instanceof ToolError) return undefined;
+          throw error;
+        },
+      ),
+    ),
+  );
+  return read.filter((one) => one !== undefined);
+}
+
 export async function readEntry(
   source: ContentSource,
   collection: LoadedCollection,

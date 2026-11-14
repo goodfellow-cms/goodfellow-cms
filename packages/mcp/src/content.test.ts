@@ -1,7 +1,7 @@
 import type { ContentSource } from "@goodfellow-cms/core";
 import { serializeContent } from "@goodfellow-cms/core";
 import { describe, expect, it } from "vitest";
-import { loadWholeSite, withoutSourcedItems } from "./content.js";
+import { collectionSettingsOf, loadWholeSite, withoutSourcedItems } from "./content.js";
 
 describe("loadWholeSite", () => {
   it("reads every content file in one batch, never one by one", async () => {
@@ -65,5 +65,29 @@ describe("withoutSourcedItems", () => {
     expect(await shown.fileSizes?.("public/media")).toEqual(new Map([["public/media/a.jpg", 3]]));
     // Nothing to hide gives the source itself.
     expect(withoutSourcedItems(source, [])).toBe(source);
+  });
+});
+
+describe("collectionSettingsOf", () => {
+  it("leaves out a collection the site doesn't have, and stops where its settings can't be read just now", async () => {
+    const settings = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    let failing = false;
+    const source: ContentSource = {
+      read: async (path) => {
+        if (failing) throw new Error("The host didn't answer.");
+        return path === "content/collections/jobs/_collection.json" ? serializeContent(settings) : undefined;
+      },
+      list: async (dir) => (dir === "content/collections" ? ["content/collections/jobs/_collection.json"] : []),
+    };
+    expect((await collectionSettingsOf(source, ["jobs", "events"])).map((one) => one.id)).toEqual(["jobs"]);
+    // A host that doesn't answer isn't a collection the site lacks: the change that needs it waits.
+    failing = true;
+    await expect(collectionSettingsOf(source, ["jobs"])).rejects.toThrow("didn't answer");
   });
 });

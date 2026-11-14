@@ -82,21 +82,18 @@ export async function draftAndLive(
   live: () => Promise<LoadState>,
   onSignInError?: (error: SignInError) => void,
 ): Promise<{ changes: FileChange[]; live: Extract<LoadState, { status: "ready" }> } | { error: unknown }> {
-  const signedOut = (error: unknown) => {
-    if (error instanceof SignInError && error.problem === "invalid") onSignInError?.(error);
-  };
-  let read: [FileChange[], LoadState];
-  try {
-    read = await Promise.all([changes(), live()]);
-  } catch (error) {
-    signedOut(error);
-    return { error };
-  }
-  const [given, loaded] = read;
-  if (loaded.status !== "ready") {
-    const error = loaded.status === "error" ? loaded.error : false;
-    signedOut(error);
-    return { error };
-  }
-  return { changes: given, live: loaded };
+  // Both read to the end, so a sign-in that ran out reading one is found whatever the other did first.
+  const [draft, current] = await Promise.allSettled([changes(), live()]);
+  const loaded = current.status === "fulfilled" ? current.value : undefined;
+  const errors: unknown[] = [
+    ...(draft.status === "rejected" ? [draft.reason] : []),
+    ...(current.status === "rejected" ? [current.reason] : []),
+    ...(loaded && loaded.status !== "ready" ? [loaded.status === "error" ? loaded.error : false] : []),
+  ];
+  const signIn = errors.find(
+    (error): error is SignInError => error instanceof SignInError && error.problem === "invalid",
+  );
+  if (signIn) onSignInError?.(signIn);
+  if (draft.status === "rejected" || loaded?.status !== "ready") return { error: signIn ?? errors[0] };
+  return { changes: draft.value, live: loaded };
 }

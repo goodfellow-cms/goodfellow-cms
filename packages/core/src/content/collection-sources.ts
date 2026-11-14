@@ -415,7 +415,7 @@ export async function withSourcedCollections(
   const problems: ContentProblem[] = [];
   const read = new Map<string, SourcedItem[]>();
   for (const id of sourced) {
-    const items = asked.read[id] ? await (asked.read[id] as CollectionSource).items() : undefined;
+    const items = Object.hasOwn(asked.read, id) ? await (asked.read[id] as CollectionSource).items() : undefined;
     if (items) {
       read.set(id, items);
       continue;
@@ -472,7 +472,9 @@ export async function sourceChanges(
   // Every source is asked at once, so a scheduled route waits for the slowest rather than all of them in turn, each in
   // a promise of its own, so one that throws before it returns one fails only itself.
   const answers = await Promise.allSettled(
-    asking.map(([id, source]) => Promise.resolve().then(() => source.changed?.(since[id] ?? ""))),
+    asking.map(([id, source]) =>
+      Promise.resolve().then(() => source.changed?.(Object.hasOwn(since, id) ? (since[id] as string) : "")),
+    ),
   );
   const asked: [string, SourceChanges][] = [];
   asking.forEach(([id], index) => {

@@ -65,6 +65,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ComponentConfig, Config, Content, Data, Fields } from "@puckeditor/core";
 import { z } from "zod";
 import {
+  collectionSettingsOf,
   contentFiles,
   entryAddresses,
   entryLanguages,
@@ -382,19 +383,8 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
   async function refuseSourcedAddress(site: OpenedSite, source: ContentSource, path: string) {
     const ids = sourcedOf(site);
     if (ids.length === 0) return;
-    const [settings, collections] = await Promise.all([
-      readSettings(source),
-      Promise.all(
-        ids.map((id) =>
-          readCollection(source, id).then(
-            (collection) => ({ id, settings: collection.settings }),
-            () => undefined,
-          ),
-        ),
-      ),
-    ]);
-    const known = collections.filter((collection) => collection !== undefined);
-    const collection = known.find((one) => mayBeUnreadPage({ settings, collections: known }, new Set([one.id]), path));
+    const [settings, collections] = await Promise.all([readSettings(source), collectionSettingsOf(source, ids)]);
+    const collection = collections.find((one) => mayBeUnreadPage({ settings, collections }, new Set([one.id]), path));
     if (collection) {
       throw new ToolError(
         `One of ${collection.settings.name}'s items could have ${path} as its address: they come from another system, which these tools can't read. Choose another address.`,

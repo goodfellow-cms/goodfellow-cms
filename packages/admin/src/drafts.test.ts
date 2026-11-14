@@ -37,6 +37,19 @@ describe("draftAndLive", () => {
     expect(onSignInError).toHaveBeenCalledWith(expired);
   });
 
+  it("signs in again where the live site finds the sign-in ran out after the draft failed otherwise", async () => {
+    const expired = new SignInError("invalid", "Sign in again.");
+    const onSignInError = vi.fn();
+    // The draft's read fails first, with a problem of its own; the live site's then finds the sign-in ran out.
+    const read = await draftAndLive(
+      () => Promise.reject(new Error("The draft couldn't be read.")),
+      () => new Promise((resolve) => setTimeout(() => resolve({ status: "error", error: expired }), 10)),
+      onSignInError,
+    );
+    expect(read).toEqual({ error: expired });
+    expect(onSignInError).toHaveBeenCalledWith(expired);
+  });
+
   it("leaves other failures, and other sign-in problems, to the screen", async () => {
     const onSignInError = vi.fn();
     const failure = new Error("The site's server didn't answer.");
