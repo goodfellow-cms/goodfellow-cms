@@ -17,16 +17,21 @@ import {
   type GoodfellowConfig,
   type GoodfellowPlugin,
   INSTALLED_PLUGINS_INDEX,
-  keptCollectionSources,
   loadSiteContent,
   PLUGINS_PATH,
   pluginFrameEntry,
   pluginFramePage,
   pluginId,
   type SiteContent,
-  type SourceModuleImport,
 } from "@goodfellow-cms/core";
-import { builtSiteSource, LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
+import {
+  builtSiteSource,
+  LICENSES_FILE,
+  licensesPlugin,
+  loadSourceModules,
+  mediaStorageOrigins,
+  siteModulePath,
+} from "@goodfellow-cms/core/node";
 
 const CONFIG_FILES = ["goodfellow.config.tsx", "goodfellow.config.ts", "goodfellow.config.jsx", "goodfellow.config.js"];
 const FRAME_ENTRY = "\0goodfellow:plugin-frame";
@@ -131,8 +136,11 @@ export async function loadSiteModule(
       {
         name: "goodfellow:no-styles",
         load: async (id) => {
-          if (isAbsolute(id)) read.set(id, changedAt(id));
-          await read.get(id);
+          // Only for a module that's kept, which is the only one asked later whether its files changed.
+          if (keep && isAbsolute(id)) {
+            read.set(id, changedAt(id));
+            await read.get(id);
+          }
           return id.endsWith(".css") ? { code: "", moduleType: "js" } : undefined;
         },
       },
@@ -195,17 +203,9 @@ export async function readCollectionSources(root: string): Promise<CollectionSou
   if (!configFile) return {};
   // Kept as the sources' modules are, so a request bundles nothing while nothing has changed.
   const { collections } = (await loadKeptSiteModule(dir, configFile)).default as GoodfellowConfig;
-  // Every module at once, so a request after an edit waits for the slowest bundle rather than all of them in turn.
-  const modules: Record<string, SourceModuleImport> = Object.fromEntries(
-    await Promise.all(
-      Object.entries(collections ?? {}).map(
-        async ([id, collection]) =>
-          [id, (await loadKeptSiteModule(dir, adminModule(dir, collection.source))) as SourceModuleImport] as const,
-      ),
-    ),
-  );
-  // Made once for the same modules, since `next dev` reads the sources again on every request.
-  return keptCollectionSources(collections, modules);
+  // Each module kept too, and made into a source once for the same modules, since `next dev` reads the sources again
+  // on every request.
+  return loadSourceModules(dir, collections, (path) => loadKeptSiteModule(dir, path));
 }
 
 const sourcedIds = new Map<string, Promise<string[]>>();
@@ -261,9 +261,7 @@ export function loadCollectionSources(root: string): Promise<CollectionSources> 
 }
 
 /** A plugin's admin module as the bundler imports it: a package's export, or a path from the site's root. */
-function adminModule(root: string, specifier: string): string {
-  return specifier.startsWith("./") || specifier.startsWith("../") ? resolve(root, specifier) : specifier;
-}
+const adminModule = siteModulePath;
 
 export interface PluginFrameBuild {
   root: string;

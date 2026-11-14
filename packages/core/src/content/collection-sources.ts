@@ -327,6 +327,12 @@ function sourcedEntries(
 }
 
 /**
+ * The items each source last gave, while it's kept (as `keptCollectionSources()` keeps them for a server's life), for
+ * `withSourcedCollections()` to show while it can't be read.
+ */
+const lastRead = new WeakMap<CollectionSource, SourcedItem[]>();
+
+/**
  * Each source's items read on its own, at once: `read` gives the items of
  * those that could be read, without asking their sources again, and `failed`
  * names the others, with what each threw in `errors`, so one source that's
@@ -336,7 +342,8 @@ export async function readSources(
   sources: CollectionSources,
 ): Promise<{ read: CollectionSources; failed: string[]; errors: unknown[] }> {
   const asking = Object.entries(sources);
-  const answers = await Promise.allSettled(asking.map(([, source]) => source.items()));
+  // Each in a promise of its own, so a source that throws before it returns one fails only itself.
+  const answers = await Promise.allSettled(asking.map(([, source]) => Promise.resolve().then(() => source.items())));
   const read: CollectionSources = {};
   const failed: string[] = [];
   const errors: unknown[] = [];
@@ -344,6 +351,7 @@ export async function readSources(
     const answer = answers[index] as PromiseSettledResult<SourcedItem[]>;
     if (answer.status === "fulfilled") {
       const items = answer.value;
+      lastRead.set(sources[id] as CollectionSource, items);
       read[id] = { items: async () => items };
     } else {
       failed.push(id);
@@ -378,6 +386,14 @@ export function itemsAsSources(content: SiteContent, ids: Iterable<string>): Col
  * stop the whole site. A source for a collection the site has no settings for
  * is left alone, as a folder of items without a `_collection.json` is.
  *
+ * Each source is read on its own (`readSources()`). One that can't be read
+ * just now shows the items it gave last time it could, in this process, with
+ * a problem saying so, so a server that has shown its items keeps showing
+ * them while the other system is down. One never read yet fails the whole
+ * site, after every other source has been asked, since a site without its
+ * items would show their pages as missing and its lists empty, which a build
+ * would publish and a server could keep until the next publish.
+ *
  * Use it on the site as loaded, before `shownContent()`, so sourced items'
  * schedules apply as files' do.
  */
@@ -395,10 +411,23 @@ export async function withSourcedCollections(
   const taken = new Map(allPages(kept).map((page) => [page.path, page.file]));
   // Every source is asked at once, so a page waits for the slowest rather than all of them in turn. Their items are
   // then checked in the site's order of collections, which decides which of two takes an address both give.
-  const read = new Map(
-    await Promise.all([...sourced].map(async (id) => [id, await (sources[id] as CollectionSource).items()] as const)),
-  );
+  const asked = await readSources(Object.fromEntries([...sourced].map((id) => [id, sources[id] as CollectionSource])));
   const problems: ContentProblem[] = [];
+  const read = new Map<string, SourcedItem[]>();
+  for (const id of sourced) {
+    const items = asked.read[id] ? await (asked.read[id] as CollectionSource).items() : undefined;
+    if (items) {
+      read.set(id, items);
+      continue;
+    }
+    const last = lastRead.get(sources[id] as CollectionSource);
+    if (!last) throw asked.errors[asked.failed.indexOf(id)];
+    problems.push({
+      file: `source:${id}`,
+      message: "couldn't be read from its source just now, so the items it gave last time are shown.",
+    });
+    read.set(id, last);
+  }
   const collections: Collection[] = [];
   for (const collection of content.collections) {
     const items = read.get(collection.id);
@@ -411,6 +440,13 @@ export async function withSourcedCollections(
   }
   for (const problem of problems) onProblem(problem);
   return { ...content, collections };
+}
+
+/** Whether a source's `changed()` gave what it should: its items' names, and what to pass next time. */
+function isSourceChanges(value: unknown): value is SourceChanges {
+  if (!value || typeof value !== "object") return false;
+  const { slugs, next } = value as { slugs?: unknown; next?: unknown };
+  return typeof next === "string" && Array.isArray(slugs) && slugs.every((slug) => typeof slug === "string");
 }
 
 /**
@@ -433,12 +469,16 @@ export async function sourceChanges(
   const next: Record<string, string> = {};
   const failed: string[] = [];
   const asking = Object.entries(sources).flatMap(([id, source]) => (source.changed ? [[id, source] as const] : []));
-  // Every source is asked at once, so a scheduled route waits for the slowest rather than all of them in turn.
-  const answers = await Promise.allSettled(asking.map(([id, source]) => source.changed?.(since[id] ?? "")));
+  // Every source is asked at once, so a scheduled route waits for the slowest rather than all of them in turn, each in
+  // a promise of its own, so one that throws before it returns one fails only itself.
+  const answers = await Promise.allSettled(
+    asking.map(([id, source]) => Promise.resolve().then(() => source.changed?.(since[id] ?? ""))),
+  );
   const asked: [string, SourceChanges][] = [];
   asking.forEach(([id], index) => {
     const answer = answers[index];
-    if (answer?.status === "fulfilled" && answer.value) asked.push([id, answer.value]);
+    // Only an answer of the shape a source gives counts; anything else is that source's failure.
+    if (answer?.status === "fulfilled" && isSourceChanges(answer.value)) asked.push([id, answer.value]);
     else {
       failed.push(id);
       if (Object.hasOwn(since, id)) next[id] = since[id] as string;

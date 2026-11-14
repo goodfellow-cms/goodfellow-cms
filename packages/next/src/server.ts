@@ -134,6 +134,8 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.provenance && { provenance: options.provenance }),
       ownersOnly: ownersOnlyFields(options.config.blocks ?? {}),
       sources: (id) => {
+        // Only the collections the config names are kept, so asking for others' items adds nothing to remember.
+        if (!Object.hasOwn(options.config.collections ?? {}, id)) return undefined;
         if (!sources.has(id)) sources.set(id, collectionSource(options.config.collections, options.sources ?? {}, id));
         return sources.get(id);
       },

@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { withSourcedCollections } from "./content/collection-sources.js";
+import { type CollectionSources, withSourcedCollections } from "./content/collection-sources.js";
 import { ContentError } from "./content/errors.js";
 import { loadSiteContent } from "./content/load.js";
 import {
@@ -45,14 +45,8 @@ describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
       version: 1,
       fields: { title: "From a file", posted: "2026-01-01" },
     });
-    let reading = true;
-    const sources = {
-      jobs: {
-        items: async () => {
-          if (!reading) throw new Error("The database didn't answer.");
-          return [{ slug: "welder", fields: { title: "Welder", posted: "2026-11-02" } }];
-        },
-      },
+    const sources: CollectionSources = {
+      jobs: { items: async () => [{ slug: "welder", fields: { title: "Welder", posted: "2026-11-02" } }] },
     };
     const load: SiteLoader = async (files) =>
       withSourcedCollections(await loadSiteContent(files, { sourced: ["jobs"] }), sources);
@@ -70,8 +64,13 @@ describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
       expect(rss).not.toContain("From a file");
       // Without a loader, the site's files.
       expect(await (await fetch(`${origin}/plain${DEV_API_PREFIX}/feeds/jobs.rss`)).text()).toContain("From a file");
-      // A source that can't be read answers 500, saying why only on this computer, never with the files it replaces.
-      reading = false;
+      // A source that can't be read, and never has been, answers 500, saying why only on this computer, never with
+      // the files it replaces.
+      sources.jobs = {
+        items: async () => {
+          throw new Error("The database didn't answer.");
+        },
+      };
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       try {
         const failed = await fetch(`${origin}${DEV_API_PREFIX}/feeds/jobs.rss`);

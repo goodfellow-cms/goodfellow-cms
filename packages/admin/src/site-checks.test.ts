@@ -5,6 +5,7 @@ import {
   type GoodfellowConfig,
   loadSiteContent,
   SignInError,
+  type SiteContent,
   sourcedItemsFor,
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
@@ -252,6 +253,42 @@ describe("checkPublish", () => {
     expect(onStaticMoved.blocking.map((problem) => problem.kind === "missing-page" && problem.target)).toEqual([
       "/jobs/welder",
     ]);
+  });
+
+  it("publishes a new sourced collection, whose source has no items before it, as the server has none", async () => {
+    const settings = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const files: Record<string, string> = { ...FILES };
+    const without: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    let askedBefore = 0;
+    // As the admin panel asks the server: for a site whose settings aren't published, it answers "not found".
+    const sources = (content: SiteContent) => ({
+      jobs: {
+        items: async () => {
+          if (!content.collections.some((one) => one.id === "jobs")) {
+            askedBefore++;
+            throw new Error("Not found.");
+          }
+          return [{ slug: "welder", fields: { title: "Welder" } }];
+        },
+      },
+    });
+    const site = { blocks: config.blocks, code: localSiteCode(config), sources, sourced: ["jobs"] };
+    const content = await loadSiteContent(without, { sourced: ["jobs"] });
+    const loaded = { content, shown: content, media: [] };
+    const adding = [{ path: "content/collections/jobs/_collection.json", content: JSON.stringify(settings) }];
+    const checks = await checkPublish(without, loaded, adding, site);
+    expect(checks.unread).toBeUndefined();
+    expect(checks.blocking).toEqual([]);
+    expect(askedBefore).toBe(0);
   });
 
   it("reads again only the sources a publish could change, or that couldn't be read, each on its own", async () => {

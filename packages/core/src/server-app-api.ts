@@ -375,16 +375,17 @@ export function appApi(options: AppApiOptions): (request: Request, endpoint: str
         // Only what the collection's fields name, from its settings as they're published now, so a row's other
         // columns never reach editors, and only items a file could hold, so one value JSON can't hold leaves out
         // only its item.
-        const path = collectionSettingsFile(id);
-        const [text, items] = await Promise.all([
-          proposed ? undefined : options.git.revision().then(async (revision) => (await reader(revision)).read(path)),
-          source.items(),
-        ]);
-        if (proposed) return json(200, { items: sourcedItemsFor(id, proposed, items) });
-        const settings =
-          text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
-        if (!settings?.ok) return json(404, { error: "not-found" });
-        return json(200, { items: sourcedItemsFor(id, settings.value, items) });
+        // The settings first, so a collection that isn't published asks its system nothing, and says so.
+        let settings = proposed;
+        if (!settings) {
+          const path = collectionSettingsFile(id);
+          const text = await (await reader(await options.git.revision())).read(path);
+          const parsed =
+            text === undefined ? undefined : parseContentFile("collection", collectionFileSchema, path, text);
+          if (!parsed?.ok) return json(404, { error: "not-found" });
+          settings = parsed.value;
+        }
+        return json(200, { items: sourcedItemsFor(id, settings, await source.items()) });
       } catch (error) {
         // What the source's system answered stays on the server, as the repository's does.
         onError(error);

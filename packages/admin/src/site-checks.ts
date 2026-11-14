@@ -188,9 +188,12 @@ export async function checkPublish(
     const sourcesBefore = (typeof site.sources === "function" ? site.sources(loaded.content) : site.sources) ?? {};
     const pick = (from: CollectionSources, chosen: readonly string[]) =>
       Object.fromEntries(chosen.flatMap((id) => (Object.hasOwn(from, id) ? [[id, from[id] as CollectionSource]] : [])));
+    // A collection the site doesn't have yet, which this publish adds, has no items before it: its source isn't
+    // asked for them, which the server couldn't give for settings that aren't published.
+    const existed = changedSettings.filter((id) => loaded.content.collections.some((one) => one.id === id));
     const [now, then] = await Promise.all([
       readSources(pick(sources, [...changedSettings, ...again])),
-      readSources(pick(sourcesBefore, changedSettings)),
+      readSources(pick(sourcesBefore, existed)),
     ]);
     const signIn = [...now.errors, ...then.errors].find((error) => error instanceof SignInError);
     if (signIn) throw signIn;

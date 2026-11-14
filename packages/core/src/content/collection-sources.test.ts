@@ -9,6 +9,7 @@ import {
   isSourcedItem,
   keptCollectionSources,
   loadSourcedContent,
+  readSources,
   type SourcedItem,
   sourceChanges,
   sourcedItemsFor,
@@ -203,6 +204,37 @@ describe("withSourcedCollections", () => {
       ["jobs", ["welder"]],
       ["news", ["hello"]],
     ]);
+  });
+
+  it("fails without a source never read, but shows the items one gave last while it can't be read", async () => {
+    let down = true;
+    const jobs: CollectionSource = {
+      items: async () => {
+        if (down) throw new Error("The database didn't answer.");
+        return [welder];
+      },
+    };
+    let newsAsked = 0;
+    const news: CollectionSource = {
+      items: async () => {
+        newsAsked++;
+        return [{ slug: "hello", fields: { title: "Hello" } }];
+      },
+    };
+    // Never read yet: the site fails, once every other source has been asked, rather than show no jobs.
+    await expect(withSourcedCollections(await site(), { jobs, news }, () => {})).rejects.toThrow("didn't answer");
+    expect(newsAsked).toBe(1);
+    // Read once, then down again: the items it gave are shown, saying so, and the others' are read as they are now.
+    down = false;
+    await withSourcedCollections(await site(), { jobs, news }, () => {});
+    down = true;
+    const problems: ContentProblem[] = [];
+    const content = await withSourcedCollections(await site(), { jobs, news }, (problem) => problems.push(problem));
+    expect(content.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toEqual([
+      "welder",
+    ]);
+    expect(problems).toEqual([{ file: "source:jobs", message: expect.stringMatching(/couldn't be read/) }]);
+    expect(newsAsked).toBe(3);
   });
 
   it("reads an item as a file of this version, whatever the source calls a version", async () => {
@@ -448,6 +480,27 @@ describe("sourceChanges", () => {
     expect(changes.failed).toEqual(["news"]);
   });
 
+  it("names a source that throws before answering, or answers in another shape, as failed, keeping the others'", async () => {
+    const jobs = jobsSource([welder]);
+    jobs.set([welder], ["welder"]);
+    const throwing: CollectionSource = {
+      items: async () => [],
+      changed: () => {
+        throw new Error("Thrown at once.");
+      },
+    };
+    const odd = { items: async () => [], changed: async () => ({ next: "9" }) } as unknown as CollectionSource;
+    const notNames = {
+      items: async () => [],
+      changed: async () => ({ slugs: [1], next: "9" }),
+    } as unknown as CollectionSource;
+    const content = await withSourcedCollections(await site(), { jobs: jobs.source });
+    const changes = await sourceChanges(content, { jobs: jobs.source, news: throwing, odd, notNames }, { news: "7" });
+    expect(changes.paths).toEqual(["/jobs/welder"]);
+    expect(changes.next).toEqual({ jobs: "1", news: "7" });
+    expect(changes.failed).toEqual(["news", "odd", "notNames"]);
+  });
+
   it("names no collection the site has no settings for, which has no pages", async () => {
     const events: CollectionSource = { items: async () => [], changed: async () => ({ slugs: ["fair"], next: "2" }) };
     expect(await sourceChanges(await site(), { events })).toEqual({
@@ -482,5 +535,20 @@ describe("sourcedItemsFor", () => {
     expect(sourcedItemsFor("jobs", withGroup, [item])).toEqual([
       { ...welder, fields: { ...welder.fields, contacts: [{ name: "Ann" }] } },
     ]);
+  });
+});
+
+describe("readSources", () => {
+  it("reads each source on its own, so one that throws before answering fails only itself", async () => {
+    const jobs: CollectionSource = {
+      items: () => {
+        throw new Error("Thrown at once.");
+      },
+    };
+    const news: CollectionSource = { items: async () => [{ slug: "hello", fields: { title: "Hello" } }] };
+    const { read, failed, errors } = await readSources({ jobs, news });
+    expect(Object.keys(read)).toEqual(["news"]);
+    expect(failed).toEqual(["jobs"]);
+    expect(errors).toEqual([new Error("Thrown at once.")]);
   });
 });

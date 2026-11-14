@@ -272,6 +272,27 @@ describe("appApi", () => {
     expect((await unset.call("collections/events/items")).status).toBe(404);
   });
 
+  it("asks no source for a collection whose settings aren't published, and refuses a body that isn't an object", async () => {
+    const asked = vi.fn(async (): Promise<SourcedItem[]> => {
+      throw new Error("The events system didn't answer.");
+    });
+    const { call, signIn, errors } = setup(ALICE, { sources: { events: { items: asked } } });
+    // Only a draft has its settings: it isn't published, whether or not its system answers, and that's not asked.
+    expect((await call("collections/events/items")).status).toBe(404);
+    expect(asked).not.toHaveBeenCalled();
+    expect(errors).toHaveLength(0);
+    signIn(OWEN);
+    for (const body of ["null", "1", '"settings"']) {
+      const answer = await call("collections/events/items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      expect(answer.status).toBe(400);
+    }
+    expect(asked).not.toHaveBeenCalled();
+  });
+
   it("makes sources given as a function only when their items are asked for, failing only that", async () => {
     const make = vi.fn((): CollectionSource => {
       throw new Error("JOBS_DATABASE_URL isn't set");

@@ -28,6 +28,7 @@ export {
   type WriteBuildRecordOptions,
   writeBuildRecord,
 } from "./node-build-record.js";
+export { loadSourceModules, siteModulePath } from "./node-collection-sources.js";
 export {
   ContentRepositoryError,
   type ContentRepositoryOptions,

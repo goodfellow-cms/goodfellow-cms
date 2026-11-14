@@ -7,15 +7,14 @@ import {
   type ContentSource,
   CUSTOM_CSS_FILE,
   type GoodfellowConfig,
-  keptCollectionSources,
   loadSiteContent,
   loadSourcedContent,
   type Page,
   type SiteContent,
   type SiteDescription,
-  type SourceModuleImport,
 } from "@goodfellow-cms/core";
 import type { ContentApiFile } from "@goodfellow-cms/core/content-api";
+import { loadSourceModules } from "@goodfellow-cms/core/node";
 import type { PageRenderer } from "@goodfellow-cms/react/server";
 import tailwindcss from "@tailwindcss/vite";
 import type { InlineConfig, Plugin, ViteDevServer } from "vite";
@@ -95,22 +94,12 @@ export function sourcedIds(server: ViteDevServer): Promise<string[]> {
  * The sources the config names for its collections, each module loaded
  * through Vite as the config is: a path from the site's root, or a package.
  */
-export async function loadCollectionSources(
+export function loadCollectionSources(
   server: ViteDevServer,
   root: string,
   config: GoodfellowConfig,
 ): Promise<CollectionSources> {
-  // Every module at once, so a request after an edit waits for the slowest rather than all of them in turn.
-  const modules: Record<string, SourceModuleImport> = Object.fromEntries(
-    await Promise.all(
-      Object.entries(config.collections ?? {}).map(async ([id, collection]) => {
-        const specifier = /^\.\.?\//.test(collection.source) ? resolve(root, collection.source) : collection.source;
-        return [id, (await server.ssrLoadModule(specifier)) as SourceModuleImport] as const;
-      }),
-    ),
-  );
-  // Made once for the same modules, since `goodfellow dev` loads the site again on every request.
-  return keptCollectionSources(config.collections, modules);
+  return loadSourceModules(root, config.collections, (path) => server.ssrLoadModule(path));
 }
 
 /**
