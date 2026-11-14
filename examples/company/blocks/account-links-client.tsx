@@ -2,6 +2,7 @@
 
 import { cx } from "@goodfellow-cms/react";
 import { type SyntheticEvent, useEffect, useState } from "react";
+import { currentPage, SignOutForm, signInAddress } from "@/lib/account-links";
 import { authClient } from "@/lib/auth-client";
 
 /**
@@ -23,7 +24,7 @@ export function AccountLinksView({
   const { data, isPending } = authClient.useSession();
   // The page to come back to, which the server's HTML can't know, since it's the same on every page.
   const [here, setHere] = useState("/");
-  useEffect(() => setHere(window.location.pathname), []);
+  useEffect(() => setHere(currentPage()), []);
   const links = cx("flex items-center gap-4 text-sm", className);
   if (isPending) return <div className={links} aria-hidden="true" />;
   if (!data) {
@@ -32,8 +33,11 @@ export function AccountLinksView({
         <a
           className="font-medium text-primary hover:underline"
           href={signInAddress(here)}
-          // Read again as it's used: the header stays as it is while Next.js moves between pages, so the page it was
-          // shown on may not be the page it's pressed on. The browser follows the address the link has once these run.
+          // Read again as it's pointed at or used: the header stays as it is while Next.js moves between pages, so the
+          // page it was shown on may not be the page it's pressed on. Next.js's own hook for the path can't be used,
+          // since the site's config, which imports this, is loaded in plain Node too. The browser follows the address
+          // the link has once these run.
+          onPointerEnter={followHere}
           onPointerDown={followHere}
           onFocus={followHere}
           onClick={followHere}
@@ -48,21 +52,12 @@ export function AccountLinksView({
       <a className="font-medium text-primary hover:underline" href="/account/">
         {accountLabel}
       </a>
-      <form method="post" action="/sign-out/">
-        <button type="submit" className="text-muted-foreground hover:underline">
-          {signOutLabel}
-        </button>
-      </form>
+      <SignOutForm label={signOutLabel} className="text-muted-foreground no-underline hover:underline" />
     </div>
   );
 }
 
-/** Sign-in's address, coming back to `path`. */
-function signInAddress(path: string): string {
-  return `/sign-in/?${new URLSearchParams({ next: path })}`;
-}
-
 /** Points a Sign in link at sign-in coming back to the page the browser is on now. */
 function followHere(event: SyntheticEvent<HTMLAnchorElement>): void {
-  event.currentTarget.href = signInAddress(window.location.pathname);
+  event.currentTarget.href = signInAddress(currentPage());
 }

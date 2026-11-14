@@ -83,10 +83,13 @@ test("keeps the members' page to people who are signed in", async ({ page, reque
   });
   expect(madeUp.status()).toBe(307);
 
-  // The header's Sign in comes back to the page it was pressed on.
-  await page.goto(`${SITE}/about/`);
+  // The header's Sign in comes back to the page it was pressed on, its query and fragment too.
+  await page.goto(`${SITE}/about/?from=letter#team`);
   const header = page.getByRole("banner");
-  await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in/?next=%2Fabout%2F");
+  await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    "href",
+    "/sign-in/?next=%2Fabout%2F%3Ffrom%3Dletter%23team",
+  );
   await expect(header.getByRole("link", { name: "Your account" })).toHaveCount(0);
   // After moving to another page through the menu, which keeps the header as it is, it comes back to that one.
   await header.getByRole("link", { name: "News", exact: true }).click();
