@@ -146,10 +146,12 @@ function OwnersOnly() {
 
 function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: string }) {
   const t = useStrings();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const owner = useCanChangeSettings();
   if (sub === "edit") return <EntryEditorScreen collectionId={id} slug={slug} />;
   const collection = content.collections.find((candidate) => candidate.id === id);
+  // A collection whose items come from a source lists them as the site shows it, and its design opens at an item's page.
+  const showing = shown?.collections.find((candidate) => candidate.id === id) ?? collection;
   if (!collection) {
     return (
       <div className="gfa-screen">
@@ -159,9 +161,9 @@ function CollectionRoute({ id, sub, slug }: { id: string; sub?: string; slug: st
     );
   }
   if ((sub === "template" || sub === "settings") && !owner) return <OwnersOnly />;
-  if (sub === "template") return <TemplateScreen collection={collection} />;
+  if (sub === "template") return <TemplateScreen collection={showing ?? collection} />;
   if (sub === "settings") return <CollectionSettingsScreen key={collection.id} collection={collection} />;
-  return <EntriesScreen collection={collection} />;
+  return <EntriesScreen collection={showing ?? collection} />;
 }
 
 /** One of a plugin's screens, which its admin module draws in a frame of its own. */
@@ -785,6 +787,7 @@ export function Admin({ site, frames, store, host, server, preview, siteUrl = "/
             plugins: new URL(`${trimChars(server, "/", { start: false })}/plugins`, location.href).href,
             members: true,
             ...(session.role === "owner" && { review: appServer(server).review }),
+            sourcedItems: appServer(server).sourcedItems,
             ...(session.codeReview && { codeReview: true }),
             earlyInstalls: session.earlyInstalls === true,
             ...(session.signOut && {

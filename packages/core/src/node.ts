@@ -28,6 +28,7 @@ export {
   type WriteBuildRecordOptions,
   writeBuildRecord,
 } from "./node-build-record.js";
+export { loadSourceModules, siteModulePath } from "./node-collection-sources.js";
 export {
   ContentRepositoryError,
   type ContentRepositoryOptions,
@@ -41,6 +42,7 @@ export {
   handleDevApi,
   isAllowedDevHost,
   isLocalOrigin,
+  type SiteLoader,
   sendBuildFile,
 } from "./node-dev-api.js";
 export { fontStandIns, hostFonts, readFontFile, readStylesheet, selfHostFonts } from "./node-fonts.js";

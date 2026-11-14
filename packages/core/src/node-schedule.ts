@@ -6,7 +6,14 @@
  * when nothing has, so checking costs little.
  */
 import { appendFile } from "node:fs/promises";
-import { dueChanges, loadSiteContent, type ScheduledChange, upcomingChanges } from "./index.js";
+import {
+  type ContentSource,
+  dueChanges,
+  loadSiteContent,
+  type ScheduledChange,
+  type SiteContent,
+  upcomingChanges,
+} from "./index.js";
 import { builtSiteSource } from "./node-fs-source.js";
 import { liveRecord } from "./node-nightly.js";
 
@@ -27,6 +34,13 @@ export interface DueOptions {
   fetch?: typeof fetch;
   /** Where a copy of the site's address comes from (`GOODFELLOW_SITE_URL`). Defaults to `process.env`. */
   env?: Readonly<Record<string, string | undefined>>;
+  /**
+   * Loads the site from its files, as its builds do: with its collections'
+   * sources read in, so their items' schedules come due and the item files
+   * they replace don't (`loadSourcedContent()`). `goodfellow due` gives it.
+   * Without it, the files alone (`loadSiteContent()`).
+   */
+  load?: (files: ContentSource) => Promise<SiteContent>;
 }
 
 export interface DueResult {
@@ -48,7 +62,8 @@ export interface DueResult {
 export async function scheduleDue(options: DueOptions = {}): Promise<DueResult> {
   const now = options.now ?? new Date();
   // As the site is built, so a copy, such as staging, reads its own build record, not the main site's.
-  const content = await loadSiteContent(builtSiteSource(options.root ?? ".", options.env ?? process.env));
+  const files = builtSiteSource(options.root ?? ".", options.env ?? process.env);
+  const content = await (options.load ?? loadSiteContent)(files);
   const record = await liveRecord(content.settings.url, options.fetch ?? fetch);
   const time = (text: string | undefined) => {
     const date = text ? new Date(text) : undefined;

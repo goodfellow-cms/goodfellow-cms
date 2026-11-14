@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { APP_API_HEADER, type AppEditor, isSettingsPath } from "./app-api.js";
+import type { CollectionSource, SourcedItem } from "./content/collection-sources.js";
 import type { OwnersOnlyFields } from "./content/owners-only.js";
 import { ConflictError, type FileChange } from "./content/store.js";
 import type { EarlyInstallCheck } from "./early-installs.js";
@@ -15,6 +16,8 @@ const FILES = {
   "content/pages/index.json": '{"version":1,"data":{"root":{"props":{}},"content":[]}}',
   "public/media/logo.png": new Uint8Array([1, 2, 3]),
   "package.json": '{"name":"secret"}',
+  "content/collections/jobs/_collection.json":
+    '{"version":1,"name":"Jobs","entryName":"Job","path":"/jobs/{slug}","fields":[{"name":"title","label":"Title","type":"text"}]}',
 };
 
 /** The repository as a server reaches it, over a fake one, recording who each commit names. */
@@ -137,7 +140,9 @@ function setup(
     ownersOnly,
     provenance,
     onPublish,
+    sources,
   }: {
+    sources?: AppApiOptions["sources"];
     contentOnly?: boolean;
     codeChanges?: "review" | "publish";
     ownersOnly?: OwnersOnlyFields;
@@ -159,6 +164,7 @@ function setup(
     ...(ownersOnly && { ownersOnly }),
     ...(provenance && { provenance }),
     ...(onPublish && { onPublish }),
+    ...(sources && { sources }),
   });
   const call = (endpoint: string, init: RequestInit & { query?: Record<string, string> } = {}) => {
     const url = new URL(`https://parish.example/api/goodfellow/${endpoint}`);
@@ -204,6 +210,105 @@ describe("appApi", () => {
     });
     signIn(false);
     expect(await (await call("session")).json()).toMatchObject({ signedIn: false, notAllowed: true });
+  });
+
+  it("gives the items of collections with a source to people signed in to edit, and nothing of the source's failures", async () => {
+    const items = [{ slug: "welder", fields: { title: "Welder" } }];
+    // What the collection's fields don't name, and items a file couldn't hold, stay on the server.
+    const rows = [
+      { slug: "welder", fields: { title: "Welder", applicant: "ann@example.org" } },
+      { slug: "big", fields: { title: 1n } },
+    ] as unknown as SourcedItem[];
+    let failing = false;
+    const { call, signIn, errors } = setup(ALICE, {
+      sources: {
+        jobs: {
+          items: async () => {
+            if (failing) throw new Error("password authentication failed for user jobs");
+            return rows;
+          },
+        },
+      },
+    });
+    const answer = await call("collections/jobs/items");
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toEqual({ items });
+    expect((await call("collections/news/items")).status).toBe(404);
+    expect((await call("collections/constructor/items")).status).toBe(404);
+    // Asked with the settings a publish would give the collection, for its checks, which only owners change.
+    const proposed = {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [
+        { name: "title", label: "Title", type: "text" },
+        { name: "applicant", label: "Applicant", type: "text" },
+      ],
+    };
+    const asking = (body: unknown) =>
+      call("collections/jobs/items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await asking({ settings: proposed })).status).toBe(403);
+    signIn(OWEN);
+    expect(await (await asking({ settings: proposed })).json()).toEqual({
+      items: [{ slug: "welder", fields: { title: "Welder", applicant: "ann@example.org" } }],
+    });
+    expect((await asking({ settings: { name: "Jobs" } })).status).toBe(400);
+    signIn(ALICE);
+    failing = true;
+    const failed = await call("collections/jobs/items");
+    expect(failed.status).toBe(502);
+    expect(await failed.text()).not.toContain("password");
+    expect(errors).toHaveLength(1);
+    signIn(null);
+    expect((await call("collections/jobs/items")).status).toBe(401);
+    // Without sources, there's nothing to give, nor for a collection the site has no settings for.
+    expect((await setup().call("collections/jobs/items")).status).toBe(404);
+    const unset = setup(ALICE, { sources: { events: { items: async () => items } } });
+    expect((await unset.call("collections/events/items")).status).toBe(404);
+  });
+
+  it("asks no source for a collection whose settings aren't published, and refuses a body that isn't an object", async () => {
+    const asked = vi.fn(async (): Promise<SourcedItem[]> => {
+      throw new Error("The events system didn't answer.");
+    });
+    const { call, signIn, errors } = setup(ALICE, { sources: { events: { items: asked } } });
+    // Only a draft has its settings: it isn't published, whether or not its system answers, and that's not asked.
+    expect((await call("collections/events/items")).status).toBe(404);
+    expect(asked).not.toHaveBeenCalled();
+    expect(errors).toHaveLength(0);
+    signIn(OWEN);
+    for (const body of ["null", "1", '"settings"']) {
+      const answer = await call("collections/events/items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      expect(answer.status).toBe(400);
+    }
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it("makes sources given as a function only when their items are asked for, failing only that", async () => {
+    const make = vi.fn((): CollectionSource => {
+      throw new Error("JOBS_DATABASE_URL isn't set");
+    });
+    const { call, errors } = setup(ALICE, { sources: make });
+    expect(await (await call("session")).json()).toMatchObject({ signedIn: true });
+    expect((await call("revision")).status).toBe(200);
+    expect(make).not.toHaveBeenCalled();
+    const failed = await call("collections/jobs/items");
+    expect(failed.status).toBe(502);
+    expect(await failed.text()).not.toContain("JOBS_DATABASE_URL");
+    expect(errors).toHaveLength(1);
+    const items = [{ slug: "welder", fields: { title: "Welder" } }];
+    const working = setup(ALICE, { sources: (id) => (id === "jobs" ? { items: async () => items } : undefined) });
+    expect(await (await working.call("collections/jobs/items")).json()).toEqual({ items });
+    expect((await working.call("collections/news/items")).status).toBe(404);
   });
 
   it("never writes code to a repository that holds only the site's content", async () => {
@@ -882,6 +987,32 @@ describe("appApi", () => {
     expect(response.status).toBe(502);
     expect(await response.text()).not.toContain("ghp_secret");
     expect(errors).toHaveLength(1);
+    // A sourced collection's items read its settings from the repository, whose failure is the repository's, not
+    // the source's, which is never asked.
+    const items = vi.fn(async (): Promise<SourcedItem[]> => []);
+    const sourced = appApi({
+      git: {
+        revision: async () => {
+          throw new GitApiError(401, "GitHub answered 401: Bad credentials ghp_secret");
+        },
+        at: async () => {
+          throw new Error("unused");
+        },
+      },
+      authorize: () => ALICE,
+      signIn: "/",
+      onError: (error) => errors.push(error),
+      sources: { jobs: { items } },
+    });
+    const answer = await sourced(
+      new Request("https://parish.example/api/goodfellow/collections/jobs/items", {
+        headers: { [APP_API_HEADER]: "1", "sec-fetch-site": "same-origin" },
+      }),
+      "collections/jobs/items",
+    );
+    expect(answer.status).toBe(502);
+    expect(await answer.json()).toEqual({ error: "git", status: 401 });
+    expect(items).not.toHaveBeenCalled();
   });
 
   it("sends AI requests on only for the services the server has keys for", async () => {

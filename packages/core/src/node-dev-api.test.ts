@@ -3,8 +3,18 @@ import { createServer, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEV_API_PREFIX, handleDevApi, isAllowedDevHost, isLocalOrigin } from "./node-dev-api.js";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { type CollectionSources, withSourcedCollections } from "./content/collection-sources.js";
+import { ContentError } from "./content/errors.js";
+import { loadSiteContent } from "./content/load.js";
+import {
+  DEV_API_PREFIX,
+  handleDevApi,
+  isAllowedDevHost,
+  isLocalOrigin,
+  type SiteLoader,
+  sendBuildFile,
+} from "./node-dev-api.js";
 import { localFileStore } from "./node-local-files.js";
 import { newTaskRequestId, openTaskAnswer, taskKeys } from "./plugin-tasks.js";
 import { definePlugin } from "./plugins.js";
@@ -14,6 +24,151 @@ import { definePlugin } from "./plugins.js";
  * to start on Windows while many tests run at once, so a test can take a minute.
  */
 const NODE_TIMEOUT = 180_000;
+
+describe("handleDevApi's feeds", { timeout: NODE_TIMEOUT }, () => {
+  it("are made from the site as its loader gives it, so a collection's source's items are in them", async () => {
+    const root = await mkdtemp(join(tmpdir(), "goodfellow-feeds-"));
+    const file = (path: string, value: unknown) =>
+      mkdir(join(root, path, ".."), { recursive: true }).then(() => writeFile(join(root, path), JSON.stringify(value)));
+    await file("content/site.json", { version: 1, title: "Works", url: "https://example.org" });
+    await file("content/collections/jobs/_collection.json", {
+      version: 1,
+      name: "Jobs",
+      entryName: "Job",
+      path: "/jobs/{slug}",
+      fields: [
+        { name: "title", label: "Title", type: "text" },
+        { name: "posted", label: "Posted", type: "date" },
+      ],
+    });
+    await file("content/collections/jobs/old-file.json", {
+      version: 1,
+      fields: { title: "From a file", posted: "2026-01-01" },
+    });
+    const sources: CollectionSources = {
+      jobs: { items: async () => [{ slug: "welder", fields: { title: "Welder", posted: "2026-11-02" } }] },
+    };
+    const load: SiteLoader = async (files) =>
+      withSourcedCollections(await loadSiteContent(files, { sourced: ["jobs"] }), sources);
+    const store = localFileStore(root);
+    const server = createServer(async (req, res) => {
+      const plain = req.url?.startsWith("/plain");
+      if (plain) req.url = req.url?.slice("/plain".length);
+      if (!(await handleDevApi(store, req, res, plain ? {} : { load }))) res.writeHead(418).end();
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const rss = await (await fetch(`${origin}${DEV_API_PREFIX}/feeds/jobs.rss`)).text();
+      expect(rss).toContain("Welder");
+      expect(rss).not.toContain("From a file");
+      // Without a loader, the site's files.
+      expect(await (await fetch(`${origin}/plain${DEV_API_PREFIX}/feeds/jobs.rss`)).text()).toContain("From a file");
+      // A source that can't be read, and never has been, answers 500, saying why only on this computer, never with
+      // the files it replaces.
+      sources.jobs = {
+        items: async () => {
+          throw new Error("The database didn't answer.");
+        },
+      };
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const failed = await fetch(`${origin}${DEV_API_PREFIX}/feeds/jobs.rss`);
+        expect(failed.status).toBe(500);
+        expect(await failed.text()).not.toContain("database");
+        expect(error).toHaveBeenCalledWith(expect.stringContaining("The database didn't answer."));
+      } finally {
+        error.mockRestore();
+      }
+    } finally {
+      await new Promise((done) => server.close(done));
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("sendBuildFile", () => {
+  const failing: SiteLoader = async () => {
+    throw new Error("The database didn't answer.");
+  };
+  const answer = () => {
+    const res = {
+      statusCode: 200,
+      ended: false,
+      end() {
+        res.ended = true;
+      },
+    };
+    return res;
+  };
+  const files = { read: async () => undefined, list: async () => [] };
+
+  it("answers a file that can't be made with a failure, said only where it's asked to", async () => {
+    const res = answer();
+    const said: string[] = [];
+    const sent = await sendBuildFile(files, "/feeds/jobs.rss", res as never, failing, (message) => said.push(message));
+    expect(sent).toBe(true);
+    expect(res).toMatchObject({ statusCode: 500, ended: true });
+    expect(said).toEqual(["/feeds/jobs.rss couldn't be made: The database didn't answer."]);
+    // Whatever a source rejects with, null too, is said, and the request still answered.
+    const nothing = answer();
+    const rejecting = () => Promise.reject(null);
+    await sendBuildFile(files, "/feeds/jobs.rss", nothing as never, rejecting, (message) => said.push(message));
+    expect(nothing).toMatchObject({ statusCode: 500, ended: true });
+    expect(said.at(-1)).toBe("/feeds/jobs.rss couldn't be made: null");
+    // Without anywhere to say it, the failure is the caller's.
+    await expect(sendBuildFile(files, "/feeds/jobs.rss", answer() as never, failing)).rejects.toThrow("database");
+  });
+
+  it("says a content file's problem in the answer, and nothing else a failure says", async () => {
+    const answered = () => {
+      const res = {
+        statusCode: 200,
+        body: "",
+        setHeader() {},
+        end(body?: string) {
+          res.body = body ?? "";
+        },
+      };
+      return res;
+    };
+    const broken: SiteLoader = async () => {
+      throw new ContentError([{ file: "content/pages/about.json", message: "has no title" }]);
+    };
+    const res = answered();
+    await sendBuildFile(files, "/feeds/jobs.rss", res as never, broken, () => {});
+    expect(res).toMatchObject({ statusCode: 500 });
+    expect(res.body).toContain("content/pages/about.json: has no title");
+    // What a source said stays on the computer.
+    const secret: SiteLoader = async () => {
+      throw new Error("postgres://user:hunter2@db.example/jobs refused");
+    };
+    const quiet = answered();
+    await sendBuildFile(files, "/feeds/jobs.rss", quiet as never, secret, () => {});
+    expect(quiet).toMatchObject({ statusCode: 500, body: "" });
+  });
+
+  it("answers a failure where the site loads but its file can't be made from it, rather than throw", async () => {
+    // A site the feeds can't be made from: what's loaded has no settings to read.
+    const unusable: SiteLoader = async () => ({ collections: [{ id: "jobs" }] }) as never;
+    const res = answer();
+    const said: string[] = [];
+    expect(await sendBuildFile(files, "/feeds/jobs.rss", res as never, unusable, (message) => said.push(message))).toBe(
+      true,
+    );
+    expect(res).toMatchObject({ statusCode: 500, ended: true });
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/^\/feeds\/jobs\.rss couldn't be made: /);
+  });
+
+  it("leaves other addresses alone, without loading the site", async () => {
+    const load = vi.fn(failing);
+    const res = answer();
+    expect(await sendBuildFile(files, "/news.html", res as never, load, () => {})).toBe(false);
+    expect(load).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ statusCode: 200, ended: false });
+  });
+});
 
 describe("handleDevApi", { timeout: NODE_TIMEOUT }, () => {
   let root: string;

@@ -204,6 +204,10 @@ export const defaultStrings = {
   "checks.warnings.title": "Publish anyway?",
   "checks.warnings.intro": "A few things could be better. You can publish anyway, or go back and fix them first.",
   "checks.alsoWarnings": "These could be better too:",
+  "checks.leftOutItems":
+    "Publishing this would take {items} off the site, since they would no longer fit the collection's settings, or a page would take one's address. They come from another system, which the admin panel can't change: go back and change what's in the way, or publish anyway, and they'll be left out until they fit.",
+  "checks.unreadSources":
+    "The items in {collections} come from another system, which can't be reached just now, so links to their pages can't be checked. Try publishing again in a few minutes.",
   "checks.publishAnyway": "Publish anyway",
   "checks.goBack": "Go back",
   "limits.title": "Some of this is outside what you can change",
@@ -355,6 +359,8 @@ export const defaultStrings = {
   "address.reserved":
     "This address can't be used: the admin panel uses it, or it ends in /index, which is the page above it. Choose another.",
   "address.taken": "Another page already uses this address.",
+  "address.mayBeItem":
+    "One of {collection}'s items could have this address, and the admin panel can't read them to tell, since they come from another system. Choose another address.",
   "field.required": "This can't be empty.",
 
   "editPage.message": 'Update page "{title}"',
@@ -437,6 +443,11 @@ export const defaultStrings = {
 
   "entries.add": "Add {entry}",
   "entries.empty": "There's nothing in {name} yet.",
+  "entries.sourced":
+    "The items in {name} come from another system ({source}), where they're added and changed. They're shown here as the site shows them.",
+  "entries.sourceUnread": "The items in {name} can't be read from {source} just now. Try again in a few minutes.",
+  "entries.sourcedElsewhere":
+    "The items in {name} come from another system ({source}), where they're added and changed. Only the site's server can read them, so they aren't listed here.",
   "entries.column.title": "Title",
   "entries.column.address": "Address",
 
@@ -462,6 +473,9 @@ export const defaultStrings = {
   "editEntry.invalidSchedule":
     "Check when it's on the site: each time needs a date and a time, and it can only be hidden after it's shown.",
   "editEntry.notFound": "This item doesn't exist. It may have been renamed or deleted.",
+  "collectionSettings.sourced":
+    "The items in {name} come from another system ({source}). These fields say what the site shows of them: an item whose values don't fit them is left out.",
+  "editEntry.sourced": "The items in {name} are changed in the system they come from ({source}), not here.",
   "editEntry.back": "Back to {name}",
   "editEntry.items.search": "Search {name}",
   "editEntry.items.none": "Nothing in {name} matches.",
@@ -539,6 +553,10 @@ export const defaultStrings = {
   "collectionSettings.descending": "Z to A, newest or largest first",
   "collectionSettings.message": "Update the settings for {name}",
   "collectionSettings.addressClash": "With this address, {title} would have the same address as another page.",
+  "collectionSettings.sourceUnread":
+    "Its items can't be read from {source} just now, so their pages can't be moved to a new address yet. Try again in a few minutes.",
+  "collectionSettings.sourceElsewhere":
+    "Its items come from {source}, which only the site's build can read, so links to their pages can't be moved to a new address here. Ask a developer to change it.",
   "collectionSettings.delete": "Delete collection",
   "collectionSettings.deleteTitle": "Delete {name}?",
   "collectionSettings.deleteBody":

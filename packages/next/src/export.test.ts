@@ -1,25 +1,37 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cloudflareSiteHeaders, editorPolicy, startsWithGuard } from "@goodfellow-cms/core";
+import { builtSiteSource } from "@goodfellow-cms/core/node";
 import sharp from "sharp";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   blockPageRender,
+  buildFileFolders,
   checkPages,
+  dueSite,
   exportedPages,
   fixSegmentFiles,
   guardExport,
   nextDistDir,
   renderedPages,
+  writeBuildRecordFile,
   writeEditorFrames,
   writeExportHeaders,
+  writeFeedFiles,
   writeImageFiles,
   writePluginFiles,
   writeRedirectFiles,
 } from "./export.js";
 import { DIST_DIR_RECORD, IMAGE_SIZES_MARK } from "./image-sizes-mark.js";
+import {
+  loadCollectionSources,
+  loadKeptSiteModule,
+  loadSiteModule,
+  loadSourceModule,
+  readCollectionSources,
+} from "./plugins.js";
 
 let out: string;
 afterEach(() => rm(out, { recursive: true, force: true }));
@@ -192,6 +204,197 @@ describe("guardExport", () => {
     await write("out/index.html", "<html><head></head></html>");
     expect(await guardExport(join(out, "out"), out)).toBeUndefined();
     expect(await readFile(join(out, "out/index.html"), "utf8")).toBe("<html><head></head></html>");
+  });
+});
+
+describe("collections' sources in an export", () => {
+  it("are read from the modules the config names, for the feeds and the checks' pages", async () => {
+    // Inside the package, so the site's imports find its packages.
+    const site = await mkdtemp(join(import.meta.dirname, "../.sources-site-"));
+    let other: string | undefined;
+    out = join(site, "out");
+    try {
+      const file = (path: string, value: unknown) =>
+        mkdir(join(site, path, ".."), { recursive: true }).then(() =>
+          writeFile(join(site, path), typeof value === "string" ? value : JSON.stringify(value)),
+        );
+      await file("package.json", '{ "name": "sources-site", "type": "module" }');
+      await file("content/site.json", { version: 1, url: "https://example.org" });
+      await file("content/collections/jobs/_collection.json", {
+        version: 1,
+        name: "Jobs",
+        entryName: "Job",
+        path: "/jobs/{slug}",
+        fields: [
+          { name: "title", label: "Title", type: "text" },
+          { name: "posted", label: "Posted", type: "date" },
+        ],
+      });
+      // A file left in the folder that loading would refuse, which the source's items replace.
+      await file("content/collections/jobs/broken.json", { version: 1, fields: { title: 42 } });
+      // Named by shorthand, which no look at the config's text for "collections:" would find.
+      await file(
+        "goodfellow.config.tsx",
+        'import { defineConfig } from "@goodfellow-cms/core";\nconst collections = { jobs: { source: "./lib/jobs.ts", options: { title: "Welder" } } };\nexport default defineConfig({ blocks: {}, collections });\n',
+      );
+      await file(
+        "lib/jobs.ts",
+        'const reads = globalThis as { jobsReads?: number };\nexport default (options: { title: string }) => ({ items: async () => { reads.jobsReads = (reads.jobsReads ?? 0) + 1; return [{ slug: "welder", fields: { title: options.title, posted: "2026-11-01" } }, { slug: "later", fields: { title: "Later", posted: "2026-11-02" }, showFrom: "2031-03-04T05:06" }, { slug: "?", fields: { title: "Bad" } }]; } });\n',
+      );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(await writeFeedFiles(out, site)).toBe(2);
+      expect(await readFile(join(out, "feeds/jobs.rss"), "utf8")).toContain("https://example.org/jobs/welder/");
+      // The item's exported page is checked, as the source's.
+      const pages = [{ url: "/jobs/welder/", html: '<main class="gf-main"><img src="/media/x.jpg"></main>' }];
+      expect((await checkPages(pages, site)).map((problem) => [problem.kind, problem.file])).toContainEqual([
+        "no-alt",
+        "source:jobs/welder",
+      ]);
+      // Steps that read only the files leave out the item file the source replaces too.
+      expect(await buildFileFolders(site)).toBeInstanceOf(Array);
+      // The build record says the site changes when the source's scheduled item shows.
+      await writeBuildRecordFile(out, site);
+      expect(JSON.parse(await readFile(join(out, "goodfellow-build.json"), "utf8")).currentUntil).toContain(
+        "2031-03-04",
+      );
+      // Every step showed the items of one read of the source, which may change while they're written, and its item
+      // with a name that can't be used was warned about once.
+      expect((globalThis as { jobsReads?: number }).jobsReads).toBe(1);
+      expect(warn.mock.calls.filter(([text]) => String(text).startsWith("source:jobs/?"))).toHaveLength(1);
+      // `next dev` reads the sources on every request, keeping each while its code is the same, so a source that opens
+      // a database pool as it's made opens one.
+      const first = await readCollectionSources(site);
+      expect((await readCollectionSources(site)).jobs).toBe(first.jobs);
+      await file(
+        "lib/jobs.ts",
+        'export default () => ({ items: async () => [{ slug: "welder", fields: { title: "Changed" } }] });\n',
+      );
+      const changed = await readCollectionSources(site);
+      expect(changed.jobs).not.toBe(first.jobs);
+      // Another site with the same code has its own, since its packages are its own.
+      other = await mkdtemp(join(import.meta.dirname, "../.sources-site-"));
+      await cp(site, other, { recursive: true });
+      expect((await readCollectionSources(other)).jobs).not.toBe(changed.jobs);
+      expect((await readCollectionSources(site)).jobs).toBe(changed.jobs);
+      // A source named by a package's export is imported from the site's packages, the same module every request.
+      await file(
+        "node_modules/goodfellow-plugin-talks/package.json",
+        JSON.stringify({ name: "goodfellow-plugin-talks", type: "module", exports: { "./source": "./source.js" } }),
+      );
+      await file(
+        "node_modules/goodfellow-plugin-talks/source.js",
+        'export default () => ({ items: async () => [{ slug: "keynote", fields: { title: "Keynote" } }] });\n',
+      );
+      // Two collections naming the same package at once share one write and one import.
+      const [talks, again] = await Promise.all([
+        loadSourceModule(site, "goodfellow-plugin-talks/source"),
+        loadSourceModule(site, "goodfellow-plugin-talks/source"),
+      ]);
+      expect(again).toBe(talks);
+      expect((await readdir(join(site, "node_modules/.goodfellow"))).filter((name) => name.endsWith(".tmp"))).toEqual(
+        [],
+      );
+      expect(await (talks.default as () => { items: () => Promise<unknown[]> })().items()).toEqual([
+        { slug: "keynote", fields: { title: "Keynote" } },
+      ]);
+      expect(await loadSourceModule(site, "goodfellow-plugin-talks/source")).toBe(talks);
+      // Without bundling it, which would start again on every request, as nothing of the site's is in the bundle.
+      const bundle = vi.fn(loadKeptSiteModule);
+      await loadSourceModule(site, "goodfellow-plugin-talks/source", bundle);
+      expect(bundle).not.toHaveBeenCalled();
+      await loadSourceModule(site, join(site, "lib/jobs.ts"), bundle);
+      expect(bundle).toHaveBeenCalledOnce();
+      // `goodfellow-next due` reads the source's items, schedules and all, and leaves out the file they replace.
+      const due = await dueSite(builtSiteSource(site), site);
+      expect(due.collections.find((one) => one.id === "jobs")?.entries.map((entry) => entry.slug)).toContain("later");
+      // A source it can't read leaves its items out, saying so, rather than fail every check: one that's down at
+      // first, and answers after.
+      await writeFile(
+        join(other, "lib/jobs.ts"),
+        'let asked = 0;\nexport default () => ({ items: async () => { if (asked++ === 0) throw new Error("No database here."); return [{ slug: "back", fields: { title: "Back" } }]; } });\n',
+      );
+      const down = await dueSite(builtSiteSource(other), other);
+      expect(down.collections.find((one) => one.id === "jobs")?.entries).toEqual([]);
+      expect(warn.mock.calls.some(([text]) => String(text).includes("No database here."))).toBe(true);
+      // The failed read isn't kept, so the next step asks the source again.
+      const back = await (await loadCollectionSources(other)).jobs?.items();
+      expect(back?.map((item) => item.slug)).toEqual(["back"]);
+    } finally {
+      vi.restoreAllMocks();
+      await rm(site, { recursive: true, force: true });
+      if (other) await rm(other, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("loadSiteModule", () => {
+  it("bundles a module not kept yet once for requests that arrive together", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-together-"));
+    const entry = join(out, "source.mjs");
+    await writeFile(entry, "export default {};\n");
+    let bundles = 0;
+    const counting: typeof loadSiteModule = (...args) => {
+      bundles++;
+      return loadSiteModule(...args);
+    };
+    const loaded = await Promise.all(Array.from({ length: 8 }, () => loadKeptSiteModule(out, entry, counting)));
+    for (const module of loaded) expect(module).toBe(loaded[0]);
+    expect(bundles).toBe(1);
+  });
+
+  it("loads modules started at once each as itself", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-modules-"));
+    const count = 12;
+    for (let index = 0; index < count; index++) {
+      await writeFile(join(out, `module-${index}.mjs`), `export default ${index};\n`);
+    }
+    const loaded = await Promise.all(
+      Array.from({ length: count }, (_, index) => loadSiteModule(out, join(out, `module-${index}.mjs`))),
+    );
+    expect(loaded.map((module) => module.default)).toEqual(Array.from({ length: count }, (_, index) => index));
+  });
+
+  it("keeps a module without bundling it again until a file bundled into it changes", async () => {
+    out = await mkdtemp(join(tmpdir(), "goodfellow-kept-"));
+    const entry = join(out, "source.mjs");
+    const part = join(out, "part.mjs");
+    const past = new Date(Date.now() - 60_000);
+    await writeFile(entry, 'import part from "./part.mjs";\nexport default part;\n');
+    await writeFile(part, "export default 1;\n");
+    for (const path of [entry, part]) await utimes(path, past, past);
+    const first = await loadKeptSiteModule(out, entry);
+    expect(first.default).toBe(1);
+    // A file whose text changed but whose time didn't isn't read again: nothing is bundled.
+    await writeFile(part, "export default 2;\n");
+    await utimes(part, past, past);
+    expect(await loadKeptSiteModule(out, entry)).toBe(first);
+    // Once it has changed, it's bundled again, and its new code is a new module.
+    const later = new Date(past.getTime() + 1_000);
+    await utimes(part, later, later);
+    const second = await loadKeptSiteModule(out, entry);
+    expect(second.default).toBe(2);
+    // Changed back, it's a new module again: the one before isn't kept, so the source made from it can go.
+    await writeFile(part, "export default 1;\n");
+    const latest = new Date(past.getTime() + 2_000);
+    await utimes(part, latest, latest);
+    const third = await loadKeptSiteModule(out, entry);
+    expect(third.default).toBe(1);
+    expect(third).not.toBe(first);
+    // A file whose time is ahead of the computer's clock, as on a mounted folder, is kept like any other.
+    const ahead = new Date(Date.now() + 3_600_000);
+    await utimes(part, ahead, ahead);
+    const fourth = await loadKeptSiteModule(out, entry);
+    await writeFile(part, "export default 3;\n");
+    await utimes(part, ahead, ahead);
+    expect(await loadKeptSiteModule(out, entry)).toBe(fourth);
+    // And so is a new bundle of one.
+    const further = new Date(Date.now() + 7_200_000);
+    await utimes(part, further, further);
+    const fifth = await loadKeptSiteModule(out, entry);
+    expect(fifth.default).toBe(3);
+    await writeFile(part, "export default 4;\n");
+    await utimes(part, further, further);
+    expect(await loadKeptSiteModule(out, entry)).toBe(fifth);
   });
 });
 

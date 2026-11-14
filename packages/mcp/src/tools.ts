@@ -36,6 +36,7 @@ import {
   MEDIA_DIR,
   type MenuItem,
   mainLanguage,
+  mayBeUnreadPage,
   menusFileChange,
   menusFileSchema,
   movePageChanges,
@@ -54,6 +55,7 @@ import {
   siteSettingsSchema,
   syncedBlockFileChange,
   wallClock,
+  withoutUnreadLinks,
   withSchedule,
   writeChanges,
 } from "@goodfellow-cms/core";
@@ -63,6 +65,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ComponentConfig, Config, Content, Data, Fields } from "@puckeditor/core";
 import { z } from "zod";
 import {
+  collectionSettingsOf,
   contentFiles,
   entryAddresses,
   entryLanguages,
@@ -83,6 +86,7 @@ import {
   readSyncedBlock,
   ToolError,
   takenAddresses,
+  withoutSourcedItems,
 } from "./content.js";
 import { type ConnectorContext, type OpenedSite, openSite } from "./site.js";
 
@@ -359,7 +363,52 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   /** Where to read from: a draft, or the live site. */
   async function reading(site: OpenedSite, name: string | undefined): Promise<ContentSource> {
-    return name ? (await draftOf(site, name)).store : site.backend;
+    return shown(site, name ? (await draftOf(site, name)).store : site.backend);
+  }
+
+  /** The collections whose items come from the site's code, which only its build and server read. */
+  function sourcedOf(site: OpenedSite): string[] {
+    return Object.keys(site.description.collections ?? {});
+  }
+
+  /** What the site reads of `source`: without sourced collections' item files (`withoutSourcedItems()`). */
+  function shown(site: OpenedSite, source: ContentSource): ContentSource {
+    return withoutSourcedItems(source, sourcedOf(site));
+  }
+
+  /**
+   * Refuses an address one of a sourced collection's items could have, for a new or moved page or item: the tools
+   * don't know which items there are, and the site would show only one of the two.
+   */
+  /** Where a sourced collection's items come from, for `get_site` and `get_collection` to say. */
+  function itemsFrom(site: OpenedSite, id: string): string {
+    return `Another system, through ${site.description.collections?.[id]?.source} in the site's code: its items aren't listed or changed here.`;
+  }
+
+  async function refuseSourcedAddress(site: OpenedSite, source: ContentSource, path: string) {
+    const ids = sourcedOf(site);
+    if (ids.length === 0) return;
+    const [settings, collections] = await Promise.all([readSettings(source), collectionSettingsOf(source, ids)]);
+    // Not for a collection whose pattern is only its item's name, where a page wins over an item, as in the admin panel.
+    const collection = collections.find((one) =>
+      mayBeUnreadPage({ settings, collections }, new Set([one.id]), path, { anyAddress: false }),
+    );
+    if (collection) {
+      throw new ToolError(
+        `One of ${collection.settings.name}'s items could have ${path} as its address: they come from another system, which these tools can't read. Choose another address.`,
+      );
+    }
+  }
+
+  /** Refuses changing a sourced collection's items, which only the system they come from changes. */
+  function refuseSourced(site: OpenedSite, id: string) {
+    const collections = site.description.collections ?? {};
+    const config = Object.hasOwn(collections, id) ? collections[id] : undefined;
+    if (config) {
+      throw new ToolError(
+        `The items of "${id}" come from another system (${config.source} in the site's code), so they're changed there, not here.`,
+      );
+    }
   }
 
   /**
@@ -395,9 +444,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
    * the site's code.
    */
   async function publishProblemsOf(site: OpenedSite, draft: Draft) {
+    const sourced = sourcedOf(site);
     const [before, after, media, changed] = await Promise.all([
-      loadSiteContent(site.backend),
-      loadSiteContent(draft.store),
+      loadSiteContent(site.backend, { sourced }),
+      loadSiteContent(draft.store, { sourced }),
       site.backend.list(MEDIA_DIR),
       draft.paths(),
     ]);
@@ -405,7 +455,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       media: media.map(mediaAddress),
       blocks: site.templateConfig.components as Record<string, ComponentConfig>,
     };
-    return publishProblems(checkSite(before, options), checkSite(after, options), changed);
+    // Sourced items aren't read here, so links that could go to their pages, or name them, aren't checked, as on
+    // a static site in the admin panel.
+    const unread = new Set(sourced);
+    return publishProblems(
+      withoutUnreadLinks(checkSite(before, options), before, unread),
+      withoutUnreadLinks(checkSite(after, options), after, unread),
+      changed,
+    );
   }
 
   async function save(draft: Draft, changes: FileChange[], message: string): Promise<void> {
@@ -526,7 +583,12 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         // Screenshots can show it both ways.
         ...(site.settings.theme.darkMode && { darkMode: true }),
         pages: pages.map((page) => page.address),
-        collections: collections.map((collection) => ({ id: collection.id, entries: collection.entries.length })),
+        // A sourced collection's items aren't the site's files, so it says where they come from, not a count of none.
+        collections: collections.map((collection) =>
+          Object.hasOwn(site.description.collections ?? {}, collection.id)
+            ? { id: collection.id, itemsFrom: itemsFrom(site, collection.id) }
+            : { id: collection.id, entries: collection.entries.length },
+        ),
         menus: Object.keys(menus.menus),
         ...(hasLanguages(site.settings) && {
           languages: siteLanguages(site.settings).map((language) => ({
@@ -609,9 +671,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (!existing) {
         if (isReservedPagePath(path))
           throw new ToolError(`${path} is kept for the admin panel. Choose another address.`);
-        if ((await takenAddresses(draft.store)).has(path)) {
+        if ((await takenAddresses(shown(site, draft.store))).has(path)) {
           throw new ToolError(`${path} is already a collection item's address. Choose another one.`);
         }
+        await refuseSourcedAddress(site, draft.store, path);
       }
       const before: Data = existing?.content.data ?? { root: { props: {} }, content: [] };
       const props = {
@@ -687,15 +750,23 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
       if (isReservedPagePath(to)) throw new ToolError(`${to} is kept for the admin panel. Choose another address.`);
       const draft = await changing(site, name);
       // Links anywhere on the site can point to it, so this reads the whole site, in batches.
-      const content = await loadWholeSite(draft.store);
+      const content = await loadWholeSite(shown(site, draft.store));
       const page = content.pages.find((candidate) => candidate.path === from);
       if (!page) throw new ToolError(`The site has no page at ${from}. get_site lists its pages.`);
-      if (content.pages.some((candidate) => candidate.path === to) || (await takenAddresses(draft.store)).has(to)) {
+      if (
+        content.pages.some((candidate) => candidate.path === to) ||
+        (await takenAddresses(shown(site, draft.store))).has(to)
+      ) {
         throw new ToolError(`${to} is already taken on the site. Choose another address.`);
       }
+      await refuseSourcedAddress(site, draft.store, to);
+      // Links to addresses a sourced collection's items could have stay as they are, since these tools don't know
+      // which items there are: a move can't follow links to pages it doesn't know.
+      const unread = new Set(sourcedOf(site));
       const changes = movePageChanges(content, page, to, {
         blocks: site.pageConfig.components as Record<string, ComponentConfig>,
         redirect: redirect !== false,
+        pages: (path) => mayBeUnreadPage(content, unread, path),
       });
       await save(draft, changes, `Move page ${from} to ${to}`);
       return text({ draft: draft.name, address: to, from, saved: "moved", filesChanged: changes.length });
@@ -852,6 +923,9 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
         itemName: settings.entryName,
         ...(settings.path !== undefined && { address: settings.path }),
         ...(settings.markdown && { markdownField: settings.markdown.body }),
+        ...(Object.hasOwn(site.description.collections ?? {}, id) && {
+          itemsFrom: itemsFrom(site, id),
+        }),
         fields: settings.fields,
         items: collection.entries.map((entry) => ({
           slug: entry.slug,
@@ -901,6 +975,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     },
     async ({ site: given, collection: id, slug, values, language, draft: name, showFrom, hideAfter }) => {
       const site = await open(given);
+      refuseSourced(site, id);
       const draft = await changing(site, name);
       const collection = await readCollection(draft.store, id);
       const existing = await readEntry(draft.store, collection, slug);
@@ -925,9 +1000,10 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           throw new ToolError(`"${slug}" can't be an item's name: use lowercase letters, numbers, and hyphens.`);
         }
         const path = entryPathIn(siteSettings, collection.settings, slug, inLanguage ?? mainLanguage(siteSettings));
-        if (path && (isReservedPagePath(path) || (await takenAddresses(draft.store)).has(path))) {
+        if (path && (isReservedPagePath(path) || (await takenAddresses(shown(site, draft.store))).has(path))) {
           throw new ToolError(`${path} is already taken on the site. Choose another name.`);
         }
+        if (path) await refuseSourcedAddress(site, draft.store, path);
       }
       const known = new Set(collection.settings.fields.map((field) => field.name));
       const unknown = Object.keys(values).filter((field) => !known.has(field));
@@ -964,13 +1040,14 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
     { site: siteArg, collection: z.string(), slug: z.string(), draft: draftArg },
     async ({ site: given, collection: id, slug, draft: name }) => {
       const site = await open(given);
+      refuseSourced(site, id);
       const draft = await changing(site, name);
       const collection = await readCollection(draft.store, id);
       const entry = collection.entries.find((candidate) => candidate.slug === slug);
       if (!entry) throw new ToolError(`The collection "${id}" has no item "${slug}".`);
       const translations = await entryTranslationChanges(draft.store, collection, slug);
       // Items that link to it stop linking to it, as in the admin panel.
-      const unlinked = (await itemLinkChanges(draft.store, id, slug)).filter(
+      const unlinked = (await itemLinkChanges(shown(site, draft.store), id, slug)).filter(
         (change) => change.path !== entry.file && !translations.some((other) => other.path === change.path),
       );
       await save(

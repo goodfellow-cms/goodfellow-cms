@@ -10,6 +10,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { ComponentConfig } from "@puckeditor/core";
 import { describe, expect, it } from "vitest";
+import { stayingPaths } from "./admin-context.js";
 import {
   addressPatternFor,
   checkEntrySlug,
@@ -198,6 +199,39 @@ describe("movePageChanges", () => {
     );
     expect(changes).toHaveLength(2);
   });
+
+  it("leaves links to pages under the old address that come from a collection's source", () => {
+    const jobs = page("/jobs");
+    const menus = { main: [{ label: "Welder", href: "/jobs/welder" }] };
+    const moving = site({ pages: [jobs], menus });
+    expect(movePageChanges(moving, jobs, "/careers", { pages: ["/jobs/welder"] })).toHaveLength(2);
+    // Without them, the link would move with the page.
+    expect(movePageChanges(moving, jobs, "/careers").map((change) => change.path)).toContain("content/menus.json");
+  });
+
+  it("leaves links that could go to items it can't read under the old address, whatever items there are", () => {
+    const careers = page("/careers");
+    const menus = { main: [{ label: "Engineer", href: "/careers/engineer" }] };
+    const jobs: Collection = {
+      id: "jobs",
+      file: "content/collections/jobs/_collection.json",
+      settings: collectionFileSchema.parse({
+        version: 1,
+        name: "Jobs",
+        entryName: "Job",
+        path: "/careers/{slug}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+      }),
+      entries: [],
+    };
+    const moving = site({ pages: [careers], menus, collections: [jobs] });
+    // As on a static site, or where the source couldn't be read: the admin panel doesn't know the items.
+    const paths = (pages: (path: string) => boolean) =>
+      movePageChanges(moving, careers, "/work", { pages }).map((change) => change.path);
+    expect(paths(stayingPaths(moving, undefined, new Set(["jobs"])))).not.toContain("content/menus.json");
+    // Where it reads them all, a link to an item it doesn't have moves with the page.
+    expect(paths(stayingPaths(moving, undefined, new Set()))).toContain("content/menus.json");
+  });
 });
 
 describe("settings and CSS changes", () => {
@@ -275,6 +309,44 @@ describe("collections", () => {
       "content/pages/index.json",
     ]);
     expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/watch/easter"') });
+  });
+
+  it("moves the pages of items that come from a source too, writing no file for them", () => {
+    const home = withBlocks("/", "Home", [
+      { type: "Button", props: { id: "Button-1", href: "/videos/sermon", label: "Sermon" } },
+      { type: "Button", props: { id: "Button-2", href: "/videos/sermon/details", label: "Details" } },
+    ]);
+    // The site's files hold the collection without its items, which the source gives as the site shows them.
+    const stored: Collection = { ...videos, entries: [] };
+    const sourced: Entry = { ...entry("sermon", { title: "Sermon" }), file: "source:videos/sermon" };
+    // Another collection's source gives a page under the moved one, which stays where it is.
+    const details: Collection = {
+      id: "details",
+      file: "content/collections/details/_collection.json",
+      settings: { ...settings, name: "Details", path: "/videos/{slug}/details" },
+      entries: [
+        {
+          ...entry("sermon", { title: "Details" }),
+          collection: "details",
+          path: "/videos/sermon/details",
+          file: "source:details/sermon",
+        },
+      ],
+      sourced: true as const,
+    };
+    const content = site({ pages: [home], collections: [stored] });
+    const shown = { ...content, collections: [{ ...stored, entries: [sourced], sourced: true as const }, details] };
+    const changes = collectionSettingsChanges(
+      stored,
+      { ...settings, path: "/watch/{slug}" },
+      { content, blocks, shown },
+    );
+    expect(changes.map((change) => change.path)).toEqual([
+      "content/collections/videos/_collection.json",
+      "content/pages/index.json",
+    ]);
+    expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/watch/sermon"') });
+    expect(changes[1]).toMatchObject({ content: expect.stringContaining('"href": "/videos/sermon/details"') });
   });
 
   it("removes deleted fields and choices from every entry in the same save", () => {
@@ -445,6 +517,20 @@ describe("collections", () => {
       "content/menus.json",
     ]);
     expect(changes[2]).toMatchObject({ content: expect.stringContaining('"href": "/videos/easter-sunday"') });
+  });
+
+  it("leaves links to pages under an entry's old address that come from a collection's source", () => {
+    const easter = videos.entries[0] as Entry;
+    const menus = { main: [{ label: "Readings", href: "/videos/easter/readings" }] };
+    const args = [
+      site({ collections: [videos], menus }),
+      videos,
+      easter,
+      "easter-sunday",
+      "/videos/easter-sunday",
+    ] as const;
+    expect(moveEntryChanges(...args, undefined, ["/videos/easter/readings"])).toHaveLength(2);
+    expect(moveEntryChanges(...args).map((change) => change.path)).toContain("content/menus.json");
   });
 
   it("starts new collections with a title, some text, and a template showing them", () => {

@@ -161,6 +161,37 @@ export interface CollectionFiles {
   entries: Array<{ slug: string; file: string }>;
 }
 
+/**
+ * The source without the item files in sourced collections' folders, which the
+ * site never reads, since their items come from the site's code
+ * (`SiteDescription.collections`): their settings stay, and the tools read
+ * them as collections with no items, so nothing reads, relinks, or writes the
+ * files.
+ */
+export function withoutSourcedItems(source: ContentSource, sourced: Iterable<string>): ContentSource {
+  const ids = new Set(sourced);
+  if (ids.size === 0) return source;
+  const hidden = (path: string) => {
+    const [id, name] = path.startsWith(`${COLLECTIONS_DIR}/`) ? path.slice(COLLECTIONS_DIR.length + 1).split("/") : [];
+    return id !== undefined && ids.has(id) && name !== COLLECTION_SETTINGS_FILE;
+  };
+  const shown: ContentSource = {
+    read: async (path) => (hidden(path) ? undefined : source.read(path)),
+    list: async (dir) => (await source.list(dir)).filter((path) => !hidden(path)),
+  };
+  const { readFiles, fileSizes } = source;
+  if (readFiles) {
+    shown.readFiles = async (paths) =>
+      readFiles.call(
+        source,
+        paths.filter((path) => !hidden(path)),
+      );
+  }
+  // Only media's sizes are asked for.
+  if (fileSizes) shown.fileSizes = (dir) => fileSizes.call(source, dir);
+  return shown;
+}
+
 /** The site's collections and their entries' files, from the list of files alone. */
 export async function listCollections(source: ContentSource): Promise<CollectionFiles[]> {
   const folders = new Map<string, CollectionFiles>();
@@ -191,6 +222,29 @@ export async function readCollection(source: ContentSource, id: string): Promise
     ...collection,
     settings: parsed(parseContentFile("collection", collectionFileSchema, collection.file, text)),
   };
+}
+
+/**
+ * The settings of each of the collections `ids` names that the site has, by id: one it has no settings for, or whose
+ * settings can't be read as the site would read them, has no pages, and is left out; any other failure, such as the
+ * host not answering, is thrown, so a check that needs them never goes on without them.
+ */
+export async function collectionSettingsOf(
+  source: ContentSource,
+  ids: readonly string[],
+): Promise<{ id: string; settings: CollectionFile }[]> {
+  const read = await Promise.all(
+    ids.map((id) =>
+      readCollection(source, id).then(
+        (collection) => ({ id, settings: collection.settings }),
+        (error: unknown) => {
+          if (error instanceof ToolError) return undefined;
+          throw error;
+        },
+      ),
+    ),
+  );
+  return read.filter((one) => one !== undefined);
 }
 
 export async function readEntry(

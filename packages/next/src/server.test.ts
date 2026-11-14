@@ -56,6 +56,63 @@ describe("goodfellowApi", () => {
     expect(fake.commitAuthors.get(next)).toMatchObject({ name: "Alice Editor", email: "alice@example.org" });
   });
 
+  it("makes collections' sources only when their items are asked for, so one that can't be made fails only that", async () => {
+    const news = {
+      version: 1,
+      name: "News",
+      entryName: "Story",
+      fields: [{ name: "title", label: "Title", type: "text" }],
+    };
+    const fake = fakeGitHub({
+      repo: "parish/site",
+      files: { ...FILES, "content/collections/news/_collection.json": JSON.stringify(news) },
+    });
+    const make = vi.fn(() => {
+      throw new Error("JOBS_DATABASE_URL isn't set");
+    });
+    const config = defineConfig({
+      blocks: {},
+      backend: github({ repo: "parish/site", fetch: fake.fetch }),
+      collections: { jobs: { source: "./lib/jobs.ts" }, news: { source: "./lib/news.ts" } },
+    });
+    const hello = { slug: "hello", fields: { title: "Hello" } };
+    const makeNews = vi.fn(() => ({ items: async () => [hello] }));
+    const call = caller(
+      goodfellowApi({
+        config,
+        token: "test-token",
+        authorize: () => ALICE,
+        signIn: "/sign-in",
+        sources: { jobs: make, news: makeNews },
+      }),
+    );
+    expect((await call("revision/")).status).toBe(200);
+    expect(make).not.toHaveBeenCalled();
+    expect((await call("collections/jobs/items/")).status).toBe(502);
+    expect(make).toHaveBeenCalledOnce();
+    // Another collection's items come through, its source made once and kept.
+    expect((await call("collections/news/items/")).status).toBe(200);
+    expect(await (await call("collections/news/items/")).json()).toEqual({ items: [hello] });
+    expect(makeNews).toHaveBeenCalledOnce();
+    // A module the config names but the site's code didn't give is said on the server, and fails only its
+    // collection's items: signing in, reading and publishing go on.
+    const said: unknown[] = [];
+    const missing = caller(
+      goodfellowApi({
+        config,
+        token: "test-token",
+        authorize: () => ALICE,
+        signIn: "/sign-in",
+        sources: { news: makeNews },
+        onError: (error) => said.push(error),
+      }),
+    );
+    expect((await missing("revision/")).status).toBe(200);
+    expect(String(said[0])).toMatch(/lib\/jobs\.ts/);
+    expect((await missing("collections/jobs/items/")).status).toBe(502);
+    expect((await missing("collections/news/items/")).status).toBe(200);
+  });
+
   it("tells the site's onPublish what each publish changed", async () => {
     const fake = fakeGitHub({ repo: "parish/site", files: FILES });
     const published: unknown[] = [];

@@ -14,7 +14,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { useMemo } from "react";
-import { useSiteContent } from "./admin-context.js";
+import { useCollectionSource, useSiteContent } from "./admin-context.js";
 import { entryFileChange } from "./changes.js";
 import { CollectionLayout, inSentence } from "./collection-screen.js";
 import { formValues, SCHEDULE_PROP } from "./entry-values.js";
@@ -95,8 +95,23 @@ function EntryEditor({ collection, entry }: { collection: Collection; entry: Ent
 export function EntryEditorScreen({ collectionId, slug }: { collectionId: string; slug: string }) {
   const t = useStrings();
   const { content } = useSiteContent();
+  const source = useCollectionSource(collectionId);
   const found = findEntry(content, collectionId, slug);
   const collection = content.collections.find((candidate) => candidate.id === collectionId);
+
+  // Its items are the source's, which the admin panel never writes.
+  if (source && collection) {
+    return (
+      <CollectionLayout collection={collection} tab="entries">
+        <div className="gfa-screen">
+          <p>{t("editEntry.sourced", { name: collection.settings.name, source })}</p>
+          <AppLink href={`#/collections/${collection.id}`}>
+            {t("editEntry.back", { name: collection.settings.name })}
+          </AppLink>
+        </div>
+      </CollectionLayout>
+    );
+  }
 
   if (!found) {
     return (

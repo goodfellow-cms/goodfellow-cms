@@ -13,6 +13,12 @@ export interface Collection {
   settings: CollectionFile;
   /** Entries in the collection's own order (see `sortEntries`). */
   entries: Entry[];
+  /**
+   * Whether its entries came from a source rather than its folder's files
+   * (`withSourcedCollections()`): they're edited in the system that keeps
+   * them, so the admin panel shows them read-only.
+   */
+  sourced?: true;
 }
 
 /** One item in a collection. */

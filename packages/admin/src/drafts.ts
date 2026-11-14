@@ -1,4 +1,5 @@
-import { type DraftKeeper, type KeptDraft, memoryKeeper } from "@goodfellow-cms/core";
+import { type DraftKeeper, type FileChange, type KeptDraft, memoryKeeper, SignInError } from "@goodfellow-cms/core";
+import type { LoadState } from "./admin-context.js";
 
 const DATABASE = "goodfellow-drafts";
 const TABLE = "drafts";
@@ -69,4 +70,30 @@ export function draftStarted(name: string): string {
   return Number.isNaN(date.getTime())
     ? name
     : date.toLocaleDateString(undefined, { dateStyle: "long", timeZone: "UTC" });
+}
+
+/**
+ * What **Publish all** starts from: the draft's changes and the live site as it is now, read together. A sign-in
+ * that ran out, reading either (the live site's sources too, which `load()` gives as its error), goes to
+ * `onSignInError`, for signing in again, as a publish that finds it does.
+ */
+export async function draftAndLive(
+  changes: () => Promise<FileChange[]>,
+  live: () => Promise<LoadState>,
+  onSignInError?: (error: SignInError) => void,
+): Promise<{ changes: FileChange[]; live: Extract<LoadState, { status: "ready" }> } | { error: unknown }> {
+  // Both read to the end, so a sign-in that ran out reading one is found whatever the other did first.
+  const [draft, current] = await Promise.allSettled([changes(), live()]);
+  const loaded = current.status === "fulfilled" ? current.value : undefined;
+  const errors: unknown[] = [
+    ...(draft.status === "rejected" ? [draft.reason] : []),
+    ...(current.status === "rejected" ? [current.reason] : []),
+    ...(loaded && loaded.status !== "ready" ? [loaded.status === "error" ? loaded.error : false] : []),
+  ];
+  const signIn = errors.find(
+    (error): error is SignInError => error instanceof SignInError && error.problem === "invalid",
+  );
+  if (signIn) onSignInError?.(signIn);
+  if (draft.status === "rejected" || loaded?.status !== "ready") return { error: signIn ?? errors[0] };
+  return { changes: draft.value, live: loaded };
 }

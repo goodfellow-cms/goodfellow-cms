@@ -58,6 +58,39 @@ The collection's **Items** tab lists them. Adding one (**Add Event**, say) asks 
 
 To show items on other pages, add a **Collection list** block, which shows them as a list or cards, newest first or upcoming only, as many as you choose, and on pages of their own, or a **Collection loop** block, which shows blocks you design for each item. See [Showing collections](/docs/showing-collections).
 
+## Items from another system
+
+A collection's items can come from somewhere other than the admin panel, such as the site's own database, a spreadsheet, or a shop, so the site shows them without anyone copying them over. The collection is made and designed in the admin panel as any other, with its fields, its page design, and its address; only its items come from the other system, where they're edited, and the admin panel shows them read-only. A developer sets it up, with a **source**: a module whose default export reads the items, named in `goodfellow.config.tsx`:
+
+```ts
+// lib/jobs.ts
+import { defineCollectionSource } from "@goodfellow-cms/core";
+import { db } from "@/lib/db";
+
+export default defineCollectionSource<{ table: string }>((options) => ({
+  // Every item, as an item's file would hold it: its name in the collection, and its fields' values.
+  items: async () =>
+    (await db.selectFrom(options.table).selectAll().execute()).map((row) => ({
+      slug: row.slug,
+      fields: { title: row.title, posted: row.posted, about: row.description },
+    })),
+}));
+```
+
+```ts
+// goodfellow.config.tsx
+export default defineConfig({
+  blocks,
+  collections: { jobs: { source: "./lib/jobs.ts", options: { table: "jobs" } } },
+});
+```
+
+- **Items are checked as files are:** a value that doesn't fit its field, a name that can't be an address, a name given twice, or an address a page already has leaves that item out, with a warning in the build's or the server's log, so one bad row never stops the site. Only the values of the collection's own fields are kept, so a row's other columns, such as notes or applicants' addresses, never reach the site's pages, its content API, or the admin panel. A source that can't be read at all, such as a database that doesn't answer, stops the build, or the page being rendered, rather than show the collection empty. A full-stack site's server that has read it before shows the items it read last, with a warning in its log, and keeps showing the pages it rendered before. In the admin panel, the collection's items tab says so, with **Try again**, while other collections' items still show. A change to the collection's settings waits until its items can be read again, since they're checked against the new settings; anything else can be published meanwhile, without checking links that could go to its items' pages. While its items can't be read, as always on a static site, a new or moved page or item can't take an address one of its items could have, unless the address pattern is only the item's name, such as `/{slug}`, where a page, or an item of another collection, wins over an item with its address and the build leaves the sourced item out with a warning; moving a page leaves links to such addresses under it as they are. A change to the collection's settings that an item no longer fits, such as a removed choice it uses, names the items it would leave out; they can be published without them, and show again once they're changed to fit. Items can have `inLanguage`, `translationOf`, `showFrom`, and `hideAfter`, as items' files do. `goodfellow due` and `goodfellow-next due`, the hourly check for scheduled changes, read the sources too, so an item's `showFrom` rebuilds the site; where the check can't read a source, such as where it doesn't have the source's secrets, it leaves that collection's items out, with a warning, and they show at the next build.
+- **Where it's read:** `goodfellow build` and `goodfellow dev` load the module through Vite, and `goodfellow-next finish` and `next dev` load it in Node for feeds, calendars, the content API, and its checks. Item files left in the collection's folder aren't read or checked, since the source's items take their place; remove them anyway, since tools that don't load the site's code, such as imports and exports, still read them. `source` is a path from the site's folder or a package's export, such as `goodfellow-plugin-airtable/source`. A source that opens connections, such as a database pool, can give a `close()`, which commands such as `goodfellow build` and `goodfellow due` call once they're done, so they don't keep running, and the development servers call when the source's code or options change. A Next.js site's pages are rendered by Next.js, which needs the module imported: pass it to `goodfellowPages()`, and to `goodfellowApi()` on a full-stack site, as `sources: { jobs: jobsSource }` (see [Collections from a database](/docs/full-stack-nextjs#collections-from-a-database)). The site's description names the module, but never its options.
+- **When changes show:** a static site shows the items it read when it was built, so build it again, such as each night, to show changes. Its admin panel can't read the items, so it lists none, publishing doesn't check links that could go to their pages, and the collection's address can't be changed there, since links to its items couldn't follow. A full-stack site shows them as its pages render again.
+- **Not in version history:** the items aren't in the site's repository, so Version history and Download a copy don't cover them. The collection's settings and design are, as any collection's.
+- **Claude:** [Claude's tools](/docs/claude) read the repository, not the site's code, so they list no items for the collection, say where its items come from, won't add, change, or delete one, and won't put a page or item at an address one of its items could have. Publishing a draft doesn't check links that could go to its items' pages.
+
 ## Storing items as Markdown
 
 A collection can store its items as Markdown files instead of JSON. Turn on **Store items as Markdown files** in its settings and choose which formatted-text field is the file's text; the other fields are saved at the top of the file. Changing the setting converts every item in the same publish.

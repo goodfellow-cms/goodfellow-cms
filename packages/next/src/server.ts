@@ -1,5 +1,12 @@
 import { aiServer, type ServerKeys } from "@goodfellow-cms/ai";
-import { type GoodfellowConfig, ownersOnlyFields } from "@goodfellow-cms/core";
+import {
+  type CollectionSource,
+  checkSourceModules,
+  collectionSource,
+  type GoodfellowConfig,
+  ownersOnlyFields,
+  type SourceModuleImport,
+} from "@goodfellow-cms/core";
 import { type AppApiOptions, appApi } from "@goodfellow-cms/core/server";
 
 /** The environment variable the server's token is read from, unless `goodfellowApi({ token })` gives one. */
@@ -62,6 +69,12 @@ export interface GoodfellowApiOptions {
    * them, and they wait until they're old enough.
    */
   provenance?: AppApiOptions["provenance"];
+  /**
+   * The modules of the sources the config's `collections` name, by collection
+   * id, as `goodfellowPages()` is given them, so the admin panel can show their
+   * items. Throws on the first request where the config names one that's missing.
+   */
+  sources?: Record<string, SourceModuleImport>;
 }
 
 /** The route parameters of a catch-all route named `[...path]`. */
@@ -98,6 +111,16 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
         throw new Error(`goodfellowApi() needs a token: set ${GIT_TOKEN_VARIABLE}, or pass \`token\`.`);
       })();
     const ai = options.ai && aiServer(options.ai);
+    // Every collection's module should be there, which is said here, on the server; but one that's missing fails only
+    // its collection's items (`collectionSource()`), never signing in or publishing, and each source is made only when
+    // the admin panel asks for its items.
+    try {
+      checkSourceModules(options.config.collections, options.sources ?? {});
+    } catch (error) {
+      if (options.onError) options.onError(error);
+      else console.error(error instanceof Error ? error.message : String(error));
+    }
+    const sources = new Map<string, CollectionSource | undefined>();
     api = appApi({
       git: backend.server({ token }),
       authorize: options.authorize,
@@ -110,6 +133,12 @@ export function goodfellowApi(options: GoodfellowApiOptions) {
       ...(options.codeChanges && { codeChanges: options.codeChanges }),
       ...(options.provenance && { provenance: options.provenance }),
       ownersOnly: ownersOnlyFields(options.config.blocks ?? {}),
+      sources: (id) => {
+        // Only the collections the config names are kept, so asking for others' items adds nothing to remember.
+        if (!Object.hasOwn(options.config.collections ?? {}, id)) return undefined;
+        if (!sources.has(id)) sources.set(id, collectionSource(options.config.collections, options.sources ?? {}, id));
+        return sources.get(id);
+      },
     });
     return api;
   }

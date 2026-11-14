@@ -10,7 +10,7 @@ import {
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, useState } from "react";
-import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import { stayingPaths, useAdmin, useCanChangeSettings, useMayBeItem, useSiteContent } from "./admin-context.js";
 import {
   type AddressProblem,
   checkPageAddress,
@@ -43,7 +43,7 @@ const addressErrors: Record<AddressProblem, StringKey> = {
 function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const fromTitle = from ? pageTitle(from) : "";
   // A copy goes beside its page; a copy of a language's home page stays in that language.
   const folder =
@@ -61,15 +61,24 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure>(null);
 
-  // Entries' pages count too: a new page can't take an entry's address.
-  const check = checkPageAddress(address, allPages(content));
+  // Entries' pages count too: a new page can't take an entry's address, or one an item the admin panel can't read
+  // could have.
+  const check = checkPageAddress(address, allPages(shown ?? content));
+  const mayBeItem = useMayBeItem();
+  const item = check.ok ? mayBeItem(check.path) : undefined;
   const titleError = submitted && !title.trim() ? t("field.required") : undefined;
-  const addressError = submitted && !check.ok ? t(addressErrors[check.problem]) : undefined;
+  const addressError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(addressErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!title.trim() || !check.ok) return;
+    if (!title.trim() || !check.ok || item) return;
     setBusy(true);
     const data = from ? duplicatePageData(from.content.data as Data, title.trim()) : newPageData(title.trim());
     const result = await publish(
@@ -125,8 +134,8 @@ function NewPageDialog({ from, onClose }: { from?: Page; onClose: () => void }) 
 
 function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) {
   const t = useStrings();
-  const { blocks, publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { blocks, publish, unreadCollections } = useAdmin();
+  const { content, shown } = useSiteContent();
   const owner = useCanChangeSettings();
   const [address, setAddress] = useState(page.path);
   // The home page has no old address to send visitors on from: another page takes it.
@@ -138,17 +147,30 @@ function MovePageDialog({ page, onClose }: { page: Page; onClose: () => void }) 
   const [failure, setFailure] = useState<Failure>(null);
   const title = pageTitle(page);
 
-  const check = checkPageAddress(address, allPages(content), page.path);
-  const addressError = submitted && !check.ok ? t(addressErrors[check.problem]) : undefined;
+  // As visitors see the site, so a sourced item's address counts as taken.
+  const check = checkPageAddress(address, allPages(shown ?? content), page.path);
+  const mayBeItem = useMayBeItem();
+  const item = check.ok && check.path !== page.path ? mayBeItem(check.path) : undefined;
+  const addressError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(addressErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!check.ok) return;
+    if (!check.ok || item) return;
     if (check.path === page.path) return onClose();
     setBusy(true);
     const result = await publish(
-      movePageChanges(content, page, check.path, { blocks, redirect }),
+      movePageChanges(content, page, check.path, {
+        blocks,
+        redirect,
+        pages: stayingPaths(content, shown, unreadCollections),
+      }),
       t("movePage.message", { title, from: page.path, to: check.path }),
     );
     setBusy(false);

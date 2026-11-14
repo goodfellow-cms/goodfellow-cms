@@ -6,13 +6,22 @@ import {
   entryLanguage,
   entryPathIn,
   entryTitle,
+  isOnSite,
   itemsLinkingTo,
   mainLanguage,
   siteLanguages,
+  trimChars,
 } from "@goodfellow-cms/core";
 import type { Data } from "@puckeditor/core";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { useAdmin, useCanChangeSettings, useSiteContent } from "./admin-context.js";
+import {
+  stayingPaths,
+  useAdmin,
+  useCanChangeSettings,
+  useCollectionSource,
+  useMayBeItem,
+  useSiteContent,
+} from "./admin-context.js";
 import {
   checkEntrySlug,
   collectionFileChange,
@@ -88,7 +97,7 @@ export function CollectionLayout({
 function NewEntryDialog({ collection, onClose }: { collection: Collection; onClose: () => void }) {
   const t = useStrings();
   const { publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { content, shown } = useSiteContent();
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
@@ -111,17 +120,25 @@ function NewEntryDialog({ collection, onClose }: { collection: Collection; onClo
   const check = checkEntrySlug(
     name,
     collection,
-    allPages(content).map((page) => page.path),
+    allPages(shown ?? content).map((page) => page.path),
     undefined,
     { settings: content.settings, code: language },
   );
+  const mayBeItem = useMayBeItem();
+  const item = check.ok ? mayBeItem(check.path) : undefined;
   const titleError = submitted && !title.trim() ? t("field.required") : undefined;
-  const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
+  const slugError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(nameErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!title.trim() || !check.ok) return;
+    if (!title.trim() || !check.ok || item) return;
     setBusy(true);
     const result = await publish(
       [
@@ -213,8 +230,8 @@ function MoveEntryDialog({
   onClose: () => void;
 }) {
   const t = useStrings();
-  const { blocks, publish } = useAdmin();
-  const { content } = useSiteContent();
+  const { blocks, publish, unreadCollections } = useAdmin();
+  const { content, shown } = useSiteContent();
   const [slug, setSlug] = useState(entry.slug);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -227,20 +244,36 @@ function MoveEntryDialog({
   const check = checkEntrySlug(
     slug,
     collection,
-    allPages(content).map((page) => page.path),
+    allPages(shown ?? content).map((page) => page.path),
     entry,
     language,
   );
-  const slugError = submitted && !check.ok ? t(nameErrors[check.problem]) : undefined;
+  const mayBeItem = useMayBeItem();
+  const item = check.ok && check.slug !== entry.slug ? mayBeItem(check.path) : undefined;
+  const slugError = !submitted
+    ? undefined
+    : !check.ok
+      ? t(nameErrors[check.problem])
+      : item
+        ? t("address.mayBeItem", { collection: item })
+        : undefined;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitted(true);
-    if (!check.ok) return;
+    if (!check.ok || item) return;
     if (check.slug === entry.slug) return onClose();
     setBusy(true);
     const result = await publish(
-      moveEntryChanges(content, collection, entry, check.slug, check.path, blocks),
+      moveEntryChanges(
+        content,
+        collection,
+        entry,
+        check.slug,
+        check.path,
+        blocks,
+        stayingPaths(content, shown, unreadCollections),
+      ),
       t("moveEntry.message", {
         entry: inSentence(collection.settings.entryName),
         title,
@@ -347,11 +380,128 @@ function DeleteEntryDialog({
 
 type DialogState = { type: "new" } | { type: "move"; entry: Entry } | { type: "delete"; entry: Entry } | null;
 
-/** A collection's items, with buttons to add, edit, rename, and delete them. */
-export function EntriesScreen({ collection }: { collection: Collection }) {
-  const { content } = useSiteContent();
+/**
+ * Whether an item has a page on the site now: an address, published, and
+ * shown by its schedule, since the site leaves out what its schedule hides, a
+ * source's items as much as files'.
+ */
+export function isViewable(item: Entry, now: Date, timeZone: string | undefined): boolean {
+  return Boolean(item.path) && isOnSite(item.content, now, timeZone);
+}
+
+/** A link that opens an item's page on the site, in a new tab, unless it isn't there now (`isViewable()`). */
+function ViewEntry({ item }: { item: Entry }) {
   const t = useStrings();
   const { siteUrl } = useAdmin();
+  const { content } = useSiteContent();
+  if (!isViewable(item, new Date(), content.settings.timeZone)) return null;
+  return (
+    <a
+      className="gfa-button gfa-button-ghost"
+      href={`${trimChars(siteUrl, "/", { start: false })}${item.path}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {t("pages.view")}
+    </a>
+  );
+}
+
+/** A collection's items as a table: each one's title, its address where items have pages, and what can be done with it. */
+function EntriesTable({
+  collection,
+  actionsLabel,
+  title,
+  actions,
+}: {
+  collection: Collection;
+  /** What the column of actions is called, for screen readers. */
+  actionsLabel: string;
+  title: (item: Entry) => ReactNode;
+  actions: (item: Entry) => ReactNode;
+}) {
+  const t = useStrings();
+  const { settings } = collection;
+  if (collection.entries.length === 0) return <p>{t("entries.empty", { name: settings.name })}</p>;
+  return (
+    <table className="gfa-table">
+      <thead>
+        <tr>
+          <th>{t("entries.column.title")}</th>
+          {settings.path && <th>{t("entries.column.address")}</th>}
+          <th>
+            <span className="gfa-visually-hidden">{actionsLabel}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {collection.entries.map((item) => (
+          <tr key={item.slug}>
+            <td>{title(item)}</td>
+            {settings.path && (
+              <td>
+                <code>{item.path}</code>
+              </td>
+            )}
+            <td className="gfa-row-actions">{actions(item)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** A collection's items as the site shows them, read-only, where they come from another system. */
+function SourcedEntries({ collection, source }: { collection: Collection; source: string }) {
+  const t = useStrings();
+  const { account, state, reload } = useAdmin();
+  const { content } = useSiteContent();
+  const { settings } = collection;
+  // Its source couldn't be read as the site loaded: what's listed would be the folder's files, which the site doesn't
+  // show. Other collections' sources may have been read.
+  const unread = state.status === "ready" && (state.unreadSources ?? []).includes(collection.id);
+  return (
+    <CollectionLayout collection={collection} tab="entries">
+      <div className="gfa-screen">
+        <div className="gfa-screen-header">
+          <h1>{settings.name}</h1>
+        </div>
+        <p className="gfa-hint">
+          {t(account?.sourcedItems ? "entries.sourced" : "entries.sourcedElsewhere", { name: settings.name, source })}
+        </p>
+        {account?.sourcedItems && unread && (
+          <div className="gfa-notice gfa-notice-warning" role="alert">
+            <p>{t("entries.sourceUnread", { name: settings.name, source })}</p>
+            <Button onClick={() => void reload()}>{t("action.tryAgain")}</Button>
+          </div>
+        )}
+        {account?.sourcedItems && !unread && (
+          <EntriesTable
+            collection={collection}
+            actionsLabel={t("pages.view")}
+            title={(item) => (
+              <>
+                {entryTitle(item)}
+                <ScheduleStatus schedule={item.content} content={content} />
+              </>
+            )}
+            actions={(item) => <ViewEntry item={item} />}
+          />
+        )}
+      </div>
+    </CollectionLayout>
+  );
+}
+
+/** A collection's items, with buttons to add, edit, rename, and delete them. */
+export function EntriesScreen({ collection }: { collection: Collection }) {
+  const source = useCollectionSource(collection.id);
+  return source ? <SourcedEntries collection={collection} source={source} /> : <FileEntries collection={collection} />;
+}
+
+function FileEntries({ collection }: { collection: Collection }) {
+  const { content } = useSiteContent();
+  const t = useStrings();
   const [dialog, setDialog] = useState<DialogState>(null);
   const close = () => setDialog(null);
   const { settings } = collection;
@@ -367,68 +517,41 @@ export function EntriesScreen({ collection }: { collection: Collection }) {
           </Button>
         </div>
 
-        {collection.entries.length === 0 ? (
-          <p>{t("entries.empty", { name: settings.name })}</p>
-        ) : (
-          <table className="gfa-table">
-            <thead>
-              <tr>
-                <th>{t("entries.column.title")}</th>
-                {settings.path && <th>{t("entries.column.address")}</th>}
-                <th>
-                  <span className="gfa-visually-hidden">{t("pages.edit")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {collection.entries.map((item) => (
-                <tr key={item.slug}>
-                  <td>
-                    <a href={entryEditorHref(collection.id, item.slug)} className="gfa-link-strong">
-                      {entryTitle(item)}
-                    </a>
-                    <ScheduleStatus schedule={item.content} content={content} />
-                    <EntryTranslations
-                      collection={collection}
-                      entry={item}
-                      entryHref={(slug) => entryEditorHref(collection.id, slug)}
-                    />
-                  </td>
-                  {settings.path && (
-                    <td>
-                      <code>{item.path}</code>
-                    </td>
-                  )}
-                  <td className="gfa-row-actions">
-                    <a className="gfa-button gfa-button-secondary" href={entryEditorHref(collection.id, item.slug)}>
-                      {t("pages.edit")}
-                    </a>
-                    {item.path && (
-                      <>
-                        {!item.content.notPublished && (
-                          <a
-                            className="gfa-button gfa-button-ghost"
-                            href={`${siteUrl.replace(/\/$/, "")}${item.path}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {t("pages.view")}
-                          </a>
-                        )}
-                        <Button variant="ghost" onClick={() => setDialog({ type: "move", entry: item })}>
-                          {t("pages.move")}
-                        </Button>
-                      </>
-                    )}
-                    <Button variant="ghost" onClick={() => setDialog({ type: "delete", entry: item })}>
-                      {t("pages.delete")}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <EntriesTable
+          collection={collection}
+          actionsLabel={t("pages.edit")}
+          title={(item) => (
+            <>
+              <a href={entryEditorHref(collection.id, item.slug)} className="gfa-link-strong">
+                {entryTitle(item)}
+              </a>
+              <ScheduleStatus schedule={item.content} content={content} />
+              <EntryTranslations
+                collection={collection}
+                entry={item}
+                entryHref={(slug) => entryEditorHref(collection.id, slug)}
+              />
+            </>
+          )}
+          actions={(item) => (
+            <>
+              <a className="gfa-button gfa-button-secondary" href={entryEditorHref(collection.id, item.slug)}>
+                {t("pages.edit")}
+              </a>
+              {item.path && (
+                <>
+                  <ViewEntry item={item} />
+                  <Button variant="ghost" onClick={() => setDialog({ type: "move", entry: item })}>
+                    {t("pages.move")}
+                  </Button>
+                </>
+              )}
+              <Button variant="ghost" onClick={() => setDialog({ type: "delete", entry: item })}>
+                {t("pages.delete")}
+              </Button>
+            </>
+          )}
+        />
 
         {dialog?.type === "new" && <NewEntryDialog collection={collection} onClose={close} />}
         {dialog?.type === "move" && <MoveEntryDialog collection={collection} entry={dialog.entry} onClose={close} />}

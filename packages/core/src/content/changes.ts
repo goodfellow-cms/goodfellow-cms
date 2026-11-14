@@ -12,7 +12,7 @@ import { type Collection, cleanEntryValues, type Entry, isEmptyValue } from "./c
 import { cleanTags, type MediaDetails } from "./credits.js";
 import { changeItemLinks } from "./item-links.js";
 import { entryPathIn } from "./languages.js";
-import { relinkSite } from "./links.js";
+import { relinkSite, type Staying } from "./links.js";
 import type { Page, SiteCode, SiteContent, SyncedBlock } from "./load.js";
 import { serializeMarkdownEntry } from "./markdown.js";
 import {
@@ -300,15 +300,21 @@ export function relinkedChanges(
  * Moves a page to a new address in one save, with every link to it on the
  * site pointing to the new one (`blocks` say which props hold links), and,
  * with `redirect`, sending visitors on from its old address unless it's the
- * home page.
+ * home page. `pages` are the addresses of pages the site has that `content`
+ * doesn't hold, such as items a collection's source gives, whose links stay
+ * as they are, as `relinkSite()` takes them.
  */
 export function movePageChanges(
   content: SiteContent,
   page: Page,
   to: string,
-  { blocks, redirect = false }: { blocks?: Record<string, ComponentConfig>; redirect?: boolean } = {},
+  {
+    blocks,
+    redirect = false,
+    pages = [],
+  }: { blocks?: Record<string, ComponentConfig>; redirect?: boolean; pages?: Staying } = {},
 ): FileChange[] {
-  const relinked = relinkSite(content, [{ from: page.path, to }], blocks);
+  const relinked = relinkSite(content, [{ from: page.path, to }], blocks, pages);
   const moved = relinked.content.pages.find((candidate) => candidate.file === page.file) ?? page;
   const changes: FileChange[] = [
     { path: page.file, delete: true },
@@ -582,7 +588,10 @@ export function checkEntrySlug(
   return { ok: true, slug, path };
 }
 
-/** Renames an entry, which changes its address, with every link to its page pointing to the new one. */
+/**
+ * Renames an entry, which changes its address, with every link to its page pointing to the new one. `pages` are
+ * as `movePageChanges()` takes them.
+ */
 export function moveEntryChanges(
   content: SiteContent,
   collection: EntryCollection,
@@ -590,9 +599,10 @@ export function moveEntryChanges(
   slug: string,
   path: string | undefined,
   blocks?: Record<string, ComponentConfig>,
+  pages: Staying = [],
 ): FileChange[] {
   const relinkedPages =
-    entry.path && path ? relinkSite(content, [{ from: entry.path, to: path }], blocks) : { content, files: [] };
+    entry.path && path ? relinkSite(content, [{ from: entry.path, to: path }], blocks, pages) : { content, files: [] };
   // Items that link to it name it by its name, so they're renamed with it.
   const named = changeItemLinks(relinkedPages.content, collection.id, (name) => (name === entry.slug ? slug : name));
   const relinked = { content: named.content, files: [...new Set([...relinkedPages.files, ...named.files])] };
