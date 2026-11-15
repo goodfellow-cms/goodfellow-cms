@@ -1,5 +1,24 @@
 # @goodfellow-cms/blocks
 
+## 0.12.0
+
+### Minor Changes
+
+- 2c1b773: Full-stack sites can mark pages, and collections' items, for signed-in members only: a page's **Who can see this page** setting, and a collection's settings, store `visibility: "members"`, and `isMembersOnly()` tells the site's own code which pages they are. Members' pages and collections are left out of the site's search, feeds, calendar files, and the content API, and the calendar blocks offer no files for members' calendars. Only a site's owners can change who a page is for, which the full-stack site's server checks. Only full-stack sites are offered the setting, and `goodfellow build` and `goodfellow-next finish` warn when a static site has pages marked for members, which they publish to everyone.
+
+### Patch Changes
+
+- Updated dependencies [0306a3f]
+- Updated dependencies [e21c530]
+- Updated dependencies [2c1b773]
+- Updated dependencies [4a2cffd]
+- Updated dependencies [3e63b37]
+- Updated dependencies [67863e4]
+- Updated dependencies [d1d54cc]
+  - @goodfellow-cms/core@0.12.0
+  - @goodfellow-cms/react@0.12.0
+  - @goodfellow-cms/expo@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes
