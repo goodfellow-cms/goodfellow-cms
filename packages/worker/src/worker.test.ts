@@ -653,6 +653,30 @@ describe("setting up a site in two repositories", () => {
     return ((await signedIn.json()) as { session: string }).session;
   }
 
+  it("says a name is free only where GitHub says there's no such repository, never where it refuses to say", async () => {
+    for (const [status, available] of [
+      [404, true],
+      [403, undefined],
+      [500, undefined],
+    ] as const) {
+      const context = setup({
+        answer: (method, url) =>
+          method === "GET" && new URL(url).pathname === "/repos/maria/site"
+            ? Response.json({ message: "No" }, { status })
+            : undefined,
+      });
+      const session = await setupSession(context);
+      const response = await context.post(
+        "/github/setup/available",
+        { session, owner: "maria", name: "site" },
+        "https://setup.example",
+      );
+      const answer = (await response.json()) as { available?: boolean };
+      expect(answer.available, String(status)).toBe(available);
+      if (available === undefined) expect(response.ok, String(status)).toBe(false);
+    }
+  });
+
   it("keeps the person's token until the last repository is created", async () => {
     const context = setup();
     const session = await setupSession(context);

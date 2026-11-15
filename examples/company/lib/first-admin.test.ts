@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { setupCodeHash } from "@goodfellow-cms/core";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it } from "vitest";
-import { type AdminMaker, createAdmin, newAdminProblem } from "./admins.ts";
+import { type AdminMaker, createAdmin, newAdminProblem, SETUP_RETIRED } from "./admins.ts";
 import { authOptions } from "./auth.ts";
 import { addAdmin } from "./db/new-admin.ts";
 import type { SiteEnv } from "./env.ts";
@@ -114,6 +114,37 @@ describe("setUpFirstAdmin", () => {
     expect(site.admins()).toEqual([]);
   });
 
+  it("keeps the code retired when npm run new-admin makes an admin while /setup/ holds the code, and /setup/ fails", async () => {
+    const site = await freshSite();
+    // What a request that's past the checks, and making its admin, has written.
+    const holding = `insert into verification (id, identifier, value, expiresAt, createdAt, updatedAt) values (?, ?, 'a setup request', 253402214400000, 0, 0)`;
+    site.db.prepare(holding).run(SETUP_DONE, SETUP_DONE);
+    await addAdmin(site.db, { email: "ada@example.org", name: "Ada", password: PASSWORD });
+    // The request fails, and takes out only the row it wrote.
+    site.db.prepare(`delete from verification where id = ? and value = 'a setup request'`).run(SETUP_DONE);
+    expect(site.db.prepare(`select value from verification where id = ?`).all(SETUP_DONE)).toEqual([
+      { value: SETUP_RETIRED },
+    ]);
+    // Ada is made an editor again: the code still makes nobody an admin.
+    site.db.exec(`update "user" set role = 'member'`);
+    expect(await statusOf(site.setUp(OLIVE))).toBe(409);
+    expect(site.admins()).toEqual([]);
+  });
+
+  it("lets the code be used again when /setup/ fails after retiring it for its own admin", async () => {
+    const site = await freshSite();
+    const context = await site.auth.$context;
+    const link = context.internalAdapter.linkAccount;
+    context.internalAdapter.linkAccount = async () => {
+      throw new Error("D1 went away");
+    };
+    await expect(site.setUp(OLIVE)).rejects.toThrow("D1 went away");
+    expect(site.db.prepare(`select id from verification where id = ?`).all(SETUP_DONE)).toEqual([]);
+    context.internalAdapter.linkAccount = link;
+    await site.setUp(OLIVE);
+    expect(site.admins()).toEqual(["olive@example.org"]);
+  });
+
   it("makes one admin when two ask at the same moment", async () => {
     const site = await freshSite();
     const results = await Promise.allSettled([
@@ -191,6 +222,7 @@ describe("setUpFirstAdmin", () => {
       adapter: {
         findOne: async () => null,
         create: async () => made.push("code retired"),
+        update: async () => made.push("code retired over a claim"),
       },
       internalAdapter: {
         findUserByEmail: async () => null,

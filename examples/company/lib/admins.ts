@@ -59,28 +59,45 @@ export function newAdminProblem(
  */
 export const SETUP_DONE = "first-admin";
 
-/** Writes the row that retires the setup code (`SETUP_DONE`), where it isn't there already. */
-async function retireSetupCode(adapter: AdminMaker["adapter"]): Promise<void> {
-  const row = { model: "verification", where: [{ field: "id", value: SETUP_DONE }] };
-  if (await adapter.findOne(row)) return;
+/** What the row says once an admin has been made, whoever made them (`/setup/` holds it with a value of its own until then). */
+export const SETUP_RETIRED = "retired";
+
+/**
+ * Writes the row that retires the setup code (`SETUP_DONE`) for good, unless `claim`, the value `/setup/` holds it
+ * with while making its admin, is what it says: a row `/setup/` holds is taken over, since `/setup/` takes out only a
+ * row with its own value when it fails, and that would make the code work again beside this admin.
+ */
+async function retireSetupCode(adapter: AdminMaker["adapter"], claim?: string): Promise<void> {
+  const where = [{ field: "id", value: SETUP_DONE }];
+  const row = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
+  if (row && (row.value === SETUP_RETIRED || (claim !== undefined && row.value === claim))) return;
   const now = new Date();
-  try {
-    await adapter.create({
-      model: "verification",
-      data: {
-        id: SETUP_DONE,
-        identifier: SETUP_DONE,
-        value: "retired",
-        expiresAt: new Date("9999-12-31T00:00:00Z"),
-        createdAt: now,
-        updatedAt: now,
-      },
-      forceAllowId: true,
-    });
-  } catch (error) {
-    // Another request wrote it meanwhile, which is as good.
-    if (!(await adapter.findOne(row))) throw error;
+  if (row) {
+    await adapter.update({ model: "verification", where, update: { value: SETUP_RETIRED, updatedAt: now } });
+  } else {
+    try {
+      await adapter.create({
+        model: "verification",
+        data: {
+          id: SETUP_DONE,
+          identifier: SETUP_DONE,
+          value: SETUP_RETIRED,
+          expiresAt: new Date("9999-12-31T00:00:00Z"),
+          createdAt: now,
+          updatedAt: now,
+        },
+        forceAllowId: true,
+      });
+      return;
+    } catch {
+      // Another request wrote it meanwhile, and it's checked below.
+    }
   }
+  // `/setup/` may have taken its row out, or written one, meanwhile: what's there now must be the retired one.
+  const after = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
+  if (after?.value === SETUP_RETIRED) return;
+  if (after) await adapter.update({ model: "verification", where, update: { value: SETUP_RETIRED, updatedAt: now } });
+  else await retireSetupCode(adapter);
 }
 
 /** An address someone already has an account with. */
@@ -96,6 +113,11 @@ export interface AdminMaker {
   adapter: {
     findOne(query: { model: string; where: { field: string; value: string }[] }): Promise<unknown>;
     create(query: { model: string; data: Record<string, unknown>; forceAllowId: boolean }): Promise<unknown>;
+    update(query: {
+      model: string;
+      where: { field: string; value: string }[];
+      update: Record<string, unknown>;
+    }): Promise<unknown>;
   };
   internalAdapter: {
     findUserByEmail(email: string): Promise<unknown>;
@@ -110,8 +132,15 @@ export interface AdminMaker {
   password: { hash(password: string): Promise<string> };
 }
 
-/** Adds the admin through Better Auth's adapter, refusing an email address someone already has. */
-export async function createAdmin(context: AdminMaker, person: NewAdmin): Promise<void> {
+/**
+ * Adds the admin through Better Auth's adapter, refusing an email address someone already has. `claim` is the value
+ * `/setup/` holds the setup code's row with, which it takes out again if this fails.
+ */
+export async function createAdmin(
+  context: AdminMaker,
+  person: NewAdmin,
+  { claim }: { claim?: string } = {},
+): Promise<void> {
   const problem = newAdminProblem(person);
   if (problem) throw new Error(problem);
   const email = person.email.toLowerCase();
@@ -119,7 +148,7 @@ export async function createAdmin(context: AdminMaker, person: NewAdmin): Promis
   // Before anything is written, so a failure leaves no account without a password.
   const password = await context.password.hash(person.password);
   // Before the admin is made, so there's never an admin while the code still works: `/setup/` has written it already.
-  await retireSetupCode(context.adapter);
+  await retireSetupCode(context.adapter, claim);
   // A reader until it has its password, then an admin: D1 has no transactions, so an account left half made, even
   // where removing it fails too, is never an admin nobody can sign in as, which would count as the site's.
   const user = await context.internalAdapter.createUser(

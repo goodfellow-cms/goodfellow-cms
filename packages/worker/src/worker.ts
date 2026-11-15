@@ -1246,9 +1246,9 @@ export function createWorker(options: WorkerOptions = {}) {
           await github(config, `/repos/${repoPath(`${owner}/${name}`)}`, { auth });
           return json({ session: renewed, available: false });
         } catch (error) {
-          if (error instanceof GitHubError && (error.status === 404 || error.status === 403)) {
-            return json({ session: renewed, available: true });
-          }
+          // Only GitHub saying there's no such repository makes the name free: a 403 can be a repository the
+          // person can't see, and the setup page takes a refused check as not knowing.
+          if (error instanceof GitHubError && error.status === 404) return json({ session: renewed, available: true });
           throw error;
         }
       }

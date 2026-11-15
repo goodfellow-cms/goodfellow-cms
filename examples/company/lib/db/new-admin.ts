@@ -47,14 +47,19 @@ export async function d1AdminSql(person: NewAdmin, migrations = SQLITE_MIGRATION
     for (const name of (await readdir(migrations)).sort()) db.exec(await readFile(join(migrations, name), "utf8"));
     await addAdmin(db, person);
     const lines: string[] = [];
-    // The account, and the row that retires the setup code, left as it is where the site has it already.
-    for (const table of ["user", "account", "verification"]) {
+    // The row that retires the setup code first, so there's never an admin while the code still works, and retired
+    // where the site has it already: `/setup/` may hold it while making an admin, and takes out only its own if it
+    // fails. Then the account.
+    for (const table of ["verification", "user", "account"]) {
       for (const row of db.prepare(`select * from "${table}"`).all()) {
         const columns = Object.keys(row);
+        const values = `(${columns.map((column) => `"${column}"`).join(", ")}) values (${columns
+          .map((column) => sqlValue(row[column]))
+          .join(", ")})`;
         lines.push(
-          `insert${table === "verification" ? " or ignore" : ""} into "${table}" (${columns.map((column) => `"${column}"`).join(", ")}) values (${columns
-            .map((column) => sqlValue(row[column]))
-            .join(", ")});`,
+          table === "verification"
+            ? `insert into "${table}" ${values} on conflict ("id") do update set "value" = excluded."value", "updatedAt" = excluded."updatedAt";`
+            : `insert into "${table}" ${values};`,
         );
       }
     }

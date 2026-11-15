@@ -98,7 +98,7 @@ export async function setUpFirstAdmin(siteAuth: SiteAuth, siteEnv: SiteEnv, requ
   });
   if (!claimed) throw done;
   try {
-    await createAdmin(context, asked);
+    await createAdmin(context, asked, { claim: holder });
   } catch (error) {
     // Nobody was made an admin, so the code works again.
     await adapter.deleteMany({
