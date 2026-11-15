@@ -40,6 +40,8 @@ export function setup(
      * it gives the installation the repository, as it does for a few seconds.
      */
     newRepositoryLag?: number;
+    /** Answers a request to GitHub in place of the fake, as `undefined` leaves it to the fake. */
+    answer?: (method: string, url: string, body: unknown) => Response | undefined | Promise<Response | undefined>;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -83,12 +85,21 @@ export function setup(
   });
   let clock = Date.now();
   let lag = 0;
+  let created = "";
   // The site itself, at its address, serves its description, naming its admin address if it has one.
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     const method = init?.method ?? "GET";
-    if (method === "POST" && /\/(user|orgs\/[^/]+)\/repos$/.test(url)) lag = options.newRepositoryLag ?? 0;
-    if (method === "POST" && /\/app\/installations\/\d+\/access_tokens$/.test(url) && lag > 0) {
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
+    const answered = await options.answer?.(method, url, body);
+    if (answered) return answered;
+    if (method === "POST" && /\/(user|orgs\/[^/]+)\/repos$/.test(url)) {
+      lag = options.newRepositoryLag ?? 0;
+      created = String(body?.name ?? "");
+    }
+    // Only for the repository just created: tokens for any other are given as ever.
+    const forNew = Array.isArray(body?.repositories) && body.repositories.includes(created);
+    if (method === "POST" && /\/app\/installations\/\d+\/access_tokens$/.test(url) && lag > 0 && forNew) {
       lag--;
       return Response.json(
         {

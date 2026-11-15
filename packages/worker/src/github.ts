@@ -58,7 +58,12 @@ export async function github(
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as GitHubError["body"];
-    throw new GitHubError(response.status, `GitHub answered ${response.status}: ${body.message ?? ""}`, body, request);
+    throw new GitHubError(
+      response.status,
+      `GitHub answered ${response.status}: ${typeof body.message === "string" ? body.message : ""}`,
+      body,
+      request,
+    );
   }
   return response;
 }
