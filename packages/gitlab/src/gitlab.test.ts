@@ -316,8 +316,13 @@ describe("publishing", () => {
   });
 
   it("reports deploys from the commit's pipeline", async () => {
-    const { backend } = await signedIn({ deployAfterChecks: 1 });
+    const { fake, backend } = await signedIn({ deployAfterChecks: 1 });
     expect(await backend.deployStatus("0".repeat(40))).toEqual({ state: "unknown" });
+    // Only a commit's id goes in the address, where `..` would reach another of the project's.
+    const asked = fake.requests.length;
+    expect(await backend.deployStatus("../../pipelines")).toEqual({ state: "unknown" });
+    expect(await backend.deployStatus("main")).toEqual({ state: "unknown" });
+    expect(fake.requests.length).toBe(asked);
     const { revision } = await backend.write([{ path: "content/site.json", content: "{}" }], {
       message: "Publish",
       expectedRevision: await backend.revision(),

@@ -1,15 +1,19 @@
 import {
   type BrokerConfirmKind,
   brokerChangeCheck,
+  type EditorList,
   type FileChange,
   type GitBackend,
   INSTALLED_PLUGINS_FILE,
   type InstalledPlugin,
+  isCommitId,
+  isPlainPath,
   limitsContent,
   limitsFor,
   outsideLimits,
   parseInstalledPlugins,
   readPermissions,
+  type SiteEditor,
   THEME_FILE,
   themeRecordSchema,
 } from "@goodfellow-cms/core";
@@ -49,7 +53,7 @@ export type BrokerQuestion =
 export type BrokerDecision =
   | { action: "allow" }
   | { action: "ask"; questions: BrokerQuestion[] }
-  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" | "unknown" };
+  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" | "unknown" | "editor" | "read" };
 
 /** Calls that publish a set of changes, by their path in the backend. */
 const WRITES = new Set(["write", "draft.store.write"]);
@@ -111,6 +115,39 @@ const UNASKED = new Set([
   "comments.access.forget",
   "comments.access.requestToken",
 ]);
+
+/**
+ * What the reads the broker makes unasked take, by position: a file's or
+ * folder's path, a list of them, or a commit's id. Backends put them in the
+ * host's addresses, so each is checked here as changes' paths are
+ * (`brokerChangeCheck()`): a path with a `..` part or a revision that isn't a
+ * commit could reach another address on the host with the editor's token.
+ */
+const READ_ARGS: Record<string, ReadonlyArray<"path" | "paths" | "revision">> = {
+  read: ["path"],
+  readBytes: ["path"],
+  list: ["path"],
+  readFiles: ["paths"],
+  fileSizes: ["path"],
+  changedPaths: ["revision", "revision"],
+  deployStatus: ["revision"],
+  history: ["path"],
+  readAt: ["path", "revision"],
+  "filesAt.read": ["revision", "path"],
+  "filesAt.readBytes": ["revision", "path"],
+  "filesAt.list": ["revision", "path"],
+};
+
+/** Whether a read's arguments are paths and revisions a backend may put in an address. */
+function plainReadArgs(path: string, args: unknown[]): boolean {
+  const kinds = READ_ARGS[path.replace(/^(?:draft\.store|updates\.code)\./, "")];
+  return (kinds ?? []).every((kind, index) => {
+    const value = args[index];
+    if (kind === "revision") return isCommitId(value);
+    if (kind === "paths") return Array.isArray(value) && value.every(isPlainPath);
+    return isPlainPath(value);
+  });
+}
 
 const DOMAIN_CHANGES: Record<string, "connect" | "secure" | "disconnect"> = {
   "pages.connect": "connect",
@@ -214,6 +251,15 @@ function who(editor: unknown): string {
   return typeof login === "string" ? login : typeof email === "string" ? email : "";
 }
 
+/** The editor the site's list gives the id the admin panel named, from `editors.list()`, or `undefined`. */
+async function listedEditor(target: unknown, editor: unknown): Promise<SiteEditor | undefined> {
+  const id = (editor as { id?: unknown } | null)?.id;
+  const list = (target as { list?: unknown } | null)?.list;
+  if (typeof id !== "string" || typeof list !== "function") return undefined;
+  const { editors } = (await list.call(target)) as EditorList;
+  return editors.find((listed) => listed.id === id);
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -245,11 +291,20 @@ export async function decide(
     return (await outsideTheirLimits(backend, changes)) ?? questionsFor(changes, siteUrl);
   }
   if (path === "updates.start") return { action: "ask", questions: [{ kind: "update", release: String(args[0]) }] };
-  if (path === "editors.invite" || path === "editors.setRole") {
+  if (path === "editors.invite") {
     return { action: "ask", questions: [{ kind: "editors", who: who(args[0]), role: String(args[1]) }] };
   }
+  if (path === "editors.setRole" || path === "editors.remove") {
+    // The backend acts on the editor's id alone, so the question names the person the site's own list gives that id,
+    // and the call is handed that listed editor, never what the admin panel said about them.
+    const listed = await listedEditor(target, args[0]);
+    if (!listed) return { action: "refuse", paths: [path], reason: "editor" };
+    args[0] = listed;
+    return path === "editors.remove"
+      ? { action: "ask", questions: [{ kind: "editors-remove", who: who(listed) }] }
+      : { action: "ask", questions: [{ kind: "editors", who: who(listed), role: String(args[1]) }] };
+  }
   if (path === "editors.letEditorsPublish") return { action: "ask", questions: [{ kind: "editors", who: "" }] };
-  if (path === "editors.remove") return { action: "ask", questions: [{ kind: "editors-remove", who: who(args[0]) }] };
   const change = DOMAIN_CHANGES[path];
   if (change) return { action: "ask", questions: [{ kind: "domain", change, domain: text(args[0]) }] };
   if (path === "tasks.run") {
@@ -266,6 +321,8 @@ export async function decide(
   if (path === "comments.create")
     return { action: "ask", questions: [{ kind: "comments-create", name: text(args[0]) }] };
   if (path === "comments.remove") return { action: "ask", questions: [{ kind: "comments-delete" }] };
-  if (UNASKED.has(path)) return { action: "allow" };
+  if (UNASKED.has(path)) {
+    return plainReadArgs(path, args) ? { action: "allow" } : { action: "refuse", paths: [path], reason: "read" };
+  }
   return { action: "refuse", paths: [path], reason: "unknown" };
 }

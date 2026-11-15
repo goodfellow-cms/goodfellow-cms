@@ -369,6 +369,37 @@ describe("version history", () => {
   });
 });
 
+describe("addresses", () => {
+  it("refuses revisions that aren't commits and paths with `.` or `..` parts, asking Bitbucket nothing", async () => {
+    const fake = fakeBitbucket({ repo: "parish/site", files: FILES });
+    const asked: string[] = [];
+    const fetch: typeof globalThis.fetch = (input, init) => {
+      asked.push(String(input instanceof Request ? input.url : input));
+      return fake.fetch(input, init);
+    };
+    const backend = await bitbucket({
+      repo: "parish/site",
+      fetch,
+      storage: { local: memoryStorage(), session: memoryStorage() },
+      location: fakeLocation("https://parish.example/admin/"),
+    }).signInWithToken(TOKEN, false);
+    const commit = await backend.revision();
+    asked.length = 0;
+    const refused = { status: 400 };
+    await expect(backend.readAt("package.json", "main")).rejects.toMatchObject(refused);
+    await expect(backend.readAt("package.json", "../../../pullrequests")).rejects.toMatchObject(refused);
+    await expect(backend.readAt("../../../pullrequests", commit)).rejects.toMatchObject(refused);
+    await expect(backend.readAt("content/./site.json", commit)).rejects.toMatchObject(refused);
+    await expect(backend.changedPaths(commit, "x/../..")).rejects.toMatchObject(refused);
+    await expect(backend.changedPaths("..", commit)).rejects.toMatchObject(refused);
+    await expect(backend.filesAt("..").list("content")).rejects.toMatchObject(refused);
+    await expect(backend.filesAt("../../x").read("content/site.json")).rejects.toMatchObject(refused);
+    expect(await backend.deployStatus("../../pipelines")).toEqual({ state: "unknown" });
+    expect(asked).toEqual([]);
+    expect(await backend.readAt("content/site.json", commit)).toBe(FILES["content/site.json"]);
+  });
+});
+
 describe("the whole site's history", () => {
   it("lists the whole site's publishes and reads the site as it was at one", async () => {
     const { fake, backend } = await signedIn();
@@ -537,6 +568,17 @@ describe("editors", () => {
     expect(fake.permissions.get("{helper}")?.permission).toBe("admin");
     await editors.remove(helper);
     expect(fake.permissions.has("{helper}")).toBe(false);
+  });
+
+  it("refuses `.` and `..` as editors' ids, which would reach the repository itself", async () => {
+    const { backend } = await signedIn();
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    for (const id of ["..", ".", ""]) {
+      const editor = { id, login: "helper", role: "editor" as const };
+      await expect(editors.remove(editor), id).rejects.toMatchObject({ problem: "invalid" });
+      await expect(editors.setRole(editor, "owner"), id).rejects.toMatchObject({ problem: "invalid" });
+    }
   });
 
   it("gives permission to the member a name is theirs alone, never to one who chose it as their display name", async () => {

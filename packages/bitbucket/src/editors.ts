@@ -38,6 +38,18 @@ interface UserPermission {
   user: Account;
 }
 
+/**
+ * Where an editor's permission is, from their id as the list gave it (an
+ * account's UUID, or the person signed in's nickname). The id comes from the
+ * admin panel, and `encodeURIComponent()` leaves `.` and `..` as they are,
+ * which would reach the repository itself, so those are refused.
+ */
+function editorPath(base: string, id: string): string {
+  if (id === "" || id === "." || id === "..")
+    throw new EditorsError("invalid", "That isn't one of the site's editors.");
+  return `${base}/${encodeURIComponent(id)}`;
+}
+
 function roleOf(permission: string): EditorRole {
   if (permission === "admin") return "owner";
   return permission === "write" ? "editor" : "viewer";
@@ -197,7 +209,7 @@ export function bitbucketEditors(
 
     async setRole(editor, role) {
       await change((api) =>
-        bitbucketRequest(api, `${base}/${encodeURIComponent(editor.id)}`, {
+        bitbucketRequest(api, editorPath(base, editor.id), {
           method: "PUT",
           body: { permission: permissionOf(role) },
         }),
@@ -205,9 +217,7 @@ export function bitbucketEditors(
     },
 
     async remove(editor) {
-      await change((api) =>
-        bitbucketRequest(api, `${base}/${encodeURIComponent(editor.id)}`, { method: "DELETE", allow: [404] }),
-      );
+      await change((api) => bitbucketRequest(api, editorPath(base, editor.id), { method: "DELETE", allow: [404] }));
     },
   };
 }

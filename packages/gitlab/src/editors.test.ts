@@ -57,6 +57,29 @@ describe("GitLab editors", () => {
     expect(list.editors.map((editor) => editor.login ?? editor.email).sort()).toEqual(["joseph", "maria"]);
   });
 
+  it("refuses ids that aren't a member's number or an invitation's email address, rather than put them in the address", async () => {
+    const fake = fakeGitLab({
+      project: "parish/site",
+      files: FILES,
+      tokens: { maintainer: { username: "maria", name: "Maria", accessLevel: 40 } },
+    });
+    const asked: string[] = [];
+    const fetch: typeof globalThis.fetch = (input, init) => {
+      asked.push(`${init?.method ?? "GET"} ${String(input instanceof Request ? input.url : input)}`);
+      return fake.fetch(input, init);
+    };
+    const backend = await gitlab({ project: "parish/site", fetch }).signInWithToken("maintainer", false);
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    asked.length = 0;
+    for (const id of ["member:..", "member:.", "member:1/../..", "member:", "..", "invitation:..", "invitation:"]) {
+      const editor = { id, login: "joseph", role: "editor" as const };
+      await expect(editors.remove(editor), id).rejects.toMatchObject({ problem: "invalid" });
+      await expect(editors.setRole(editor, "owner"), id).rejects.toMatchObject({ problem: "invalid" });
+    }
+    expect(asked).toEqual([]);
+  });
+
   it("explains invitations that can't be sent", async () => {
     const { editors } = await signIn();
     await expect(editors.invite("nobody", "editor")).rejects.toMatchObject({ problem: "not-found" });

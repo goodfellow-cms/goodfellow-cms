@@ -368,7 +368,11 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
               ? new BrokerRefusedError("limits", t("refusedLimits", { paths }))
               : decision.reason === "unknown"
                 ? new BrokerRefusedError("not-here", t("refusedUnknown", { paths }))
-                : new BrokerRefusedError("workflow", t("refusedWorkflow", { paths }));
+                : decision.reason === "editor"
+                  ? new BrokerRefusedError("not-here", t("refusedEditor"))
+                  : decision.reason === "read"
+                    ? new BrokerRefusedError("not-here", t("refusedRead", { paths }))
+                    : new BrokerRefusedError("workflow", t("refusedWorkflow", { paths }));
           }
           if (decision.action !== "ask") return;
           // A plugin's task, once allowed, runs again unasked while this page is open, as uploads to storage do.

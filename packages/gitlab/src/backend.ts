@@ -16,6 +16,7 @@ import {
   type GitBackend,
   type GitUser,
   type HistoryOptions,
+  isCommitId,
   LOCKFILE_JOB,
   type PagesDomains,
   type PluginTasks,
@@ -613,6 +614,8 @@ export class GitLabBackend implements GitBackend {
    * if it has pipelines, or if the host reported on the commit before.
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
+    // Only a commit's id goes in the address, since a name could hold `/` or `..`.
+    if (!isCommitId(revision)) return { state: "unknown" };
     try {
       const all = await this.statuses(revision);
       const statuses = all.filter(builds);

@@ -71,13 +71,27 @@ export const EDITABLE_FOLDERS = [
 ];
 
 /**
+ * Whether a path is written plainly, relative to the repository's root:
+ * no leading slash, backslash, or NUL, and no empty, `.`, or `..` part, which
+ * hosts' addresses would read as leaving the folder (browsers read `%2e%2e`
+ * as `..` too, but encoding turns `%` into `%25`).
+ */
+export function isPlainPath(path: unknown): path is string {
+  if (typeof path !== "string" || path.startsWith("/") || path.includes("\\") || path.includes("\0")) return false;
+  return path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
+/** Whether a revision is a commit's id as hosts give it, 7 to 64 hexadecimal digits, so it's safe in an address. */
+export function isCommitId(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{7,64}$/i.test(value);
+}
+
+/**
  * Whether the admin panel may read or write a path: only files in
  * `EDITABLE_FOLDERS`, written as plain relative paths.
  */
 export function isEditablePath(path: string): boolean {
-  if (path.startsWith("/") || path.includes("\\") || path.includes("\0")) return false;
-  const segments = path.split("/");
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
+  if (!isPlainPath(path)) return false;
   return EDITABLE_FOLDERS.some((root) => path.startsWith(`${root}/`));
 }
 

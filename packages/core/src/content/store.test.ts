@@ -5,10 +5,32 @@ import {
   ConflictError,
   type ContentStore,
   type FileChange,
+  isCommitId,
   isContentPath,
   isEditablePath,
+  isPlainPath,
   writeChanges,
 } from "./store.js";
+
+describe("isPlainPath and isCommitId", () => {
+  it("takes paths relative to the repository's root, with no part that leaves a folder", () => {
+    for (const path of ["package.json", "content/pages/about.json", ".gitlab-ci.yml", "a..b/c"]) {
+      expect(isPlainPath(path), path).toBe(true);
+    }
+    for (const path of ["", ".", "..", "../x", "a/../b", "a/./b", "a//b", "/a", "a/", "a\\b", "a\0b", 7]) {
+      expect(isPlainPath(path), String(path)).toBe(false);
+    }
+  });
+
+  it("takes commits' ids only", () => {
+    for (const id of ["abcdef0", "0123456789ABCDEF0123456789abcdef01234567", "a".repeat(64)]) {
+      expect(isCommitId(id), id).toBe(true);
+    }
+    for (const id of ["main", "abcdef", "a".repeat(65), "abcdef0/..", "..", "", undefined]) {
+      expect(isCommitId(id), String(id)).toBe(false);
+    }
+  });
+});
 
 describe("isEditablePath", () => {
   it.each(["content/site.json", "content/pages/about/team.json", "content/styles/custom.css", "public/media/logo.png"])(

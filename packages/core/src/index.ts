@@ -802,8 +802,10 @@ export {
   type ContentStore,
   EDITABLE_FOLDERS,
   type FileChange,
+  isCommitId,
   isContentPath,
   isEditablePath,
+  isPlainPath,
   type WriteOptions,
   writeChanges,
 } from "./content/store.js";
