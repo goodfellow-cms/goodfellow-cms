@@ -718,6 +718,17 @@ test("makes the site afresh where the code's repository it would carry on with w
   await expect(page.getByText(/someone\/acme is created already/)).toBeVisible();
   // Deleted on GitHub, as the page says to do to change the site's settings.
   github.created.delete("someone/acme");
+  // Where GitHub can't say whether it's there, the page makes nothing, and asks again.
+  let unanswered = true;
+  await page.route("https://api.github.com/repos/someone/acme", (route) =>
+    unanswered
+      ? route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' })
+      : route.fallback(),
+  );
+  await create.click();
+  await expect(page.getByText("GitHub couldn't say whether someone/acme is still there")).toBeVisible();
+  expect(github.created.has("someone/acme-content")).toBe(false);
+  unanswered = false;
   await create.click();
   await expect(page.getByText("someone/acme isn't on GitHub any more, so the site will be made afresh")).toBeVisible();
   expect(github.created.has("someone/acme-content")).toBe(false);

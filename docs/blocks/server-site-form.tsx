@@ -341,7 +341,14 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     setError(undefined);
     // Deleted since, as the page says to do to change its settings: the site is made afresh, from what's typed, so
     // the page shows its settings again rather than make only its content, beside a code repository that's gone.
-    if (resumed && (await account.isAvailable(chosenOwner, name).catch(() => false))) {
+    // Where GitHub can't say, the page waits for it, rather than carry on beside a repository that may be gone.
+    const gone = resumed ? await account.isAvailable(chosenOwner, name).catch(() => undefined) : false;
+    if (gone === undefined && resumed) {
+      setError(`GitHub couldn't say whether ${resumed.repo.repo} is still there. Try again in a moment.`);
+      setBusy(false);
+      return;
+    }
+    if (resumed && gone) {
       setBegun(undefined);
       setAvailable(true);
       keepUnfinished(resumed.answers.name, [resumed.repo.repo], false);
