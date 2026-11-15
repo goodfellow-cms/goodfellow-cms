@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { test as base, expect, type Page } from "@playwright/test";
 import { resetContent, site } from "../scripts/site.mjs";
@@ -130,4 +131,25 @@ export function field(page: Page, name: string) {
 
 export async function publishInEditor(page: Page) {
   await page.locator(".gfa-editor").getByText("Publish", { exact: true }).click();
+}
+
+/**
+ * The files Tailwind scans for class names in a copy of a site, as `@tailwindcss/postcss` finds them from its CSS file,
+ * read with the copy's own Tailwind. A copy that scanned its packages took `next dev` past the memory CI's runners have.
+ */
+export async function tailwindScans(siteDir: string, css: string): Promise<string[]> {
+  const fromPlugin = createRequire(createRequire(join(siteDir, "package.json")).resolve("@tailwindcss/postcss"));
+  const { compile } = fromPlugin("@tailwindcss/node");
+  const { Scanner } = fromPlugin("@tailwindcss/oxide");
+  const file = join(siteDir, css);
+  const compiler = await compile(readFileSync(file, "utf8"), { base: dirname(file), onDependency: () => {} });
+  const root =
+    compiler.root === "none"
+      ? []
+      : compiler.root === null
+        ? [{ base: siteDir, pattern: "**/*", negated: false }]
+        : [{ ...compiler.root, negated: false }];
+  const scanner = new Scanner({ sources: [...root, ...compiler.sources] });
+  scanner.scan();
+  return scanner.files;
 }
