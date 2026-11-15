@@ -34,7 +34,7 @@ Until the Set up Cloudflare workflow has named the database and the cache, the D
 
 ### The setup code
 
-The setup code makes the site's first admin. The page makes it in your browser and shows it once: save it, such as in your password manager. Only its SHA-256 is kept, as `GOODFELLOW_SETUP_CODE_HASH` in `wrangler.jsonc`, so it can't be read from the repository, even a public one. The `/setup/` page takes it only while the site has no admin, ten tries an hour from one network address at most, and makes one admin with it, ever. Every other admin is invited from `/admin/editors/`.
+The setup code makes the site's first admin. The page makes it in your browser and shows it once: save it, such as in your password manager. Only its SHA-256 is kept, as `GOODFELLOW_SETUP_CODE_HASH` in `wrangler.jsonc`, so it can't be read from the repository, even a public one. The `/setup/` page takes it only while the site has no admin, ten tries an hour from one network address at most, and makes one admin with it, ever: once the site has had an admin, however it was made, `npm run new-admin` included, the code never works again, even where that admin is removed later. Every other admin is invited from `/admin/editors/`.
 
 If you lose it before making the first admin, make the admin with `npm run new-admin` on a computer instead, as the README says, or put the hash of a new code of your own in `wrangler.jsonc`, such as `printf NEWCODE | sha256sum` gives for a code of capital letters and the digits 2 to 7, without spaces or dashes, and publish it.
 

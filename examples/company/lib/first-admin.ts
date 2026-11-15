@@ -3,7 +3,7 @@
 // wrangler.jsonc's `GOODFELLOW_SETUP_CODE_HASH`, so the code can't be read from the repository even where it's public.
 // It makes one admin, once: while the site has no admin, and never again after, whatever happens to them.
 import { SETUP_CODE_VARIABLE, setupCodeHash } from "@goodfellow-cms/core";
-import { AdminTaken, createAdmin, type NewAdmin, newAdminProblem } from "./admins.ts";
+import { AdminTaken, createAdmin, type NewAdmin, newAdminProblem, SETUP_DONE } from "./admins.ts";
 import { claimRow, type SiteAuth, takeEmailSlot } from "./auth.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -20,10 +20,10 @@ export class SetupError extends Error {
 }
 
 /**
- * The id of the row that says the setup code has been used, which only one request can write (`claimRow()`), so two
+ * The row that says the setup code is used up (lib/admins.ts), which only one request can write (`claimRow()`), so two
  * at once can't both make an admin. It's never taken back once an admin has been made.
  */
-export const SETUP_DONE = "first-admin";
+export { SETUP_DONE } from "./admins.ts";
 
 /** Where the slots of setup attempts from one network address are kept (`SETUP_LIMIT`). */
 export const SETUP_FROM_IDENTIFIER = "setup-from:";

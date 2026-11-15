@@ -6,6 +6,7 @@ import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it } from "vitest";
 import { type AdminMaker, createAdmin, newAdminProblem } from "./admins.ts";
 import { authOptions } from "./auth.ts";
+import { addAdmin } from "./db/new-admin.ts";
 import type { SiteEnv } from "./env.ts";
 import { SETUP_DONE, SETUP_LIMIT, SetupError, setUpFirstAdmin, setupProblem } from "./first-admin.ts";
 import { PASSWORD, SITE, SITE_ENV } from "./testing/site.ts";
@@ -103,6 +104,16 @@ describe("setUpFirstAdmin", () => {
     expect(site.admins()).toEqual(["ada@example.org"]);
   });
 
+  it("never takes the setup code once npm run new-admin has made an admin, even after they're gone", async () => {
+    const site = await freshSite();
+    await addAdmin(site.db, { email: "ada@example.org", name: "Ada", password: PASSWORD });
+    // The site's admins are all made editors again, or deleted: the code still makes nobody an admin.
+    site.db.exec(`update "user" set role = 'member'`);
+    expect(site.admins()).toEqual([]);
+    expect(await statusOf(site.setUp(OLIVE))).toBe(409);
+    expect(site.admins()).toEqual([]);
+  });
+
   it("makes one admin when two ask at the same moment", async () => {
     const site = await freshSite();
     const results = await Promise.allSettled([
@@ -177,6 +188,10 @@ describe("setUpFirstAdmin", () => {
   it("leaves no admin without a password, whichever write fails", async () => {
     const made: string[] = [];
     const maker = (fails: "hash" | "link" | "link and delete" | "promote"): AdminMaker => ({
+      adapter: {
+        findOne: async () => null,
+        create: async () => made.push("code retired"),
+      },
       internalAdapter: {
         findUserByEmail: async () => null,
         createUser: async (user) => {
@@ -206,15 +221,15 @@ describe("setUpFirstAdmin", () => {
     await expect(createAdmin(maker("hash"), OLIVE)).rejects.toThrow("no hashing today");
     expect(made).toEqual([]);
     await expect(createAdmin(maker("link"), OLIVE)).rejects.toThrow("D1 went away");
-    expect(made).toEqual(["user as member", "deleted"]);
+    expect(made).toEqual(["code retired", "user as member", "deleted"]);
     // Where removing it fails too, what's left is a reader's account, never an admin's, so setup can still be done.
     made.length = 0;
     await expect(createAdmin(maker("link and delete"), OLIVE)).rejects.toThrow("D1 went away");
-    expect(made).toEqual(["user as member"]);
+    expect(made).toEqual(["code retired", "user as member"]);
     // Where making them an admin fails, the account goes too, so the same address can try again.
     made.length = 0;
     await expect(createAdmin(maker("promote"), OLIVE)).rejects.toThrow("D1 went away");
-    expect(made).toEqual(["user as member", "account", "deleted"]);
+    expect(made).toEqual(["code retired", "user as member", "account", "deleted"]);
   });
 
   it("takes at most SETUP_LIMIT's tries from one address an hour", async () => {

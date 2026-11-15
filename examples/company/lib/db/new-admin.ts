@@ -47,11 +47,12 @@ export async function d1AdminSql(person: NewAdmin, migrations = SQLITE_MIGRATION
     for (const name of (await readdir(migrations)).sort()) db.exec(await readFile(join(migrations, name), "utf8"));
     await addAdmin(db, person);
     const lines: string[] = [];
-    for (const table of ["user", "account"]) {
+    // The account, and the row that retires the setup code, left as it is where the site has it already.
+    for (const table of ["user", "account", "verification"]) {
       for (const row of db.prepare(`select * from "${table}"`).all()) {
         const columns = Object.keys(row);
         lines.push(
-          `insert into "${table}" (${columns.map((column) => `"${column}"`).join(", ")}) values (${columns
+          `insert${table === "verification" ? " or ignore" : ""} into "${table}" (${columns.map((column) => `"${column}"`).join(", ")}) values (${columns
             .map((column) => sqlValue(row[column]))
             .join(", ")});`,
         );

@@ -52,6 +52,37 @@ export function newAdminProblem(
   return undefined;
 }
 
+/**
+ * The id of the verification row that says the site's setup code is used up (lib/first-admin.ts): written whenever an
+ * admin is made, by `/setup/` or `npm run new-admin`, and never taken back once one has been, so the code makes one
+ * admin, ever, and none once the site has had one, whoever made them and whatever became of them.
+ */
+export const SETUP_DONE = "first-admin";
+
+/** Writes the row that retires the setup code (`SETUP_DONE`), where it isn't there already. */
+async function retireSetupCode(adapter: AdminMaker["adapter"]): Promise<void> {
+  const row = { model: "verification", where: [{ field: "id", value: SETUP_DONE }] };
+  if (await adapter.findOne(row)) return;
+  const now = new Date();
+  try {
+    await adapter.create({
+      model: "verification",
+      data: {
+        id: SETUP_DONE,
+        identifier: SETUP_DONE,
+        value: "retired",
+        expiresAt: new Date("9999-12-31T00:00:00Z"),
+        createdAt: now,
+        updatedAt: now,
+      },
+      forceAllowId: true,
+    });
+  } catch (error) {
+    // Another request wrote it meanwhile, which is as good.
+    if (!(await adapter.findOne(row))) throw error;
+  }
+}
+
 /** An address someone already has an account with. */
 export class AdminTaken extends Error {
   override name = "AdminTaken";
@@ -62,6 +93,10 @@ export class AdminTaken extends Error {
  * plugins gives its context a type of its own.
  */
 export interface AdminMaker {
+  adapter: {
+    findOne(query: { model: string; where: { field: string; value: string }[] }): Promise<unknown>;
+    create(query: { model: string; data: Record<string, unknown>; forceAllowId: boolean }): Promise<unknown>;
+  };
   internalAdapter: {
     findUserByEmail(email: string): Promise<unknown>;
     createUser(
@@ -83,6 +118,8 @@ export async function createAdmin(context: AdminMaker, person: NewAdmin): Promis
   if (await context.internalAdapter.findUserByEmail(email)) throw new AdminTaken(`${email} already has an account.`);
   // Before anything is written, so a failure leaves no account without a password.
   const password = await context.password.hash(person.password);
+  // Before the admin is made, so there's never an admin while the code still works: `/setup/` has written it already.
+  await retireSetupCode(context.adapter);
   // A reader until it has its password, then an admin: D1 has no transactions, so an account left half made, even
   // where removing it fails too, is never an admin nobody can sign in as, which would count as the site's.
   const user = await context.internalAdapter.createUser(

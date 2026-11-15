@@ -7,6 +7,7 @@ import { getMigrations } from "better-auth/db/migration";
 import { Kysely } from "kysely";
 import pg from "pg";
 import { describe, expect, it } from "vitest";
+import { SETUP_DONE } from "../admins.ts";
 import { authOptions, authorizeWith, SIGN_IN_LIMIT, signedInWith } from "../auth.ts";
 import type { SiteEnv } from "../env.ts";
 import { signOutRequest } from "../sign-out.ts";
@@ -293,9 +294,25 @@ describe("the site's sign-in", () => {
     expect(sql).not.toContain(PASSWORD);
     const { database, close } = await migratedSqlite();
     try {
+      // Where the site's setup code has made an admin already, its row is left as it was.
+      (database as DatabaseSync).exec(
+        `insert into verification (id, identifier, value, expiresAt, createdAt, updatedAt) values ('${SETUP_DONE}', '${SETUP_DONE}', 'before', 0, 0, 0)`,
+      );
       (database as DatabaseSync).exec(sql);
       const { auth, signedIn } = await site(database);
       expect(await authorizeWith(auth, await signedIn("olive@example.org"))).toMatchObject({ role: "editor" });
+      const retired = (database as DatabaseSync).prepare(`select value from verification where id = ?`);
+      expect(retired.all(SETUP_DONE)).toEqual([{ value: "before" }]);
+      // On a database without it, the SQL retires the setup code too.
+      const fresh = await migratedSqlite();
+      try {
+        (fresh.database as DatabaseSync).exec(sql);
+        expect(
+          (fresh.database as DatabaseSync).prepare(`select id from verification where id = ?`).all(SETUP_DONE),
+        ).toEqual([{ id: SETUP_DONE }]);
+      } finally {
+        await fresh.close();
+      }
     } finally {
       await close();
     }
