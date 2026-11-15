@@ -28,7 +28,7 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 ## Putting it online on Cloudflare
 
-A site made on [Goodfellow's setup page](https://goodfellowcms.com/new-site/full-stack/) has its repositories, their connection, and its address already, and the page lists what's left: the secrets below, then **Set up Cloudflare** (Actions → Set up Cloudflare → Run workflow, `.github/workflows/setup-cloudflare.yml`), which does step 2 and starts step 6, then making the first admin at `/setup/` with the setup code the page showed. The steps below are for setting a site up by hand.
+A site made on [Goodfellow's setup page](https://goodfellowcms.com/new-site/full-stack/) has its repositories, their connection, and its address already, and the page lists what's left: the secrets below, then **Set up Cloudflare** (Actions → Set up Cloudflare → Run workflow, `.github/workflows/setup-cloudflare.yml`), which does step 2, gives a site without an address the Worker's own on workers.dev, and starts step 6, then making the first admin at `/setup/` with the setup code the page showed. The steps below are for setting a site up by hand.
 
 A publish shows the next time its pages are visited, without building the site (within about a minute at every Cloudflare location, as KV spreads it): a page renders from the content repository the first time it's visited after a publish, and a Workers KV namespace keeps it for every visit after, which costs one KV read. That first render reads every content file, which can take more than the free plan's 10 ms of CPU time on a large site, so plan on Workers Paid ($5 a month) unless your pages render within it. Pages already kept don't need GitHub to answer, but a page's first visit after a publish does.
 

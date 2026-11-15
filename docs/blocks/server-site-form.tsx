@@ -87,7 +87,7 @@ async function serverSiteFiles(
     versions: starter.versions,
     code,
     content,
-    siteUrl: answers.address,
+    ...(answers.address && { siteUrl: answers.address }),
     setupCodeHash: hash,
     madeBy: "page",
   });
@@ -127,10 +127,12 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   const [error, setError] = useState<string>();
   const [step, setStep] = useState<SetupStep>();
   const [creating, setCreating] = useState<"code" | "content">();
-  /** The setup code, made the first time "Create the site" is pressed and kept for trying again. */
-  const [setupCode, setSetupCode] = useState<{ code: string; hash: string }>();
-  const [createdCode, setCreatedCode] = useState<CreatedSiteRepository>();
-  const [created, setCreated] = useState<{ code: CreatedSiteRepository; content: CreatedSiteRepository }>();
+  /**
+   * The code's repository, once it's created, with the setup code whose hash it has and the answers it was made with:
+   * trying again after the content's repository failed carries on with all three, whatever's been typed since.
+   */
+  const [begun, setBegun] = useState<Begun>();
+  const [created, setCreated] = useState<CreatedSite>();
 
   const failedSignIn = (caught: unknown) => {
     setError(signInMessage(caught));
@@ -178,20 +180,33 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
 
   const chosenOwner = owners.find((candidate) => candidate.path === owner);
   const validName = /^[A-Za-z0-9._-]+$/.test(name) && !/^[.-]/.test(name);
-  const typedAddress = siteAddressOf(address);
-  const codeCreated = createdCode !== undefined && createdCode.repo === `${chosenOwner?.path}/${name}`;
+  // Left empty, the site is at the address Cloudflare gives its Worker, which Set up Cloudflare writes in.
+  const typedAddress = address.trim() === "" ? { address: "" } : siteAddressOf(address);
+  // Carrying on with the code's repository made before, where the same account and name are chosen again.
+  const resumed = begun && begun.repo.repo === `${chosenOwner?.path}/${name}` ? begun : undefined;
+  const codeCreated = resumed !== undefined;
 
   useEffect(() => {
     setAvailable(undefined);
     setContentAvailable(undefined);
     if (!account || !chosenOwner || !validName) return;
+    // Answers for a name that's no longer the one chosen are left out, however late they come.
+    let current = true;
+    const keep =
+      (set: (free: boolean | undefined) => void) =>
+      (free: boolean | undefined): void => {
+        if (current) set(free);
+      };
     const timer = setTimeout(() => {
-      account.isAvailable(chosenOwner, name).then(setAvailable, () => setAvailable(undefined));
+      account.isAvailable(chosenOwner, name).then(keep(setAvailable), () => keep(setAvailable)(undefined));
       account
         .isAvailable(chosenOwner, contentName(name))
-        .then(setContentAvailable, () => setContentAvailable(undefined));
+        .then(keep(setContentAvailable), () => keep(setContentAvailable)(undefined));
     }, 400);
-    return () => clearTimeout(timer);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
   }, [account, chosenOwner, name, validName]);
 
   async function signIn() {
@@ -220,39 +235,34 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   }
 
   async function create() {
-    if (!account || !chosenOwner || !("address" in typedAddress)) return;
+    if (!account || !chosenOwner || (!resumed && !("address" in typedAddress))) return;
     setBusy(true);
     setError(undefined);
     try {
       const code = `${chosenOwner.path}/${name}`;
       const content = `${chosenOwner.path}/${contentName(name)}`;
-      // The same code where trying again after the content's repository failed: the code's has its hash already.
-      const made = codeCreated && setupCode ? setupCode : await newCode();
-      setSetupCode(made);
-      const files = await serverSiteFiles(
-        base,
-        { name, visibility, address: typedAddress.address },
-        code,
-        content,
-        made.hash,
-      );
-      const site = { owner: chosenOwner, private: visibility === "private", pages: false };
+      // The code's repository has the setup code's hash and the address already, where it was made before.
+      const answers =
+        resumed?.answers ??
+        ({ name, visibility, address: "address" in typedAddress ? typedAddress.address : "" } as const);
+      const made = resumed?.setupCode ?? (await newCode());
+      const files = await serverSiteFiles(base, answers, code, content, made.hash);
+      const site = { owner: chosenOwner, private: answers.visibility === "private", pages: false };
       setCreating("code");
       const codeRepo =
-        codeCreated && createdCode
-          ? createdCode
-          : await account.createSite(
-              {
-                ...site,
-                name,
-                description: "A full-stack website made with Goodfellow",
-                files: fileChanges(files, "code"),
-                message: "Create the site",
-                more: true,
-              },
-              setStep,
-            );
-      setCreatedCode(codeRepo);
+        resumed?.repo ??
+        (await account.createSite(
+          {
+            ...site,
+            name,
+            description: "A full-stack website made with Goodfellow",
+            files: fileChanges(files, "code"),
+            message: "Create the site",
+            more: true,
+          },
+          setStep,
+        ));
+      if (!resumed) setBegun({ repo: codeRepo, setupCode: made, answers });
       setCreating("content");
       const contentRepo = await account.createSite(
         {
@@ -271,7 +281,13 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
         },
         setStep,
       );
-      setCreated({ code: codeRepo, content: contentRepo });
+      setCreated({
+        code: codeRepo,
+        content: contentRepo,
+        setupCode: made.code,
+        address: answers.address,
+        worker: workerName(answers.name),
+      });
     } catch (caught) {
       setError(createMessage(caught));
     } finally {
@@ -282,17 +298,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   }
 
   if (loading) return <p aria-live="polite">Loading…</p>;
-  if (created && setupCode && "address" in typedAddress) {
-    return (
-      <Created
-        created={created}
-        setupCode={setupCode.code}
-        address={typedAddress.address}
-        worker={workerName(name)}
-        withToken={withToken}
-      />
-    );
-  }
+  if (created) return <Created created={created} withToken={withToken} />;
 
   return (
     <div className="grid gap-8">
@@ -413,36 +419,47 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
             </p>
           </Question>
 
-          <Question title="Who can see its files?">
-            {(Object.keys(VISIBILITIES) as Visibility[]).map((value) => (
-              <Choice
-                key={value}
-                name={`${id}-visibility`}
-                value={value}
-                current={visibility}
-                onChange={setVisibility}
-                {...VISIBILITIES[value]}
-              />
-            ))}
-          </Question>
+          {resumed ? (
+            <Note>
+              {resumed.repo.repo} is created already, {VISIBILITIES[resumed.answers.visibility].label.toLowerCase()},
+              for {resumed.answers.address || "the address Cloudflare gives its Worker"}, so creating the site again
+              makes only its content, with those. To change them, delete {resumed.repo.repo} on GitHub first, or choose
+              another name.
+            </Note>
+          ) : (
+            <>
+              <Question title="Who can see its files?">
+                {(Object.keys(VISIBILITIES) as Visibility[]).map((value) => (
+                  <Choice
+                    key={value}
+                    name={`${id}-visibility`}
+                    value={value}
+                    current={visibility}
+                    onChange={setVisibility}
+                    {...VISIBILITIES[value]}
+                  />
+                ))}
+              </Question>
 
-          <Question title="The site's address">
-            <label className="sr-only" htmlFor={`${id}-address`}>
-              The site's address
-            </label>
-            <input
-              id={`${id}-address`}
-              className={`${input} max-w-md`}
-              value={address}
-              placeholder="https://www.example.org"
-              onChange={(event) => setAddress(event.target.value)}
-            />
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-              {address.trim() !== "" && "problem" in typedAddress
-                ? typedAddress.problem
-                : "A domain of your own, which you'll connect to the Worker on Cloudflare. Signing in only works there."}
-            </p>
-          </Question>
+              <Question title="The site's address">
+                <label className="sr-only" htmlFor={`${id}-address`}>
+                  The site's address
+                </label>
+                <input
+                  id={`${id}-address`}
+                  className={`${input} max-w-md`}
+                  value={address}
+                  placeholder="https://www.example.org"
+                  onChange={(event) => setAddress(event.target.value)}
+                />
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  {"problem" in typedAddress
+                    ? typedAddress.problem
+                    : `A domain of your own, which you'll connect to the Worker on Cloudflare. Leave it empty to use the address Cloudflare gives the Worker, https://${workerName(name)}.<your-subdomain>.workers.dev, and add a domain later.`}
+                </p>
+              </Question>
+            </>
+          )}
         </>
       )}
 
@@ -458,7 +475,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
               !chosenOwner ||
               Boolean(chosenOwner.installUrl) ||
               !validName ||
-              !("address" in typedAddress) ||
+              (!resumed && !("address" in typedAddress)) ||
               (available === false && !codeCreated) ||
               contentAvailable === false
             }
@@ -476,6 +493,22 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       )}
     </div>
   );
+}
+
+/** A code repository that's been created, with what it was made with. */
+interface Begun {
+  repo: CreatedSiteRepository;
+  setupCode: { code: string; hash: string };
+  answers: Answers;
+}
+
+/** Both repositories, made, with the setup code and the address the code's has. */
+interface CreatedSite {
+  code: CreatedSiteRepository;
+  content: CreatedSiteRepository;
+  setupCode: string;
+  address: string;
+  worker: string;
 }
 
 /** A new setup code and its hash. */
@@ -522,20 +555,8 @@ function SetupCode({ code }: { code: string }) {
 }
 
 /** What's left once both repositories are made, in order, with links to where each step is done. */
-function Created({
-  created,
-  setupCode,
-  address,
-  worker,
-  withToken,
-}: {
-  created: { code: CreatedSiteRepository; content: CreatedSiteRepository };
-  setupCode: string;
-  address: string;
-  worker: string;
-  withToken: boolean;
-}) {
-  const { code, content } = created;
+function Created({ created, withToken }: { created: CreatedSite; withToken: boolean }) {
+  const { code, content, setupCode, address, worker } = created;
   const owner = code.repo.split("/")[0] ?? "";
   const secretsOf = (repo: CreatedSiteRepository) => `${repo.webUrl}/settings/secrets/actions/new`;
   return (
@@ -592,18 +613,38 @@ function Created({
           makes the site's database and cache, names them in wrangler.jsonc, and starts the Deploy workflow, which puts
           the site online. Both take a few minutes.
         </li>
+        {address ? (
+          <li>
+            <strong>The domain.</strong> In <Out href="https://dash.cloudflare.com/">Cloudflare's dashboard</Out>, open
+            Workers &amp; Pages → {worker} → Settings → Domains &amp; Routes, and add {new URL(address).host}.
+          </li>
+        ) : null}
         <li>
-          <strong>The domain.</strong> In <Out href="https://dash.cloudflare.com/">Cloudflare's dashboard</Out>, open
-          Workers &amp; Pages → {worker} → Settings → Domains &amp; Routes, and add {new URL(address).host}.
-        </li>
-        <li>
-          <strong>The first admin.</strong> Open <Out href={`${address}/setup/`}>{`${address}/setup/`}</Out>, give the
-          setup code, your email address, your name, and a password, then sign in and turn on two-factor sign-in on your
-          account page straight away.
+          <strong>The first admin.</strong>{" "}
+          {address ? (
+            <>
+              Open <Out href={`${address}/setup/`}>{`${address}/setup/`}</Out>,
+            </>
+          ) : (
+            <>
+              Open <code>/setup/</code> at the site's address,{" "}
+              <code>{`https://${worker}.<your-subdomain>.workers.dev`}</code>, which the Set up Cloudflare run shows in
+              its summary,
+            </>
+          )}{" "}
+          give the setup code, your email address, your name, and a password, then sign in and turn on two-factor
+          sign-in on your account page straight away.
         </li>
       </ol>
       <h3 className="font-heading text-lg font-semibold">Next</h3>
       <ul className="grid list-disc gap-1 pl-5">
+        {!address && (
+          <li>
+            To use a domain of your own later, add it to the Worker in Cloudflare's dashboard (Workers &amp; Pages →{" "}
+            {worker} → Settings → Domains &amp; Routes), and put it in place of the workers.dev address as{" "}
+            <code>GOODFELLOW_SITE_URL</code> in {code.repo}'s wrangler.jsonc: signing in works only at that address.
+          </li>
+        )}
         <li>
           Email for invitations and password resets, and payments for subscriptions, are set up as the code's README
           says. The site works without them.

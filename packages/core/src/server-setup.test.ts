@@ -18,14 +18,21 @@ const company = join(import.meta.dirname, "../../../examples/company");
 /** The company example's files, as create-goodfellow's bundled copy has them, leaving out what's built or installed. */
 function companyFiles(): SiteFiles {
   const files: SiteFiles = new Map();
-  for (const entry of readdirSync(company, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    const path = relative(company, join(entry.parentPath, entry.name)).split(sep);
-    if (path.some((part) => ["node_modules", ".turbo", ".next", "dist", ".wrangler"].includes(part))) continue;
-    files.set(path.join("/"), new Uint8Array(readFileSync(join(company, ...path))));
-  }
+  // Folder by folder, never into those left out: other tests write and remove folders in node_modules meanwhile.
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (LEFT_OUT.includes(entry.name)) continue;
+      const at = join(dir, entry.name);
+      if (entry.isDirectory()) walk(at);
+      else if (entry.isFile()) files.set(relative(company, at).split(sep).join("/"), new Uint8Array(readFileSync(at)));
+    }
+  };
+  walk(company);
   return files;
 }
+
+/** What the bundled copy leaves out, being built or installed. */
+const LEFT_OUT = ["node_modules", ".turbo", ".next", "dist", ".wrangler"];
 
 const versions = new Proxy({} as Record<string, string>, { get: () => "1.2.3" });
 

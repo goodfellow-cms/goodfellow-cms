@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { setupCodeHash } from "@goodfellow-cms/core";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it } from "vitest";
+import { type AdminMaker, createAdmin, newAdminProblem } from "./admins.ts";
 import { authOptions } from "./auth.ts";
 import type { SiteEnv } from "./env.ts";
 import { SETUP_DONE, SETUP_LIMIT, SetupError, setUpFirstAdmin, setupProblem } from "./first-admin.ts";
@@ -154,6 +155,53 @@ describe("setUpFirstAdmin", () => {
     expect(await statusOf(site.setUp({ ...OLIVE, password: "short" }))).toBe(400);
     expect(await statusOf(site.setUp({ ...OLIVE, email: 7 }))).toBe(400);
     expect(site.admins()).toEqual([]);
+  });
+
+  it("takes the addresses and passwords Better Auth's sign-in takes, and no others", async () => {
+    const site = await freshSite();
+    for (const email of ["owner@localhost", "o'neil@example.org", "a.b@example.co", ".a@example.org", "a..b@ex.org"]) {
+      // Better Auth answers 400 for an address it can't read, and 401 for one with no account.
+      const signIn = (await site.signIn(email)).status;
+      expect(newAdminProblem({ email, name: "Olive", password: PASSWORD }) === undefined, email).toBe(signIn === 401);
+    }
+    // In the words of someone making themselves the admin.
+    await expect(site.setUp({ ...OLIVE, email: "owner@localhost" })).rejects.toThrow("Give your email address.");
+    // Its sign-in refuses passwords past 128 characters.
+    expect((await site.signIn("olive@example.org", "p".repeat(129))).status).toBe(400);
+    expect(newAdminProblem({ ...OLIVE, password: "p".repeat(129) })).toBe("Use a password of at most 128 characters.");
+    await expect(site.setUp({ ...OLIVE, password: "p".repeat(129) })).rejects.toThrow("and at most 128.");
+    await site.setUp({ ...OLIVE, password: "p".repeat(128) });
+    expect((await site.signIn("olive@example.org", "p".repeat(128))).status).toBe(200);
+  });
+
+  it("leaves no admin without a password, whichever write fails", async () => {
+    const made: string[] = [];
+    const maker = (fails: "hash" | "link"): AdminMaker => ({
+      internalAdapter: {
+        findUserByEmail: async () => null,
+        createUser: async () => {
+          made.push("user");
+          return { id: "u1" };
+        },
+        linkAccount: async () => {
+          if (fails === "link") throw new Error("D1 went away");
+          made.push("account");
+        },
+        deleteUser: async () => {
+          made.push("deleted");
+        },
+      },
+      password: {
+        hash: async () => {
+          if (fails === "hash") throw new Error("no hashing today");
+          return "hashed";
+        },
+      },
+    });
+    await expect(createAdmin(maker("hash"), OLIVE)).rejects.toThrow("no hashing today");
+    expect(made).toEqual([]);
+    await expect(createAdmin(maker("link"), OLIVE)).rejects.toThrow("D1 went away");
+    expect(made).toEqual(["user", "deleted"]);
   });
 
   it("takes at most SETUP_LIMIT's tries from one address an hour", async () => {

@@ -403,9 +403,8 @@ test("creates a full-stack site's code and content on a page of its own, with a 
   await signIn(page, "gh-token");
   await page.getByLabel("Name", { exact: true }).fill("acme");
   await expect(page.getByText("That name is free.")).toBeVisible();
-  // Nothing is created without an address of the site's own, which signing in needs.
+  // An address that isn't https:// and a domain alone can't be used; an empty one can (see the next test).
   const create = page.getByRole("button", { name: "Create the site" });
-  await expect(create).toBeDisabled();
   await page.getByLabel("The site's address").fill("http://acme.example/page");
   await expect(page.getByText(/is https:\/\/ and a domain/)).toBeVisible();
   await expect(create).toBeDisabled();
@@ -450,4 +449,87 @@ test("creates a full-stack site's code and content on a page of its own, with a 
   expect([...codeFiles.keys()].some((path) => path.startsWith("content/"))).toBe(false);
   expect(contentFiles.has("content/site.json")).toBe(true);
   expect(text(contentFiles.get(".github/workflows/deploy-site.yml"))).toContain("--repo someone/acme");
+});
+
+test("creates a full-stack site at the Worker's own address, and carries on with what it made after a failure", async ({
+  page,
+}) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // GitHub refuses the content's repository once, and every repository named "other".
+  let refusedContent = false;
+  await page.route("https://api.github.com/user/repos", async (route) => {
+    const name = (route.request().postDataJSON() as { name?: string } | null)?.name;
+    if (name === "other" || (name === "acme-content" && !refusedContent)) {
+      refusedContent ||= name === "acme-content";
+      await route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  const name = page.getByLabel("Name", { exact: true });
+  const create = page.getByRole("button", { name: "Create the site" });
+  await name.fill("acme");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  // No address: the Worker's own, on workers.dev, which Set up Cloudflare writes in.
+  await expect(page.getByText(/https:\/\/acme\.<your-subdomain>\.workers\.dev/)).toBeVisible();
+  await create.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  expect(github.created.has("someone/acme")).toBe(true);
+  // Made already: trying again makes only its content, with what the code's has, so its settings aren't asked again.
+  await expect(page.getByText(/someone\/acme is created already/)).toBeVisible();
+  await expect(page.getByLabel("The site's address")).toBeHidden();
+  // Another name that fails, then the first again, keeps the first's setup code.
+  await name.fill("other");
+  await expect(page.getByLabel("The site's address")).toBeVisible();
+  await page.getByLabel("The site's address").fill("https://www.other.example");
+  await expect(create).toBeEnabled();
+  await create.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  await name.fill("acme");
+  await create.click();
+
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  const setupCode =
+    (await page
+      .locator("code")
+      .filter({ hasText: /^[A-Z2-7]{4}(-[A-Z2-7]{4}){5}$/ })
+      .textContent()) ?? "";
+  const wrangler = text(github.created.get("someone/acme")?.repo.files().get("wrangler.jsonc"));
+  expect(wrangler).toContain(`"GOODFELLOW_SETUP_CODE_HASH": "${await setupCodeHash(setupCode)}"`);
+  // Still the example's address, which Set up Cloudflare replaces with the Worker's own.
+  expect(wrangler).toContain('"GOODFELLOW_SITE_URL": "https://www.example.com"');
+  await expect(page.getByText("https://acme.<your-subdomain>.workers.dev", { exact: true })).toBeVisible();
+  await expect(page.getByText("The domain.")).toHaveCount(0);
+  await expect(page.getByText(/To use a domain of your own later/)).toBeVisible();
+  expect(github.created.has("someone/acme-content")).toBe(true);
+});
+
+test("never takes a name's availability from an answer about a name typed before", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // "taken" exists, and GitHub says so slowly.
+  await page.route(/https:\/\/api\.github\.com\/repos\/someone\/taken(-content)?$/, async (route) => {
+    await new Promise((done) => setTimeout(done, 2_000));
+    await route.fulfill({ status: 200, contentType: "application/json", body: '{"full_name":"someone/taken"}' });
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  const name = page.getByLabel("Name", { exact: true });
+  await name.fill("taken");
+  // Past the wait before asking, so GitHub has been asked about "taken".
+  await page.waitForTimeout(700);
+  await name.fill("acme");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await page.waitForTimeout(2_500);
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await expect(page.getByText(/There's already one called/)).toHaveCount(0);
 });

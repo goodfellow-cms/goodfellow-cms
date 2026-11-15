@@ -1,5 +1,7 @@
 # Makes the site's D1 database and KV namespace on Cloudflare, writes their ids into wrangler.jsonc, and starts the
-# Deploy workflow, which puts the site online. A site made on Goodfellow's setup page runs it once, from Actions → Set
+# Deploy workflow, which puts the site online. Where wrangler.jsonc doesn't have the site's address yet, it gives it
+# the Worker's own, on the Cloudflare account's workers.dev subdomain, which a domain of the site's own can replace
+# later. A site made on Goodfellow's setup page runs it once, from Actions → Set
 # up Cloudflare → Run workflow, after adding the secrets deploy.yml lists; one made with create-goodfellow on a
 # computer has done this already. Running it again makes nothing that's made already.
 #
@@ -20,6 +22,7 @@ jobs:
     outputs:
       database: ${{ steps.ids.outputs.database }}
       kv: ${{ steps.ids.outputs.kv }}
+      address: ${{ steps.ids.outputs.address }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -58,12 +61,30 @@ jobs:
           [[ "$kv" =~ ^[0-9a-f]{32}$ ]] || { echo "wrangler didn't give the KV namespace's id."; exit 1; }
           echo "database=$database" >> "$GITHUB_OUTPUT"
           echo "kv=$kv" >> "$GITHUB_OUTPUT"
+          # The Worker's own address, where wrangler.jsonc still has the example's: on the account's workers.dev
+          # subdomain, which Cloudflare's API says.
+          if grep -q '"GOODFELLOW_SITE_URL": "https://www.example.com"' wrangler.jsonc; then
+            answer=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" || true)
+            subdomain=$(printf '%s' "$answer" | node -e '
+              try {
+                const answer = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+                process.stdout.write(answer.result?.subdomain ?? "");
+              } catch {}
+            ')
+            if ! [[ "$subdomain" =~ ^[a-z0-9-]+$ ]]; then
+              echo "Cloudflare didn't say the account's workers.dev subdomain. Choose one under Workers & Pages in its dashboard, or put the site's address in wrangler.jsonc as GOODFELLOW_SITE_URL, then run this again."
+              exit 1
+            fi
+            echo "address=https://goodfellow-company.$subdomain.workers.dev" >> "$GITHUB_OUTPUT"
+          fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  # Runs none of the site's code: it writes the ids in place of wrangler.jsonc's placeholders, publishes that, and
-  # starts the Deploy workflow, which a push made with this job's token wouldn't start.
+  # Runs none of the site's code: it writes the ids, and the address where it was given one, in place of
+  # wrangler.jsonc's placeholders, publishes that, and starts the Deploy workflow, which a push made with this job's
+  # token wouldn't start.
   save:
     needs: create
     runs-on: ubuntu-latest
@@ -76,15 +97,23 @@ jobs:
         run: |
           [[ "$DATABASE" =~ ^[0-9a-f-]{36}$ && "$KV" =~ ^[0-9a-f]{32}$ ]] || exit 1
           sed -i -e "s/\"your-database-id\"/\"$DATABASE\"/" -e "s/\"your-kv-namespace-id\"/\"$KV\"/" wrangler.jsonc
+          if [ -n "$ADDRESS" ]; then
+            [[ "$ADDRESS" =~ ^https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$ ]] || exit 1
+            sed -i "s|\"GOODFELLOW_SITE_URL\": \"https://www.example.com\"|\"GOODFELLOW_SITE_URL\": \"$ADDRESS\"|" wrangler.jsonc
+          fi
           if ! git diff --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -qam "Name the site's Cloudflare database and cache"
             git push
           fi
+          # Where the site will be, for the run's summary: its first admin is made at /setup/ there.
+          address=$(sed -n 's/.*"GOODFELLOW_SITE_URL": "\([^"]*\)".*/\1/p' wrangler.jsonc | head -n 1)
+          echo "The site will be at $address, once the Deploy workflow this starts has finished. Make its first admin at $address/setup/." >> "$GITHUB_STEP_SUMMARY"
         env:
           DATABASE: ${{ needs.create.outputs.database }}
           KV: ${{ needs.create.outputs.kv }}
+          ADDRESS: ${{ needs.create.outputs.address }}
       - run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
         env:
           GH_TOKEN: ${{ github.token }}

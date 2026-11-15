@@ -125,8 +125,9 @@ jobs:
           trap 'rm -f "$secrets"' EXIT
           args=()
           if [ -z "$BETTER_AUTH_SECRET" ]; then
-            # The Worker's secrets' names, or none for a Worker that doesn't exist yet (Cloudflare's error 10007);
-            # anything else stops the deploy, rather than replace a session key it couldn't see.
+            # The Worker's secrets' names, or none for a Worker that doesn't exist yet (Cloudflare's error 10007,
+            # which wrangler says as `Worker "…" not found`); anything else stops the deploy, rather than replace a
+            # session key it couldn't see.
             said="$RUNNER_TEMP/secret-list.txt"
             if listed=$(npx wrangler secret list --format json 2>"$said"); then
               has=$(printf '%s' "$listed" | node -e '
@@ -134,7 +135,7 @@ jobs:
                 const names = JSON.parse(text.slice(text.search(/^\[/m))).map((secret) => secret.name);
                 process.stdout.write(names.includes("BETTER_AUTH_SECRET") ? "yes" : "no");
               ')
-            elif grep -q "10007" "$said"; then
+            elif grep -q -E '10007|Worker "[^"]*" not found' "$said"; then
               has=no
             else
               echo "Couldn't read the Worker's secrets, so this deploy stops rather than make a new session key."

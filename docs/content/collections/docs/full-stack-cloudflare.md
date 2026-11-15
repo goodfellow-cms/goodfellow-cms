@@ -17,15 +17,15 @@ The site starts from Goodfellow's company example, with its pages: a home page, 
 
 ## From the setup page
 
-[The setup page for full-stack sites](/new-site/full-stack/) is a page of its own, apart from [the one for static sites](/new-site/). You sign in to GitHub there, as on the static sites' page, and give the site's name, who can see its files, and its address, a domain of your own. It then creates two repositories in your account, the code's and the content's with `-content` after its name, and connects them: where they're private, the code's Deploy workflow reads the content with a deploy key the page adds.
+[The setup page for full-stack sites](/new-site/full-stack/) is a page of its own, apart from [the one for static sites](/new-site/). You sign in to GitHub there, as on the static sites' page, and give the site's name, who can see its files, and its address: a domain of your own, or nothing, for the address Cloudflare gives the Worker, `https://<worker>.<your-subdomain>.workers.dev`, which a domain can replace later. It then creates two repositories in your account, the code's and the content's with `-content` after its name, and connects them: where they're private, the code's Deploy workflow reads the content with a deploy key the page adds.
 
 It then shows the site's **setup code** once, and lists what's left, with links to each place it's done:
 
 1. **Cloudflare's token:** an API token from Cloudflare's "Edit Cloudflare Workers" template, and your account's ID, as the code repository's secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 2. **Publishing:** a fine-grained GitHub token that can change only the content repository, as the code repository's secret `GOODFELLOW_GIT_TOKEN`. Each deploy gives it to the Worker.
 3. **Photos and files:** a fine-grained token that can only start the code repository's workflows, as the content repository's secret `GOODFELLOW_DEPLOY_TOKEN`, so new photos reach the site after each publish.
-4. **Set up Cloudflare:** running the code repository's **Set up Cloudflare** workflow (`.github/workflows/setup-cloudflare.yml`) once. It makes the D1 database and the KV namespace, names them in `wrangler.jsonc`, and starts the Deploy workflow, which puts the site online. The first deploy makes the key that signs sessions and gives it only to the Worker.
-5. **The domain:** adding the site's address to the Worker in Cloudflare's dashboard, under Workers & Pages → the Worker → Settings → Domains & Routes.
+4. **Set up Cloudflare:** running the code repository's **Set up Cloudflare** workflow (`.github/workflows/setup-cloudflare.yml`) once. It makes the D1 database and the KV namespace, names them in `wrangler.jsonc`, and starts the Deploy workflow, which puts the site online. For a site without an address of its own, it asks Cloudflare for the account's workers.dev subdomain and writes the Worker's address in, which its run's summary shows. The first deploy makes the key that signs sessions and gives it only to the Worker.
+5. **The domain**, for a site with one: adding the site's address to the Worker in Cloudflare's dashboard, under Workers & Pages → the Worker → Settings → Domains & Routes. To move a site on workers.dev to a domain later, add it there and put it in `wrangler.jsonc` as `GOODFELLOW_SITE_URL`, since signing in works only at that address.
 6. **The first admin:** opening the site's `/setup/` page and giving the setup code with your email address, name, and password.
 
 Until the Set up Cloudflare workflow has named the database and the cache, the Deploy workflow skips itself, so the commits the page makes don't fail it.

@@ -11,16 +11,27 @@ export interface NewAdmin {
 /** The fewest characters an admin's password may have, as everyone's (lib/auth.ts). */
 export const MIN_ADMIN_PASSWORD = 12;
 
+/** The most characters an admin's password may have: Better Auth's own limit when signing in. */
+export const MAX_ADMIN_PASSWORD = 128;
+
+/**
+ * An email address as Better Auth's sign-in takes it: zod's `z.email()`, which it checks addresses with, written out,
+ * since the site doesn't depend on zod itself. An address it refuses could be made an admin who can't sign in.
+ */
+export const SIGN_IN_EMAIL =
+  /^(?:[A-Za-z0-9_'+-]+\.)*[A-Za-z0-9_'+-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
+
 /** The most characters an admin's name may have, as anyone's (`MAX_NAME_LENGTH` in lib/auth.ts). */
 export const MAX_ADMIN_NAME = 100;
 
 /** What's wrong with the person's details, in words, or nothing. */
 export function newAdminProblem({ email, name, password }: NewAdmin): string | undefined {
-  if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 254) return "Give the admin's email address first.";
+  if (!SIGN_IN_EMAIL.test(email) || email.length > 254) return "Give the admin's email address first.";
   if (name.trim() === "" || name.trim().length > MAX_ADMIN_NAME) {
     return `Give the admin's name after their email address, in ${MAX_ADMIN_NAME} characters at most.`;
   }
   if (password.length < MIN_ADMIN_PASSWORD) return `Use a password of at least ${MIN_ADMIN_PASSWORD} characters.`;
+  if (password.length > MAX_ADMIN_PASSWORD) return `Use a password of at most ${MAX_ADMIN_PASSWORD} characters.`;
   return undefined;
 }
 
@@ -41,6 +52,7 @@ export interface AdminMaker {
       context: { method: "admin" },
     ): Promise<{ id: string }>;
     linkAccount(account: { userId: string; providerId: string; accountId: string; password: string }): Promise<unknown>;
+    deleteUser(userId: string): Promise<unknown>;
   };
   password: { hash(password: string): Promise<string> };
 }
@@ -51,14 +63,22 @@ export async function createAdmin(context: AdminMaker, person: NewAdmin): Promis
   if (problem) throw new Error(problem);
   const email = person.email.toLowerCase();
   if (await context.internalAdapter.findUserByEmail(email)) throw new AdminTaken(`${email} already has an account.`);
+  // Before anything is written, so a failure leaves no account without a password.
+  const password = await context.password.hash(person.password);
   const user = await context.internalAdapter.createUser(
     { email, name: person.name.trim(), emailVerified: true, role: "admin" },
     { method: "admin" },
   );
-  await context.internalAdapter.linkAccount({
-    userId: user.id,
-    providerId: "credential",
-    accountId: user.id,
-    password: await context.password.hash(person.password),
-  });
+  try {
+    await context.internalAdapter.linkAccount({
+      userId: user.id,
+      providerId: "credential",
+      accountId: user.id,
+      password,
+    });
+  } catch (error) {
+    // D1 has no transactions, so the account goes again: an admin nobody can sign in as would count as the site's.
+    await context.internalAdapter.deleteUser(user.id);
+    throw error;
+  }
 }
