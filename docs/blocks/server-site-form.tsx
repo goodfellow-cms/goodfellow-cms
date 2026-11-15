@@ -354,7 +354,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       made.push(repo);
       keepUnfinished(answers.name, [repo]);
     };
-    let trying: { repo: string; free: boolean } | undefined;
+    // What the name check said before it was asked for: free, taken, or nothing yet.
+    let trying: { repo: string; free: boolean | undefined } | undefined;
     let codeRepo = resumed?.repo;
     let setupCode = resumed?.setupCode;
     try {
@@ -363,8 +364,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       const site = { owner: chosenOwner, private: answers.visibility === "private", pages: false };
       setCreating("code");
       if (!codeRepo) {
-        // Free unless the name check said it's taken: one that hasn't answered could be either.
-        trying = { repo: code, free: available !== false };
+        trying = { repo: code, free: available };
         keepMaybe(answers.name, code);
         codeRepo = await account.createSite(
           {
@@ -381,7 +381,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
         keepMade(code);
       }
       setCreating("content");
-      trying = { repo: content, free: contentAvailable !== false };
+      trying = { repo: content, free: contentAvailable };
       keepMaybe(answers.name, content);
       const contentRepo = await account.createSite(
         {
@@ -416,14 +416,16 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       if (trying && !made.includes(trying.repo)) {
         const short = trying.repo.slice(chosenOwner.path.length + 1);
         // A name that was taken before, or that GitHub refused as taken, is someone else's: nothing of this page's.
-        const theirs = !trying.free || (caught instanceof SetupError && caught.problem === "name-taken");
+        const theirs = trying.free === false || (caught instanceof SetupError && caught.problem === "name-taken");
         const taken = !theirs
           ? await account.isAvailable(chosenOwner, short).then(
               (free) => !free,
               () => undefined,
             )
           : false;
-        if (taken) keepMade(trying.repo);
+        // Only a name known to be free before is this page's now it's taken: one whose check never answered may have
+        // been someone's all along, as where the request was never sent, so it stays a maybe.
+        if (taken && trying.free === true) keepMade(trying.repo);
         else if (taken === false) keepUnfinished(answers.name, [trying.repo], false);
         else unsure.push(trying.repo);
       }
@@ -622,8 +624,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
           {unfinished.maybe && unfinished.maybe.length > 0 && (
             <p>
               {unfinished.repos.length > 0 ? "It may also have created" : "This page may have created"}{" "}
-              <RepoList repos={unfinished.maybe} />, which GitHub never confirmed. If{" "}
-              {unfinished.maybe.length > 1 ? "any of them is" : "it's"} on GitHub, delete it there (in Settings, at the
+              <RepoList repos={unfinished.maybe} />, which GitHub never confirmed. Look on GitHub: one this page made is
+              new and holds only the site's files, or GitHub's README. Delete only one of those (in Settings, at the
               bottom) before you create the site again, or choose another name.
             </p>
           )}
