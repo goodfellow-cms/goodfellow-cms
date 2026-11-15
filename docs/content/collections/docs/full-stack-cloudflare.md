@@ -21,10 +21,10 @@ In a terminal, it asks for:
 
 - the folder for the new site;
 - the GitHub repository for the site's code, such as `your-name/your-site`;
-- the GitHub repository for its content, `your-name/your-site-content` unless you name another. The code and the content are always kept apart, as [Keep the content in a repository of its own](/docs/full-stack-nextjs#keep-the-content-in-a-repository-of-its-own) explains;
+- the GitHub repository for its content, the code's with `-content` after it unless you name another, such as `your-name/your-site-content`. The code and the content are always kept apart, as [Keep the content in a repository of its own](/docs/full-stack-nextjs#keep-the-content-in-a-repository-of-its-own) explains;
 - the site's address, such as `https://www.example.org`, which you can leave for later.
 
-Give them as options to answer nothing: `--github your-name/your-site --content your-name/your-site-content --url https://www.example.org`. Full-stack sites are kept on GitHub for now.
+Give them as options to answer nothing: `--github your-name/your-site --content your-name/your-site-content --url https://www.example.org`, where `--content` can be left out for the code's repository with `-content` after it. Full-stack sites are kept on GitHub for now.
 
 It writes the site with those names in place: its Worker, its D1 database, and its KV namespace are named after the folder. The content is in `content-repository/`, a git repository of its own that `content/` and `public/media/` link to, as on any site whose content is kept apart. It then runs `npm install` and makes both folders git repositories with everything in a first commit. Push the content repository to GitHub first, then the code.
 
@@ -38,7 +38,7 @@ In a terminal of your own, it then offers to put the site online with [wrangler]
 4. **The secrets:** it makes the key that signs sessions and gives it to the Worker without showing it. Then wrangler asks for the GitHub token the site publishes with: a fine-grained token that can change the content repository and nothing else. Paste it only into wrangler's prompt.
 5. **The first admin:** it asks for their email address and name, then the password, which it never shows or keeps.
 
-Each step can be skipped. A skipped or failed step stops the ones after it, which need it, and the command lists what's left, with the step of the README that does it. It never offers these steps in CI, where nobody can sign in or type a secret.
+Each step can be skipped. A skipped or failed step stops the ones after it, which need it, and the command lists what's left, with the step of the README that does it. Without the site's address, it stops after the database and the cache, since signing in needs the address the Worker is deployed with. It never offers these steps in CI, where nobody can sign in or type a secret.
 
 Once it's online, the code repository's **Deploy** workflow builds and deploys the site after each change to its code, and the content repository's workflow asks it to after each publish. Both need secrets of their own on GitHub: their files, and the README, say which. The first admin then signs in and turns on two-factor sign-in at `/account/`, without which they can edit pages but not change Site Settings or manage editors.
 

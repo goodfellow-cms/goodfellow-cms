@@ -5,9 +5,12 @@ import { join, relative, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { SERVER_HOSTS, workerName } from "@goodfellow-cms/core";
 import { type Runner, runIn, setUpCloudflare } from "./cloudflare-setup.js";
+import { gitLines } from "./git-lines.js";
 import {
   CONTENT_REPOSITORY_DIR,
+  type CommitResult,
   commitAll,
+  type GitResult,
   initGitRepository,
   installPackages,
   packageName,
@@ -92,7 +95,7 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
     github ??= await askUntil(io, "\nThe GitHub repository for the site's code, such as your-name/your-site: ", (a) =>
       githubRepo(a, "The code's repository"),
     );
-    const suggested = `${github}-content`;
+    const suggested = `${githubRepo(github, "--github")}-content`;
     content ??= await askUntil(io, `The GitHub repository for its content (${suggested}): `, (a) =>
       a.trim() === "" ? suggested : githubRepo(a, "The content's repository"),
     );
@@ -108,7 +111,8 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
     );
   }
   const code = github === undefined ? undefined : githubRepo(github, "--github");
-  const contentRepo = content === undefined ? undefined : githubRepo(content, "--content");
+  // As the question suggests it, when the code's is given and the content's isn't.
+  const contentRepo = content === undefined ? code && `${code}-content` : githubRepo(content, "--content");
   if (code && contentRepo === code)
     throw new ScaffoldError("The content needs a repository of its own, not the code's.");
   const address = url ? siteAddress(url) : undefined;
@@ -125,13 +129,19 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
 
   // The content repository first: inside the code's repository, git would count it as part of it.
   const contentDir = join(target, CONTENT_REPOSITORY_DIR);
-  const contentGit = choices.git
+  const contentGit: GitResult | undefined = choices.git
     ? initGitRepository(contentDir, contentRepo ? { host: "github", repo: contentRepo } : undefined)
     : undefined;
-  if (contentGit?.created) commitAll(contentDir, "Create the site's content");
-  const git = choices.git ? initGitRepository(target, code ? { host: "github", repo: code } : undefined) : undefined;
+  const contentCommit: CommitResult | undefined = contentGit?.created
+    ? commitAll(contentDir, "Create the site's content")
+    : undefined;
+  const git: GitResult | undefined = choices.git
+    ? initGitRepository(target, code ? { host: "github", repo: code } : undefined)
+    : undefined;
   const installed = choices.install ? (io.install ?? installPackages)(target) : false;
-  if (git?.created && (installed || !choices.install)) commitAll(target, "Create the site");
+  // Without npm install, there's no lockfile yet, which gitLines() says to commit once there is.
+  const commit: CommitResult | undefined =
+    git?.created && (installed || !choices.install) ? commitAll(target, "Create the site") : undefined;
 
   const worker = workerName(packageName(target));
   let left: string[] | undefined;
@@ -145,21 +155,32 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
         run: (io.runner ?? runIn)(target),
         ask: io.ask,
         say: io.say,
+        hasAddress: address !== undefined,
       });
-      // The database's and KV namespace's ids, which wrangler.jsonc now has.
-      if (git?.created) commitAll(target, "Name the site's Cloudflare database and cache");
+      // The database's and KV namespace's ids, which wrangler.jsonc now has, where the site's first commit was made.
+      if (commit === "committed") commitAll(target, "Name the site's Cloudflare database and cache");
     }
   }
 
   const where = relative(process.cwd(), target) || ".";
+  const quoted = /\s/.test(where) ? JSON.stringify(where) : where;
+  const contentWhere = join(where, CONTENT_REPOSITORY_DIR);
   const lines = [
     "",
-    `Created a full-stack site in ${where}, with its content in ${join(where, CONTENT_REPOSITORY_DIR)}, a repository of its own.`,
+    `Created a full-stack site in ${where}, with its content in ${contentWhere}, which content/ and public/media/ link to.`,
+    ...(git ? gitLines(git, commit, installed) : []),
+    ...(contentGit?.created
+      ? [
+          contentCommit === "committed"
+            ? `${contentWhere} is a repository of its own, with the content in its first commit.`
+            : `${contentWhere} is a repository of its own, but nothing in it is committed yet: commit it as well.`,
+        ]
+      : []),
     ...(code
-      ? [`Push the content to ${contentRepo ?? "its own repository"} first, then the code to ${code}.`]
+      ? [`Push the content to ${contentRepo} first, then the code to ${code}.`]
       : ["Make its two GitHub repositories, name them as README.md's first section says, and push them."]),
     ...(!installed && choices.install ? ["npm install didn't finish, so run it again in the site's folder."] : []),
-    ...(address ? [] : ["Set the site's address in wrangler.jsonc (GOODFELLOW_SITE_URL) before people sign in."]),
+    ...(address ? [] : ["Set the site's address in wrangler.jsonc (GOODFELLOW_SITE_URL) before it's put online."]),
     "",
     left === undefined
       ? 'Then put it online as README.md\'s "Putting it online on Cloudflare" says.'
@@ -169,7 +190,12 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
     ...(left ?? []).map((step) => `  - ${step}`),
     "",
     "To deploy after each change, add the secrets .github/workflows/deploy.yml lists to the code's repository; email and payments are set up as README.md says.",
-    `On this computer: cd ${where}, then npm run dev, and open http://localhost:4321/admin.`,
+    "",
+    "On this computer:",
+    ...(where === "." ? [] : [`  cd ${quoted}`]),
+    ...(installed ? [] : ["  npm install"]),
+    "  npm run dev",
+    "Then open http://localhost:4321/admin.",
   ];
   io.say(`${lines.join("\n")}\n`);
 }

@@ -75,6 +75,7 @@ describe("setUpCloudflare", () => {
       ask,
       say: (line) => said.push(line),
       sessionKey: () => "made-here",
+      hasAddress: true,
     });
     expect(left).toEqual([]);
     const wrangler = await readFile(join(target, "wrangler.jsonc"), "utf8");
@@ -104,7 +105,14 @@ describe("setUpCloudflare", () => {
       "npx wrangler whoami": { status: 0, stdout: "You are not authenticated. Please run `wrangler login`." },
       "npx wrangler login": { status: 1, stdout: "" },
     });
-    const left = await setUpCloudflare({ target, worker: "acme", run, ask: answering().ask, say: () => {} });
+    const left = await setUpCloudflare({
+      target,
+      worker: "acme",
+      run,
+      ask: answering().ask,
+      say: () => {},
+      hasAddress: true,
+    });
     expect(ran.map((step) => step.line)).toEqual(["npx wrangler whoami", "npx wrangler login"]);
     expect(left[0]).toContain("npx wrangler login");
     expect(await readFile(join(target, "wrangler.jsonc"), "utf8")).toBe(WRANGLER);
@@ -112,7 +120,14 @@ describe("setUpCloudflare", () => {
 
   it("stops before anything it needs failed, and keeps an id it was given", async () => {
     const { run, ran } = fakeWrangler({ "npx wrangler kv namespace create": { status: 1, stdout: "" } });
-    const left = await setUpCloudflare({ target, worker: "acme", run, ask: answering().ask, say: () => {} });
+    const left = await setUpCloudflare({
+      target,
+      worker: "acme",
+      run,
+      ask: answering().ask,
+      say: () => {},
+      hasAddress: true,
+    });
     expect(ran.map((step) => step.line).at(-1)).toBe("npx wrangler kv namespace create acme-cache");
     expect(left.join(" ")).toContain("step 2");
     const wrangler = await readFile(join(target, "wrangler.jsonc"), "utf8");
@@ -120,9 +135,51 @@ describe("setUpCloudflare", () => {
     expect(wrangler).toContain("your-kv-namespace-id");
   });
 
+  it("asks to make only the KV namespace when the database was made", async () => {
+    const { run } = fakeWrangler({ "npx wrangler kv namespace create": { status: 1, stdout: "" } });
+    const left = await setUpCloudflare({
+      target,
+      worker: "acme",
+      run,
+      ask: answering().ask,
+      say: () => {},
+      hasAddress: true,
+    });
+    expect(left[0]).toContain("npx wrangler kv namespace create acme-cache");
+    expect(left.join(" ")).not.toContain("D1 database");
+  });
+
+  it("doesn't put the site online before wrangler.jsonc has its address", async () => {
+    const { run, ran } = fakeWrangler();
+    const said: string[] = [];
+    const left = await setUpCloudflare({
+      target,
+      worker: "acme",
+      run,
+      ask: answering().ask,
+      say: (line) => said.push(line),
+      hasAddress: false,
+    });
+    // The database and the cache, which need no address, but no build, deploy, secrets, or admin.
+    expect(ran.map((step) => step.line)).toEqual([
+      "npx wrangler whoami",
+      "npx wrangler d1 create acme",
+      "npx wrangler kv namespace create acme-cache",
+    ]);
+    expect(said.join("\n")).toContain("doesn't have its address");
+    expect(left[0]).toContain("GOODFELLOW_SITE_URL");
+  });
+
   it("does only what's agreed to", async () => {
     const { run, ran } = fakeWrangler();
-    const left = await setUpCloudflare({ target, worker: "acme", run, ask: answering("n").ask, say: () => {} });
+    const left = await setUpCloudflare({
+      target,
+      worker: "acme",
+      run,
+      ask: answering("n").ask,
+      say: () => {},
+      hasAddress: true,
+    });
     expect(ran.map((step) => step.line)).toEqual(["npx wrangler whoami"]);
     expect(left.join(" ")).toContain("step 2");
   });

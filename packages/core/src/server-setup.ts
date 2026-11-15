@@ -14,6 +14,7 @@ import {
   sitePackageName,
   withoutRepositoryNotes,
 } from "./site-setup.js";
+import { trimChars } from "./trim.js";
 
 /** Where a full-stack site can run: only Cloudflare Workers so far. */
 export const SERVER_HOSTS = {
@@ -55,7 +56,7 @@ export function workerName(name: string): string {
   const dashed = sitePackageName(name)
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/-+/g, "-");
-  return dashed.slice(0, 63).replace(/^-+|-+$/g, "") || "my-site";
+  return trimChars(dashed.slice(0, 63), "-") || "my-site";
 }
 
 /** Whether a template file is text that may name the example: not an image, a font, or anything with a NUL. */

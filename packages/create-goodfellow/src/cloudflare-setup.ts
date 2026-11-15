@@ -73,6 +73,11 @@ export interface CloudflareSetupOptions {
   say: (line: string) => void;
   /** Makes the session key; tests give their own. */
   sessionKey?: () => string;
+  /**
+   * Whether wrangler.jsonc has the site's own address. Without it, the Worker isn't put online, since signing in
+   * would answer only for the example's address until it's deployed again.
+   */
+  hasAddress: boolean;
 }
 
 /** Whether an answer to a question with a default of yes is yes. */
@@ -93,6 +98,7 @@ export async function setUpCloudflare({
   ask,
   say,
   sessionKey = newSessionKey,
+  hasAddress,
 }: CloudflareSetupOptions): Promise<string[]> {
   const left: string[] = [];
   const later = (...steps: string[]) => {
@@ -134,9 +140,20 @@ export async function setUpCloudflare({
     say(
       `wrangler couldn't make the ${databaseId ? "KV namespace" : "D1 database"}, or didn't say its id. If it already exists, its id is in Cloudflare's dashboard.`,
     );
-    return later(...rest);
+    // Only what's missing: the database, once made, can't be made again under its name.
+    const missing = databaseId
+      ? `Make the KV namespace with npx wrangler kv namespace create ${worker}-cache and put its id in wrangler.jsonc (README.md, step 2).`
+      : (rest[0] ?? "");
+    return later(missing, rest[1] ?? "");
   }
   say(`Made them, and put their ids in wrangler.jsonc.`);
+
+  if (!hasAddress) {
+    say("\nThe site isn't put online yet: wrangler.jsonc doesn't have its address, which signing in needs.");
+    return later(
+      "Set the site's address in wrangler.jsonc (GOODFELLOW_SITE_URL) and its secrets (README.md, step 3), then put it online (step 6) and make its first admin (step 7).",
+    );
+  }
 
   // Built and put online here, which also applies the database's migrations: the secrets need the Worker to exist.
   if (!yes(await ask("\nBuild the site and put it online now? (Y/n) "))) {
