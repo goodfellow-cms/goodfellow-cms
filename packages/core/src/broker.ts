@@ -428,12 +428,7 @@ export interface ServeOptions {
    * to refuse it, or return `args` to make the call with those in place of the
    * admin panel's, such as an editor as the site's own list gives them.
    */
-  // biome-ignore lint/suspicious/noConfusingVoidType: most checks return nothing, which only `void` lets them do.
-  check?(call: {
-    path: string;
-    args: unknown[];
-    target: unknown;
-  }): BrokerCheckResult | void | Promise<BrokerCheckResult | void>;
+  check?(call: { path: string; args: unknown[]; target: unknown }): BrokerCheckResult | Promise<BrokerCheckResult>;
   /** Answers methods the broker adds itself, such as `ownerAccess.requestToken`, by path. */
   extra?: Record<string, (...args: unknown[]) => unknown>;
 }
