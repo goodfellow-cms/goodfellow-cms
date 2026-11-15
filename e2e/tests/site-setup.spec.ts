@@ -693,6 +693,44 @@ test("never says it made a repository that was there before, where no check answ
   await expect(page.getByText("This page created someone/existing")).toHaveCount(0);
 });
 
+test("makes the site afresh where the code's repository it would carry on with was deleted", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  let refusedContent = false;
+  await page.route("https://api.github.com/user/repos", async (route) => {
+    const name = (route.request().postDataJSON() as { name?: string } | null)?.name;
+    if (name === "acme-content" && !refusedContent) {
+      refusedContent = true;
+      return route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+    }
+    await route.fallback();
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("acme");
+  await page.getByLabel("The site's address").fill("https://www.acme.example");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  const create = page.getByRole("button", { name: "Create the site" });
+  await create.click();
+  await expect(page.getByText(/someone\/acme is created already/)).toBeVisible();
+  // Deleted on GitHub, as the page says to do to change the site's settings.
+  github.created.delete("someone/acme");
+  await create.click();
+  await expect(page.getByText("someone/acme isn't on GitHub any more, so the site will be made afresh")).toBeVisible();
+  expect(github.created.has("someone/acme-content")).toBe(false);
+  // Its settings are asked again, and both repositories are made with what's typed now.
+  await page.getByLabel("The site's address").fill("https://www.acme.example.org");
+  await create.click();
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  expect(text(github.created.get("someone/acme")?.repo.files().get("wrangler.jsonc"))).toContain(
+    '"GOODFELLOW_SITE_URL": "https://www.acme.example.org"',
+  );
+  expect(github.created.has("someone/acme-content")).toBe(true);
+});
+
 test("never carries on with another sign-in, and says what GitHub made where a repository's setup stopped part way", async ({
   page,
 }) => {

@@ -339,6 +339,18 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     if (!account || !chosenOwner || (!resumed && !("address" in typedAddress))) return;
     setBusy(true);
     setError(undefined);
+    // Deleted since, as the page says to do to change its settings: the site is made afresh, from what's typed, so
+    // the page shows its settings again rather than make only its content, beside a code repository that's gone.
+    if (resumed && (await account.isAvailable(chosenOwner, name).catch(() => false))) {
+      setBegun(undefined);
+      setAvailable(true);
+      keepUnfinished(resumed.answers.name, [resumed.repo.repo], false);
+      setError(
+        `${resumed.repo.repo} isn't on GitHub any more, so the site will be made afresh. Check its settings, then create it again.`,
+      );
+      setBusy(false);
+      return;
+    }
     const code = `${chosenOwner.path}/${name}`;
     const content = `${chosenOwner.path}/${contentName(name)}`;
     // The code's repository has the setup code's hash and the address already, where it was made before.
