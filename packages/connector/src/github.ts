@@ -18,6 +18,7 @@ import {
   revokeUserToken,
   userTokens,
 } from "@goodfellow-cms/worker/github";
+import { pkcs8Key } from "@goodfellow-cms/worker/keys";
 import githubAppJwt from "universal-github-app-jwt";
 import { type GitHubSite, MAX_SITES } from "./connection.js";
 import { PERMISSIONS } from "./permissions.js";
@@ -109,7 +110,7 @@ export function githubSites(
   let jwt: Promise<string> | undefined;
 
   async function backend(site: GitHubSite): Promise<GitHubBackend> {
-    jwt ??= githubAppJwt({ id: app.id, privateKey: app.privateKey, now: Math.floor(now / 1000) }).then(
+    jwt ??= githubAppJwt({ id: app.id, privateKey: pkcs8Key(app.privateKey), now: Math.floor(now / 1000) }).then(
       (made) => made.token,
     );
     let token: string;

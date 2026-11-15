@@ -23,6 +23,10 @@
       "types": "./dist/github.d.ts",
       "import": "./dist/github.js"
     },
+    "./keys": {
+      "types": "./dist/keys.d.ts",
+      "import": "./dist/keys.js"
+    },
     "./setup": {
       "types": "./dist/setup.d.ts",
       "import": "./dist/setup.js"

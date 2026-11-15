@@ -43,6 +43,7 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
+import { pkcs8Key } from "./keys.js";
 import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "./seal.js";
 import { createSelfSetup } from "./self-setup.js";
 
@@ -521,7 +522,8 @@ export function createWorker(options: WorkerOptions = {}) {
 
     /** A token for calling GitHub as the app itself, such as to make installation tokens. */
     async function jwtFor(app: App): Promise<string> {
-      return (await githubAppJwt({ id: app.id, privateKey: app.privateKey, now: Math.floor(now() / 1000) })).token;
+      return (await githubAppJwt({ id: app.id, privateKey: pkcs8Key(app.privateKey), now: Math.floor(now() / 1000) }))
+        .token;
     }
 
     function sealer(): Promise<Sealer> {
@@ -1144,7 +1146,8 @@ export function createWorker(options: WorkerOptions = {}) {
           ? `${url.pathname} stopped: ${error.request || "a request to GitHub"} answered ${error.status || "nothing"}${
               error.body.message ? `: ${error.body.message.slice(0, 200)}` : ""
             }`
-          : `${url.pathname} stopped: ${error instanceof Error ? error.name : "an error"}`,
+          : // Errors of the worker's own and its libraries', such as a key it can't read: never the key itself.
+            `${url.pathname} stopped: ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 200)}` : "an error"}`,
       );
       return json({ problem: "unavailable" }, 502);
     }

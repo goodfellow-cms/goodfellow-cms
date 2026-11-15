@@ -711,6 +711,24 @@ describe("setting up a site in two repositories", () => {
     for (const token of tokens) expect(context.logged.join("\n")).not.toContain(token);
   });
 
+  it("says in its logs why it couldn't sign as an app, as with a key it can't read, never with the key", async () => {
+    const context = setup({
+      env: {
+        OWNER_PRIVATE_KEY: "-----BEGIN OPENSSH PRIVATE KEY-----\\nb3BlbnNzaA==\\n-----END OPENSSH PRIVATE KEY-----",
+      },
+    });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    expect(await response.json()).toEqual({ problem: "unavailable" });
+    expect(context.logged).toHaveLength(1);
+    expect(context.logged[0]).toMatch(/^\/github\/setup\/repository stopped: Error: .*OpenSSH format/);
+    expect(context.logged[0]).not.toContain("b3BlbnNzaA");
+  });
+
   it("still creates the repository where the owners' app hasn't been given the Secrets permission", async () => {
     const context = setup({ withoutSecrets: true });
     const session = await setupSession(context);

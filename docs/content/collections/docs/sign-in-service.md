@@ -46,7 +46,7 @@ The service keeps no counts of its own, since every request it gets counts towar
 
 ## When something goes wrong
 
-When GitHub answers the service in a way it doesn't expect, the admin panel or the setup page says the sign-in service is unavailable, and the service's logs say which request GitHub refused and what GitHub said. They never include a token. Read them in Cloudflare's dashboard, under the Worker's **Observability → Logs**, or with `npx wrangler tail` while trying again.
+When GitHub answers the service in a way it doesn't expect, the admin panel or the setup page says the sign-in service is unavailable, and the service's logs say which request GitHub refused and what GitHub said. They never include a token. To read them, open the Worker in Cloudflare's dashboard (**Workers & Pages**, then its name, `sign-in` unless you named it otherwise) and choose **Observability**. To watch them live, run `npx wrangler@4 tail sign-in` and try again while it runs.
 
 Right after the setup page creates a repository, GitHub can take a few seconds to let the owners' app reach it. The service waits for up to about 15 seconds before it gives up.
 
