@@ -89,7 +89,8 @@ interface Creator {
   user: GitUser;
   owners(): Promise<SetupOwner[]>;
   isAvailable(owner: SetupOwner, name: string): Promise<boolean>;
-  create(site: NewSiteRepository): Promise<CreatedRepo>;
+  /** Creates the repository, telling `onCreated` as soon as it exists, even where the rest of the creating fails. */
+  create(site: NewSiteRepository, onCreated?: (repo: string) => void): Promise<CreatedRepo>;
   /** Who the first commit names, when the token is an app's rather than the person's. */
   author?: { name: string; email: string };
 }
@@ -243,8 +244,7 @@ function setupAccount(creator: Creator): SetupAccount {
     ): Promise<CreatedSiteRepository> {
       const warnings: SetupWarning[] = [];
       onStep?.("repository");
-      const { repo, api, signInInstallUrl } = await creator.create(site);
-      onCreated?.(repo.full_name);
+      const { repo, api, signInInstallUrl } = await creator.create(site, onCreated);
       const connect = async (link: RepositoryLink) => {
         onStep?.("connect");
         return connectRepositories(link);
@@ -308,7 +308,7 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
       return [own, ...orgs.map((org): SetupOwner => ({ path: org.login, name: org.login, kind: "organization" }))];
     },
     isAvailable,
-    async create(site) {
+    async create(site, onCreated) {
       const path =
         site.owner.kind === "personal" ? "/user/repos" : `/orgs/${encodeURIComponent(site.owner.path)}/repos`;
       // GitHub's answer when a name is taken doesn't say so in its message, so it's checked first.
@@ -321,6 +321,7 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
           method: "POST",
           body: { name: site.name, private: site.private, description: site.description, auto_init: true },
         });
+        onCreated?.(repo.full_name);
         return { repo, api };
       } catch (error) {
         if (error instanceof GitApiError && error.status === 422) {
@@ -342,10 +343,17 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
 function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof fetch, signedIn: SignedIn): Creator {
   let session = signedIn.session;
 
-  async function call<T>(path: string, body: Record<string, unknown>): Promise<Partial<T>> {
+  async function call<T>(
+    path: string,
+    body: Record<string, unknown>,
+    onProblem?: (answer: WorkerProblem) => void,
+  ): Promise<Partial<T>> {
     const answer = await service.postAnswer<T & { session?: string }>(path, { session, ...body });
     if (typeof answer.body.session === "string") session = answer.body.session;
-    if (!answer.ok) throw setupProblem(answer.body);
+    if (!answer.ok) {
+      onProblem?.(answer.body);
+      throw setupProblem(answer.body);
+    }
     return answer.body;
   }
 
@@ -367,7 +375,7 @@ function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof f
       const found = await call<{ available: boolean }>("/github/setup/available", { owner: owner.path, name });
       return found.available === true;
     },
-    async create(site) {
+    async create(site, onCreated) {
       if (site.owner.installUrl) {
         throw new SetupError(
           "not-installed",
@@ -384,8 +392,14 @@ function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof f
           description: site.description,
           ...(site.more && { more: true }),
         },
+        // The worker made the repository but couldn't finish: it names it, which is only ever the one asked for.
+        (answer) => {
+          const asked = `${site.owner.path}/${site.name}`;
+          if (answer.created?.toLowerCase() === asked.toLowerCase()) onCreated?.(answer.created);
+        },
       );
       if (!created.repo || !created.token) throw new SignInError("unavailable", "The sign-in service didn't answer.");
+      onCreated?.(created.repo.full_name);
       return {
         repo: created.repo,
         api: { apiUrl, token: created.token, fetch: fetcher },

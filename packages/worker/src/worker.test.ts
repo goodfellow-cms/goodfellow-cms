@@ -701,7 +701,8 @@ describe("setting up a site in two repositories", () => {
       "https://setup.example",
     );
     expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ problem: "unavailable" });
+    // Naming the repository it made, so the setup page can say it's there.
+    expect(await response.json()).toEqual({ problem: "unavailable", created: "maria/site" });
     expect(context.waits).toEqual(NEW_REPOSITORY_WAITS);
     expect(context.logged).toEqual([
       "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered 422: There is at least one repository that does not exist or is not accessible to the parent installation.",
@@ -770,7 +771,7 @@ describe("setting up a site in two repositories", () => {
     ]);
     const odd = await createWithTokenAnswers(() => Response.json({ message: { code: 1 } }, { status: 500 }));
     expect(odd.response.status).toBe(502);
-    expect(await odd.response.json()).toEqual({ problem: "unavailable" });
+    expect(await odd.response.json()).toEqual({ problem: "unavailable", created: "maria/site" });
     expect(odd.context.logged).toEqual([
       "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered 500",
     ]);
@@ -788,7 +789,8 @@ describe("setting up a site in two repositories", () => {
       { session, owner: "maria", name: "site", private: true },
       "https://setup.example",
     );
-    expect(await response.json()).toEqual({ problem: "unavailable" });
+    // The repository was made before the key was needed, so the answer names it.
+    expect(await response.json()).toEqual({ problem: "unavailable", created: "maria/site" });
     expect(context.logged).toHaveLength(1);
     expect(context.logged[0]).toMatch(/^\/github\/setup\/repository stopped: Error: .*OpenSSH format/);
     expect(context.logged[0]).not.toContain("b3BlbnNzaA");

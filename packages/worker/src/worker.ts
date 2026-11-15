@@ -282,6 +282,19 @@ class Problem extends Error {
   }
 }
 
+/**
+ * A failure after the setup page's repository was made, which the answer names (`created`), so the page can say the
+ * repository is there rather than offer a name that's taken now.
+ */
+class AfterCreated extends Error {
+  constructor(
+    readonly created: string,
+    readonly failure: unknown,
+  ) {
+    super("after-created");
+  }
+}
+
 const REPO = /^[\w.-]+\/[\w.-]+$/;
 const CHALLENGE = /^[\w-]{43}$/;
 
@@ -1160,14 +1173,20 @@ export function createWorker(options: WorkerOptions = {}) {
       if (path.startsWith("/github/setup/")) {
         return await setupRoute(path, body).catch((error: unknown) => {
           // The person's own token is revoked once the site is created, or GitHub may have revoked it: sign in again.
-          if (error instanceof GitHubError && error.status === 401) throw new Problem("invalid", 401);
+          const invalid = (failure: unknown) => failure instanceof GitHubError && failure.status === 401;
+          if (invalid(error)) throw new Problem("invalid", 401);
+          if (error instanceof AfterCreated && invalid(error.failure)) {
+            throw new AfterCreated(error.created, new Problem("invalid", 401));
+          }
           throw error;
         });
       }
 
       return json({ problem: "bad-request" }, 404);
-    } catch (error) {
-      if (error instanceof Problem) return json({ problem: error.problem, ...error.extra }, error.status);
+    } catch (caught) {
+      const created = caught instanceof AfterCreated ? { created: caught.created } : {};
+      const error = caught instanceof AfterCreated ? caught.failure : caught;
+      if (error instanceof Problem) return json({ problem: error.problem, ...error.extra, ...created }, error.status);
       // GitHub couldn't be reached, or answered in a way the worker doesn't expect. The answer says nothing more, but
       // the worker's logs say which request and what GitHub said, its message cut short: never a token or a body.
       log(
@@ -1178,7 +1197,7 @@ export function createWorker(options: WorkerOptions = {}) {
           : // Errors of the worker's own and its libraries', such as a key it can't read: never the key itself.
             `${url.pathname} stopped: ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 200)}` : "an error"}`,
       );
-      return json({ problem: "unavailable" }, 502);
+      return json({ problem: "unavailable", ...created }, 502);
     }
 
     /** The setup page's requests, made with the person's own token, which its session keeps for half an hour. */
@@ -1287,6 +1306,8 @@ export function createWorker(options: WorkerOptions = {}) {
             expiresAt: issued.expiresAt,
             ...(!editInstalled && editApp && { editInstallUrl: installUrl(editApp) }),
           });
+        } catch (error) {
+          throw new AfterCreated(repo.full_name, error);
         } finally {
           if (body.more !== true) await revokeUserToken(config, app, tokens.access).catch(() => {});
         }
