@@ -418,7 +418,7 @@ function rebuiltArgs(name: string, args: unknown[]): unknown[] {
 }
 
 /** What `ServeOptions.check` may give back: arguments to make the call with instead. */
-export type BrokerCheckResult = { args?: unknown[] } | undefined | void;
+export type BrokerCheckResult = { args?: unknown[] } | undefined;
 
 export interface ServeOptions {
   /**
@@ -428,7 +428,12 @@ export interface ServeOptions {
    * to refuse it, or return `args` to make the call with those in place of the
    * admin panel's, such as an editor as the site's own list gives them.
    */
-  check?(call: { path: string; args: unknown[]; target: unknown }): BrokerCheckResult | Promise<BrokerCheckResult>;
+  // biome-ignore lint/suspicious/noConfusingVoidType: most checks return nothing, which only `void` lets them do.
+  check?(call: {
+    path: string;
+    args: unknown[];
+    target: unknown;
+  }): BrokerCheckResult | void | Promise<BrokerCheckResult | void>;
   /** Answers methods the broker adds itself, such as `ownerAccess.requestToken`, by path. */
   extra?: Record<string, (...args: unknown[]) => unknown>;
 }

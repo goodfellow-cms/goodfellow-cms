@@ -164,7 +164,8 @@ function argsFit(kinds: readonly ArgKind[], args: unknown[]): boolean {
         return typeof value === "string" && normalizeDomain(value) === value;
       case "repository":
         return isRepository(value);
-      case "value":
+      default:
+        // `value`: only a body or query holds it.
         return true;
     }
   });
