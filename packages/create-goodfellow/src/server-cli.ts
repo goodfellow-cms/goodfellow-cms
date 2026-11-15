@@ -2,9 +2,9 @@
 // with the site's own accounts, on a Cloudflare Worker with a D1 database, its code and content in repositories of
 // their own on GitHub.
 import { join, relative, resolve } from "node:path";
-import { stdin, stdout } from "node:process";
+import { stdin } from "node:process";
 import { SERVER_HOSTS, workerName } from "@goodfellow-cms/core";
-import { type Runner, runIn, setUpCloudflare } from "./cloudflare-setup.js";
+import { type Runner, runIn, setUpCloudflare, yes } from "./cloudflare-setup.js";
 import { gitLines } from "./git-lines.js";
 import {
   CONTENT_REPOSITORY_DIR,
@@ -96,9 +96,13 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
       githubRepo(a, "The code's repository"),
     );
     const suggested = `${githubRepo(github, "--github")}-content`;
-    content ??= await askUntil(io, `The GitHub repository for its content (${suggested}): `, (a) =>
-      a.trim() === "" ? suggested : githubRepo(a, "The content's repository"),
-    );
+    const codeRepo = githubRepo(github, "--github");
+    content ??= await askUntil(io, `The GitHub repository for its content (${suggested}): `, (a) => {
+      const repo = a.trim() === "" ? suggested : githubRepo(a, "The content's repository");
+      // Asked again at once, rather than refused once every question is answered.
+      if (repo === codeRepo) throw new ScaffoldError("The content needs a repository of its own, not the code's.");
+      return repo;
+    });
     url ??= await askUntil(
       io,
       "The site's address, such as https://www.example.org (leave empty to set it later): ",
@@ -148,7 +152,7 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
   // Never in CI, where nobody can sign in or type a secret.
   if (choices.interactive && installed && !(io.ci ?? Boolean(process.env.CI))) {
     const answer = await io.ask("\nPut the site online on Cloudflare now, with wrangler? (Y/n) ");
-    if (!/^\s*n/i.test(answer)) {
+    if (yes(answer)) {
       left = await setUpCloudflare({
         target,
         worker,
@@ -200,7 +204,30 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
   io.say(`${lines.join("\n")}\n`);
 }
 
-/** Whether to ask questions here. */
-export function isInteractive(yes: boolean | undefined): boolean {
-  return Boolean(stdin.isTTY) && !yes && Boolean(stdout.isTTY);
+/** Whether to ask questions here: in a terminal, without `--yes`, as for any other site. */
+export function isInteractive(answerNothing: boolean | undefined): boolean {
+  return Boolean(stdin.isTTY) && !answerNothing;
+}
+
+/** The options a full-stack site can't take, which create-goodfellow takes for its other sites. */
+export const NOT_FOR_SERVER = [
+  "template",
+  "host",
+  "wordpress",
+  "blocks",
+  "build",
+  "plugin",
+  "admin",
+  "broker",
+  "broker-domain",
+] as const;
+
+/** What's wrong with the options given together, if anything: `--server`'s with others', or `--url` without it. */
+export function serverOptionProblem(values: Record<string, unknown>): string | undefined {
+  if (values.server === undefined) {
+    return values.url === undefined ? undefined : "--url is only for full-stack sites, with --server.";
+  }
+  const given = NOT_FOR_SERVER.filter((name) => values[name] !== undefined);
+  if (given.length === 0) return undefined;
+  return `--server makes a site of its own kind, which can't take ${given.map((name) => `--${name}`).join(", ")}: leave ${given.length === 1 ? "it" : "them"} out.`;
 }

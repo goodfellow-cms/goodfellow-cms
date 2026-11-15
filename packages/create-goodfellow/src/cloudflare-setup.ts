@@ -81,7 +81,7 @@ export interface CloudflareSetupOptions {
 }
 
 /** Whether an answer to a question with a default of yes is yes. */
-function yes(answer: string): boolean {
+export function yes(answer: string): boolean {
   return !/^\s*n/i.test(answer);
 }
 

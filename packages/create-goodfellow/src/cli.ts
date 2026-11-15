@@ -38,7 +38,7 @@ import {
   type TemplateName,
 } from "./scaffold.js";
 import { type Choice, select } from "./select.js";
-import { createServerSite, isInteractive } from "./server-cli.js";
+import { createServerSite, isInteractive, serverOptionProblem } from "./server-cli.js";
 
 const HELP = `Creates a new Goodfellow site.
 
@@ -178,10 +178,9 @@ async function main(): Promise<void> {
     return;
   }
 
+  const optionProblem = serverOptionProblem(values);
+  if (optionProblem) throw new ScaffoldError(optionProblem);
   if (values.server !== undefined) {
-    if (values.template !== undefined || values.host !== undefined || values.wordpress !== undefined) {
-      throw new ScaffoldError("--server makes a site of its own kind: leave out --template, --host, and --wordpress.");
-    }
     await createServerSite(
       {
         server: values.server,

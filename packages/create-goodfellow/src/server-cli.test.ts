@@ -5,7 +5,13 @@ import { join, relative, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runner } from "./cloudflare-setup.js";
 import { ScaffoldError } from "./scaffold.js";
-import { createServerSite, type ServerSiteChoices, type ServerSiteIo, siteAddress } from "./server-cli.js";
+import {
+  createServerSite,
+  type ServerSiteChoices,
+  type ServerSiteIo,
+  serverOptionProblem,
+  siteAddress,
+} from "./server-cli.js";
 
 // The company example, as create-goodfellow's bundled templates/company is.
 const templatesDir = resolve(import.meta.dirname, "../../../examples");
@@ -124,6 +130,29 @@ describe("createServerSite", { timeout: 120_000 }, () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("asks again at once when the content's repository is the code's", async () => {
+    const folder = join(dir, "acme");
+    // The code's repository, the same again for the content's, then another, no address, and no to wrangler.
+    const given = io(["acme/site", "acme/site", "acme/site-words", "", "n"]);
+    await createServerSite({ ...quiet(folder), interactive: true, install: true }, given);
+    expect(given.said.join("\n")).toContain("The content needs a repository of its own, not the code's.");
+    expect(await readFile(join(folder, "goodfellow.config.tsx"), "utf8")).toContain('repo: "acme/site-words"');
+  });
+
+  it("refuses options a full-stack site can't take, and --url without --server", () => {
+    expect(
+      serverOptionProblem({ server: "cloudflare", github: "acme/site", url: "https://x.example" }),
+    ).toBeUndefined();
+    expect(serverOptionProblem({})).toBeUndefined();
+    expect(
+      serverOptionProblem({ server: "cloudflare", plugin: ["goodfellow-plugin-x"], admin: "https://a.example" }),
+    ).toBe("--server makes a site of its own kind, which can't take --plugin, --admin: leave them out.");
+    expect(serverOptionProblem({ server: "cloudflare", template: "next" })).toContain("--template");
+    expect(serverOptionProblem({ url: "https://x.example" })).toBe(
+      "--url is only for full-stack sites, with --server.",
+    );
   });
 
   it("never offers wrangler in CI", async () => {
