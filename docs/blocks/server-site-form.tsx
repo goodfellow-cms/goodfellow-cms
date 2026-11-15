@@ -5,6 +5,7 @@ import {
   newSetupCode,
   planServerSite,
   type SetupAccount,
+  SetupError,
   type SetupOwner,
   type SetupStep,
   SignInError,
@@ -362,7 +363,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       const site = { owner: chosenOwner, private: answers.visibility === "private", pages: false };
       setCreating("code");
       if (!codeRepo) {
-        trying = { repo: code, free: available === true };
+        // Free unless the name check said it's taken: one that hasn't answered could be either.
+        trying = { repo: code, free: available !== false };
         keepMaybe(answers.name, code);
         codeRepo = await account.createSite(
           {
@@ -379,7 +381,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
         keepMade(code);
       }
       setCreating("content");
-      trying = { repo: content, free: contentAvailable === true };
+      trying = { repo: content, free: contentAvailable !== false };
       keepMaybe(answers.name, content);
       const contentRepo = await account.createSite(
         {
@@ -413,8 +415,9 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       // GitHub may have made the repository without the page hearing so, where its answer never came back.
       if (trying && !made.includes(trying.repo)) {
         const short = trying.repo.slice(chosenOwner.path.length + 1);
-        // A name that was taken before is someone else's, so nothing of this page's is there.
-        const taken = trying.free
+        // A name that was taken before, or that GitHub refused as taken, is someone else's: nothing of this page's.
+        const theirs = !trying.free || (caught instanceof SetupError && caught.problem === "name-taken");
+        const taken = !theirs
           ? await account.isAvailable(chosenOwner, short).then(
               (free) => !free,
               () => undefined,
@@ -619,7 +622,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
           {unfinished.maybe && unfinished.maybe.length > 0 && (
             <p>
               {unfinished.repos.length > 0 ? "It may also have created" : "This page may have created"}{" "}
-              <RepoList repos={unfinished.maybe} />, which GitHub hadn't confirmed when the page was left. If{" "}
+              <RepoList repos={unfinished.maybe} />, which GitHub never confirmed. If{" "}
               {unfinished.maybe.length > 1 ? "any of them is" : "it's"} on GitHub, delete it there (in Settings, at the
               bottom) before you create the site again, or choose another name.
             </p>

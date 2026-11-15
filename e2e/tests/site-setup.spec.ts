@@ -600,6 +600,69 @@ test("says what it may have made where it was reloaded before GitHub answered", 
   await expect(page.getByText("may have created")).toHaveCount(0);
 });
 
+test("says what it made where the name check hadn't answered and GitHub's answer was lost", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  const refuse = (route: Route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+  // Whether acme is free doesn't answer while it's typed, and GitHub makes acme but its answer is lost.
+  let answering = false;
+  await page.route("https://api.github.com/repos/someone/acme", (route) =>
+    answering ? route.fallback() : refuse(route),
+  );
+  await page.route("https://api.github.com/user/repos", async (route) => {
+    const request = route.request();
+    if ((request.postDataJSON() as { name?: string } | null)?.name !== "acme") return route.fallback();
+    await github.handle(
+      new Request(request.url(), { method: "POST", headers: request.headers(), body: request.postData() ?? "" }),
+    );
+    await refuse(route);
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("acme");
+  await page.getByLabel("The site's address").fill("https://www.acme.example");
+  await page.waitForTimeout(1000);
+  answering = true;
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  expect(github.created.has("someone/acme")).toBe(true);
+  // The name check afterwards finds it there, so the page says it made it.
+  const unfinished = page.getByRole("alert").filter({ hasText: "for a site it didn't finish" });
+  await expect(unfinished).toContainText("This page created someone/acme");
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(unfinished).toContainText("This page created someone/acme");
+});
+
+test("never says it made a repository GitHub refused as someone else's", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // Whether "existing" is free doesn't answer while it's typed, then does when the site is created: it's taken.
+  let answering = false;
+  await page.route("https://api.github.com/repos/someone/existing", (route) =>
+    answering
+      ? route.fallback()
+      : route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' }),
+  );
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("existing");
+  await page.getByLabel("The site's address").fill("https://www.existing.example");
+  await page.waitForTimeout(1000);
+  answering = true;
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: /already/ })).toBeVisible();
+  await expect(page.getByText(/created someone\/existing|may have created/)).toHaveCount(0);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.getByText(/created someone\/existing|may have created/)).toHaveCount(0);
+});
+
 test("never carries on with another sign-in, and says what GitHub made where a repository's setup stopped part way", async ({
   page,
 }) => {
