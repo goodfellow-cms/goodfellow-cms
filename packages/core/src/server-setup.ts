@@ -103,6 +103,20 @@ the site's own files. It needs the secret \`GOODFELLOW_DEPLOY_TOKEN\`, as the fi
 `;
 }
 
+/**
+ * The site's own test settings, in place of the example's, which takes the workspace's (`vitest.shared.ts`, which a
+ * site doesn't have): the same longer limits, since a test's first render or server can take a while to start.
+ */
+export const SITE_VITEST_CONFIG = `import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
+  },
+});
+`;
+
 /** What the code's README says first about the names this site was given. */
 function namesSection(worker: string, code: string, content: string): string {
   return `## This site's names
@@ -163,6 +177,7 @@ export function planServerSite({ template, name, versions, code, content, siteUr
       files.delete(path);
     }
   }
+  if (files.has("vitest.config.ts")) files.set("vitest.config.ts", SITE_VITEST_CONFIG);
   files.set(`${CONTENT_REPOSITORY_DIR}/.github/workflows/deploy-site.yml`, deploySiteWorkflow(codeRepo));
   files.set(`${CONTENT_REPOSITORY_DIR}/README.md`, serverContentReadme(sitePackageName(name), codeRepo));
   const gitignore = files.get(".gitignore");

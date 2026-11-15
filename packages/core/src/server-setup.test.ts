@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { planServerSite, TEMPLATE_WORKER, workerName } from "./server-setup.js";
+import { planServerSite, SITE_VITEST_CONFIG, TEMPLATE_WORKER, workerName } from "./server-setup.js";
 import { type SiteFiles, siteFileText } from "./site-setup.js";
 
 const company = join(import.meta.dirname, "../../../examples/company");
@@ -94,6 +94,16 @@ describe("planServerSite", () => {
     expect(gitignore).toContain("node_modules/");
     expect(gitignore).toContain("/content-repository/");
     expect(siteFileText(files.get(".npmrc") ?? "")).toContain("ignore-scripts=true");
+  });
+
+  it("leaves nothing that reaches outside the site, as the example's test settings do into the workspace", () => {
+    const files = planServerSite({ template: companyFiles(), name: "acme", versions });
+    for (const [path, file] of files) {
+      if (typeof file !== "string" || !/\.(ts|tsx|mjs|js|json|jsonc)$/.test(path)) continue;
+      // The links content/ and public/media/ make go into content-repository/, which is the site's own.
+      expect(file, path).not.toMatch(/["'](\.\.\/){2,}/);
+    }
+    expect(files.get("vitest.config.ts")).toBe(SITE_VITEST_CONFIG);
   });
 
   it("gives names Cloudflare takes", () => {
