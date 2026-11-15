@@ -145,6 +145,67 @@ describe("setUpFirstAdmin", () => {
     expect(site.admins()).toEqual(["olive@example.org"]);
   });
 
+  it("retires the code however /setup/ writes and takes out its claim around npm run new-admin's writes", async () => {
+    let row: { value: string } | null = null;
+    let creates = 0;
+    let updates = 0;
+    const made: string[] = [];
+    const maker: AdminMaker = {
+      adapter: {
+        findOne: async () => row,
+        create: async (query) => {
+          // /setup/ claims the row just before the command's first insert, which then conflicts.
+          if (creates++ === 0) {
+            row = { value: "a setup request" };
+            throw new Error("UNIQUE constraint failed");
+          }
+          row = { value: String(query.data.value) };
+        },
+        update: async (query) => {
+          // /setup/ fails and takes its claim out just before the command's update, which matches no row.
+          if (updates++ === 0) {
+            row = null;
+            return null;
+          }
+          if (row) row = { value: String(query.update.value) };
+          return row;
+        },
+      },
+      internalAdapter: {
+        findUserByEmail: async () => null,
+        createUser: async (user) => {
+          made.push(`user as ${user.role}`);
+          return { id: "u1" };
+        },
+        updateUser: async (_id, data) => {
+          made.push(`now ${data.role}`);
+        },
+        linkAccount: async () => {
+          made.push("account");
+        },
+        deleteUser: async () => {
+          made.push("deleted");
+        },
+      },
+      password: { hash: async () => "hashed" },
+    };
+    await createAdmin(maker, OLIVE);
+    expect(row).toEqual({ value: SETUP_RETIRED });
+    expect(made).toEqual(["user as member", "account", "now admin"]);
+    // Where /setup/ keeps changing the row, no admin is made.
+    made.length = 0;
+    const restless: AdminMaker = {
+      ...maker,
+      adapter: {
+        findOne: async () => ({ value: "a setup request" }),
+        create: async () => {},
+        update: async () => null,
+      },
+    };
+    await expect(createAdmin(restless, OLIVE)).rejects.toThrow("couldn't be marked as used");
+    expect(made).toEqual([]);
+  });
+
   it("makes one admin when two ask at the same moment", async () => {
     const site = await freshSite();
     const results = await Promise.allSettled([
@@ -218,38 +279,44 @@ describe("setUpFirstAdmin", () => {
 
   it("leaves no admin without a password, whichever write fails", async () => {
     const made: string[] = [];
-    const maker = (fails: "hash" | "link" | "link and delete" | "promote"): AdminMaker => ({
-      adapter: {
-        findOne: async () => null,
-        create: async () => made.push("code retired"),
-        update: async () => made.push("code retired over a claim"),
-      },
-      internalAdapter: {
-        findUserByEmail: async () => null,
-        createUser: async (user) => {
-          made.push(`user as ${user.role}`);
-          return { id: "u1" };
+    const maker = (fails: "hash" | "link" | "link and delete" | "promote"): AdminMaker => {
+      let retired = false;
+      return {
+        adapter: {
+          findOne: async () => (retired ? { value: SETUP_RETIRED } : null),
+          create: async () => {
+            retired = true;
+            made.push("code retired");
+          },
+          update: async () => made.push("code retired over a claim"),
         },
-        updateUser: async (_id, data) => {
-          if (fails === "promote") throw new Error("D1 went away");
-          made.push(`now ${data.role}`);
+        internalAdapter: {
+          findUserByEmail: async () => null,
+          createUser: async (user) => {
+            made.push(`user as ${user.role}`);
+            return { id: "u1" };
+          },
+          updateUser: async (_id, data) => {
+            if (fails === "promote") throw new Error("D1 went away");
+            made.push(`now ${data.role}`);
+          },
+          linkAccount: async () => {
+            if (fails !== "hash" && fails !== "promote") throw new Error("D1 went away");
+            made.push("account");
+          },
+          deleteUser: async () => {
+            if (fails === "link and delete") throw new Error("D1 still away");
+            made.push("deleted");
+          },
         },
-        linkAccount: async () => {
-          if (fails !== "hash" && fails !== "promote") throw new Error("D1 went away");
-          made.push("account");
+        password: {
+          hash: async () => {
+            if (fails === "hash") throw new Error("no hashing today");
+            return "hashed";
+          },
         },
-        deleteUser: async () => {
-          if (fails === "link and delete") throw new Error("D1 still away");
-          made.push("deleted");
-        },
-      },
-      password: {
-        hash: async () => {
-          if (fails === "hash") throw new Error("no hashing today");
-          return "hashed";
-        },
-      },
-    });
+      };
+    };
     await expect(createAdmin(maker("hash"), OLIVE)).rejects.toThrow("no hashing today");
     expect(made).toEqual([]);
     await expect(createAdmin(maker("link"), OLIVE)).rejects.toThrow("D1 went away");

@@ -62,42 +62,45 @@ export const SETUP_DONE = "first-admin";
 /** What the row says once an admin has been made, whoever made them (`/setup/` holds it with a value of its own until then). */
 export const SETUP_RETIRED = "retired";
 
+/** How many times `retireSetupCode()` writes the row before giving up, should `/setup/` keep changing it meanwhile. */
+const RETIRE_TRIES = 5;
+
 /**
  * Writes the row that retires the setup code (`SETUP_DONE`) for good, unless `claim`, the value `/setup/` holds it
  * with while making its admin, is what it says: a row `/setup/` holds is taken over, since `/setup/` takes out only a
- * row with its own value when it fails, and that would make the code work again beside this admin.
+ * row with its own value when it fails, and that would make the code work again beside this admin. Each write is
+ * read back, since `/setup/` may write or take out its row between the read and the write; it throws, before any
+ * admin is made, if the row still isn't retired after `RETIRE_TRIES` writes.
  */
 async function retireSetupCode(adapter: AdminMaker["adapter"], claim?: string): Promise<void> {
   const where = [{ field: "id", value: SETUP_DONE }];
-  const row = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
-  if (row && (row.value === SETUP_RETIRED || (claim !== undefined && row.value === claim))) return;
-  const now = new Date();
-  if (row) {
-    await adapter.update({ model: "verification", where, update: { value: SETUP_RETIRED, updatedAt: now } });
-  } else {
-    try {
-      await adapter.create({
-        model: "verification",
-        data: {
-          id: SETUP_DONE,
-          identifier: SETUP_DONE,
-          value: SETUP_RETIRED,
-          expiresAt: new Date("9999-12-31T00:00:00Z"),
-          createdAt: now,
-          updatedAt: now,
-        },
-        forceAllowId: true,
-      });
-      return;
-    } catch {
-      // Another request wrote it meanwhile, and it's checked below.
+  for (let tries = 0; tries < RETIRE_TRIES; tries++) {
+    const row = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
+    if (row && (row.value === SETUP_RETIRED || (claim !== undefined && row.value === claim))) return;
+    const now = new Date();
+    // Either write can miss or fail where `/setup/` got there first; the next read says what's there.
+    if (row) {
+      await adapter
+        .update({ model: "verification", where, update: { value: SETUP_RETIRED, updatedAt: now } })
+        .catch(() => undefined);
+    } else {
+      await adapter
+        .create({
+          model: "verification",
+          data: {
+            id: SETUP_DONE,
+            identifier: SETUP_DONE,
+            value: SETUP_RETIRED,
+            expiresAt: new Date("9999-12-31T00:00:00Z"),
+            createdAt: now,
+            updatedAt: now,
+          },
+          forceAllowId: true,
+        })
+        .catch(() => undefined);
     }
   }
-  // `/setup/` may have taken its row out, or written one, meanwhile: what's there now must be the retired one.
-  const after = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
-  if (after?.value === SETUP_RETIRED) return;
-  if (after) await adapter.update({ model: "verification", where, update: { value: SETUP_RETIRED, updatedAt: now } });
-  else await retireSetupCode(adapter);
+  throw new Error("The site's setup code couldn't be marked as used. Try again in a moment.");
 }
 
 /** An address someone already has an account with. */
