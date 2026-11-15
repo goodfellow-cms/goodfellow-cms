@@ -74,9 +74,11 @@ const RETIRE_TRIES = 5;
  */
 async function retireSetupCode(adapter: AdminMaker["adapter"], claim?: string): Promise<void> {
   const where = [{ field: "id", value: SETUP_DONE }];
-  for (let tries = 0; tries < RETIRE_TRIES; tries++) {
+  // Each write is read back by the next turn's read, the last one's too, before giving up.
+  for (let writes = 0; ; writes++) {
     const row = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
     if (row && (row.value === SETUP_RETIRED || (claim !== undefined && row.value === claim))) return;
+    if (writes === RETIRE_TRIES) break;
     const now = new Date();
     // Either write can miss or fail where `/setup/` got there first; the next read says what's there.
     if (row) {

@@ -204,6 +204,23 @@ describe("setUpFirstAdmin", () => {
     };
     await expect(createAdmin(restless, OLIVE)).rejects.toThrow("couldn't be marked as used");
     expect(made).toEqual([]);
+    // Where only the last write it tries lands, that's read back, and the admin is made.
+    let held: { value: string } | null = { value: "a setup request" };
+    let tries = 0;
+    const late: AdminMaker = {
+      ...maker,
+      adapter: {
+        findOne: async () => held,
+        create: async () => {},
+        update: async (query) => {
+          if (++tries === 5) held = { value: String(query.update.value) };
+          return null;
+        },
+      },
+    };
+    await createAdmin(late, OLIVE);
+    expect(held).toEqual({ value: SETUP_RETIRED });
+    expect(made).toEqual(["user as member", "account", "now admin"]);
   });
 
   it("makes one admin when two ask at the same moment", async () => {
