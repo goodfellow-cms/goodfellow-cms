@@ -41,23 +41,27 @@ const ANSWERS_KEY = "goodfellow:setup:full-stack";
  */
 const UNFINISHED_KEY = "goodfellow:setup:full-stack:unfinished";
 
-/** The repositories made for a site the page can't finish, by their paths, and the name the site was given. */
+/**
+ * The repositories made for a site the page can't finish, by their paths, and the name the site was given: `repos`,
+ * which the host said it made, and `maybe`, which the page asked for and never heard about, as when it was reloaded
+ * while waiting, so they may or may not be there.
+ */
 export interface Unfinished {
   name: string;
   repos: string[];
+  maybe?: string[];
 }
+
+const REPO_PATH = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 
 /** What the tab kept as `UNFINISHED_KEY`, where it reads as one. */
 export function keptUnfinished(text: string | null): Unfinished | undefined {
   try {
-    const { name, repos } = JSON.parse(text ?? "") as Partial<Unfinished>;
-    if (
-      typeof name === "string" &&
-      Array.isArray(repos) &&
-      repos.length > 0 &&
-      repos.every((repo) => typeof repo === "string" && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(repo))
-    ) {
-      return { name, repos };
+    const { name, repos, maybe = [] } = JSON.parse(text ?? "") as Partial<Unfinished>;
+    const paths = (list: unknown) =>
+      Array.isArray(list) && list.every((repo) => typeof repo === "string" && REPO_PATH.test(repo));
+    if (typeof name === "string" && paths(repos) && paths(maybe) && (repos?.length ?? 0) + maybe.length > 0) {
+      return { name, repos: repos ?? [], ...(maybe.length > 0 && { maybe }) };
     }
   } catch {
     // Nothing kept, or nothing this page can read.
@@ -65,22 +69,40 @@ export function keptUnfinished(text: string | null): Unfinished | undefined {
   return undefined;
 }
 
-/**
- * Adds repositories made for a site to those the tab keeps, or, with `made` false, takes them out, keeping every other
- * site's: trying another name keeps what the names tried before made.
- */
-function keepUnfinished(name: string, repos: string[], made = true): void {
+/** Changes what the tab keeps, keeping every other site's: trying another name keeps what the ones before made. */
+function changeKept(name: string, change: (kept: { repos: string[]; maybe: string[] }) => Unfinished): void {
   try {
-    const kept = keptUnfinished(sessionStorage.getItem(UNFINISHED_KEY))?.repos ?? [];
-    const all = made
-      ? [...kept, ...repos.filter((repo) => !kept.includes(repo))]
-      : kept.filter((repo) => !repos.includes(repo));
-    if (all.length > 0)
-      sessionStorage.setItem(UNFINISHED_KEY, JSON.stringify({ name, repos: all } satisfies Unfinished));
-    else sessionStorage.removeItem(UNFINISHED_KEY);
+    const kept = keptUnfinished(sessionStorage.getItem(UNFINISHED_KEY));
+    const next = change({ repos: kept?.repos ?? [], maybe: kept?.maybe ?? [] });
+    const maybe = (next.maybe ?? []).filter((repo) => !next.repos.includes(repo));
+    if (next.repos.length + maybe.length > 0) {
+      sessionStorage.setItem(UNFINISHED_KEY, JSON.stringify({ name, repos: next.repos, maybe } satisfies Unfinished));
+    } else sessionStorage.removeItem(UNFINISHED_KEY);
   } catch {
     // Without the tab's storage, a reload forgets them.
   }
+}
+
+/** Keeps repositories the host said it made, or, with `made` false, forgets them, made or maybe made. */
+function keepUnfinished(name: string, repos: string[], made = true): void {
+  changeKept(name, (kept) =>
+    made
+      ? { name, repos: [...kept.repos, ...repos.filter((repo) => !kept.repos.includes(repo))], maybe: kept.maybe }
+      : {
+          name,
+          repos: kept.repos.filter((repo) => !repos.includes(repo)),
+          maybe: kept.maybe.filter((repo) => !repos.includes(repo)),
+        },
+  );
+}
+
+/** Keeps a repository the page is about to ask for, until the host says whether it made it. */
+function keepMaybe(name: string, repo: string): void {
+  changeKept(name, (kept) => ({
+    name,
+    repos: kept.repos,
+    maybe: [...kept.maybe.filter((path) => path !== repo), repo],
+  }));
 }
 
 /** A repository's page on GitHub, from its path. */
@@ -323,8 +345,9 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       resumed?.answers ??
       ({ name, visibility, address: "address" in typedAddress ? typedAddress.address : "" } as const);
     // The repositories GitHub has made for this site, kept in the tab as soon as each is made, so a reload or a failure
-    // part way through still says what's there.
+    // part way through still says what's there; each is kept as maybe made from just before it's asked for.
     const made = resumed ? [resumed.repo.repo] : [];
+    const unsure: string[] = [];
     const keepMade = (repo: string) => {
       if (made.includes(repo)) return;
       made.push(repo);
@@ -340,6 +363,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       setCreating("code");
       if (!codeRepo) {
         trying = { repo: code, free: available === true };
+        keepMaybe(answers.name, code);
         codeRepo = await account.createSite(
           {
             ...site,
@@ -356,6 +380,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       }
       setCreating("content");
       trying = { repo: content, free: contentAvailable === true };
+      keepMaybe(answers.name, content);
       const contentRepo = await account.createSite(
         {
           ...site,
@@ -374,7 +399,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
         setStep,
         keepMade,
       );
-      keepUnfinished(answers.name, made, false);
+      keepUnfinished(answers.name, [code, content], false);
       setBegun(undefined);
       setCreated({
         code: codeRepo,
@@ -386,23 +411,26 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     } catch (caught) {
       setError(createMessage(caught));
       // GitHub may have made the repository without the page hearing so, where its answer never came back.
-      if (trying?.free && !made.includes(trying.repo)) {
+      if (trying && !made.includes(trying.repo)) {
         const short = trying.repo.slice(chosenOwner.path.length + 1);
-        if (
-          await account.isAvailable(chosenOwner, short).then(
-            (free) => !free,
-            () => false,
-          )
-        )
-          keepMade(trying.repo);
+        // A name that was taken before is someone else's, so nothing of this page's is there.
+        const taken = trying.free
+          ? await account.isAvailable(chosenOwner, short).then(
+              (free) => !free,
+              () => undefined,
+            )
+          : false;
+        if (taken) keepMade(trying.repo);
+        else if (taken === false) keepUnfinished(answers.name, [trying.repo], false);
+        else unsure.push(trying.repo);
       }
-      if (codeRepo && setupCode && !made.includes(content)) {
+      if (codeRepo && setupCode && !made.includes(content) && !unsure.includes(content)) {
         // Only the code's repository is made, by this sign-in, so trying again carries on with it.
         setBegun({ repo: codeRepo, setupCode, answers, account });
-      } else if (made.length > 0) {
+      } else if (made.length + unsure.length > 0) {
         // The content's name is taken by what was made, or the code's setup stopped part way: neither can be finished.
         setBegun((before) => (before?.repo.repo === code ? undefined : before));
-        setUnfinished((before) => withRepos(before, answers.name, made));
+        setUnfinished((before) => withRepos(before, answers.name, made, unsure));
       }
     } finally {
       setBusy(false);
@@ -580,27 +608,32 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
 
       {unfinished && (
         <div role="alert" className="grid gap-2 rounded-lg border-2 border-primary bg-muted p-3 text-sm font-medium">
-          <p>
-            This page created{" "}
-            {unfinished.repos.map((repo, at) => (
-              <span key={repo}>
-                {at > 0 && (at === unfinished.repos.length - 1 ? (at > 1 ? ", and " : " and ") : ", ")}
-                <RepoLink repo={githubRepo(repo)} />
-              </span>
-            ))}{" "}
-            for a site it didn't finish, and it can't carry on with {unfinished.repos.length > 1 ? "them" : "it"} now.
-            Delete {unfinished.repos.length > 1 ? "each of them" : unfinished.repos[0]} on GitHub (in Settings, at the
-            bottom), then create the site again, or choose another name.
-          </p>
+          {unfinished.repos.length > 0 && (
+            <p>
+              This page created <RepoList repos={unfinished.repos} /> for a site it didn't finish, and it can't carry on
+              with {unfinished.repos.length > 1 ? "them" : "it"} now. Delete{" "}
+              {unfinished.repos.length > 1 ? "each of them" : unfinished.repos[0]} on GitHub (in Settings, at the
+              bottom), then create the site again, or choose another name.
+            </p>
+          )}
+          {unfinished.maybe && unfinished.maybe.length > 0 && (
+            <p>
+              {unfinished.repos.length > 0 ? "It may also have created" : "This page may have created"}{" "}
+              <RepoList repos={unfinished.maybe} />, which GitHub hadn't confirmed when the page was left. If{" "}
+              {unfinished.maybe.length > 1 ? "any of them is" : "it's"} on GitHub, delete it there (in Settings, at the
+              bottom) before you create the site again, or choose another name.
+            </p>
+          )}
           <button
             type="button"
             className={`${link} justify-self-start`}
             onClick={() => {
-              keepUnfinished(unfinished.name, unfinished.repos, false);
+              keepUnfinished(unfinished.name, [...unfinished.repos, ...(unfinished.maybe ?? [])], false);
               setUnfinished(undefined);
             }}
           >
-            I've deleted {unfinished.repos.length > 1 ? "them" : "it"}, or I'll choose another name
+            I've deleted {unfinished.repos.length + (unfinished.maybe?.length ?? 0) > 1 ? "them" : "it"}, or I'll choose
+            another name
           </button>
         </div>
       )}
@@ -646,9 +679,22 @@ interface Begun {
 }
 
 /** The repositories that can't be finished, with more added, each once. */
-function withRepos(before: Unfinished | undefined, name: string, repos: string[]): Unfinished {
-  const kept = before?.repos ?? [];
-  return { name, repos: [...kept, ...repos.filter((repo) => !kept.includes(repo))] };
+function withRepos(before: Unfinished | undefined, name: string, repos: string[], maybe: string[] = []): Unfinished {
+  const all = [...(before?.repos ?? []), ...repos].filter((repo, at, list) => list.indexOf(repo) === at);
+  const unsure = [...(before?.maybe ?? []), ...maybe].filter(
+    (repo, at, list) => list.indexOf(repo) === at && !all.includes(repo),
+  );
+  return { name, repos: all, ...(unsure.length > 0 && { maybe: unsure }) };
+}
+
+/** Repositories' links, joined as a list in words. */
+function RepoList({ repos }: { repos: string[] }) {
+  return repos.map((repo, at) => (
+    <span key={repo}>
+      {at > 0 && (at === repos.length - 1 ? (at > 1 ? ", and " : " and ") : ", ")}
+      <RepoLink repo={githubRepo(repo)} />
+    </span>
+  ));
 }
 
 /** Both repositories, made, with the setup code and the address the code's has. */

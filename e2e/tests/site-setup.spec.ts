@@ -572,6 +572,34 @@ test("says what to do about a code repository it made before a reload, which it 
   await expect(page.getByText("for a site it didn't finish")).toHaveCount(0);
 });
 
+test("says what it may have made where it was reloaded before GitHub answered", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // GitHub takes the request to make the repository, and the page is left before it answers.
+  let asked = false;
+  await page.route("https://api.github.com/user/repos", async (route) => {
+    if ((route.request().postDataJSON() as { name?: string } | null)?.name !== "acme") return route.fallback();
+    asked = true;
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("acme");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect.poll(() => asked).toBe(true);
+  await page.reload({ waitUntil: "networkidle" });
+  const unfinished = page.getByRole("alert").filter({ hasText: "may have created" });
+  await expect(unfinished).toContainText("This page may have created someone/acme");
+  await expect(unfinished).toContainText("If it's on GitHub, delete it there");
+  await expect(unfinished).not.toContainText("for a site it didn't finish");
+  await unfinished.getByRole("button", { name: /I've deleted it/ }).click();
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.getByText("may have created")).toHaveCount(0);
+});
+
 test("never carries on with another sign-in, and says what GitHub made where a repository's setup stopped part way", async ({
   page,
 }) => {
