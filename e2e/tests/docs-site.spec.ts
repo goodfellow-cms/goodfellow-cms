@@ -41,7 +41,10 @@ test("shows a documentation page with its navigation, headings, and highlighted,
   const code = page.locator("figure.gf-code").first();
   await expect(code.locator("pre.shiki")).toContainText("npm create goodfellow@latest my-site");
   await code.hover();
-  await code.getByRole("button", { name: "Copy code" }).click();
+  const copy = code.getByRole("button", { name: "Copy code" });
+  // Buttons on Goodfellow sites show the hand, not the arrow Tailwind gives them.
+  await expect(copy).toHaveCSS("cursor", "pointer");
+  await copy.click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe("npm create goodfellow@latest my-site");
