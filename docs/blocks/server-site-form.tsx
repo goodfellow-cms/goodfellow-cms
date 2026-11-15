@@ -15,7 +15,7 @@ import {
 } from "@goodfellow-cms/core";
 import { githubSetup } from "@goodfellow-cms/github";
 import { SiteLink, useSite } from "@goodfellow-cms/react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   createMessage,
   decodeBase64,
@@ -175,10 +175,11 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   const [unfinished, setUnfinished] = useState<Begun>();
   const [created, setCreated] = useState<CreatedSite>();
 
-  const failedSignIn = (caught: unknown) => {
+  // Only state setters, which never change, so the effect below can name it.
+  const failedSignIn = useCallback((caught: unknown) => {
     setError(signInMessage(caught));
     if (caught instanceof SignInError && TOKEN_PROBLEMS.has(caught.problem)) setShowToken(true);
-  };
+  }, []);
 
   useEffect(() => {
     // Coming back from signing in, with the answers given before.
@@ -207,12 +208,9 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     host
       .restore()
       .then((restored) => setAccount(restored ?? undefined))
-      .catch((caught: unknown) => {
-        setError(signInMessage(caught));
-        if (caught instanceof SignInError && TOKEN_PROBLEMS.has(caught.problem)) setShowToken(true);
-      })
+      .catch(failedSignIn)
       .finally(() => setLoading(false));
-  }, [host]);
+  }, [host, failedSignIn]);
 
   useEffect(() => {
     if (!account) return;

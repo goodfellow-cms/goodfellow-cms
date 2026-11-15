@@ -3,16 +3,7 @@
 // wrangler.jsonc's `GOODFELLOW_SETUP_CODE_HASH`, so the code can't be read from the repository even where it's public.
 // It makes one admin, once: while the site has no admin, and never again after, whatever happens to them.
 import { SETUP_CODE_VARIABLE, setupCodeHash } from "@goodfellow-cms/core";
-import {
-  AdminTaken,
-  createAdmin,
-  MAX_ADMIN_NAME,
-  MAX_ADMIN_PASSWORD,
-  MIN_ADMIN_PASSWORD,
-  type NewAdmin,
-  newAdminProblem,
-  SIGN_IN_EMAIL,
-} from "./admins.ts";
+import { AdminTaken, createAdmin, type NewAdmin, newAdminProblem } from "./admins.ts";
 import { claimRow, type SiteAuth, takeEmailSlot } from "./auth.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -64,21 +55,8 @@ export function setupFrom(body: unknown): NewAdmin & { code: string } {
   const code = text("code");
   if (code.trim() === "" || code.length > 100) throw new SetupError(400, "Give the setup code the setup page showed.");
   const person = { email: text("email").trim(), name: text("name"), password: text("password") };
-  // In the words of someone making themselves the admin, for the same problems `npm run new-admin` refuses.
-  if (!SIGN_IN_EMAIL.test(person.email) || person.email.length > 254) {
-    throw new SetupError(400, "Give your email address.");
-  }
-  if (person.name.trim() === "" || person.name.trim().length > MAX_ADMIN_NAME) {
-    throw new SetupError(400, `Give your name, in ${MAX_ADMIN_NAME} characters at most.`);
-  }
-  if (person.password.length < MIN_ADMIN_PASSWORD || person.password.length > MAX_ADMIN_PASSWORD) {
-    throw new SetupError(
-      400,
-      `Choose a password of at least ${MIN_ADMIN_PASSWORD} characters, and at most ${MAX_ADMIN_PASSWORD}.`,
-    );
-  }
-  // Anything the checks above let through that `createAdmin()` would refuse.
-  const problem = newAdminProblem(person);
+  // The same rules as `npm run new-admin`'s, in the words of someone making themselves the admin.
+  const problem = newAdminProblem(person, "self");
   if (problem) throw new SetupError(400, problem);
   return { ...person, code };
 }
