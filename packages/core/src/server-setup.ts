@@ -48,9 +48,17 @@ const SETUP_CODE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 /** How many letters a setup code has: 120 random bits, five for each. */
 export const SETUP_CODE_LENGTH = 24;
 
-/** A setup code as people type it, in capitals and without spaces or dashes, so neither matters. */
+/**
+ * A setup code as people type it, in capitals and without spaces or dashes, so neither matters, with the digits a
+ * code never has read as the letters they look like (0 as O, 1 as I, 8 as B).
+ */
 export function setupCodeText(code: string): string {
-  return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return code
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .replaceAll("0", "O")
+    .replaceAll("1", "I")
+    .replaceAll("8", "B");
 }
 
 /** A new setup code, from the platform's random numbers, in groups of four to read: `ABCD-EFGH-…`. */

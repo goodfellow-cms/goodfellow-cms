@@ -1,6 +1,8 @@
 // Making an admin, someone who owns the site, with Better Auth's own adapter, so the account and its password are
 // stored just as signing in reads them: by `npm run new-admin` (lib/db/new-admin.ts) and by the site's own `/setup/`
 // page (lib/first-admin.ts). Nothing here reads files, so it runs on Workers too.
+import { MEMBER_ROLE } from "./roles.ts";
+
 /** The person to make an admin. */
 export interface NewAdmin {
   email: string;
@@ -51,6 +53,7 @@ export interface AdminMaker {
       user: { email: string; name: string; emailVerified: boolean; role: string },
       context: { method: "admin" },
     ): Promise<{ id: string }>;
+    updateUser(userId: string, data: { role: string }): Promise<unknown>;
     linkAccount(account: { userId: string; providerId: string; accountId: string; password: string }): Promise<unknown>;
     deleteUser(userId: string): Promise<unknown>;
   };
@@ -65,8 +68,10 @@ export async function createAdmin(context: AdminMaker, person: NewAdmin): Promis
   if (await context.internalAdapter.findUserByEmail(email)) throw new AdminTaken(`${email} already has an account.`);
   // Before anything is written, so a failure leaves no account without a password.
   const password = await context.password.hash(person.password);
+  // A reader until it has its password, then an admin: D1 has no transactions, so an account left half made, even
+  // where removing it fails too, is never an admin nobody can sign in as, which would count as the site's.
   const user = await context.internalAdapter.createUser(
-    { email, name: person.name.trim(), emailVerified: true, role: "admin" },
+    { email, name: person.name.trim(), emailVerified: true, role: MEMBER_ROLE },
     { method: "admin" },
   );
   try {
@@ -77,8 +82,8 @@ export async function createAdmin(context: AdminMaker, person: NewAdmin): Promis
       password,
     });
   } catch (error) {
-    // D1 has no transactions, so the account goes again: an admin nobody can sign in as would count as the site's.
-    await context.internalAdapter.deleteUser(user.id);
+    await context.internalAdapter.deleteUser(user.id).catch(() => undefined);
     throw error;
   }
+  await context.internalAdapter.updateUser(user.id, { role: "admin" });
 }

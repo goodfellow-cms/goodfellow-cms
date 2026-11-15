@@ -33,6 +33,45 @@ import { button, Choice, fetchJson, input, LockfileWarning, link, Note, Question
 /** The page's answers, kept in the browser tab while someone signs in with GitHub and comes back. */
 const ANSWERS_KEY = "goodfellow:setup:full-stack";
 
+/**
+ * A code repository this tab created, kept in the tab until the content's is made too. A sign-in can connect only
+ * the repositories it created itself, so after a reload or signing in again the page can't finish that site: it says
+ * so, rather than leave a repository nobody knows was made, holding the hash of a code nobody saw.
+ */
+const BEGUN_KEY = "goodfellow:setup:full-stack:begun";
+
+/** What the tab kept as `BEGUN_KEY`, where it reads as one. */
+export function keptBegun(text: string | null): Begun | undefined {
+  try {
+    const kept = JSON.parse(text ?? "") as Partial<Begun>;
+    const { repo, setupCode, answers } = kept;
+    if (
+      typeof repo?.repo === "string" &&
+      typeof repo.webUrl === "string" &&
+      typeof setupCode?.code === "string" &&
+      /^[0-9a-f]{64}$/.test(setupCode.hash ?? "") &&
+      typeof answers?.name === "string" &&
+      (answers.visibility === "public" || answers.visibility === "private") &&
+      typeof answers.address === "string"
+    ) {
+      return { repo: { ...repo, warnings: repo.warnings ?? [] } as CreatedSiteRepository, setupCode, answers };
+    }
+  } catch {
+    // Nothing kept, or nothing this page can read.
+  }
+  return undefined;
+}
+
+/** Keeps the code repository made, or forgets it, in the tab. */
+function keepBegun(begun: Begun | undefined): void {
+  try {
+    if (begun) sessionStorage.setItem(BEGUN_KEY, JSON.stringify(begun));
+    else sessionStorage.removeItem(BEGUN_KEY);
+  } catch {
+    // Without the tab's storage, a reload starts again.
+  }
+}
+
 /** Where in Cloudflare's dashboard the token for deploying is made: its "Edit Cloudflare Workers" template. */
 const CLOUDFLARE_TOKENS = "https://dash.cloudflare.com/profile/api-tokens";
 
@@ -132,6 +171,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
    * trying again after the content's repository failed carries on with all three, whatever's been typed since.
    */
   const [begun, setBegun] = useState<Begun>();
+  /** A code repository made before this page was reloaded, which it can't finish (`BEGUN_KEY`). */
+  const [unfinished, setUnfinished] = useState<Begun>();
   const [created, setCreated] = useState<CreatedSite>();
 
   const failedSignIn = (caught: unknown) => {
@@ -145,6 +186,12 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     try {
       saved = sessionStorage.getItem(ANSWERS_KEY);
       sessionStorage.removeItem(ANSWERS_KEY);
+      // A code repository made before a reload, or before signing in again, whose content's wasn't.
+      const kept = keptBegun(sessionStorage.getItem(BEGUN_KEY));
+      if (kept) {
+        setUnfinished(kept);
+        setName(kept.answers.name);
+      }
     } catch {
       saved = null;
     }
@@ -173,7 +220,15 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       .owners()
       .then((found) => {
         setOwners(found);
-        setOwner(found[0]?.path ?? "");
+        // The account the code repository made before a reload is in, where there is one.
+        let kept: Begun | undefined;
+        try {
+          kept = keptBegun(sessionStorage.getItem(BEGUN_KEY));
+        } catch {
+          kept = undefined;
+        }
+        const keptOwner = found.find((candidate) => kept?.repo.repo.startsWith(`${candidate.path}/`));
+        setOwner(keptOwner?.path ?? found[0]?.path ?? "");
       })
       .catch((caught: unknown) => setError(createMessage(caught)));
   }, [account]);
@@ -262,7 +317,11 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
           },
           setStep,
         ));
-      if (!resumed) setBegun({ repo: codeRepo, setupCode: made, answers });
+      if (!resumed) {
+        const begunNow = { repo: codeRepo, setupCode: made, answers };
+        setBegun(begunNow);
+        keepBegun(begunNow);
+      }
       setCreating("content");
       const contentRepo = await account.createSite(
         {
@@ -281,6 +340,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
         },
         setStep,
       );
+      keepBegun(undefined);
       setCreated({
         code: codeRepo,
         content: contentRepo,
@@ -306,7 +366,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       <Note>
         A full-stack site runs on a Cloudflare Worker with a database: editors sign in with accounts the site keeps
         itself, and readers can sign up and subscribe. It's for organizations that want those, and it needs a Cloudflare
-        account and a domain. For a site that's only pages,{" "}
+        account. A domain of its own is up to you: without one, it's at the address Cloudflare gives it. For a site
+        that's only pages,{" "}
         <SiteLink className={link} href={CHOOSE_PATH}>
           create a static site
         </SiteLink>{" "}
@@ -463,6 +524,25 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
         </>
       )}
 
+      {unfinished && (
+        <div role="alert" className="grid gap-2 rounded-lg border-2 border-primary bg-muted p-3 text-sm font-medium">
+          <p>
+            Before this page was reloaded, it created <RepoLink repo={unfinished.repo} /> but not its content, and it
+            can't finish that site now. Delete {unfinished.repo.repo} on GitHub (its Settings, at the bottom), then
+            create the site again, or choose another name.
+          </p>
+          <button
+            type="button"
+            className={`${link} justify-self-start`}
+            onClick={() => {
+              keepBegun(undefined);
+              setUnfinished(undefined);
+            }}
+          >
+            I've deleted it, or I'll choose another name
+          </button>
+        </div>
+      )}
       {error && <Note tone="warning">{error}</Note>}
 
       {account && (

@@ -28,13 +28,15 @@ It then shows the site's **setup code** once, and lists what's left, with links 
 5. **The domain**, for a site with one: adding the site's address to the Worker in Cloudflare's dashboard, under Workers & Pages → the Worker → Settings → Domains & Routes. To move a site on workers.dev to a domain later, add it there and put it in `wrangler.jsonc` as `GOODFELLOW_SITE_URL`, since signing in works only at that address.
 6. **The first admin:** opening the site's `/setup/` page and giving the setup code with your email address, name, and password.
 
+If creating the content's repository fails, **Create the site** tries again with the code's repository already made. After a reload, the page can't finish it, and says to delete the code's repository on GitHub and start again, or choose another name.
+
 Until the Set up Cloudflare workflow has named the database and the cache, the Deploy workflow skips itself, so the commits the page makes don't fail it.
 
 ### The setup code
 
 The setup code makes the site's first admin. The page makes it in your browser and shows it once: save it, such as in your password manager. Only its SHA-256 is kept, as `GOODFELLOW_SETUP_CODE_HASH` in `wrangler.jsonc`, so it can't be read from the repository, even a public one. The `/setup/` page takes it only while the site has no admin, ten tries an hour from one network address at most, and makes one admin with it, ever. Every other admin is invited from `/admin/editors/`.
 
-If you lose it before making the first admin, make the admin with `npm run new-admin` on a computer instead, as the README says, or put the hash of a new code of your own in `wrangler.jsonc`, such as `printf NEWCODE | sha256sum` gives, letters in capitals without spaces or dashes, and publish it.
+If you lose it before making the first admin, make the admin with `npm run new-admin` on a computer instead, as the README says, or put the hash of a new code of your own in `wrangler.jsonc`, such as `printf NEWCODE | sha256sum` gives for a code of capital letters and the digits 2 to 7, without spaces or dashes, and publish it.
 
 ## What the command asks
 

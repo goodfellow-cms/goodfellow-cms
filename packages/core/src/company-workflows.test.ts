@@ -165,12 +165,19 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
       git -c user.name=x -c user.email=x@example.org commit -q --allow-empty -m start && git add wrangler.jsonc
       git -c user.name=x -c user.email=x@example.org commit -q -m wrangler && git push -q origin main
       git branch --set-upstream-to=origin/main main >/dev/null`;
-    const saved = run(`${setUp}\n${save}`, {
+    // And a change that reached the branch while the first job ran.
+    const moved = `git clone -q -b main remote.git other && git -C other -c user.name=y -c user.email=y@example.org commit -q --allow-empty -m meanwhile && git -C other push -q origin main`;
+    const saved = run(`${setUp}\n${moved}\n${save}`, {
       DATABASE: "0f2b1c4e-6a1d-4c8e-9b5a-2d7e8f9a0b1c",
       KV: "0123456789abcdef0123456789abcdef",
       ADDRESS: "https://acme.acme-co.workers.dev",
+      GITHUB_REF_NAME: "main",
     });
     expect(saved.status, saved.stderr).toBe(0);
+    const log = spawnSync("git", ["--git-dir", join(dir, "remote.git"), "log", "--format=%s", "main"], {
+      encoding: "utf8",
+    }).stdout;
+    expect(log).toBe("Name the site's Cloudflare database and cache\nmeanwhile\nwrangler\nstart\n");
     const pushed = spawnSync("git", ["--git-dir", join(dir, "remote.git"), "show", "main:wrangler.jsonc"], {
       encoding: "utf8",
     }).stdout;

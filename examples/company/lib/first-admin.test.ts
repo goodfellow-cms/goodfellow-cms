@@ -176,18 +176,22 @@ describe("setUpFirstAdmin", () => {
 
   it("leaves no admin without a password, whichever write fails", async () => {
     const made: string[] = [];
-    const maker = (fails: "hash" | "link"): AdminMaker => ({
+    const maker = (fails: "hash" | "link" | "link and delete"): AdminMaker => ({
       internalAdapter: {
         findUserByEmail: async () => null,
-        createUser: async () => {
-          made.push("user");
+        createUser: async (user) => {
+          made.push(`user as ${user.role}`);
           return { id: "u1" };
         },
+        updateUser: async (_id, data) => {
+          made.push(`now ${data.role}`);
+        },
         linkAccount: async () => {
-          if (fails === "link") throw new Error("D1 went away");
+          if (fails !== "hash") throw new Error("D1 went away");
           made.push("account");
         },
         deleteUser: async () => {
+          if (fails === "link and delete") throw new Error("D1 still away");
           made.push("deleted");
         },
       },
@@ -201,7 +205,11 @@ describe("setUpFirstAdmin", () => {
     await expect(createAdmin(maker("hash"), OLIVE)).rejects.toThrow("no hashing today");
     expect(made).toEqual([]);
     await expect(createAdmin(maker("link"), OLIVE)).rejects.toThrow("D1 went away");
-    expect(made).toEqual(["user", "deleted"]);
+    expect(made).toEqual(["user as member", "deleted"]);
+    // Where removing it fails too, what's left is a reader's account, never an admin's, so setup can still be done.
+    made.length = 0;
+    await expect(createAdmin(maker("link and delete"), OLIVE)).rejects.toThrow("D1 went away");
+    expect(made).toEqual(["user as member"]);
   });
 
   it("takes at most SETUP_LIMIT's tries from one address an hour", async () => {

@@ -176,6 +176,8 @@ describe("planServerSite", () => {
     const hash = await setupCodeHash(code);
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
     expect(await setupCodeHash(` ${code.toLowerCase().replaceAll("-", " ")} `)).toBe(hash);
+    // The digits a code never has, typed for the letters they look like.
+    expect(await setupCodeHash("C0DE-11B8")).toBe(await setupCodeHash("CODE-IIBB"));
     expect(await setupCodeHash(code.replace(/^./, (first) => (first === "A" ? "B" : "A")))).not.toBe(hash);
     // SHA-256 of "ABCDEFGH", as any other tool gives it.
     expect(await setupCodeHash("abcd-efgh")).toBe("9ac2197d9258257b1ae8463e4214e4cd0a578bc1517f2415928b91be4283fc48");

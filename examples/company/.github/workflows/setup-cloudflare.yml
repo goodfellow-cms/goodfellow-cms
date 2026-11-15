@@ -105,7 +105,9 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -qam "Name the site's Cloudflare database and cache"
-            git push
+            # On top of whatever reached the branch while the first job ran.
+            git pull -q --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
           # Where the site will be, for the run's summary: its first admin is made at /setup/ there.
           address=$(sed -n 's/.*"GOODFELLOW_SITE_URL": "\([^"]*\)".*/\1/p' wrangler.jsonc | head -n 1)

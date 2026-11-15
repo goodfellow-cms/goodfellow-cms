@@ -533,3 +533,36 @@ test("never takes a name's availability from an answer about a name typed before
   await expect(page.getByText("That name is free.")).toBeVisible();
   await expect(page.getByText(/There's already one called/)).toHaveCount(0);
 });
+
+test("says what to do about a code repository it made before a reload, which it can't finish", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  await page.route("https://api.github.com/user/repos", async (route) => {
+    const name = (route.request().postDataJSON() as { name?: string } | null)?.name;
+    if (name === "acme-content") {
+      await route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("acme");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  // A reload, or signing in again, which leave the page.
+  await page.reload({ waitUntil: "networkidle" });
+  const unfinished = page.getByRole("alert").filter({ hasText: "Before this page was reloaded" });
+  await expect(unfinished).toContainText("Delete someone/acme on GitHub");
+  await expect(unfinished.getByRole("link", { name: "someone/acme" })).toBeVisible();
+  await signIn(page, "gh-token");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("acme");
+  await unfinished.getByRole("button", { name: /I've deleted it/ }).click();
+  await expect(unfinished).toHaveCount(0);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.getByText("Before this page was reloaded")).toHaveCount(0);
+});
