@@ -1268,15 +1268,15 @@ export function createWorker(options: WorkerOptions = {}) {
           }
           throw error;
         }
-        if (installation.repository_selection === "selected") {
-          await github(config, `/user/installations/${installation.id}/repositories/${repo.id}`, {
-            method: "PUT",
-            auth,
-          });
-        }
         // The repository exists, which is all the person's own token was kept for, unless another one follows: it's
-        // revoked once this answers, whether or not a token for the repository could be made.
+        // revoked once this answers, whether or not the rest works.
         try {
+          if (installation.repository_selection === "selected") {
+            await github(config, `/user/installations/${installation.id}/repositories/${repo.id}`, {
+              method: "PUT",
+              auth,
+            });
+          }
           const issued = await newRepositoryToken(await jwtFor(app), installation.id, repo.full_name);
           const editApp = apps.edit;
           const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;

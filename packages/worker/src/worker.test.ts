@@ -713,6 +713,23 @@ describe("setting up a site in two repositories", () => {
     expect(context.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
   });
 
+  it("revokes the person's token when adding the new repository to an installation of selected ones fails", async () => {
+    const context = setup({
+      answer: (method, url) =>
+        method === "PUT" && /\/user\/installations\/\d+\/repositories\/\d+$/.test(url)
+          ? Response.json({ message: "Server error" }, { status: 500 })
+          : undefined,
+    });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    expect(response.status).toBe(502);
+    expect(context.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
+  });
+
   /** Creates `site` for maria, with GitHub's answers to the new repository's token requests replaced by `answer`. */
   async function createWithTokenAnswers(answer: (attempt: number) => Response | undefined) {
     let attempt = 0;
