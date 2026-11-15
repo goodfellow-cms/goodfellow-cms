@@ -9,12 +9,38 @@ const files = [
   { path: "public/media/logo.png", bytes: new Uint8Array([137, 80, 78, 71, 0, 255]) },
 ];
 
+/** The fake's fetch, refusing every request whose address matches. */
+function refusing(fetch: typeof globalThis.fetch, address: RegExp): typeof globalThis.fetch {
+  return async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (!address.test(url)) return fetch(input, init);
+    return new Response('{"message":"Server Error"}', { status: 500, headers: { "content-type": "application/json" } });
+  };
+}
+
 function setup(options: Parameters<typeof fakeGitHub>[0] = { repo: "someone/existing" }) {
   const fake = fakeGitHub(options);
   return { fake, host: githubSetup({ fetch: fake.fetch }) };
 }
 
 describe("githubSetup", () => {
+  it("says which repository it made as soon as GitHub has made it, before the rest of its setup can fail", async () => {
+    const fake = fakeGitHub({ repo: "someone/existing", newRepoBranch: "master", tokens: { t: { login: "someone" } } });
+    const account = await githubSetup({ fetch: refusing(fake.fetch, /\/git\/ref\//) }).signInWithToken("t");
+    const [owner] = await account.owners();
+    if (!owner) throw new Error("no owner");
+    const made: string[] = [];
+    await expect(
+      account.createSite(
+        { owner, name: "parish", private: false, pages: false, files, message: "Create the site" },
+        undefined,
+        (repo) => made.push(repo),
+      ),
+    ).rejects.toThrow();
+    expect(fake.created.has("someone/parish")).toBe(true);
+    expect(made).toEqual(["someone/parish"]);
+  });
+
   it("lists the person's own account first, then their organizations", async () => {
     const { host } = setup({ repo: "someone/existing", orgs: ["st-joseph"], tokens: { t: { login: "someone" } } });
     const account = await host.signInWithToken(" t ");

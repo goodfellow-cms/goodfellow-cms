@@ -1,7 +1,7 @@
 import { setupCodeHash } from "@goodfellow-cms/core";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import { routeToFake } from "./backends.js";
 
 // The documentation site's setup page, which creates sites in the browser: choosing on one page, creating on the next.
@@ -575,24 +575,30 @@ test("says what to do about a code repository it made before a reload, which it 
 test("never carries on with another sign-in, and says what GitHub made where a repository's setup stopped part way", async ({
   page,
 }) => {
+  // New repositories start on master, so their setup moves them to main first.
   const github = fakeGitHub({
     repo: "someone/existing",
+    newRepoBranch: "master",
     tokens: { "gh-token": { login: "someone", name: "Some One" } },
   });
   await routeToFake(page, "https://api.github.com", github.handle);
-  // GitHub makes every repository, but refuses acme-content's once, and writing other's files.
+  const refuse = (route: Route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+  // GitHub makes every repository, but refuses acme-content's once. Once it has made other, it refuses moving it to
+  // main, and then saying whether the name is taken, so only being told it was made can say so.
   let refusedContent = false;
+  let madeOther = false;
   await page.route("https://api.github.com/user/repos", async (route) => {
     const name = (route.request().postDataJSON() as { name?: string } | null)?.name;
     if (name === "acme-content" && !refusedContent) {
       refusedContent = true;
-      await route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
-      return;
+      return refuse(route);
     }
+    madeOther ||= name === "other";
     await route.fallback();
   });
-  await page.route("https://api.github.com/repos/someone/other/git/trees", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' }),
+  await page.route(/^https:\/\/api\.github\.com\/repos\/someone\/other(\/git\/ref\/.*)?$/, (route) =>
+    madeOther ? refuse(route) : route.fallback(),
   );
   await page.goto(FULL_STACK, { waitUntil: "networkidle" });
   await signIn(page, "gh-token");
@@ -609,7 +615,7 @@ test("never carries on with another sign-in, and says what GitHub made where a r
   const unfinished = page.getByRole("alert").filter({ hasText: "for a site it didn't finish" });
   await expect(unfinished).toContainText("This page created someone/acme");
   await expect(page.getByText(/someone\/acme is created already/)).toHaveCount(0);
-  // A repository GitHub made whose files couldn't be written is listed too, beside the first.
+  // A repository GitHub made whose setup stopped straight after is listed too, beside the first.
   await name.fill("other");
   await page.getByLabel("The site's address").fill("https://www.other.example");
   await expect(page.getByText("That name is free.")).toBeVisible();

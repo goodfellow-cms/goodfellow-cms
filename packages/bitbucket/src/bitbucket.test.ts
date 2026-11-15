@@ -845,7 +845,33 @@ describe("on a full-stack site's server", () => {
   });
 });
 
+/** The fake's fetch, refusing every request whose address matches. */
+function refusing(fetch: typeof globalThis.fetch, address: RegExp): typeof globalThis.fetch {
+  return async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (!address.test(url)) return fetch(input, init);
+    return new Response('{"message":"Server Error"}', { status: 500, headers: { "content-type": "application/json" } });
+  };
+}
+
 describe("creating a repository", () => {
+  it("says which repository it made as soon as Bitbucket has made it, before its files can fail", async () => {
+    const fake = fakeBitbucket({ repo: "parish/site" });
+    const account = await bitbucketSetup({ fetch: refusing(fake.fetch, /\/src$/) }).signInWithToken(TOKEN);
+    const [owner] = await account.owners();
+    if (!owner) throw new Error("No owner");
+    const made: string[] = [];
+    await expect(
+      account.createSite(
+        { owner, name: "broker", private: false, pages: false, files: [], message: "Add the token broker" },
+        undefined,
+        (repo) => made.push(repo),
+      ),
+    ).rejects.toThrow();
+    expect(fake.created.has("editor/broker")).toBe(true);
+    expect(made).toEqual(["editor/broker"]);
+  });
+
   it("creates it with every file in its first commit, on main", async () => {
     const fake = fakeBitbucket({ repo: "parish/site" });
     const account = await bitbucketSetup({ fetch: fake.fetch }).signInWithToken(TOKEN);

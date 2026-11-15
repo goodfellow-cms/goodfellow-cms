@@ -330,11 +330,6 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       made.push(repo);
       keepUnfinished(answers.name, [repo]);
     };
-    // A repository is made once its setup goes past the step that makes it.
-    const following = (repo: string) => (next: SetupStep) => {
-      setStep(next);
-      if (next !== "repository") keepMade(repo);
-    };
     let trying: { repo: string; free: boolean } | undefined;
     let codeRepo = resumed?.repo;
     let setupCode = resumed?.setupCode;
@@ -354,7 +349,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
             message: "Create the site",
             more: true,
           },
-          following(code),
+          setStep,
+          keepMade,
         );
         keepMade(code);
       }
@@ -375,7 +371,8 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
             links: { reads: [{ reader: "code", read: "content", secret: "GOODFELLOW_CONTENT_KEY" }], nightly: [] },
           },
         },
-        following(content),
+        setStep,
+        keepMade,
       );
       keepUnfinished(answers.name, made, false);
       setBegun(undefined);
@@ -388,7 +385,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       });
     } catch (caught) {
       setError(createMessage(caught));
-      // GitHub may have made the repository before its setup failed, without reaching the step after.
+      // GitHub may have made the repository without the page hearing so, where its answer never came back.
       if (trying?.free && !made.includes(trying.repo)) {
         const short = trying.repo.slice(chosenOwner.path.length + 1);
         if (

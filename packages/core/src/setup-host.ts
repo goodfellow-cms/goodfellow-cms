@@ -141,7 +141,15 @@ export interface SetupAccount {
   owners(): Promise<SetupOwner[]>;
   /** Whether a repository with this name can still be created there. */
   isAvailable(owner: SetupOwner, name: string): Promise<boolean>;
-  createSite(site: NewSiteRepository, onStep?: (step: SetupStep) => void): Promise<CreatedSiteRepository>;
+  /**
+   * Creates the site's repository and sets it up. `onCreated` is told the repository's path as soon as the host has
+   * made it, before anything else that could fail, so a caller can say what's left where the rest of the setup fails.
+   */
+  createSite(
+    site: NewSiteRepository,
+    onStep?: (step: SetupStep) => void,
+    onCreated?: (repo: string) => void,
+  ): Promise<CreatedSiteRepository>;
 }
 
 /** Signing in to a git host to create a site. Tokens are kept in memory only, since they're needed just once. */

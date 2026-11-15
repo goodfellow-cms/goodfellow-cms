@@ -9,6 +9,15 @@ const files = [
   { path: "public/media/logo.png", bytes: new Uint8Array([137, 80, 78, 71, 0, 255]) },
 ];
 
+/** The fake's fetch, refusing every request whose address matches. */
+function refusing(fetch: typeof globalThis.fetch, address: RegExp): typeof globalThis.fetch {
+  return async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (!address.test(url)) return fetch(input, init);
+    return new Response('{"message":"Server Error"}', { status: 500, headers: { "content-type": "application/json" } });
+  };
+}
+
 function memoryStorage(): StorageLike {
   const values = new Map<string, string>();
   return {
@@ -19,6 +28,23 @@ function memoryStorage(): StorageLike {
 }
 
 describe("gitlabSetup", () => {
+  it("says which project it made as soon as GitLab has made it, before the rest of its setup can fail", async () => {
+    const fake = fakeGitLab({ project: "someone/existing", tokens: { t: { username: "someone" } } });
+    const account = await gitlabSetup({ fetch: refusing(fake.fetch, /\/repository\/commits/) }).signInWithToken("t");
+    const [owner] = await account.owners();
+    if (!owner) throw new Error("no owner");
+    const made: string[] = [];
+    await expect(
+      account.createSite(
+        { owner, name: "parish", private: false, pages: false, files, message: "Create the site" },
+        undefined,
+        (repo) => made.push(repo),
+      ),
+    ).rejects.toThrow();
+    expect(fake.created.has("someone/parish")).toBe(true);
+    expect(made).toEqual(["someone/parish"]);
+  });
+
   it("creates a private project with public Pages and every file in one commit", async () => {
     const fake = fakeGitLab({
       project: "someone/existing",

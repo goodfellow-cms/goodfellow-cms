@@ -236,10 +236,15 @@ function setupAccount(creator: Creator): SetupAccount {
     user: creator.user,
     owners: () => creator.owners(),
     isAvailable: (owner, name) => creator.isAvailable(owner, name),
-    async createSite(site, onStep?: (step: SetupStep) => void): Promise<CreatedSiteRepository> {
+    async createSite(
+      site,
+      onStep?: (step: SetupStep) => void,
+      onCreated?: (repo: string) => void,
+    ): Promise<CreatedSiteRepository> {
       const warnings: SetupWarning[] = [];
       onStep?.("repository");
       const { repo, api, signInInstallUrl } = await creator.create(site);
+      onCreated?.(repo.full_name);
       const connect = async (link: RepositoryLink) => {
         onStep?.("connect");
         return connectRepositories(link);
