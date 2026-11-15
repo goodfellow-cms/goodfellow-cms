@@ -593,7 +593,7 @@ test("says what it may have made where it was reloaded before GitHub answered", 
   await page.reload({ waitUntil: "networkidle" });
   const unfinished = page.getByRole("alert").filter({ hasText: "may have created" });
   await expect(unfinished).toContainText("This page may have created someone/acme");
-  await expect(unfinished).toContainText("Delete only one of those");
+  await expect(unfinished).toContainText("Look on GitHub at who made it and when");
   await expect(unfinished).not.toContainText("for a site it didn't finish");
   await unfinished.getByRole("button", { name: /I've deleted it/ }).click();
   await page.reload({ waitUntil: "networkidle" });
@@ -729,6 +729,41 @@ test("makes the site afresh where the code's repository it would carry on with w
     '"GOODFELLOW_SITE_URL": "https://www.acme.example.org"',
   );
   expect(github.created.has("someone/acme-content")).toBe(true);
+});
+
+test("never says it made a repository someone else made after the name was checked", async ({ page }) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // acme is free while it's typed. As the site is created, someone else makes it and the check before creating
+  // fails, so the page never asks for it; the check after the failure finds theirs.
+  let clicked = false;
+  let asked = 0;
+  await page.route("https://api.github.com/repos/someone/acme", async (route) => {
+    if (!clicked || ++asked > 1) return route.fallback();
+    await github.handle(
+      new Request("https://api.github.com/user/repos", {
+        method: "POST",
+        headers: { authorization: "Bearer gh-token", "content-type": "application/json" },
+        body: JSON.stringify({ name: "acme", auto_init: true }),
+      }),
+    );
+    await route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+  });
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("acme");
+  await page.getByLabel("The site's address").fill("https://www.acme.example");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  clicked = true;
+  await page.getByRole("button", { name: "Create the site" }).click();
+  await expect.poll(() => asked).toBeGreaterThan(1);
+  expect(github.created.has("someone/acme")).toBe(true);
+  const unfinished = page.getByRole("alert").filter({ hasText: "may have created" });
+  await expect(unfinished).toContainText("This page may have created someone/acme");
+  await expect(page.getByText("This page created someone/acme")).toHaveCount(0);
 });
 
 test("never carries on with another sign-in, and says what GitHub made where a repository's setup stopped part way", async ({

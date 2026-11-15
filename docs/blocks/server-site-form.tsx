@@ -435,10 +435,9 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
               () => undefined,
             )
           : false;
-        // Only a name known to be free before is this page's now it's taken: one whose check never answered may have
-        // been someone's all along, as where the request was never sent, so it stays a maybe.
-        if (taken && trying.free === true) keepMade(trying.repo);
-        else if (taken === false) keepUnfinished(answers.name, [trying.repo], false);
+        // Only GitHub's word (`onCreated`) says the page made a repository: a name that's taken now may be someone
+        // else's, made since it was checked, or all along where the request was never sent, so it's a maybe at most.
+        if (taken === false) keepUnfinished(answers.name, [trying.repo], false);
         else unsure.push(trying.repo);
       }
       if (codeRepo && setupCode && !made.includes(content) && !unsure.includes(content)) {
@@ -636,9 +635,9 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
           {unfinished.maybe && unfinished.maybe.length > 0 && (
             <p>
               {unfinished.repos.length > 0 ? "It may also have created" : "This page may have created"}{" "}
-              <RepoList repos={unfinished.maybe} />, which GitHub never confirmed. Look on GitHub: one this page made is
-              new and holds only the site's files, or GitHub's README. Delete only one of those (in Settings, at the
-              bottom) before you create the site again, or choose another name.
+              <RepoList repos={unfinished.maybe} />, which GitHub never confirmed, or the name may be someone else's.
+              Look on GitHub at who made it and when: delete it (in Settings, at the bottom) only where it's yours and
+              was made just as you created the site here, then create the site again, or choose another name.
             </p>
           )}
           <button
