@@ -417,14 +417,18 @@ function rebuiltArgs(name: string, args: unknown[]): unknown[] {
   return args;
 }
 
+/** What `ServeOptions.check` may give back: arguments to make the call with instead. */
+export type BrokerCheckResult = { args?: unknown[] } | undefined | void;
+
 export interface ServeOptions {
   /**
    * Asked before every call the admin panel makes, with its path in the
    * backend (such as `write`, `drafts.create` then `store.write`, or
    * `editors.invite`) and its arguments. Throw, such as a `BrokerRefusedError`,
-   * to refuse it.
+   * to refuse it, or return `args` to make the call with those in place of the
+   * admin panel's, such as an editor as the site's own list gives them.
    */
-  check?(call: { path: string; args: unknown[]; target: unknown }): Promise<void> | void;
+  check?(call: { path: string; args: unknown[]; target: unknown }): BrokerCheckResult | Promise<BrokerCheckResult>;
   /** Answers methods the broker adds itself, such as `ownerAccess.requestToken`, by path. */
   extra?: Record<string, (...args: unknown[]) => unknown>;
 }
@@ -497,10 +501,11 @@ export function serveBackend(port: BrokerPort, backend: GitBackend, options: Ser
       const made = (target[method] as (...a: unknown[]) => Record<string, unknown>).apply(target, args);
       return (made[then] as (...a: unknown[]) => unknown).apply(made, thenArgs);
     }
-    await options.check?.({ path: name, args, target });
+    const checked = await options.check?.({ path: name, args: [...args], target });
+    const callArgs = checked?.args ?? args;
     const value = extra
-      ? await extra(...args)
-      : await (target[method] as (...a: unknown[]) => unknown).apply(target, args);
+      ? await extra(...callArgs)
+      : await (target[method] as (...a: unknown[]) => unknown).apply(target, callArgs);
     const returns = shape.returns?.[method];
     if (returns && typeof value === "object" && value !== null) {
       const handle = next++;

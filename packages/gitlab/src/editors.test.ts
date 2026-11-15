@@ -78,6 +78,11 @@ describe("GitLab editors", () => {
       await expect(editors.setRole(editor, "owner"), id).rejects.toMatchObject({ problem: "invalid" });
     }
     expect(asked).toEqual([]);
+    // An address GitLab of one's own took, with no dot after its `@`, can still be taken back.
+    await editors
+      .remove({ id: "invitation:admin@localhost", email: "admin@localhost", role: "editor" })
+      .catch(() => undefined);
+    expect(asked).toEqual([expect.stringMatching(/^DELETE .*\/invitations\/admin%40localhost$/)]);
   });
 
   it("explains invitations that can't be sent", async () => {

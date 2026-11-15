@@ -116,6 +116,7 @@ export {
   type BrokerAddress,
   type BrokerAddressProblem,
   type BrokerChangeCheck,
+  type BrokerCheckResult,
   type BrokerConfirmKind,
   type BrokerPort,
   BrokerRefusedError,

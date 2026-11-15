@@ -38,13 +38,15 @@ const USERNAME = /^[\w][\w.-]*$/;
 /**
  * Where an editor's access is, from their id as the list gave it. The id
  * comes from the admin panel, so one that isn't a member's number or an
- * invitation's email address is refused rather than put in the address,
+ * invitation's address is refused rather than put in the address,
  * where `..` would reach the project itself.
  */
 function editorPath(base: string, id: string): string {
   if (id.startsWith(INVITATION)) {
     const email = id.slice(INVITATION.length);
-    if (EMAIL.test(email)) return `${base}/invitations/${encodeURIComponent(email)}`;
+    // Any address GitLab took, `admin@localhost` on GitLab of one's own too: one `@` keeps out `.` and `..`, and
+    // encoding keeps the rest in its part of the address.
+    if (email.includes("@")) return `${base}/invitations/${encodeURIComponent(email)}`;
   } else if (id.startsWith(MEMBER) && /^\d+$/.test(id.slice(MEMBER.length))) {
     return `${base}/members/${id.slice(MEMBER.length)}`;
   }

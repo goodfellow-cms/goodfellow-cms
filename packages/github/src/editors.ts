@@ -35,8 +35,12 @@ const USERNAME = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 
 const INVITATION = "invitation:";
 
-/** Logins GitHub has given, older ones' hyphens included: never `.`, `..`, or a slash, which would leave the address. */
-const LOGIN = /^[a-z\d-]{1,39}$/i;
+/**
+ * Logins GitHub has given: letters, digits and hyphens, older ones' doubled
+ * hyphens included, and Enterprise Managed Users' `handle_shortcode`. Never
+ * `.`, `..`, or a slash, which would leave the address.
+ */
+const LOGIN = /^[\w-]{1,100}$/;
 
 /**
  * Where an editor's access is, from their id as the list gave it. The id

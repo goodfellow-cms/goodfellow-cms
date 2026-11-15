@@ -379,9 +379,12 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
           const questions = decision.questions.filter(
             (question) => question.kind !== "task" || !allowedTasks.has(taskKey(question)),
           );
-          if (questions.length === 0) return;
-          if (!(await confirm(questions))) throw new BrokerRefusedError("declined", t("declined"));
+          if (questions.length > 0 && !(await confirm(questions))) {
+            throw new BrokerRefusedError("declined", t("declined"));
+          }
           for (const question of questions) if (question.kind === "task") allowedTasks.add(taskKey(question));
+          // What was asked about, such as the editor the site's list gives, is what's done.
+          return decision.args ? { args: decision.args } : undefined;
         },
         extra: {
           signOut,

@@ -324,6 +324,23 @@ describe("the broker's backend in the admin panel", () => {
     close();
   });
 
+  it("makes a call with the arguments the broker's check gives back, never changing what the check was handed", async () => {
+    const handed: unknown[][] = [];
+    const { remote, invited, close } = await connect({
+      check({ path, args }) {
+        handed.push(args);
+        // What a check that looked the person up would give: who it asked about, not who the admin panel said.
+        if (path === "editors.invite") return { args: ["ann", "editor"] };
+      },
+    });
+    await remote.editors?.invite("eve", "owner");
+    expect(invited).toEqual(["ann"]);
+    expect(handed).toEqual([["eve", "owner"]]);
+    // A check that gives nothing back leaves the call as it came.
+    await remote.read("content/site.json");
+    close();
+  });
+
   it("checks the changes it writes, made again as one kind each with a plain path", async () => {
     const checked: unknown[] = [];
     const { remote, files, published, close } = await connect({

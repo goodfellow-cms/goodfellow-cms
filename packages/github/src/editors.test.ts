@@ -78,6 +78,9 @@ describe("GitHub editors", () => {
     }
     expect(asked.filter((request) => !request.startsWith("GET"))).toEqual([]);
     expect(fake.collaborators.has("joseph")).toBe(true);
+    // Logins GitHub gives, Enterprise Managed Users' with their underscore too, still reach GitHub.
+    await editors.remove({ id: "octocat_acme", login: "octocat_acme", role: "editor" }).catch(() => undefined);
+    expect(asked).toContain("DELETE /repos/parish/site/collaborators/octocat_acme");
   });
 
   it("explains invitations that can't be sent", async () => {

@@ -10,6 +10,7 @@ import {
   isPlainPath,
   limitsContent,
   limitsFor,
+  normalizeDomain,
   outsideLimits,
   parseInstalledPlugins,
   readPermissions,
@@ -52,100 +53,120 @@ export type BrokerQuestion =
 /** What the broker does with a call: makes it, asks first, or refuses it. */
 export type BrokerDecision =
   | { action: "allow" }
-  | { action: "ask"; questions: BrokerQuestion[] }
+  /** `args`, where given, are what the call is made with in place of the admin panel's. */
+  | { action: "ask"; questions: BrokerQuestion[]; args?: unknown[] }
   | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" | "unknown" | "editor" | "read" };
 
 /** Calls that publish a set of changes, by their path in the backend. */
 const WRITES = new Set(["write", "draft.store.write"]);
 
-const READS = ["revision", "read", "readBytes", "list", "readFiles", "fileSizes", "changedPaths"];
-
 /**
- * Calls the broker makes without asking: reads, and changes that publish
- * nothing, take nothing away, and give no one more. Every other call is asked
- * about or refused, so a method added to what the broker offers later is
- * refused until it's listed here or given a question.
+ * What a call the broker makes unasked takes, by position. Backends put many
+ * of these in the host's addresses, so each is checked as changes' paths are
+ * (`brokerChangeCheck()`): a path with a `..` part, or a revision, domain or
+ * repository that isn't one, could reach another of the host's addresses with
+ * the editor's token. `value` is what goes only in a request's body or query,
+ * or that the backend checks itself, such as a draft's name.
  */
-const UNASKED = new Set([
-  ...READS,
-  "deployStatus",
-  "history",
-  "readAt",
-  "repositoryVisibility",
-  "signOut",
-  "filesAt.read",
-  "filesAt.readBytes",
-  "filesAt.list",
-  "pages.site",
-  "pages.records",
-  "pages.status",
-  "editors.list",
-  // The broker's own sign-in and dialog, never the admin panel's.
-  "ownerAccess.forget",
-  "ownerAccess.startRedirect",
-  "ownerAccess.requestToken",
-  "updates.lastRun",
-  "updates.rebuild",
-  "updates.code.read",
-  "updates.code.history",
-  "updates.code.readAt",
-  "updates.nightly.supported",
-  "updates.nightly.get",
-  "updates.nightly.set",
-  "drafts.create",
-  "drafts.open",
-  "drafts.list",
-  "drafts.reviews",
-  "draft.changes",
-  "draft.paths",
-  "draft.submitForReview",
-  ...READS.map((read) => `draft.store.${read}`),
-  "scheduledBuilds.timing",
-  // Schedules follow what's published, whoever asks.
-  "scheduledBuilds.sync",
-  "tasks.supported",
-  "tasks.secretsPlace",
-  // Comments: finding their repository, reading them, and moderating in ways that can be undone.
-  "comments.find",
-  "comments.threads",
-  "comments.hide",
-  "comments.show",
-  "comments.lock",
-  "comments.unlock",
-  "comments.access.forget",
-  "comments.access.requestToken",
-]);
+type ArgKind = "path" | "paths" | "revision" | "draft-from" | "domain" | "repository" | "value";
 
-/**
- * What the reads the broker makes unasked take, by position: a file's or
- * folder's path, a list of them, or a commit's id. Backends put them in the
- * host's addresses, so each is checked here as changes' paths are
- * (`brokerChangeCheck()`): a path with a `..` part or a revision that isn't a
- * commit could reach another address on the host with the editor's token.
- */
-const READ_ARGS: Record<string, ReadonlyArray<"path" | "paths" | "revision">> = {
+/** The reads, which a draft's store answers too. */
+const READS: Record<string, readonly ArgKind[]> = {
+  revision: [],
   read: ["path"],
   readBytes: ["path"],
   list: ["path"],
   readFiles: ["paths"],
   fileSizes: ["path"],
   changedPaths: ["revision", "revision"],
+};
+
+/**
+ * Calls the broker makes without asking, with what each takes: reads, and
+ * changes that publish nothing, take nothing away, and give no one more. Every
+ * other call is asked about or refused, so a method added to what the broker
+ * offers later is refused until it's listed here or given a question.
+ */
+const UNASKED: Record<string, readonly ArgKind[]> = {
+  ...READS,
   deployStatus: ["revision"],
-  history: ["path"],
+  history: ["path", "value"],
   readAt: ["path", "revision"],
+  repositoryVisibility: [],
+  signOut: [],
   "filesAt.read": ["revision", "path"],
   "filesAt.readBytes": ["revision", "path"],
   "filesAt.list": ["revision", "path"],
+  "pages.site": [],
+  "pages.records": ["domain", "value"],
+  "pages.status": ["domain"],
+  "editors.list": [],
+  // The broker's own sign-in and dialog, never the admin panel's.
+  "ownerAccess.forget": [],
+  "ownerAccess.startRedirect": ["value"],
+  "ownerAccess.requestToken": [],
+  "updates.lastRun": [],
+  "updates.rebuild": [],
+  "updates.code.read": ["path"],
+  "updates.code.history": ["path", "value"],
+  "updates.code.readAt": ["path", "revision"],
+  "updates.nightly.supported": [],
+  "updates.nightly.get": [],
+  "updates.nightly.set": ["value"],
+  // A draft's name is checked by `branchDrafts()` itself.
+  "drafts.create": ["value", "draft-from"],
+  "drafts.open": ["value"],
+  "drafts.list": [],
+  "drafts.reviews": [],
+  "draft.changes": [],
+  "draft.paths": [],
+  "draft.submitForReview": ["value"],
+  ...Object.fromEntries(Object.entries(READS).map(([name, kinds]) => [`draft.store.${name}`, kinds])),
+  "scheduledBuilds.timing": [],
+  // Schedules follow what's published, whoever asks.
+  "scheduledBuilds.sync": ["value"],
+  "tasks.supported": [],
+  "tasks.secretsPlace": [],
+  // Comments: finding their repository, reading them, and moderating in ways that can be undone, by GraphQL's ids.
+  "comments.find": ["repository"],
+  "comments.threads": ["value", "value"],
+  "comments.hide": ["value", "value"],
+  "comments.show": ["value"],
+  "comments.lock": ["value"],
+  "comments.unlock": ["value"],
+  "comments.access.forget": [],
+  "comments.access.requestToken": [],
 };
 
-/** Whether a read's arguments are paths and revisions a backend may put in an address. */
-function plainReadArgs(path: string, args: unknown[]): boolean {
-  const kinds = READ_ARGS[path.replace(/^(?:draft\.store|updates\.code)\./, "")];
-  return (kinds ?? []).every((kind, index) => {
+/** A repository's `owner/name`, with no part a host's address would read as leaving the folder. */
+function isRepository(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const parts = value.split("/");
+  return parts.length === 2 && parts.every((part) => /^[\w.-]+$/.test(part) && part !== "." && part !== "..");
+}
+
+/** Whether an unasked call's arguments are what its backend may put in an address. */
+function argsFit(kinds: readonly ArgKind[], args: unknown[]): boolean {
+  return kinds.every((kind, index) => {
     const value = args[index];
-    if (kind === "revision") return isCommitId(value);
-    if (kind === "paths") return Array.isArray(value) && value.every(isPlainPath);
-    return isPlainPath(value);
+    switch (kind) {
+      case "path":
+        return isPlainPath(value);
+      case "paths":
+        return Array.isArray(value) && value.every(isPlainPath);
+      case "revision":
+        return isCommitId(value);
+      case "draft-from": {
+        const from = (value as { from?: unknown } | undefined)?.from;
+        return from === undefined || isCommitId(from);
+      }
+      case "domain":
+        return typeof value === "string" && normalizeDomain(value) === value;
+      case "repository":
+        return isRepository(value);
+      case "value":
+        return true;
+    }
   });
 }
 
@@ -299,10 +320,10 @@ export async function decide(
     // and the call is handed that listed editor, never what the admin panel said about them.
     const listed = await listedEditor(target, args[0]);
     if (!listed) return { action: "refuse", paths: [path], reason: "editor" };
-    args[0] = listed;
+    const made = [listed, ...args.slice(1)];
     return path === "editors.remove"
-      ? { action: "ask", questions: [{ kind: "editors-remove", who: who(listed) }] }
-      : { action: "ask", questions: [{ kind: "editors", who: who(listed), role: String(args[1]) }] };
+      ? { action: "ask", questions: [{ kind: "editors-remove", who: who(listed) }], args: made }
+      : { action: "ask", questions: [{ kind: "editors", who: who(listed), role: String(args[1]) }], args: made };
   }
   if (path === "editors.letEditorsPublish") return { action: "ask", questions: [{ kind: "editors", who: "" }] };
   const change = DOMAIN_CHANGES[path];
@@ -321,8 +342,7 @@ export async function decide(
   if (path === "comments.create")
     return { action: "ask", questions: [{ kind: "comments-create", name: text(args[0]) }] };
   if (path === "comments.remove") return { action: "ask", questions: [{ kind: "comments-delete" }] };
-  if (UNASKED.has(path)) {
-    return plainReadArgs(path, args) ? { action: "allow" } : { action: "refuse", paths: [path], reason: "read" };
-  }
+  const kinds = Object.hasOwn(UNASKED, path) ? UNASKED[path] : undefined;
+  if (kinds) return argsFit(kinds, args) ? { action: "allow" } : { action: "refuse", paths: [path], reason: "read" };
   return { action: "refuse", paths: [path], reason: "unknown" };
 }
