@@ -35,6 +35,11 @@ export function setup(
     copies?: string[];
     /** GitHub fails to give the site's settings, as when it's having trouble. */
     settingsFail?: boolean;
+    /**
+     * How many times GitHub refuses a token for a repository just created, as one the installation can't reach, before
+     * it gives the installation the repository, as it does for a few seconds.
+     */
+    newRepositoryLag?: number;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -77,9 +82,22 @@ export function setup(
     apps: [editApp, ownerApp],
   });
   let clock = Date.now();
+  let lag = 0;
   // The site itself, at its address, serves its description, naming its admin address if it has one.
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    const method = init?.method ?? "GET";
+    if (method === "POST" && /\/(user|orgs\/[^/]+)\/repos$/.test(url)) lag = options.newRepositoryLag ?? 0;
+    if (method === "POST" && /\/app\/installations\/\d+\/access_tokens$/.test(url) && lag > 0) {
+      lag--;
+      return Response.json(
+        {
+          message:
+            "There is at least one repository that does not exist or is not accessible to the parent installation.",
+        },
+        { status: 422 },
+      );
+    }
     if (options.settingsFail && url.includes("/contents/content/site.json")) {
       return new Response("Server error", { status: 500 });
     }
@@ -94,7 +112,17 @@ export function setup(
     }
     return fake.fetch(input, init);
   };
-  const inner = createWorker({ fetch, now: () => clock });
+  /** How long the worker waited each time, and what it logged. */
+  const waits: number[] = [];
+  const logged: string[] = [];
+  const inner = createWorker({
+    fetch,
+    now: () => clock,
+    sleep: async (ms) => {
+      waits.push(ms);
+    },
+    log: (line) => logged.push(line),
+  });
   // One browser, which keeps the cookie the worker ties sign-ins to, as browsers do, and sends it back with each
   // request, beside any cookie a test sends itself. `newBrowser()` forgets it, as another browser would lack it.
   const jar = new Map<string, string>();
@@ -187,5 +215,7 @@ export function setup(
       clock += ms;
     },
     newBrowser: () => jar.clear(),
+    waits,
+    logged,
   };
 }

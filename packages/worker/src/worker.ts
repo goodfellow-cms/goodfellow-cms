@@ -90,6 +90,25 @@ export interface WorkerOptions {
   /** For tests: where requests to GitHub go. */
   fetch?: typeof fetch;
   now?: () => number;
+  /** For tests: waits this long, as between asking GitHub again for a repository it doesn't show yet. */
+  sleep?: (ms: number) => Promise<void>;
+  /** For tests: where the worker says what GitHub answered when it can't go on. Defaults to `console.error`. */
+  log?: (line: string) => void;
+}
+
+/**
+ * How long to wait before each new attempt at a token for a repository just created: GitHub can take a few seconds
+ * to give an installation a new repository, and until then refuses tokens for it as one it can't reach.
+ */
+export const NEW_REPOSITORY_WAITS = [1_000, 2_000, 3_000, 4_000, 5_000];
+
+/** Whether GitHub refused a token for a repository because the installation can't reach it, or can't yet. */
+function unreachableRepository(error: unknown): boolean {
+  return (
+    error instanceof GitHubError &&
+    error.status === 422 &&
+    /does not exist or is not accessible/i.test(error.body.message ?? "")
+  );
 }
 
 type Purpose = "edit" | "owner" | "setup";
@@ -434,6 +453,8 @@ export function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
 
 export function createWorker(options: WorkerOptions = {}) {
   const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const log = options.log ?? ((line: string) => console.error(line));
   const sealers = new Map<string, Promise<Sealer>>();
   const installations = new Map<string, { id: number | undefined; at: number }>();
   // Sites' addresses as the last check found them, so checks anyone can ask for don't each cost GitHub requests.
@@ -778,7 +799,9 @@ export function createWorker(options: WorkerOptions = {}) {
       try {
         return await installationToken(config, jwt, installation, repo, PERMISSIONS[purpose]);
       } catch (error) {
-        if (!(error instanceof GitHubError && error.status === 422) || !LATER_PERMISSIONS[purpose]) throw error;
+        // GitHub answers 422 for a repository the installation can't reach, too: asking for less wouldn't help.
+        if (!(error instanceof GitHubError && error.status === 422) || unreachableRepository(error)) throw error;
+        if (!LATER_PERMISSIONS[purpose]) throw error;
         return installationToken(config, jwt, installation, repo, withoutLater(purpose, PERMISSIONS[purpose]));
       }
     }
@@ -1114,7 +1137,15 @@ export function createWorker(options: WorkerOptions = {}) {
       return json({ problem: "bad-request" }, 404);
     } catch (error) {
       if (error instanceof Problem) return json({ problem: error.problem, ...error.extra }, error.status);
-      // GitHub couldn't be reached, or answered in a way the worker doesn't expect. Nothing about tokens is said.
+      // GitHub couldn't be reached, or answered in a way the worker doesn't expect. The answer says nothing more, but
+      // the worker's logs say which request and what GitHub said, its message cut short: never a token or a body.
+      log(
+        error instanceof GitHubError
+          ? `${url.pathname} stopped: ${error.request || "a request to GitHub"} answered ${error.status || "nothing"}${
+              error.body.message ? `: ${error.body.message.slice(0, 200)}` : ""
+            }`
+          : `${url.pathname} stopped: ${error instanceof Error ? error.name : "an error"}`,
+      );
       return json({ problem: "unavailable" }, 502);
     }
 
@@ -1212,8 +1243,19 @@ export function createWorker(options: WorkerOptions = {}) {
           });
         }
         const jwt = await jwtFor(app);
-        // An installation that hasn't accepted the Secrets permission yet gets one without: the setup page explains what to add.
-        const issued = await purposeToken(jwt, installation.id, repo.full_name, "setup");
+        // An installation that hasn't accepted the Secrets permission yet gets one without: the setup page explains what
+        // to add. GitHub can take a few seconds to give the installation the new repository, so it's asked again.
+        let issued: Awaited<ReturnType<typeof purposeToken>> | undefined;
+        for (const wait of [0, ...NEW_REPOSITORY_WAITS]) {
+          if (wait) await sleep(wait);
+          try {
+            issued = await purposeToken(jwt, installation.id, repo.full_name, "setup");
+            break;
+          } catch (error) {
+            if (!unreachableRepository(error) || wait === NEW_REPOSITORY_WAITS.at(-1)) throw error;
+          }
+        }
+        if (!issued) throw new Problem("unavailable", 502);
         const editApp = apps.edit;
         const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
         // The repository exists, which is all the person's own token was kept for, unless another one follows.
