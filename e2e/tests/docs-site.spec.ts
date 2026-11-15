@@ -59,6 +59,7 @@ test("shows a documentation page with its navigation, headings, and highlighted,
       roleOwnClass: '<div role="button" class="gf-test-arrow">A</div>',
       summary: "<details><summary>A</summary></details>",
       submit: '<input type="submit">',
+      image: '<input type="image" alt="Go">',
     };
     return Object.fromEntries(
       Object.entries(made).map(([name, html]) => {
@@ -80,7 +81,16 @@ test("shows a documentation page with its navigation, headings, and highlighted,
     roleOwnClass: "default",
     summary: "pointer",
     submit: "pointer",
+    image: "pointer",
   });
+  // The file box's own button, which a pseudo-element's style says.
+  const fileButton = await page.evaluate(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    document.body.append(input);
+    return getComputedStyle(input, "::file-selector-button").cursor;
+  });
+  expect(fileButton).toBe("pointer");
   await copy.click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))

@@ -62,13 +62,18 @@
   /*
    * Tailwind gives buttons the arrow, as browsers do; on Goodfellow sites
    * everything that acts as a button shows the hand, unless it's turned off
-   * (`disabled`, or `aria-disabled="true"`, whatever its role) or a block's
-   * classes say otherwise: `:where()` gives the rule no specificity, so any
-   * class wins over it.
+   * (`disabled`, or `aria-disabled="true"`, whatever its role), it's in the
+   * editor's canvas (`.gf-canvas`), where a click selects the block, or a
+   * block's classes say otherwise: `:where()` gives the rule no specificity,
+   * so any class wins over it.
    */
-  :where(button, [role="button"], input:is([type="button"], [type="submit"], [type="reset"]), summary):not(
-    :where(:disabled, [aria-disabled="true"])
-  ) {
+  :where(
+    button,
+    [role="button"],
+    input:is([type="button"], [type="submit"], [type="reset"], [type="image"]),
+    summary
+  ):not(:where(:disabled, [aria-disabled="true"], .gf-canvas *)),
+  :where(input[type="file"]:not(:disabled, [aria-disabled="true"], .gf-canvas *))::file-selector-button {
     cursor: pointer;
   }
 
@@ -140,7 +145,6 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     font-weight: 500;
-    cursor: pointer;
   }
 
   .gf-consent [data-gf-consent-accept],
