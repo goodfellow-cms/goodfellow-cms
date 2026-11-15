@@ -34,27 +34,30 @@ import { button, Choice, fetchJson, input, LockfileWarning, link, Note, Question
 const ANSWERS_KEY = "goodfellow:setup:full-stack";
 
 /**
- * A code repository this tab created, kept in the tab until the content's is made too. A sign-in can connect only
- * the repositories it created itself, so after a reload or signing in again the page can't finish that site: it says
- * so, rather than leave a repository nobody knows was made, holding the hash of a code nobody saw.
+ * The repositories this tab created for a site it didn't finish, kept in the tab until the site is made. A sign-in
+ * can connect only the repositories it created itself, so after a reload, after signing in again, or where GitHub made
+ * a repository but the rest of its setup failed, the page can't finish that site: it says so, rather than leave
+ * repositories nobody knows were made. The setup code is never kept here: it stays in the page's memory only.
  */
-const BEGUN_KEY = "goodfellow:setup:full-stack:begun";
+const UNFINISHED_KEY = "goodfellow:setup:full-stack:unfinished";
 
-/** What the tab kept as `BEGUN_KEY`, where it reads as one. */
-export function keptBegun(text: string | null): Begun | undefined {
+/** The repositories made for a site the page can't finish, by their paths, and the name the site was given. */
+export interface Unfinished {
+  name: string;
+  repos: string[];
+}
+
+/** What the tab kept as `UNFINISHED_KEY`, where it reads as one. */
+export function keptUnfinished(text: string | null): Unfinished | undefined {
   try {
-    const kept = JSON.parse(text ?? "") as Partial<Begun>;
-    const { repo, setupCode, answers } = kept;
+    const { name, repos } = JSON.parse(text ?? "") as Partial<Unfinished>;
     if (
-      typeof repo?.repo === "string" &&
-      typeof repo.webUrl === "string" &&
-      typeof setupCode?.code === "string" &&
-      /^[0-9a-f]{64}$/.test(setupCode.hash ?? "") &&
-      typeof answers?.name === "string" &&
-      (answers.visibility === "public" || answers.visibility === "private") &&
-      typeof answers.address === "string"
+      typeof name === "string" &&
+      Array.isArray(repos) &&
+      repos.length > 0 &&
+      repos.every((repo) => typeof repo === "string" && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(repo))
     ) {
-      return { repo: { ...repo, warnings: repo.warnings ?? [] } as CreatedSiteRepository, setupCode, answers };
+      return { name, repos };
     }
   } catch {
     // Nothing kept, or nothing this page can read.
@@ -62,14 +65,27 @@ export function keptBegun(text: string | null): Begun | undefined {
   return undefined;
 }
 
-/** Keeps the code repository made, or forgets it, in the tab. */
-function keepBegun(begun: Begun | undefined): void {
+/**
+ * Adds repositories made for a site to those the tab keeps, or, with `made` false, takes them out, keeping every other
+ * site's: trying another name keeps what the names tried before made.
+ */
+function keepUnfinished(name: string, repos: string[], made = true): void {
   try {
-    if (begun) sessionStorage.setItem(BEGUN_KEY, JSON.stringify(begun));
-    else sessionStorage.removeItem(BEGUN_KEY);
+    const kept = keptUnfinished(sessionStorage.getItem(UNFINISHED_KEY))?.repos ?? [];
+    const all = made
+      ? [...kept, ...repos.filter((repo) => !kept.includes(repo))]
+      : kept.filter((repo) => !repos.includes(repo));
+    if (all.length > 0)
+      sessionStorage.setItem(UNFINISHED_KEY, JSON.stringify({ name, repos: all } satisfies Unfinished));
+    else sessionStorage.removeItem(UNFINISHED_KEY);
   } catch {
-    // Without the tab's storage, a reload starts again.
+    // Without the tab's storage, a reload forgets them.
   }
+}
+
+/** A repository's page on GitHub, from its path. */
+function githubRepo(repo: string): CreatedSiteRepository {
+  return { repo, webUrl: `https://github.com/${repo}`, buildsUrl: `https://github.com/${repo}/actions`, warnings: [] };
 }
 
 /** Where in Cloudflare's dashboard the token for deploying is made: its "Edit Cloudflare Workers" template. */
@@ -167,12 +183,13 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   const [step, setStep] = useState<SetupStep>();
   const [creating, setCreating] = useState<"code" | "content">();
   /**
-   * The code's repository, once it's created, with the setup code whose hash it has and the answers it was made with:
-   * trying again after the content's repository failed carries on with all three, whatever's been typed since.
+   * The code's repository, once it's created, with the setup code whose hash it has, the answers it was made with and
+   * the sign-in that made it: trying again with that sign-in, after the content's repository failed before GitHub made
+   * it, carries on with all of them, whatever's been typed since.
    */
   const [begun, setBegun] = useState<Begun>();
-  /** A code repository made before this page was reloaded, which it can't finish (`BEGUN_KEY`). */
-  const [unfinished, setUnfinished] = useState<Begun>();
+  /** Repositories made for a site this page can't finish (`UNFINISHED_KEY`). */
+  const [unfinished, setUnfinished] = useState<Unfinished>();
   const [created, setCreated] = useState<CreatedSite>();
 
   // Only state setters, which never change, so the effect below can name it.
@@ -187,11 +204,11 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     try {
       saved = sessionStorage.getItem(ANSWERS_KEY);
       sessionStorage.removeItem(ANSWERS_KEY);
-      // A code repository made before a reload, or before signing in again, whose content's wasn't.
-      const kept = keptBegun(sessionStorage.getItem(BEGUN_KEY));
+      // Repositories made before a reload, or before signing in again, for a site that wasn't finished.
+      const kept = keptUnfinished(sessionStorage.getItem(UNFINISHED_KEY));
       if (kept) {
         setUnfinished(kept);
-        setName(kept.answers.name);
+        setName(kept.name);
       }
     } catch {
       saved = null;
@@ -218,14 +235,14 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       .owners()
       .then((found) => {
         setOwners(found);
-        // The account the code repository made before a reload is in, where there is one.
-        let kept: Begun | undefined;
+        // The account the repositories made before a reload are in, where there are some.
+        let kept: Unfinished | undefined;
         try {
-          kept = keptBegun(sessionStorage.getItem(BEGUN_KEY));
+          kept = keptUnfinished(sessionStorage.getItem(UNFINISHED_KEY));
         } catch {
           kept = undefined;
         }
-        const keptOwner = found.find((candidate) => kept?.repo.repo.startsWith(`${candidate.path}/`));
+        const keptOwner = found.find((candidate) => kept?.repos[0]?.startsWith(`${candidate.path}/`));
         setOwner(keptOwner?.path ?? found[0]?.path ?? "");
       })
       .catch((caught: unknown) => setError(createMessage(caught)));
@@ -235,8 +252,16 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   const validName = /^[A-Za-z0-9._-]+$/.test(name) && !/^[.-]/.test(name);
   // Left empty, the site is at the address Cloudflare gives its Worker, which Set up Cloudflare writes in.
   const typedAddress = address.trim() === "" ? { address: "" } : siteAddressOf(address);
-  // Carrying on with the code's repository made before, where the same account and name are chosen again.
-  const resumed = begun && begun.repo.repo === `${chosenOwner?.path}/${name}` ? begun : undefined;
+  // Carrying on with the code's repository made before, where the same sign-in, account and name are chosen again.
+  const resumed =
+    begun && begun.account === account && begun.repo.repo === `${chosenOwner?.path}/${name}` ? begun : undefined;
+
+  useEffect(() => {
+    // Another sign-in can't connect the code's repository this one made, so the site can't be finished now.
+    if (!begun || begun.account === account) return;
+    setBegun(undefined);
+    setUnfinished((before) => withRepos(before, begun.answers.name, [begun.repo.repo]));
+  }, [account, begun]);
   const codeCreated = resumed !== undefined;
 
   useEffect(() => {
@@ -291,20 +316,36 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
     if (!account || !chosenOwner || (!resumed && !("address" in typedAddress))) return;
     setBusy(true);
     setError(undefined);
+    const code = `${chosenOwner.path}/${name}`;
+    const content = `${chosenOwner.path}/${contentName(name)}`;
+    // The code's repository has the setup code's hash and the address already, where it was made before.
+    const answers =
+      resumed?.answers ??
+      ({ name, visibility, address: "address" in typedAddress ? typedAddress.address : "" } as const);
+    // The repositories GitHub has made for this site, kept in the tab as soon as each is made, so a reload or a failure
+    // part way through still says what's there.
+    const made = resumed ? [resumed.repo.repo] : [];
+    const keepMade = (repo: string) => {
+      if (made.includes(repo)) return;
+      made.push(repo);
+      keepUnfinished(answers.name, [repo]);
+    };
+    // A repository is made once its setup goes past the step that makes it.
+    const following = (repo: string) => (next: SetupStep) => {
+      setStep(next);
+      if (next !== "repository") keepMade(repo);
+    };
+    let trying: { repo: string; free: boolean } | undefined;
+    let codeRepo = resumed?.repo;
+    let setupCode = resumed?.setupCode;
     try {
-      const code = `${chosenOwner.path}/${name}`;
-      const content = `${chosenOwner.path}/${contentName(name)}`;
-      // The code's repository has the setup code's hash and the address already, where it was made before.
-      const answers =
-        resumed?.answers ??
-        ({ name, visibility, address: "address" in typedAddress ? typedAddress.address : "" } as const);
-      const made = resumed?.setupCode ?? (await newCode());
-      const files = await serverSiteFiles(base, answers, code, content, made.hash);
+      setupCode ??= await newCode();
+      const files = await serverSiteFiles(base, answers, code, content, setupCode.hash);
       const site = { owner: chosenOwner, private: answers.visibility === "private", pages: false };
       setCreating("code");
-      const codeRepo =
-        resumed?.repo ??
-        (await account.createSite(
+      if (!codeRepo) {
+        trying = { repo: code, free: available === true };
+        codeRepo = await account.createSite(
           {
             ...site,
             name,
@@ -313,14 +354,12 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
             message: "Create the site",
             more: true,
           },
-          setStep,
-        ));
-      if (!resumed) {
-        const begunNow = { repo: codeRepo, setupCode: made, answers };
-        setBegun(begunNow);
-        keepBegun(begunNow);
+          following(code),
+        );
+        keepMade(code);
       }
       setCreating("content");
+      trying = { repo: content, free: contentAvailable === true };
       const contentRepo = await account.createSite(
         {
           ...site,
@@ -336,18 +375,38 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
             links: { reads: [{ reader: "code", read: "content", secret: "GOODFELLOW_CONTENT_KEY" }], nightly: [] },
           },
         },
-        setStep,
+        following(content),
       );
-      keepBegun(undefined);
+      keepUnfinished(answers.name, made, false);
+      setBegun(undefined);
       setCreated({
         code: codeRepo,
         content: contentRepo,
-        setupCode: made.code,
+        setupCode: setupCode.code,
         address: answers.address,
         worker: workerName(answers.name),
       });
     } catch (caught) {
       setError(createMessage(caught));
+      // GitHub may have made the repository before its setup failed, without reaching the step after.
+      if (trying?.free && !made.includes(trying.repo)) {
+        const short = trying.repo.slice(chosenOwner.path.length + 1);
+        if (
+          await account.isAvailable(chosenOwner, short).then(
+            (free) => !free,
+            () => false,
+          )
+        )
+          keepMade(trying.repo);
+      }
+      if (codeRepo && setupCode && !made.includes(content)) {
+        // Only the code's repository is made, by this sign-in, so trying again carries on with it.
+        setBegun({ repo: codeRepo, setupCode, answers, account });
+      } else if (made.length > 0) {
+        // The content's name is taken by what was made, or the code's setup stopped part way: neither can be finished.
+        setBegun((before) => (before?.repo.repo === code ? undefined : before));
+        setUnfinished((before) => withRepos(before, answers.name, made));
+      }
     } finally {
       setBusy(false);
       setStep(undefined);
@@ -525,19 +584,26 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       {unfinished && (
         <div role="alert" className="grid gap-2 rounded-lg border-2 border-primary bg-muted p-3 text-sm font-medium">
           <p>
-            Before this page was reloaded, it created <RepoLink repo={unfinished.repo} /> but not its content, and it
-            can't finish that site now. Delete {unfinished.repo.repo} on GitHub (its Settings, at the bottom), then
-            create the site again, or choose another name.
+            This page created{" "}
+            {unfinished.repos.map((repo, at) => (
+              <span key={repo}>
+                {at > 0 && (at === unfinished.repos.length - 1 ? (at > 1 ? ", and " : " and ") : ", ")}
+                <RepoLink repo={githubRepo(repo)} />
+              </span>
+            ))}{" "}
+            for a site it didn't finish, and it can't carry on with {unfinished.repos.length > 1 ? "them" : "it"} now.
+            Delete {unfinished.repos.length > 1 ? "each of them" : unfinished.repos[0]} on GitHub (in Settings, at the
+            bottom), then create the site again, or choose another name.
           </p>
           <button
             type="button"
             className={`${link} justify-self-start`}
             onClick={() => {
-              keepBegun(undefined);
+              keepUnfinished(unfinished.name, unfinished.repos, false);
               setUnfinished(undefined);
             }}
           >
-            I've deleted it, or I'll choose another name
+            I've deleted {unfinished.repos.length > 1 ? "them" : "it"}, or I'll choose another name
           </button>
         </div>
       )}
@@ -578,6 +644,14 @@ interface Begun {
   repo: CreatedSiteRepository;
   setupCode: { code: string; hash: string };
   answers: Answers;
+  /** The sign-in that made it, the only one that can connect it to the content's. */
+  account: SetupAccount;
+}
+
+/** The repositories that can't be finished, with more added, each once. */
+function withRepos(before: Unfinished | undefined, name: string, repos: string[]): Unfinished {
+  const kept = before?.repos ?? [];
+  return { name, repos: [...kept, ...repos.filter((repo) => !kept.includes(repo))] };
 }
 
 /** Both repositories, made, with the setup code and the address the code's has. */

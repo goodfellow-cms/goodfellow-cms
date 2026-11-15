@@ -96,9 +96,10 @@ export async function createAdmin(context: AdminMaker, person: NewAdmin): Promis
       accountId: user.id,
       password,
     });
+    await context.internalAdapter.updateUser(user.id, { role: "admin" });
   } catch (error) {
+    // Taken out again, so the same address can try again, rather than find an account it can't make an admin.
     await context.internalAdapter.deleteUser(user.id).catch(() => undefined);
     throw error;
   }
-  await context.internalAdapter.updateUser(user.id, { role: "admin" });
 }

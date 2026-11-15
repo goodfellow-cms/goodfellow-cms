@@ -176,7 +176,7 @@ describe("setUpFirstAdmin", () => {
 
   it("leaves no admin without a password, whichever write fails", async () => {
     const made: string[] = [];
-    const maker = (fails: "hash" | "link" | "link and delete"): AdminMaker => ({
+    const maker = (fails: "hash" | "link" | "link and delete" | "promote"): AdminMaker => ({
       internalAdapter: {
         findUserByEmail: async () => null,
         createUser: async (user) => {
@@ -184,10 +184,11 @@ describe("setUpFirstAdmin", () => {
           return { id: "u1" };
         },
         updateUser: async (_id, data) => {
+          if (fails === "promote") throw new Error("D1 went away");
           made.push(`now ${data.role}`);
         },
         linkAccount: async () => {
-          if (fails !== "hash") throw new Error("D1 went away");
+          if (fails !== "hash" && fails !== "promote") throw new Error("D1 went away");
           made.push("account");
         },
         deleteUser: async () => {
@@ -210,6 +211,10 @@ describe("setUpFirstAdmin", () => {
     made.length = 0;
     await expect(createAdmin(maker("link and delete"), OLIVE)).rejects.toThrow("D1 went away");
     expect(made).toEqual(["user as member"]);
+    // Where making them an admin fails, the account goes too, so the same address can try again.
+    made.length = 0;
+    await expect(createAdmin(maker("promote"), OLIVE)).rejects.toThrow("D1 went away");
+    expect(made).toEqual(["user as member", "account", "deleted"]);
   });
 
   it("takes at most SETUP_LIMIT's tries from one address an hour", async () => {

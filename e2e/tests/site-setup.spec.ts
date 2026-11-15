@@ -554,9 +554,14 @@ test("says what to do about a code repository it made before a reload, which it 
   await expect(page.getByText("That name is free.")).toBeVisible();
   await page.getByRole("button", { name: "Create the site" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  // The tab keeps which repositories were made, never the setup code, which only the page's memory has.
+  const kept = await page.evaluate(() => JSON.stringify(Object.entries(sessionStorage)));
+  expect(kept).toContain("someone/acme");
+  expect(kept).not.toMatch(/[A-Z2-7]{4}(-[A-Z2-7]{4}){5}|setupCode|[0-9a-f]{64}/);
   // A reload, or signing in again, which leave the page.
   await page.reload({ waitUntil: "networkidle" });
-  const unfinished = page.getByRole("alert").filter({ hasText: "Before this page was reloaded" });
+  const unfinished = page.getByRole("alert").filter({ hasText: "for a site it didn't finish" });
+  await expect(unfinished).toContainText("This page created someone/acme");
   await expect(unfinished).toContainText("Delete someone/acme on GitHub");
   await expect(unfinished.getByRole("link", { name: "someone/acme" })).toBeVisible();
   await signIn(page, "gh-token");
@@ -564,5 +569,54 @@ test("says what to do about a code repository it made before a reload, which it 
   await unfinished.getByRole("button", { name: /I've deleted it/ }).click();
   await expect(unfinished).toHaveCount(0);
   await page.reload({ waitUntil: "networkidle" });
-  await expect(page.getByText("Before this page was reloaded")).toHaveCount(0);
+  await expect(page.getByText("for a site it didn't finish")).toHaveCount(0);
+});
+
+test("never carries on with another sign-in, and says what GitHub made where a repository's setup stopped part way", async ({
+  page,
+}) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // GitHub makes every repository, but refuses acme-content's once, and writing other's files.
+  let refusedContent = false;
+  await page.route("https://api.github.com/user/repos", async (route) => {
+    const name = (route.request().postDataJSON() as { name?: string } | null)?.name;
+    if (name === "acme-content" && !refusedContent) {
+      refusedContent = true;
+      await route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route("https://api.github.com/repos/someone/other/git/trees", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"Server Error"}' }),
+  );
+  await page.goto(FULL_STACK, { waitUntil: "networkidle" });
+  await signIn(page, "gh-token");
+  const name = page.getByLabel("Name", { exact: true });
+  const create = page.getByRole("button", { name: "Create the site" });
+  await name.fill("acme");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await create.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  await expect(page.getByText(/someone\/acme is created already/)).toBeVisible();
+  // Another sign-in can't connect the repository this one made, so the page says what's left rather than carry on.
+  await page.getByRole("button", { name: "Use another account" }).click();
+  await signIn(page, "gh-token");
+  const unfinished = page.getByRole("alert").filter({ hasText: "for a site it didn't finish" });
+  await expect(unfinished).toContainText("This page created someone/acme");
+  await expect(page.getByText(/someone\/acme is created already/)).toHaveCount(0);
+  // A repository GitHub made whose files couldn't be written is listed too, beside the first.
+  await name.fill("other");
+  await page.getByLabel("The site's address").fill("https://www.other.example");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  await create.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
+  expect(github.created.has("someone/other")).toBe(true);
+  await expect(unfinished).toContainText("This page created someone/acme and someone/other");
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(unfinished).toContainText("This page created someone/acme and someone/other");
 });
