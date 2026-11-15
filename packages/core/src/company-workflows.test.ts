@@ -110,6 +110,33 @@ function run(text: string, env: Record<string, string> = {}, wrangler = wrangler
   return { ...result, outputs: readFileSync(output, "utf8"), sent };
 }
 
+/** Runs a step with `npm` stood in for, in a folder with `site` as package.json and `lockfile` as package-lock.json. */
+function runWith(text: string, check: string, npm: string, site: object, lockfile?: object) {
+  const folder = mkdtempSync(join(tmpdir(), "company-install-"));
+  try {
+    const bin = join(folder, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "npm"), npm);
+    chmodSync(join(bin, "npm"), 0o755);
+    writeFileSync(join(folder, "package.json"), JSON.stringify(site));
+    if (lockfile) writeFileSync(join(folder, "package-lock.json"), JSON.stringify(lockfile));
+    const result = spawnSync("bash", ["-eo", "pipefail", "-c", text], {
+      cwd: folder,
+      encoding: "utf8",
+      env: { PATH: `${bin}:${process.env.PATH}`, STATE: folder, CHECK: check },
+    });
+    let npmCalls: string[] = [];
+    try {
+      npmCalls = readFileSync(join(folder, "npm"), "utf8").trim().split("\n");
+    } catch {
+      npmCalls = [];
+    }
+    return { ...result, npm: npmCalls };
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+}
+
 describe.skipIf(process.platform === "win32")("the company example's workflows", () => {
   const deploy = script("deploy.yml", "deploy");
 
@@ -135,6 +162,33 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
     expect(result.status).not.toBe(0);
     expect(result.stdout).toContain("Couldn't read the Worker's secrets");
     expect(result.stdout).not.toContain("deployed");
+  });
+
+  it("writes a lockfile for its own run where the site has none, or package.json has changed, and installs from it", () => {
+    const steps = parse(readFileSync(join(workflows, "setup-cloudflare.yml"), "utf8")).jobs.create.steps as {
+      name?: string;
+      run?: string;
+      env?: Record<string, string>;
+      with?: Record<string, unknown>;
+    }[];
+    // setup-node's cache needs a lockfile, so it isn't asked for.
+    expect(steps.find((step) => step.with?.["node-version"])?.with?.cache).toBeUndefined();
+    const install = steps.find((step) => step.name === "Install wrangler");
+    if (!install?.run || !install.env?.CHECK) throw new Error("No Install wrangler step.");
+    // A stand-in for npm, saying what it was asked.
+    const npm = '#!/usr/bin/env bash\necho "npm $*" >> "$STATE/npm"\n';
+    const site = { name: "acme", devDependencies: { wrangler: "4.0.0" } };
+    // Without a lockfile: one is written, with releases at least 3 days old and no scripts, then installed from.
+    let result = runWith(install.run, install.env.CHECK, npm, site);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.npm).toEqual([
+      expect.stringMatching(/^npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before=\d{4}-/),
+      "npm ci",
+    ]);
+    // With one that has package.json's packages: only installed from.
+    result = runWith(install.run, install.env.CHECK, npm, site, { packages: { "": site } });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.npm).toEqual(["npm ci"]);
   });
 
   const create = script("setup-cloudflare.yml", "create", "Make the database and the cache");

@@ -31,9 +31,17 @@ jobs:
         with:
           node-version: 22
           check-latest: true
-          cache: npm
-      # .npmrc's ignore-scripts=true keeps every package's install scripts from running.
-      - run: npm ci
+      # A site made without package-lock.json, or whose package.json has changed since, gets one for this run, with
+      # releases at least 3 days old, as Deploy writes and publishes it; this job publishes nothing.
+      - name: Install wrangler
+        env:
+          CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+        run: |
+          if ! node -e "$CHECK"; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+          fi
+          # .npmrc's ignore-scripts=true keeps every package's install scripts from running.
+          npm ci
       - name: Make the database and the cache
         id: ids
         run: |

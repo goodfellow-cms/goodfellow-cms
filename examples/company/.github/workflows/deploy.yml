@@ -53,15 +53,82 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
+  lockfile:
+    # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
+    # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
+    # releases at least 3 days old for what it adds. publish-lockfile publishes it.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.lockfile.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+      - id: lockfile
+        env:
+          CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+          EARLY: 'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);'
+        run: |
+          if node -e "$CHECK"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          elif node -e "$EARLY"; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            # A plugin installed before it was 3 days old, which only its provenance allows:
+            # checked first, and if it doesn't check out the job fails, publishing nothing.
+            core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.lockfile.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockfile
+          path: package-lock.json
+          retention-days: 1
+
+  publish-lockfile:
+    # Publishes the lockfile, without running any of the site's code.
+    needs: lockfile
+    if: needs.lockfile.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.publish.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: lockfile
+      - id: publish
+        env:
+          # The lockfile was written where the site's packages were read, so it's checked before it's published.
+          CHECK: 'const { execFileSync } = require("child_process"); const fs = require("fs"); const read = (text) => { try { return JSON.parse(text); } catch { return undefined; } }; const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; }; let before; try { before = read(execFileSync("git", ["show", "HEAD:package-lock.json"], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] })); } catch {} const had = found(before, new Set()); const refused = [...found(read(fs.readFileSync("package-lock.json", "utf8")), new Set())].filter((address) => !had.has(address) && !address.startsWith("https://registry.npmjs.org/")); for (const address of refused) console.log("::error::package-lock.json takes a package from somewhere other than npm, so it was not published: " + address); process.exit(refused.length > 0 ? 1 : 0);'
+        run: |
+          node -e "$CHECK"
+          git add package-lock.json
+          git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
-    needs: ready
-    if: needs.ready.outputs.ready == 'true'
+    needs: [ready, lockfile, publish-lockfile]
+    # Never after the lockfile job failed, and with the lockfile it published, where it published one.
+    if: ${{ !cancelled() && needs.ready.outputs.ready == 'true' && needs.lockfile.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ needs.publish-lockfile.outputs.sha || github.sha }}
           persist-credentials: false
       # The site's content, in content-repository/, as on a developer's computer.
       - uses: actions/checkout@v5
@@ -90,13 +157,15 @@ jobs:
   # Runs none of the site's code, so the Cloudflare token never meets it: it only applies the database's migrations
   # and uploads what the build job built, with wrangler.
   deploy:
-    needs: build
+    needs: [build, publish-lockfile]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ needs.publish-lockfile.outputs.sha || github.sha }}
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
