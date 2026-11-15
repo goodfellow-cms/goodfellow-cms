@@ -1,5 +1,12 @@
 # @goodfellow-cms/react
 
+## 0.13.0
+
+### Patch Changes
+
+- Updated dependencies [d3b061d]
+  - @goodfellow-cms/core@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes

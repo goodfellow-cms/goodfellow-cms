@@ -1,5 +1,19 @@
 # create-goodfellow
 
+## 0.13.0
+
+### Minor Changes
+
+- d3b061d: `create-goodfellow --server cloudflare` makes a full-stack site from the company example: editors sign in with the site's own accounts, on a Cloudflare Worker with a D1 database, with its code and content in GitHub repositories of their own. In a terminal, it then offers to put the site online with wrangler, step by step: signing in, the database and cache, a deploy, the secrets, and the first admin. Core's `planServerSite()` plans the site's files with no disk access, and `@goodfellow-cms/core/node` exports `commandToRun()`.
+
+### Patch Changes
+
+- 0b3b3b7: The sign-in service can sign as its GitHub Apps with the private keys GitHub gives them. GitHub gives them as PKCS#1, which Workers' Web Crypto can't read, so every token the service made failed, and editors and the setup page saw that it was unavailable. It now converts them itself, so services already set up work once they're updated, and the Claude connector service does the same.
+  
+  It also waits for GitHub to let the owners' app reach a repository the setup page has just created, for up to about 15 seconds, instead of saying it's unavailable and leaving the new repository with only its README. A token for a repository GitHub can't reach yet is no longer asked for again without the Secrets permission, so the setup page gets Secrets wherever the owners' app has it. When GitHub answers in a way the service doesn't expect, its logs now say which request GitHub refused and what GitHub said, never with a token.
+- Updated dependencies [d3b061d]
+  - @goodfellow-cms/core@0.13.0
+
 ## 0.12.0
 
 ### Patch Changes
