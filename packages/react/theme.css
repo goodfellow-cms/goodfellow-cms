@@ -61,13 +61,14 @@
 
   /*
    * Tailwind gives buttons the arrow, as browsers do; on Goodfellow sites
-   * everything that acts as a button shows the hand, unless it's turned off or
-   * a block's classes say otherwise.
+   * everything that acts as a button shows the hand, unless it's turned off
+   * (`disabled`, or `aria-disabled="true"`, whatever its role) or a block's
+   * classes say otherwise: `:where()` gives the rule no specificity, so any
+   * class wins over it.
    */
-  button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  input:is([type="button"], [type="submit"], [type="reset"]):not(:disabled),
-  summary {
+  :where(button, [role="button"], input:is([type="button"], [type="submit"], [type="reset"]), summary):not(
+    :where(:disabled, [aria-disabled="true"])
+  ) {
     cursor: pointer;
   }
 

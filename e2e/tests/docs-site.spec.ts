@@ -44,6 +44,43 @@ test("shows a documentation page with its navigation, headings, and highlighted,
   const copy = code.getByRole("button", { name: "Copy code" });
   // Buttons on Goodfellow sites show the hand, not the arrow Tailwind gives them.
   await expect(copy).toHaveCSS("cursor", "pointer");
+  // Not where it's turned off, however that's said, and never over a block's own classes.
+  const cursors = await page.evaluate(() => {
+    const style = document.createElement("style");
+    style.textContent = "@layer base { .gf-test-arrow { cursor: default } }";
+    document.head.append(style);
+    const made = {
+      disabled: "<button disabled>A</button>",
+      roleDisabled: '<button role="button" disabled>A</button>',
+      ariaDisabled: '<button aria-disabled="true">A</button>',
+      inputAriaDisabled: '<input type="submit" aria-disabled="true">',
+      divAriaDisabled: '<div role="button" aria-disabled="true">A</div>',
+      ownClass: '<button class="gf-test-arrow">A</button>',
+      roleOwnClass: '<div role="button" class="gf-test-arrow">A</div>',
+      summary: "<details><summary>A</summary></details>",
+      submit: '<input type="submit">',
+    };
+    return Object.fromEntries(
+      Object.entries(made).map(([name, html]) => {
+        const box = document.createElement("div");
+        box.innerHTML = html;
+        document.body.append(box);
+        const element = box.querySelector("summary") ?? (box.firstElementChild as Element);
+        return [name, getComputedStyle(element).cursor];
+      }),
+    );
+  });
+  expect(cursors).toEqual({
+    disabled: "default",
+    roleDisabled: "default",
+    ariaDisabled: "default",
+    inputAriaDisabled: "default",
+    divAriaDisabled: "auto",
+    ownClass: "default",
+    roleOwnClass: "default",
+    summary: "pointer",
+    submit: "pointer",
+  });
   await copy.click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
