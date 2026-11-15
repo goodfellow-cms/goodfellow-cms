@@ -56,6 +56,19 @@ describe("planServerSite", () => {
     }
   });
 
+  it("puts in each repository's name once, even where one is spelled like a placeholder", () => {
+    const files = planServerSite({
+      template: companyFiles(),
+      name: "acme",
+      versions,
+      code: "acme/site",
+      content: "your-name/your-site",
+    });
+    const text = (path: string) => siteFileText(files.get(path) ?? "");
+    expect(text("goodfellow.config.tsx")).toContain('github({ repo: "your-name/your-site", contentOnly: true })');
+    expect(text(".github/workflows/deploy.yml")).toContain("repository: your-name/your-site\n");
+  });
+
   it("keeps the content in a repository of its own, which asks the code's to build after each publish", () => {
     const files = planServerSite({ template: companyFiles(), name: "acme", versions, code: "acme/site" });
     const paths = [...files.keys()];

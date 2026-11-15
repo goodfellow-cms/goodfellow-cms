@@ -1,6 +1,7 @@
 // `create-goodfellow --server cloudflare`: a full-stack site, made from the company example, whose editors sign in
 // with the site's own accounts, on a Cloudflare Worker with a D1 database, its code and content in repositories of
 // their own on GitHub.
+import { readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { stdin } from "node:process";
 import { SERVER_HOSTS, workerName } from "@goodfellow-cms/core";
@@ -75,6 +76,11 @@ async function askUntil<T>(io: ServerSiteIo, question: string, read: (answer: st
   }
 }
 
+/** Whether two repositories are the same one, as GitHub reads their names, whatever their spelling. */
+function sameRepo(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 function githubRepo(input: string, what: string): string {
   const repo = parseRepo("github", input);
   if (!repo) throw new ScaffoldError(`${what} is a GitHub repository, such as your-name/your-site.`);
@@ -90,17 +96,20 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
     throw new ScaffoldError("A full-stack site keeps its code and content on GitHub for now: give --github.");
   }
   let { folder, github, content, url } = choices;
-  if (choices.interactive) {
+  // Nothing is asked in CI, where nobody answers, nor is wrangler offered, since nobody can sign in or type a secret.
+  const asking = choices.interactive && !(io.ci ?? Boolean(process.env.CI));
+  if (asking) {
     folder ??= (await io.ask("Folder for the new site (my-site): ")).trim() || "my-site";
     github ??= await askUntil(io, "\nThe GitHub repository for the site's code, such as your-name/your-site: ", (a) =>
       githubRepo(a, "The code's repository"),
     );
-    const suggested = `${githubRepo(github, "--github")}-content`;
     const codeRepo = githubRepo(github, "--github");
+    const suggested = `${codeRepo}-content`;
     content ??= await askUntil(io, `The GitHub repository for its content (${suggested}): `, (a) => {
       const repo = a.trim() === "" ? suggested : githubRepo(a, "The content's repository");
       // Asked again at once, rather than refused once every question is answered.
-      if (repo === codeRepo) throw new ScaffoldError("The content needs a repository of its own, not the code's.");
+      if (sameRepo(repo, codeRepo))
+        throw new ScaffoldError("The content needs a repository of its own, not the code's.");
       return repo;
     });
     url ??= await askUntil(
@@ -117,7 +126,7 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
   const code = github === undefined ? undefined : githubRepo(github, "--github");
   // As the question suggests it, when the code's is given and the content's isn't.
   const contentRepo = content === undefined ? code && `${code}-content` : githubRepo(content, "--content");
-  if (code && contentRepo === code)
+  if (code && contentRepo && sameRepo(contentRepo, code))
     throw new ScaffoldError("The content needs a repository of its own, not the code's.");
   const address = url ? siteAddress(url) : undefined;
 
@@ -149,10 +158,11 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
 
   const worker = workerName(packageName(target));
   let left: string[] | undefined;
-  // Never in CI, where nobody can sign in or type a secret.
-  if (choices.interactive && installed && !(io.ci ?? Boolean(process.env.CI))) {
+  if (asking && installed) {
     const answer = await io.ask("\nPut the site online on Cloudflare now, with wrangler? (Y/n) ");
     if (yes(answer)) {
+      const wranglerFile = join(target, "wrangler.jsonc");
+      const before = await readFile(wranglerFile, "utf8");
       left = await setUpCloudflare({
         target,
         worker,
@@ -162,7 +172,11 @@ export async function createServerSite(choices: ServerSiteChoices, io: ServerSit
         hasAddress: address !== undefined,
       });
       // The database's and KV namespace's ids, which wrangler.jsonc now has, where the site's first commit was made.
-      if (commit === "committed") commitAll(target, "Name the site's Cloudflare database and cache");
+      if (commit === "committed" && (await readFile(wranglerFile, "utf8")) !== before) {
+        if (commitAll(target, "Name the site's Cloudflare database and cache") !== "committed") {
+          left.push("Commit wrangler.jsonc, which now names the site's Cloudflare database and cache.");
+        }
+      }
     }
   }
 

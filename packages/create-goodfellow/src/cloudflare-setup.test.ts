@@ -77,7 +77,10 @@ describe("setUpCloudflare", () => {
       sessionKey: () => "made-here",
       hasAddress: true,
     });
-    expect(left).toEqual([]);
+    // Only the domain, which wrangler can't connect, is left.
+    expect(left).toEqual([
+      "Add the site's domain to the Worker in Cloudflare's dashboard (Workers & Pages → acme → Settings → Domains & Routes).",
+    ]);
     const wrangler = await readFile(join(target, "wrangler.jsonc"), "utf8");
     expect(wrangler).toContain(`"database_id": "${DATABASE}"`);
     expect(wrangler).toContain(`"id": "${KV}"`);
@@ -168,6 +171,7 @@ describe("setUpCloudflare", () => {
     ]);
     expect(said.join("\n")).toContain("doesn't have its address");
     expect(left[0]).toContain("GOODFELLOW_SITE_URL");
+    expect(left.join(" ")).not.toContain("Domains & Routes");
   });
 
   it("does only what's agreed to", async () => {
@@ -182,6 +186,7 @@ describe("setUpCloudflare", () => {
     });
     expect(ran.map((step) => step.line)).toEqual(["npx wrangler whoami"]);
     expect(left.join(" ")).toContain("step 2");
+    expect(left.at(-1)).toContain("Domains & Routes");
   });
 });
 

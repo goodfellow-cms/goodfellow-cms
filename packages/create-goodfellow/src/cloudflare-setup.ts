@@ -101,8 +101,11 @@ export async function setUpCloudflare({
   hasAddress,
 }: CloudflareSetupOptions): Promise<string[]> {
   const left: string[] = [];
+  // The domain is connected in Cloudflare's dashboard, which wrangler can't do, so it's left however far this gets.
+  const domain = `Add the site's domain to the Worker in Cloudflare's dashboard (Workers & Pages → ${worker} → Settings → Domains & Routes).`;
   const later = (...steps: string[]) => {
     left.push(...steps);
+    if (hasAddress) left.push(domain);
     return left;
   };
   const wranglerFile = join(target, "wrangler.jsonc");
@@ -189,5 +192,5 @@ export async function setUpCloudflare({
   if (run("npm", ["run", "new-admin", "--", email, name, "--remote"], { inherit: true }).status !== 0) {
     left.push("Make the first admin with npm run new-admin (README.md, step 7).");
   }
-  return left;
+  return later();
 }

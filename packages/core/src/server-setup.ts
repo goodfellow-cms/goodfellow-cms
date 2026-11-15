@@ -29,6 +29,8 @@ export const TEMPLATE_WORKER = "goodfellow-company";
 /** The example's placeholders for the code's and the content's GitHub repositories. */
 export const TEMPLATE_CODE_REPO = "your-name/your-site";
 export const TEMPLATE_CONTENT_REPO = "your-name/your-site-content";
+/** Either placeholder: the code's is the start of the content's, so it counts only where no more of a name follows. */
+const TEMPLATE_REPOS = /your-name\/your-site-content|your-name\/your-site(?![\w-])/g;
 
 /** The example's placeholder for the site's address, in wrangler.jsonc's vars. */
 export const TEMPLATE_SITE_URL = "https://www.example.com";
@@ -160,10 +162,8 @@ export function planServerSite({ template, name, versions, code, content, siteUr
     let changed = text.replaceAll(TEMPLATE_WORKER, worker);
     // The README's steps say where the placeholders were, which its first section says are filled in.
     if (path !== "README.md") {
-      changed = changed
-        .replaceAll(TEMPLATE_CONTENT_REPO, contentRepo)
-        // The code's placeholder is the start of the content's, which is already replaced.
-        .replace(new RegExp(`${TEMPLATE_CODE_REPO.replace("/", "\\/")}(?![\\w-])`, "g"), codeRepo);
+      // Both in one pass, so neither repository's name is taken for a placeholder after it's put in.
+      changed = changed.replace(TEMPLATE_REPOS, (found) => (found === TEMPLATE_CONTENT_REPO ? contentRepo : codeRepo));
     }
     if (path === "wrangler.jsonc" && siteUrl) changed = changed.replace(TEMPLATE_SITE_URL, siteUrl);
     files.set(path, changed === text && typeof file !== "string" ? file : changed);

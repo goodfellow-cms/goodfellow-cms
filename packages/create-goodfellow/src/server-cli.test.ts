@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
@@ -141,6 +142,84 @@ describe("createServerSite", { timeout: 120_000 }, () => {
     expect(await readFile(join(folder, "goodfellow.config.tsx"), "utf8")).toContain('repo: "acme/site-words"');
   });
 
+  it("takes the content's repository for the code's whatever its spelling, as GitHub does", async () => {
+    const folder = join(dir, "acme");
+    const given = io(["acme/site", "ACME/Site", "acme/site-words", "", "n"]);
+    await createServerSite({ ...quiet(folder), interactive: true, install: true }, given);
+    expect(given.said.join("\n")).toContain("The content needs a repository of its own, not the code's.");
+    await expect(
+      createServerSite({ ...quiet(join(dir, "other")), github: "acme/site", content: "Acme/Site" }, io()),
+    ).rejects.toThrow("a repository of its own");
+  });
+
+  it("asks nothing in CI, taking the content's repository the question would suggest", async () => {
+    const folder = join(dir, "acme");
+    const given = io(["never/asked", "never/asked"]);
+    const asked: string[] = [];
+    const ask = given.ask;
+    given.ask = async (question) => {
+      asked.push(question);
+      return ask(question);
+    };
+    await createServerSite({ ...quiet(folder), github: "acme/site", interactive: true }, { ...given, ci: true });
+    expect(asked).toEqual([]);
+    expect(await readFile(join(folder, "goodfellow.config.tsx"), "utf8")).toContain('repo: "acme/site-content"');
+  });
+
+  it("commits the ids wrangler gave, and says so where that commit couldn't be made", async () => {
+    for (const [name, value] of Object.entries({
+      HOME: dir,
+      GIT_CONFIG_GLOBAL: join(dir, "no-gitconfig"),
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_AUTHOR_NAME: "Olive Owner",
+      GIT_AUTHOR_EMAIL: "olive@example.org",
+      GIT_COMMITTER_NAME: "Olive Owner",
+      GIT_COMMITTER_EMAIL: "olive@example.org",
+    })) {
+      vi.stubEnv(name, value);
+    }
+    try {
+      for (const mode of ["committed", "refused", "declined"] as const) {
+        const refuse = mode === "refused";
+        const folder = join(dir, mode);
+        // The suggested content repository, yes to wrangler, then, where declined, no to making the database, so
+        // wrangler.jsonc stays as it was.
+        const given = io(mode === "declined" ? ["", "", "n"] : []);
+        // wrangler's ids, and, once the site's first commit is made, a hook that refuses any more where asked.
+        given.runner = (): Runner => (command, args) => {
+          const line = [command, ...args].join(" ");
+          if (refuse && line === "npx wrangler whoami") {
+            writeFileSync(join(folder, ".git/hooks/pre-commit"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+          }
+          if (line.startsWith("npx wrangler d1 create")) {
+            return { status: 0, stdout: 'database_id = "0f2b1c4e-6a1d-4c8e-9b5a-2d7e8f9a0b1c"' };
+          }
+          if (line.startsWith("npx wrangler kv namespace create")) {
+            return { status: 0, stdout: 'id = "0123456789abcdef0123456789abcdef"' };
+          }
+          return { status: 0, stdout: "" };
+        };
+        await createServerSite(
+          {
+            ...quiet(folder),
+            github: "acme/site",
+            url: "https://www.acme.example",
+            git: true,
+            install: true,
+            interactive: true,
+          },
+          given,
+        );
+        const said = given.said.join("\n");
+        const commits = spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: folder, encoding: "utf8" });
+        expect(commits.stdout.trim()).toBe(mode === "committed" ? "2" : "1");
+        expect(said.includes("Commit wrangler.jsonc")).toBe(refuse);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("refuses options a full-stack site can't take, and --url without --server", () => {
     expect(
       serverOptionProblem({ server: "cloudflare", github: "acme/site", url: "https://x.example" }),
@@ -157,8 +236,11 @@ describe("createServerSite", { timeout: 120_000 }, () => {
 
   it("never offers wrangler in CI", async () => {
     const ran: string[] = [];
-    const given = { ...io([join(dir, "acme"), "acme/site", "", ""], ran), ci: true };
-    await createServerSite({ ...quiet(""), folder: undefined, install: true, interactive: true }, given);
+    const given = { ...io([], ran), ci: true };
+    await createServerSite(
+      { ...quiet(join(dir, "acme")), github: "acme/site", install: true, interactive: true },
+      given,
+    );
     expect(ran).toEqual([]);
   });
 
