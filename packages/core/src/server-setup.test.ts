@@ -1,7 +1,16 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { planServerSite, SITE_VITEST_CONFIG, TEMPLATE_WORKER, workerName } from "./server-setup.js";
+import { parse } from "yaml";
+import {
+  newSetupCode,
+  planServerSite,
+  SETUP_CODE_LENGTH,
+  SITE_VITEST_CONFIG,
+  setupCodeHash,
+  TEMPLATE_WORKER,
+  workerName,
+} from "./server-setup.js";
 import { type SiteFiles, siteFileText } from "./site-setup.js";
 
 const company = join(import.meta.dirname, "../../../examples/company");
@@ -74,9 +83,13 @@ describe("planServerSite", () => {
     const paths = [...files.keys()];
     expect(paths.filter((path) => path.startsWith("content/") || path.startsWith("public/media/"))).toEqual([]);
     expect(files.has("content-repository/content/site.json")).toBe(true);
-    expect(siteFileText(files.get("content-repository/.github/workflows/deploy-site.yml") ?? "")).toContain(
-      "gh workflow run deploy.yml --repo acme/site",
-    );
+    const workflow = parse(siteFileText(files.get("content-repository/.github/workflows/deploy-site.yml") ?? ""));
+    // It asks only once its token is there, and otherwise says so rather than fail, as on the content's first commit.
+    expect(workflow.jobs.deploy.steps).toEqual([
+      { if: "env.GH_TOKEN != ''", run: "gh workflow run deploy.yml --repo acme/site" },
+      { if: "env.GH_TOKEN == ''", run: expect.stringContaining("GOODFELLOW_DEPLOY_TOKEN") },
+    ]);
+    expect(workflow.jobs.deploy.env.GH_TOKEN).toMatch(/^\$\{\{ secrets\.GOODFELLOW_DEPLOY_TOKEN \}\}$/);
     expect(siteFileText(files.get(".gitignore") ?? "")).toContain("/content-repository/");
     const readme = siteFileText(files.get("README.md") ?? "");
     expect(readme).toContain("**acme/site**");
@@ -117,6 +130,48 @@ describe("planServerSite", () => {
       expect(file, path).not.toMatch(/["'](\.\.\/){2,}/);
     }
     expect(files.get("vitest.config.ts")).toBe(SITE_VITEST_CONFIG);
+  });
+
+  it("puts a setup code's hash in wrangler.jsonc's vars, which stays valid JSON once its comments are gone", async () => {
+    const hash = await setupCodeHash("abcd-efgh");
+    const files = planServerSite({
+      template: companyFiles(),
+      name: "acme",
+      versions,
+      siteUrl: "https://www.acme.example",
+      setupCodeHash: hash,
+      madeBy: "page",
+    });
+    const wrangler = siteFileText(files.get("wrangler.jsonc") ?? "");
+    const vars = /"vars"\s*:\s*(\{[^}]*\})/.exec(wrangler)?.[1] ?? "";
+    expect(JSON.parse(vars)).toEqual({
+      GOODFELLOW_SETUP_CODE_HASH: hash,
+      GOODFELLOW_SITE_URL: "https://www.acme.example",
+    });
+    // The README says the setup page made it, which created the repositories on GitHub itself.
+    const readme = siteFileText(files.get("README.md") ?? "");
+    expect(readme).toContain("Goodfellow's setup page made this site");
+    expect(readme).not.toContain("Push each to GitHub");
+    expect(() => planServerSite({ template: companyFiles(), name: "acme", versions, setupCodeHash: "ABC" })).toThrow(
+      "64 lowercase hexadecimal digits",
+    );
+    // Without one, wrangler.jsonc has no hash, and the README names create-goodfellow.
+    const plain = planServerSite({ template: companyFiles(), name: "acme", versions });
+    expect(siteFileText(plain.get("wrangler.jsonc") ?? "")).not.toContain("SETUP_CODE");
+    expect(siteFileText(plain.get("README.md") ?? "")).toContain("`create-goodfellow` made this site");
+  });
+
+  it("makes setup codes of 120 random bits, whose hash doesn't mind spaces, dashes, or case", async () => {
+    const code = newSetupCode();
+    expect(code).toMatch(/^[A-Z2-7]{4}(-[A-Z2-7]{4}){5}$/);
+    expect(code.replaceAll("-", "")).toHaveLength(SETUP_CODE_LENGTH);
+    expect(newSetupCode()).not.toBe(code);
+    const hash = await setupCodeHash(code);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(await setupCodeHash(` ${code.toLowerCase().replaceAll("-", " ")} `)).toBe(hash);
+    expect(await setupCodeHash(code.replace(/^./, (first) => (first === "A" ? "B" : "A")))).not.toBe(hash);
+    // SHA-256 of "ABCDEFGH", as any other tool gives it.
+    expect(await setupCodeHash("abcd-efgh")).toBe("9ac2197d9258257b1ae8463e4214e4cd0a578bc1517f2415928b91be4283fc48");
   });
 
   it("gives names Cloudflare takes", () => {

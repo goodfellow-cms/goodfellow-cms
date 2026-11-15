@@ -157,6 +157,7 @@ export const APP_ROUTES = [
   "admin",
   "api",
   "reset-password",
+  "setup",
   "sign-in",
   "sign-out",
   "sign-up",

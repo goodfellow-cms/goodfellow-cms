@@ -505,6 +505,23 @@ test("lets admins invite editors, who choose a password, and lets anyone choose 
   await expect(page.getByText("Signed in as Ivy Invited.")).toBeVisible();
 });
 
+test("checks the setup code on the Worker, and makes no admin on a site that has one", async ({ page }) => {
+  await page.goto(`${SITE}/setup/`);
+  const fill = async (code: string) => {
+    await page.getByLabel("Setup code").fill(code);
+    await page.getByLabel("Your email address").fill("mallory@example.org");
+    await page.getByLabel("Your name").fill("Mallory");
+    await page.getByLabel("New password").fill(COMPANY_PASSWORD);
+    await page.getByLabel("The same password again").fill(COMPANY_PASSWORD);
+    await page.getByRole("button", { name: "Make me the admin" }).click();
+  };
+  await fill("WRON-GCOD-EXXX-XXXX-XXXX-XXXX");
+  await expect(page.getByRole("alert")).toHaveText(/isn't this site's setup code/);
+  // The right code, typed in lowercase, on a site whose admins the test database already has.
+  await fill(COMPANY.setupCode.toLowerCase());
+  await expect(page.getByRole("alert")).toHaveText("This site has its first admin already. Sign in instead.");
+});
+
 test("keeps Better Auth's admin routes from the browser", async ({ page }) => {
   await signIn(page, "admin");
   const statuses = await page.evaluate(async () =>

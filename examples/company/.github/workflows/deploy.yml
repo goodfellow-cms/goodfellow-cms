@@ -6,6 +6,10 @@
 #   database's migrations, and CLOUDFLARE_ACCOUNT_ID, the account it's for.
 # - GOODFELLOW_CONTENT_KEY, if the content repository is private: the private half of a deploy key that can only read
 #   it, whose public half is added to the content repository (Settings → Deploy keys, without write access).
+# - GOODFELLOW_GIT_TOKEN, the fine-grained token the site publishes with (Contents: Read and write, on the content
+#   repository only), which each deploy gives the Worker, where it isn't set with wrangler instead.
+# - BETTER_AUTH_SECRET, if you want to choose the session key yourself: otherwise the first deploy makes one and gives
+#   it only to the Worker, and later deploys keep it.
 # - EMAIL_API_KEY, the email service's key, which each deploy gives the Worker.
 # - STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, for taking payments (README.md's "Payments"), which each deploy gives
 #   the Worker too.
@@ -28,7 +32,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Until wrangler.jsonc names the site's database and cache (setup-cloudflare.yml), there's nothing to deploy to, so
+  # the rest is skipped rather than fail, as on the commits that create a site on Goodfellow's setup page.
+  ready:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: check
+        run: |
+          if grep -q -e '"your-database-id"' -e '"your-kv-namespace-id"' wrangler.jsonc; then
+            echo "::notice::wrangler.jsonc doesn't name the site's database and cache yet: run Set up Cloudflare first."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: ready
+    if: needs.ready.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,17 +117,39 @@ jobs:
       # has none, so one taken away there goes from the Worker too (wrangler.jsonc keeps variables a deploy isn't
       # given, so deploys from a computer don't touch them). The keys go up with the deploy, from a file only this
       # job reads, removed however the deploy ends; for a secret the repository doesn't have, the Worker keeps the one
-      # it has. Values reach the script through `env`, never its text.
+      # it has. Values reach the script through `env`, never its text. On the first deploy, where neither the
+      # repository nor the Worker has a session key, one is made here, which only the Worker is given.
       - name: Deploy
         run: |
           secrets="$RUNNER_TEMP/secrets.json"
           trap 'rm -f "$secrets"' EXIT
           args=()
+          if [ -z "$BETTER_AUTH_SECRET" ]; then
+            # The Worker's secrets' names, or none for a Worker that doesn't exist yet (Cloudflare's error 10007);
+            # anything else stops the deploy, rather than replace a session key it couldn't see.
+            said="$RUNNER_TEMP/secret-list.txt"
+            if listed=$(npx wrangler secret list --format json 2>"$said"); then
+              has=$(printf '%s' "$listed" | node -e '
+                const text = require("node:fs").readFileSync(0, "utf8");
+                const names = JSON.parse(text.slice(text.search(/^\[/m))).map((secret) => secret.name);
+                process.stdout.write(names.includes("BETTER_AUTH_SECRET") ? "yes" : "no");
+              ')
+            elif grep -q "10007" "$said"; then
+              has=no
+            else
+              echo "Couldn't read the Worker's secrets, so this deploy stops rather than make a new session key."
+              exit 1
+            fi
+            if [ "$has" = no ]; then
+              BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+              export BETTER_AUTH_SECRET
+            fi
+          fi
           for name in EMAIL_PROVIDER EMAIL_FROM EMAIL_DOMAIN EMAIL_REGION EMAIL_KEY_ID; do
             args+=(--var "$name:${!name}")
           done
           (umask 077 && node -e '
-            const names = ["EMAIL_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
+            const names = ["BETTER_AUTH_SECRET", "GOODFELLOW_GIT_TOKEN", "EMAIL_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
             const given = Object.fromEntries(names.filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
             process.stdout.write(JSON.stringify(given));
           ' > "$secrets")
@@ -116,6 +165,8 @@ jobs:
           EMAIL_DOMAIN: ${{ vars.EMAIL_DOMAIN }}
           EMAIL_REGION: ${{ vars.EMAIL_REGION }}
           EMAIL_KEY_ID: ${{ vars.EMAIL_KEY_ID }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          GOODFELLOW_GIT_TOKEN: ${{ secrets.GOODFELLOW_GIT_TOKEN }}
           EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}

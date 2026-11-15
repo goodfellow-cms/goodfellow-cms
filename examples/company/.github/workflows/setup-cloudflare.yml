@@ -1,0 +1,90 @@
+# Makes the site's D1 database and KV namespace on Cloudflare, writes their ids into wrangler.jsonc, and starts the
+# Deploy workflow, which puts the site online. A site made on Goodfellow's setup page runs it once, from Actions → Set
+# up Cloudflare → Run workflow, after adding the secrets deploy.yml lists; one made with create-goodfellow on a
+# computer has done this already. Running it again makes nothing that's made already.
+#
+# It needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, as deploy.yml does.
+name: Set up Cloudflare
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # Makes what's missing, with the site's own wrangler, and says the ids. It can't change the repository.
+  create:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      database: ${{ steps.ids.outputs.database }}
+      kv: ${{ steps.ids.outputs.kv }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+      # .npmrc's ignore-scripts=true keeps every package's install scripts from running.
+      - run: npm ci
+      - name: Make the database and the cache
+        id: ids
+        run: |
+          # The id of the one named $2 in what `wrangler $1` lists as JSON, by its field $3, or nothing.
+          find() {
+            npx wrangler $1 | node -e '
+              const [, name, field] = process.argv;
+              const text = require("node:fs").readFileSync(0, "utf8");
+              const found = JSON.parse(text.slice(text.search(/^\[/m))).find((item) => (item.name ?? item.title) === name);
+              process.stdout.write(found?.[field] ?? "");
+            ' "$2" "$3"
+          }
+          database=$(find "d1 list --json" goodfellow-company uuid)
+          if [ -z "$database" ]; then
+            npx wrangler d1 create goodfellow-company
+            database=$(find "d1 list --json" goodfellow-company uuid)
+          fi
+          kv=$(find "kv namespace list" goodfellow-company-cache id)
+          if [ -z "$kv" ]; then
+            npx wrangler kv namespace create goodfellow-company-cache
+            kv=$(find "kv namespace list" goodfellow-company-cache id)
+          fi
+          # Only ids as Cloudflare writes them reach the next job, which writes them into wrangler.jsonc.
+          [[ "$database" =~ ^[0-9a-f-]{36}$ ]] || { echo "wrangler didn't give the database's id."; exit 1; }
+          [[ "$kv" =~ ^[0-9a-f]{32}$ ]] || { echo "wrangler didn't give the KV namespace's id."; exit 1; }
+          echo "database=$database" >> "$GITHUB_OUTPUT"
+          echo "kv=$kv" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # Runs none of the site's code: it writes the ids in place of wrangler.jsonc's placeholders, publishes that, and
+  # starts the Deploy workflow, which a push made with this job's token wouldn't start.
+  save:
+    needs: create
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Name them in wrangler.jsonc
+        run: |
+          [[ "$DATABASE" =~ ^[0-9a-f-]{36}$ && "$KV" =~ ^[0-9a-f]{32}$ ]] || exit 1
+          sed -i -e "s/\"your-database-id\"/\"$DATABASE\"/" -e "s/\"your-kv-namespace-id\"/\"$KV\"/" wrangler.jsonc
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -qam "Name the site's Cloudflare database and cache"
+            git push
+          fi
+        env:
+          DATABASE: ${{ needs.create.outputs.database }}
+          KV: ${{ needs.create.outputs.kv }}
+      - run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}

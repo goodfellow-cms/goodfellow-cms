@@ -1,12 +1,12 @@
 ---
 version: 1
 title: Full-stack sites on Cloudflare
-description: Make a full-stack site whose editors sign in with the site's own accounts, on a Cloudflare Worker with a database, with one command.
+description: Make a full-stack site whose editors sign in with the site's own accounts, on a Cloudflare Worker with a database, from the setup page or with one command.
 section: developers
 order: 7.2
 ---
 
-`npm create goodfellow@latest my-site -- --server cloudflare` makes a [full-stack site](/docs/full-stack-nextjs) on Cloudflare: a Next.js app built with vinext, Cloudflare's build of Next.js, that runs as a Cloudflare Worker with a D1 database. It's for organizations whose editors shouldn't need GitHub accounts:
+[Goodfellow's setup page for full-stack sites](/new-site/full-stack/), in your browser, or `npm create goodfellow@latest my-site -- --server cloudflare`, on a computer, makes a [full-stack site](/docs/full-stack-nextjs) on Cloudflare: a Next.js app built with vinext, Cloudflare's build of Next.js, that runs as a Cloudflare Worker with a D1 database. It's for organizations whose editors shouldn't need GitHub accounts:
 
 - Editors sign in with the site's own accounts. Admins invite them from `/admin/editors/`, and they choose a password from the link they're sent.
 - The site's server publishes for them, with one token that can change only the content repository. What each editor publishes still names them as its author.
@@ -15,7 +15,28 @@ order: 7.2
 
 The site starts from Goodfellow's company example, with its pages: a home page, About, News, a Handbook for members only, and a Subscribe page. Change or delete them in the admin panel. Its README describes every part, and how to change it.
 
-## What it asks
+## From the setup page
+
+[The setup page for full-stack sites](/new-site/full-stack/) is a page of its own, apart from [the one for static sites](/new-site/). You sign in to GitHub there, as on the static sites' page, and give the site's name, who can see its files, and its address, a domain of your own. It then creates two repositories in your account, the code's and the content's with `-content` after its name, and connects them: where they're private, the code's Deploy workflow reads the content with a deploy key the page adds.
+
+It then shows the site's **setup code** once, and lists what's left, with links to each place it's done:
+
+1. **Cloudflare's token:** an API token from Cloudflare's "Edit Cloudflare Workers" template, and your account's ID, as the code repository's secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+2. **Publishing:** a fine-grained GitHub token that can change only the content repository, as the code repository's secret `GOODFELLOW_GIT_TOKEN`. Each deploy gives it to the Worker.
+3. **Photos and files:** a fine-grained token that can only start the code repository's workflows, as the content repository's secret `GOODFELLOW_DEPLOY_TOKEN`, so new photos reach the site after each publish.
+4. **Set up Cloudflare:** running the code repository's **Set up Cloudflare** workflow (`.github/workflows/setup-cloudflare.yml`) once. It makes the D1 database and the KV namespace, names them in `wrangler.jsonc`, and starts the Deploy workflow, which puts the site online. The first deploy makes the key that signs sessions and gives it only to the Worker.
+5. **The domain:** adding the site's address to the Worker in Cloudflare's dashboard, under Workers & Pages → the Worker → Settings → Domains & Routes.
+6. **The first admin:** opening the site's `/setup/` page and giving the setup code with your email address, name, and password.
+
+Until the Set up Cloudflare workflow has named the database and the cache, the Deploy workflow skips itself, so the commits the page makes don't fail it.
+
+### The setup code
+
+The setup code makes the site's first admin. The page makes it in your browser and shows it once: save it, such as in your password manager. Only its SHA-256 is kept, as `GOODFELLOW_SETUP_CODE_HASH` in `wrangler.jsonc`, so it can't be read from the repository, even a public one. The `/setup/` page takes it only while the site has no admin, ten tries an hour from one network address at most, and makes one admin with it, ever. Every other admin is invited from `/admin/editors/`.
+
+If you lose it before making the first admin, make the admin with `npm run new-admin` on a computer instead, as the README says, or put the hash of a new code of your own in `wrangler.jsonc`, such as `printf NEWCODE | sha256sum` gives, letters in capitals without spaces or dashes, and publish it.
+
+## What the command asks
 
 In a terminal, it asks for:
 
@@ -39,6 +60,8 @@ In a terminal of your own, it then offers to put the site online with [wrangler]
 5. **The first admin:** it asks for their email address and name, then the password, which it never shows or keeps.
 
 Each step can be skipped. A skipped or failed step stops the ones after it, which need it, and the command lists what's left, with the step of the README that does it. Without the site's address, it stops after the database and the cache, since signing in needs the address the Worker is deployed with. It never offers these steps in CI, where nobody can sign in or type a secret.
+
+A site made with the command has done what the setup page's **Set up Cloudflare** workflow does, so it doesn't need it.
 
 Once it's online, the code repository's **Deploy** workflow builds and deploys the site after each change to its code, and the content repository's workflow asks it to after each publish. Both need secrets of their own on GitHub: their files, and the README, say which. The first admin then signs in and turns on two-factor sign-in at `/account/`, without which they can edit pages but not change Site Settings or manage editors.
 

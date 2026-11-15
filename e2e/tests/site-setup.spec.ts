@@ -1,3 +1,4 @@
+import { setupCodeHash } from "@goodfellow-cms/core";
 import { fakeGitHub } from "@goodfellow-cms/github/testing";
 import { fakeGitLab } from "@goodfellow-cms/gitlab/testing";
 import { expect, type Page, test } from "@playwright/test";
@@ -6,6 +7,7 @@ import { routeToFake } from "./backends.js";
 // The documentation site's setup page, which creates sites in the browser: choosing on one page, creating on the next.
 const SETUP = "http://localhost:4406/goodfellow-cms/new-site/";
 const CREATE = "http://localhost:4406/goodfellow-cms/new-site/create/";
+const FULL_STACK = "http://localhost:4406/goodfellow-cms/new-site/full-stack/";
 
 /** A file of a created site, as text. */
 function text(file: string | Uint8Array | undefined): string {
@@ -382,4 +384,70 @@ test("names an admin address of its own in a new site's config", async ({ page }
   await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
   const site = gitlab.created.get("someone/parish")?.repo.files() ?? new Map();
   expect(text(site.get("goodfellow.config.tsx"))).toContain('  admin: { url: "https://admin.parish.example.org" },');
+});
+
+test("creates a full-stack site's code and content on a page of its own, with a setup code shown once", async ({
+  page,
+}) => {
+  const github = fakeGitHub({
+    repo: "someone/existing",
+    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+  });
+  await routeToFake(page, "https://api.github.com", github.handle);
+  // The static sites' page links to it, and it back.
+  await page.goto(SETUP, { waitUntil: "networkidle" });
+  await page.getByRole("link", { name: "Create a full-stack site" }).click();
+  await expect(page).toHaveURL(FULL_STACK);
+  await expect(page.getByRole("link", { name: "create a static site" })).toBeVisible();
+
+  await signIn(page, "gh-token");
+  await page.getByLabel("Name", { exact: true }).fill("acme");
+  await expect(page.getByText("That name is free.")).toBeVisible();
+  // Nothing is created without an address of the site's own, which signing in needs.
+  const create = page.getByRole("button", { name: "Create the site" });
+  await expect(create).toBeDisabled();
+  await page.getByLabel("The site's address").fill("http://acme.example/page");
+  await expect(page.getByText(/is https:\/\/ and a domain/)).toBeVisible();
+  await expect(create).toBeDisabled();
+  await page.getByLabel("The site's address").fill("https://www.acme.example");
+  await create.click();
+
+  await expect(page.getByRole("heading", { name: "Your site has been created" })).toBeVisible();
+  const setupCode =
+    (await page
+      .locator("code")
+      .filter({ hasText: /^[A-Z2-7]{4}(-[A-Z2-7]{4}){5}$/ })
+      .textContent()) ?? "";
+  expect(setupCode).not.toBe("");
+  await expect(page.getByRole("link", { name: "Set up Cloudflare" })).toHaveAttribute(
+    "href",
+    "https://github.com/someone/acme/actions/workflows/setup-cloudflare.yml",
+  );
+  await expect(page.getByRole("link", { name: "https://www.acme.example/setup/" })).toBeVisible();
+
+  const code = github.created.get("someone/acme");
+  const content = github.created.get("someone/acme-content");
+  // Private by default, so the code's Deploy workflow reads the content with a key of its own.
+  expect(code?.private).toBe(true);
+  expect(content?.private).toBe(true);
+  expect(code?.pages).toBeUndefined();
+  expect(content?.deployKeys).toEqual([expect.objectContaining({ read_only: true })]);
+  expect(code?.secrets.get("GOODFELLOW_CONTENT_KEY")).toContain("OPENSSH PRIVATE KEY");
+  const codeFiles = code?.repo.files() ?? new Map();
+  const contentFiles = content?.repo.files() ?? new Map();
+  expect(text(codeFiles.get("goodfellow.config.tsx"))).toContain(
+    'github({ repo: "someone/acme-content", contentOnly: true })',
+  );
+  expect(text(codeFiles.get(".github/workflows/deploy.yml"))).toContain("repository: someone/acme-content");
+  expect(codeFiles.has(".github/workflows/setup-cloudflare.yml")).toBe(true);
+  expect(text(codeFiles.get("README.md"))).toContain("Goodfellow's setup page made this site");
+  // Only the setup code's hash is kept, which the code the page showed matches.
+  const wrangler = text(codeFiles.get("wrangler.jsonc"));
+  expect(wrangler).toContain('"name": "acme"');
+  expect(wrangler).toContain('"GOODFELLOW_SITE_URL": "https://www.acme.example"');
+  expect(wrangler).toContain(`"GOODFELLOW_SETUP_CODE_HASH": "${await setupCodeHash(setupCode)}"`);
+  expect(wrangler).not.toContain(setupCode);
+  expect([...codeFiles.keys()].some((path) => path.startsWith("content/"))).toBe(false);
+  expect(contentFiles.has("content/site.json")).toBe(true);
+  expect(text(contentFiles.get(".github/workflows/deploy-site.yml"))).toContain("--repo someone/acme");
 });

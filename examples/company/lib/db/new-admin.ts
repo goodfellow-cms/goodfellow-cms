@@ -6,27 +6,12 @@ import { DatabaseSync } from "node:sqlite";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 import { admin } from "better-auth/plugins/admin";
+import { createAdmin, type NewAdmin, newAdminProblem } from "../admins.ts";
 
-/** The person to make an admin. */
-export interface NewAdmin {
-  email: string;
-  name: string;
-  password: string;
-}
-
-/** The fewest characters an admin's password may have. */
-export const MIN_ADMIN_PASSWORD = 12;
+export { MIN_ADMIN_PASSWORD, type NewAdmin, newAdminProblem } from "../admins.ts";
 
 /** Where D1's migrations are, as `npm run migrations` writes them. */
 export const SQLITE_MIGRATIONS_DIR = join(import.meta.dirname, "../../migrations/sqlite");
-
-/** What's wrong with the person's details, in words, or nothing. */
-export function newAdminProblem({ email, name, password }: NewAdmin): string | undefined {
-  if (!/^[^\s@]+@[^\s@]+$/.test(email)) return "Give the admin's email address first.";
-  if (name.trim() === "") return "Give the admin's name after their email address.";
-  if (password.length < MIN_ADMIN_PASSWORD) return `Use a password of at least ${MIN_ADMIN_PASSWORD} characters.`;
-  return undefined;
-}
 
 /** Adds the admin to `database`, refusing an email address someone already has. */
 export async function addAdmin(database: BetterAuthOptions["database"], person: NewAdmin): Promise<void> {
@@ -40,19 +25,7 @@ export async function addAdmin(database: BetterAuthOptions["database"], person: 
     secret: generateRandomString(32),
     plugins: [admin()],
   });
-  const context = await siteAuth.$context;
-  const email = person.email.toLowerCase();
-  if (await context.internalAdapter.findUserByEmail(email)) throw new Error(`${email} already has an account.`);
-  const user = await context.internalAdapter.createUser(
-    { email, name: person.name.trim(), emailVerified: true, role: "admin" },
-    { method: "admin" },
-  );
-  await context.internalAdapter.linkAccount({
-    userId: user.id,
-    providerId: "credential",
-    accountId: user.id,
-    password: await context.password.hash(person.password),
-  });
+  await createAdmin(await siteAuth.$context, person);
 }
 
 /** A value as SQLite writes it in SQL. */

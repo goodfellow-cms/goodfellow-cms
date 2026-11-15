@@ -23,6 +23,11 @@ export interface SiteEnv {
    * file fills in. Elsewhere Better Auth reads `x-forwarded-for`.
    */
   CLIENT_IP_HEADER?: string;
+  /**
+   * The SHA-256 of the site's setup code, in lowercase hexadecimal, for a site Goodfellow's setup page created: its
+   * `/setup/` page makes the first admin with the code while the site has none (lib/first-admin.ts).
+   */
+  GOODFELLOW_SETUP_CODE_HASH?: string;
   /** The token the server publishes to the content repository with. */
   GOODFELLOW_GIT_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;

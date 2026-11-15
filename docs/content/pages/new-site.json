@@ -30,6 +30,15 @@
               }
             },
             {
+              "type": "Text",
+              "props": {
+                "id": "Text-full-stack-link",
+                "align": "left",
+                "className": "mx-auto -mt-6 mb-10 max-w-3xl",
+                "content": "<p>Want editors to sign in with accounts the site keeps itself, and readers to sign up and subscribe? <a href=\"/new-site/full-stack/\">Create a full-stack site</a> instead, on Cloudflare.</p>"
+              }
+            },
+            {
               "type": "SiteSetup",
               "props": {
                 "id": "SiteSetup-setup",

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-full-stack",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-full-stack",
+                "align": "left",
+                "className": "mx-auto max-w-3xl",
+                "level": "h1",
+                "text": "Create a full-stack site"
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "id": "Text-full-stack",
+                "align": "left",
+                "className": "mx-auto mt-4 mb-10 max-w-3xl text-lg",
+                "content": "<p>Sign in to GitHub, choose the site's name and address, and this page creates its code and content repositories in your account, then lists what's left to put it online on Cloudflare. Your sign-in is used only in this browser tab, and isn't saved. On a computer with Node.js, <a href=\"/docs/full-stack-cloudflare\">npm create goodfellow -- --server cloudflare</a> does the same.</p>"
+              }
+            },
+            {
+              "type": "SiteSetup",
+              "props": {
+                "id": "SiteSetup-full-stack",
+                "className": "",
+                "githubSignIn": "https://sign-in.goodfellowcms.com",
+                "gitlabClientId": "",
+                "step": "full-stack"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Create a full-stack Goodfellow site, with accounts of its own and a database, in your own GitHub account, and put it online on Cloudflare.",
+        "image": "",
+        "title": "Create a full-stack site"
+      }
+    }
+  }
+}

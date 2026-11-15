@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -485,6 +486,8 @@ export const COMPANY = {
   token: "company-token",
   repo: "company/site-content",
   price: "price_monthly",
+  /** The setup code whose SHA-256 the Worker is given, as a site made on the setup page has in wrangler.jsonc. */
+  setupCode: "COMP-ANYT-ESTS-ETUP-CODE-ABCD",
 };
 
 /**
@@ -555,6 +558,8 @@ export function createCompanySite() {
       "BETTER_AUTH_SECRET=company-test-secret-at-least-32-characters",
       `GOODFELLOW_SITE_URL=http://localhost:${COMPANY.port}`,
       `GOODFELLOW_GIT_TOKEN=${COMPANY.token}`,
+      // As setupCodeHash() makes it, of the code in capitals without its dashes.
+      `GOODFELLOW_SETUP_CODE_HASH=${createHash("sha256").update(COMPANY.setupCode.replaceAll("-", "")).digest("hex")}`,
       "EMAIL_PROVIDER=resend",
       "EMAIL_API_KEY=re_company_test",
       "EMAIL_FROM=Northwind <hello@example.org>",
