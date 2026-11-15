@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { challengeFor } from "./seal.js";
 import { base64, editKey, SITE, setup } from "./test-setup.js";
-import { CODE_PERMISSIONS, isLocalAddress, PERMISSIONS } from "./worker.js";
+import { CODE_PERMISSIONS, isLocalAddress, NEW_REPOSITORY_WAITS, PERMISSIONS } from "./worker.js";
 
 describe("signing in", () => {
   it("gives the admin panel a token for the site's repository only, with only what editors need", async () => {
@@ -670,6 +670,128 @@ describe("setting up a site in two repositories", () => {
     const content = await create("site-content");
     expect(context.fake.issued.find((item) => item.token === content.token)?.permissions).toEqual(PERMISSIONS.setup);
     expect(userTokens().every((item) => item.revoked)).toBe(true);
+  });
+
+  it("waits for GitHub to give the installation a repository it has just created, then gives a token for it", async () => {
+    const context = setup({ newRepositoryLag: 3 });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    const created = (await response.json()) as { token: string; repo: { full_name: string } };
+    expect(response.status).toBe(200);
+    expect(created.repo.full_name).toBe("maria/site");
+    expect(context.fake.issued.find((item) => item.token === created.token)).toMatchObject({
+      repositories: ["maria/site"],
+      permissions: PERMISSIONS.setup,
+    });
+    // With every permission, Secrets included: a repository GitHub can't reach yet isn't a permission it lacks.
+    expect(context.waits).toEqual(NEW_REPOSITORY_WAITS.slice(0, 3));
+    expect(context.logged).toEqual([]);
+  });
+
+  it("says in its logs which request GitHub refused, and how, once it stops waiting, never with a token", async () => {
+    const context = setup({ newRepositoryLag: 100 });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ problem: "unavailable" });
+    expect(context.waits).toEqual(NEW_REPOSITORY_WAITS);
+    expect(context.logged).toEqual([
+      "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered 422: There is at least one repository that does not exist or is not accessible to the parent installation.",
+    ]);
+    const tokens = context.fake.issued.map((item) => item.token);
+    expect(tokens.length).toBeGreaterThan(0);
+    for (const token of tokens) expect(context.logged.join("\n")).not.toContain(token);
+    // The person's own token isn't kept for a retry once the repository exists, whatever happened after.
+    expect(context.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
+  });
+
+  it("revokes the person's token when adding the new repository to an installation of selected ones fails", async () => {
+    const context = setup({
+      answer: (method, url) =>
+        method === "PUT" && /\/user\/installations\/\d+\/repositories\/\d+$/.test(url)
+          ? Response.json({ message: "Server error" }, { status: 500 })
+          : undefined,
+    });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    expect(response.status).toBe(502);
+    expect(context.fake.issued.filter((item) => item.kind === "user").every((item) => item.revoked)).toBe(true);
+  });
+
+  /** Creates `site` for maria, with GitHub's answers to the new repository's token requests replaced by `answer`. */
+  async function createWithTokenAnswers(answer: (attempt: number) => Response | undefined) {
+    let attempt = 0;
+    const context = setup({
+      answer: (method, url, body) => {
+        const forSite = Array.isArray((body as { repositories?: unknown })?.repositories)
+          ? (body as { repositories: string[] }).repositories.includes("site")
+          : false;
+        if (method !== "POST" || !/\/access_tokens$/.test(url) || !forSite) return undefined;
+        return answer(attempt++);
+      },
+    });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    return { context, response };
+  }
+
+  it("waits for the new repository however GitHub words its 422, which it doesn't promise", async () => {
+    const { context, response } = await createWithTokenAnswers((attempt) =>
+      attempt < 2 ? Response.json({ message: "Repository not ready" }, { status: 422 }) : undefined,
+    );
+    expect(response.status).toBe(200);
+    // Each refusal was asked again without Secrets first, as GitHub could have been refusing that permission.
+    expect(context.waits).toEqual(NEW_REPOSITORY_WAITS.slice(0, 1));
+  });
+
+  it("says in its logs why GitHub couldn't be reached, and copes with an answer whose message isn't text", async () => {
+    const unreachable = await createWithTokenAnswers(() => {
+      throw new TypeError("Network connection lost");
+    });
+    expect(unreachable.response.status).toBe(502);
+    expect(unreachable.context.logged).toEqual([
+      "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered nothing: Couldn't reach GitHub: Network connection lost",
+    ]);
+    const odd = await createWithTokenAnswers(() => Response.json({ message: { code: 1 } }, { status: 500 }));
+    expect(odd.response.status).toBe(502);
+    expect(await odd.response.json()).toEqual({ problem: "unavailable" });
+    expect(odd.context.logged).toEqual([
+      "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered 500",
+    ]);
+  });
+
+  it("says in its logs why it couldn't sign as an app, as with a key it can't read, never with the key", async () => {
+    const context = setup({
+      env: {
+        OWNER_PRIVATE_KEY: "-----BEGIN OPENSSH PRIVATE KEY-----\\nb3BlbnNzaA==\\n-----END OPENSSH PRIVATE KEY-----",
+      },
+    });
+    const session = await setupSession(context);
+    const response = await context.post(
+      "/github/setup/repository",
+      { session, owner: "maria", name: "site", private: true },
+      "https://setup.example",
+    );
+    expect(await response.json()).toEqual({ problem: "unavailable" });
+    expect(context.logged).toHaveLength(1);
+    expect(context.logged[0]).toMatch(/^\/github\/setup\/repository stopped: Error: .*OpenSSH format/);
+    expect(context.logged[0]).not.toContain("b3BlbnNzaA");
   });
 
   it("still creates the repository where the owners' app hasn't been given the Secrets permission", async () => {

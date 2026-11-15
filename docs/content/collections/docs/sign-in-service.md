@@ -44,6 +44,12 @@ The service runs on Cloudflare Workers' free plan, which allows 100,000 requests
 
 The service keeps no counts of its own, since every request it gets counts towards that limit, even one it turns away. To stop any one computer using up the day's requests, Cloudflare's own rate limiting rules block it before it reaches the service. They need the service on a domain of its own on Cloudflare, since they can't apply to `workers.dev` addresses: under the domain's **Security → WAF → Rate limiting rules**, add a rule for the service's address that blocks an IP address making more than about 50 requests in 10 seconds. Signing in takes four or five. Checking a site before signing in (`/github/check` and `/github/start`) needs no sign-in, so the service reads each site's addresses for those at most every two minutes, which keeps such requests from using up its GitHub app's own hourly limit; giving a token always reads them again. A rule just for paths starting with `/github/check` and `/github/start`, at about 20 requests a minute, stops one computer asking about many sites.
 
+## When something goes wrong
+
+When GitHub answers the service in a way it doesn't expect, the admin panel or the setup page says the sign-in service is unavailable, and the service's logs say which request GitHub refused and what GitHub said. They never include a token. To read them, open the Worker in Cloudflare's dashboard (**Workers & Pages**, then its name, `sign-in` unless you named it otherwise) and choose **Observability**. To watch them live, run `npx wrangler@4 tail sign-in` and try again while it runs.
+
+Right after the setup page creates a repository, GitHub can take a few seconds to let the owners' app reach it. The service waits for up to about 15 seconds before it gives up.
+
 ## Put it online from your browser
 
 A site's owner, or an organization for all its sites, runs the service on Cloudflare's free plan, with GitHub Apps of its own. You need a Cloudflare account and a GitHub account, and nothing on your computer.

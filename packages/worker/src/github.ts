@@ -22,6 +22,8 @@ export class GitHubError extends Error {
     readonly status: number,
     message: string,
     readonly body: { message?: string; errors?: Array<{ message?: string }> } = {},
+    /** The request GitHub answered, as `POST /app/installations/1/access_tokens`: never a token, which goes in headers. */
+    readonly request = "",
   ) {
     super(message);
   }
@@ -42,6 +44,8 @@ export async function github(
   if (init.auth && "bearer" in init.auth) headers.authorization = `Bearer ${init.auth.bearer}`;
   if (init.auth && "basic" in init.auth) headers.authorization = `Basic ${btoa(init.auth.basic.join(":"))}`;
   if (init.body !== undefined) headers["content-type"] = "application/json";
+  // Without the query, which can carry what a sign-in sends back.
+  const request = `${init.method ?? "GET"} ${path.split("?")[0]}`;
   let response: Response;
   try {
     response = await config.fetch(`${init.web ? config.web : config.api}${path}`, {
@@ -50,11 +54,16 @@ export async function github(
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch (error) {
-    throw new GitHubError(0, `Couldn't reach GitHub: ${(error as Error).message}`);
+    throw new GitHubError(0, `Couldn't reach GitHub: ${(error as Error).message}`, {}, request);
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as GitHubError["body"];
-    throw new GitHubError(response.status, `GitHub answered ${response.status}: ${body.message ?? ""}`, body);
+    throw new GitHubError(
+      response.status,
+      `GitHub answered ${response.status}: ${typeof body.message === "string" ? body.message : ""}`,
+      body,
+      request,
+    );
   }
   return response;
 }

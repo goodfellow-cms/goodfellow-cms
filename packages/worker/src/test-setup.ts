@@ -35,6 +35,13 @@ export function setup(
     copies?: string[];
     /** GitHub fails to give the site's settings, as when it's having trouble. */
     settingsFail?: boolean;
+    /**
+     * How many times GitHub refuses a token for a repository just created, as one the installation can't reach, before
+     * it gives the installation the repository, as it does for a few seconds.
+     */
+    newRepositoryLag?: number;
+    /** Answers a request to GitHub in place of the fake, as `undefined` leaves it to the fake. */
+    answer?: (method: string, url: string, body: unknown) => Response | undefined | Promise<Response | undefined>;
   } = {},
 ) {
   const repositories = ["parish/site", ...(options.repositories ?? [])];
@@ -77,9 +84,31 @@ export function setup(
     apps: [editApp, ownerApp],
   });
   let clock = Date.now();
+  let lag = 0;
+  let created = "";
   // The site itself, at its address, serves its description, naming its admin address if it has one.
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    const method = init?.method ?? "GET";
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
+    const answered = await options.answer?.(method, url, body);
+    if (answered) return answered;
+    if (method === "POST" && /\/(user|orgs\/[^/]+)\/repos$/.test(url)) {
+      lag = options.newRepositoryLag ?? 0;
+      created = String(body?.name ?? "");
+    }
+    // Only for the repository just created: tokens for any other are given as ever.
+    const forNew = Array.isArray(body?.repositories) && body.repositories.includes(created);
+    if (method === "POST" && /\/app\/installations\/\d+\/access_tokens$/.test(url) && lag > 0 && forNew) {
+      lag--;
+      return Response.json(
+        {
+          message:
+            "There is at least one repository that does not exist or is not accessible to the parent installation.",
+        },
+        { status: 422 },
+      );
+    }
     if (options.settingsFail && url.includes("/contents/content/site.json")) {
       return new Response("Server error", { status: 500 });
     }
@@ -94,7 +123,17 @@ export function setup(
     }
     return fake.fetch(input, init);
   };
-  const inner = createWorker({ fetch, now: () => clock });
+  /** How long the worker waited each time, and what it logged. */
+  const waits: number[] = [];
+  const logged: string[] = [];
+  const inner = createWorker({
+    fetch,
+    now: () => clock,
+    sleep: async (ms) => {
+      waits.push(ms);
+    },
+    log: (line) => logged.push(line),
+  });
   // One browser, which keeps the cookie the worker ties sign-ins to, as browsers do, and sends it back with each
   // request, beside any cookie a test sends itself. `newBrowser()` forgets it, as another browser would lack it.
   const jar = new Map<string, string>();
@@ -187,5 +226,7 @@ export function setup(
       clock += ms;
     },
     newBrowser: () => jar.clear(),
+    waits,
+    logged,
   };
 }

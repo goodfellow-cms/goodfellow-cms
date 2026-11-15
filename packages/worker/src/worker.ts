@@ -43,6 +43,7 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
+import { pkcs8Key } from "./keys.js";
 import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "./seal.js";
 import { createSelfSetup } from "./self-setup.js";
 
@@ -90,6 +91,34 @@ export interface WorkerOptions {
   /** For tests: where requests to GitHub go. */
   fetch?: typeof fetch;
   now?: () => number;
+  /** For tests: waits this long, as between asking GitHub again for a repository it doesn't show yet. */
+  sleep?: (ms: number) => Promise<void>;
+  /** For tests: where the worker says what GitHub answered when it can't go on. Defaults to `console.error`. */
+  log?: (line: string) => void;
+}
+
+/**
+ * How long to wait before each new attempt at a token for a repository just created: GitHub can take a few seconds
+ * to give an installation a new repository, and until then refuses tokens for it as one it can't reach.
+ */
+export const NEW_REPOSITORY_WAITS = [1_000, 2_000, 3_000, 4_000, 5_000];
+
+/**
+ * What GitHub said, cut short: its message where it gave one as text, or, where GitHub couldn't be reached, the
+ * worker's own words for why. Nothing where neither.
+ */
+function said(error: GitHubError): string {
+  if (typeof error.body.message === "string") return error.body.message.slice(0, 200);
+  return error.status === 0 ? error.message.slice(0, 200) : "";
+}
+
+/** Whether GitHub refused a token for a repository because the installation can't reach it, or can't yet. */
+function unreachableRepository(error: unknown): boolean {
+  return (
+    error instanceof GitHubError &&
+    error.status === 422 &&
+    /does not exist or is not accessible/i.test(error.body.message ?? "")
+  );
 }
 
 type Purpose = "edit" | "owner" | "setup";
@@ -434,6 +463,8 @@ export function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
 
 export function createWorker(options: WorkerOptions = {}) {
   const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const log = options.log ?? ((line: string) => console.error(line));
   const sealers = new Map<string, Promise<Sealer>>();
   const installations = new Map<string, { id: number | undefined; at: number }>();
   // Sites' addresses as the last check found them, so checks anyone can ask for don't each cost GitHub requests.
@@ -500,7 +531,8 @@ export function createWorker(options: WorkerOptions = {}) {
 
     /** A token for calling GitHub as the app itself, such as to make installation tokens. */
     async function jwtFor(app: App): Promise<string> {
-      return (await githubAppJwt({ id: app.id, privateKey: app.privateKey, now: Math.floor(now() / 1000) })).token;
+      return (await githubAppJwt({ id: app.id, privateKey: pkcs8Key(app.privateKey), now: Math.floor(now() / 1000) }))
+        .token;
     }
 
     function sealer(): Promise<Sealer> {
@@ -778,8 +810,30 @@ export function createWorker(options: WorkerOptions = {}) {
       try {
         return await installationToken(config, jwt, installation, repo, PERMISSIONS[purpose]);
       } catch (error) {
-        if (!(error instanceof GitHubError && error.status === 422) || !LATER_PERMISSIONS[purpose]) throw error;
+        // Asked again without the permissions added later only where GitHub refused permissions: it answers 422 for a
+        // repository the installation can't reach, too, where asking for less wouldn't help.
+        const refusedPermissions =
+          error instanceof GitHubError && error.status === 422 && !unreachableRepository(error);
+        if (!refusedPermissions || !LATER_PERMISSIONS[purpose]) throw error;
         return installationToken(config, jwt, installation, repo, withoutLater(purpose, PERMISSIONS[purpose]));
+      }
+    }
+
+    /**
+     * A setup token for a repository just created. GitHub can take a few seconds to give the installation a new
+     * repository, and until then refuses tokens for it with 422, so it's asked again after each of the waits; any 422
+     * counts, since GitHub doesn't promise its wording. An installation that hasn't accepted the Secrets permission yet
+     * gets one without, which the setup page explains.
+     */
+    async function newRepositoryToken(jwt: string, installation: number, repo: string) {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await purposeToken(jwt, installation, repo, "setup");
+        } catch (error) {
+          const wait = NEW_REPOSITORY_WAITS[attempt];
+          if (!(error instanceof GitHubError && error.status === 422) || wait === undefined) throw error;
+          await sleep(wait);
+        }
       }
     }
 
@@ -1114,7 +1168,16 @@ export function createWorker(options: WorkerOptions = {}) {
       return json({ problem: "bad-request" }, 404);
     } catch (error) {
       if (error instanceof Problem) return json({ problem: error.problem, ...error.extra }, error.status);
-      // GitHub couldn't be reached, or answered in a way the worker doesn't expect. Nothing about tokens is said.
+      // GitHub couldn't be reached, or answered in a way the worker doesn't expect. The answer says nothing more, but
+      // the worker's logs say which request and what GitHub said, its message cut short: never a token or a body.
+      log(
+        error instanceof GitHubError
+          ? `${url.pathname} stopped: ${error.request || "a request to GitHub"} answered ${error.status || "nothing"}${
+              said(error) ? `: ${said(error)}` : ""
+            }`
+          : // Errors of the worker's own and its libraries', such as a key it can't read: never the key itself.
+            `${url.pathname} stopped: ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 200)}` : "an error"}`,
+      );
       return json({ problem: "unavailable" }, 502);
     }
 
@@ -1205,26 +1268,28 @@ export function createWorker(options: WorkerOptions = {}) {
           }
           throw error;
         }
-        if (installation.repository_selection === "selected") {
-          await github(config, `/user/installations/${installation.id}/repositories/${repo.id}`, {
-            method: "PUT",
-            auth,
+        // The repository exists, which is all the person's own token was kept for, unless another one follows: it's
+        // revoked once this answers, whether or not the rest works.
+        try {
+          if (installation.repository_selection === "selected") {
+            await github(config, `/user/installations/${installation.id}/repositories/${repo.id}`, {
+              method: "PUT",
+              auth,
+            });
+          }
+          const issued = await newRepositoryToken(await jwtFor(app), installation.id, repo.full_name);
+          const editApp = apps.edit;
+          const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
+          return json({
+            session: renewed,
+            repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },
+            token: issued.token,
+            expiresAt: issued.expiresAt,
+            ...(!editInstalled && editApp && { editInstallUrl: installUrl(editApp) }),
           });
+        } finally {
+          if (body.more !== true) await revokeUserToken(config, app, tokens.access).catch(() => {});
         }
-        const jwt = await jwtFor(app);
-        // An installation that hasn't accepted the Secrets permission yet gets one without: the setup page explains what to add.
-        const issued = await purposeToken(jwt, installation.id, repo.full_name, "setup");
-        const editApp = apps.edit;
-        const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
-        // The repository exists, which is all the person's own token was kept for, unless another one follows.
-        if (body.more !== true) await revokeUserToken(config, app, tokens.access).catch(() => {});
-        return json({
-          session: renewed,
-          repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },
-          token: issued.token,
-          expiresAt: issued.expiresAt,
-          ...(!editInstalled && editApp && { editInstallUrl: installUrl(editApp) }),
-        });
       }
       return json({ problem: "bad-request" }, 404);
     }

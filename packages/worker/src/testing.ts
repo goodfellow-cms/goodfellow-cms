@@ -3,6 +3,8 @@
  * GitHub's requests going to a fake, and test GitHub Apps with keys made for
  * the test. Never import this from code that ships.
  */
+
+import { pkcs1Pem } from "./keys.js";
 import { createWorker, type WorkerEnv } from "./worker.js";
 
 export { challengeFor } from "./seal.js";
@@ -31,7 +33,8 @@ export async function testKeyPair() {
   const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
   return {
     pkcs8,
-    pem: `-----BEGIN PRIVATE KEY-----\n${base64(pkcs8)}\n-----END PRIVATE KEY-----`,
+    // As GitHub gives an app's key, which Web Crypto can't read as it is.
+    pem: pkcs1Pem(pkcs8),
     publicKey: pair.publicKey,
   };
 }
