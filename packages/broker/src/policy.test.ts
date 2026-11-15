@@ -200,6 +200,18 @@ describe("what the broker asks before making a call", () => {
       expect(await decide({ path, args: ["ann", "owner"], target: editors }, SITE), path).toMatchObject({
         action: "refuse",
       });
+      // A list that can't be read, or isn't one, names nobody: refused as the broker's own, never thrown.
+      for (const broken of [
+        { list: async () => Promise.reject(new Error("403")) },
+        { list: async () => ({}) },
+        { list: async () => ({ editors: [null] }) },
+      ]) {
+        expect(await decide({ path, args: [ann, "owner"], target: broken }, SITE), path).toEqual({
+          action: "refuse",
+          paths: [path],
+          reason: "editor",
+        });
+      }
     }
   });
 

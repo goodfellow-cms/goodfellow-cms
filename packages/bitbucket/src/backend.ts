@@ -390,7 +390,7 @@ export class BitbucketBackend implements GitBackend {
 
   /** Path → size for the editable files at a commit. Commits never change, so this is kept. */
   private tree(sha: string): Promise<Map<string, number>> {
-    if (!isCommitId(sha)) return Promise.reject(new GitApiError(400, "That isn't a revision."));
+    commitId(sha);
     let tree = this.trees.get(sha);
     if (!tree) {
       tree = Promise.all(EDITABLE_FOLDERS.map((folder) => this.listFolder(sha, folder))).then(

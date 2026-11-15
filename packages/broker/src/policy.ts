@@ -277,8 +277,10 @@ async function listedEditor(target: unknown, editor: unknown): Promise<SiteEdito
   const id = (editor as { id?: unknown } | null)?.id;
   const list = (target as { list?: unknown } | null)?.list;
   if (typeof id !== "string" || typeof list !== "function") return undefined;
-  const { editors } = (await list.call(target)) as EditorList;
-  return editors.find((listed) => listed.id === id);
+  // A list that can't be read, or isn't one, names nobody, which the broker refuses.
+  const found = (await Promise.resolve(list.call(target)).catch(() => undefined)) as Partial<EditorList> | undefined;
+  const editors = Array.isArray(found?.editors) ? found.editors : [];
+  return editors.find((listed) => listed?.id === id);
 }
 
 function text(value: unknown): string {
