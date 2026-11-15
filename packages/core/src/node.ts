@@ -29,6 +29,7 @@ export {
   writeBuildRecord,
 } from "./node-build-record.js";
 export { loadSourceModules, siteModulePath } from "./node-collection-sources.js";
+export { cmdArgument, commandToRun } from "./node-command.js";
 export {
   ContentRepositoryError,
   type ContentRepositoryOptions,

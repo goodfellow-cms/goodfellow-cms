@@ -1352,6 +1352,19 @@ export {
 } from "./scheduled-builds.js";
 export { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
 export {
+  deploySiteWorkflow,
+  planServerSite,
+  SERVER_HOSTS,
+  type ServerHost,
+  type ServerSiteOptions,
+  serverContentReadme,
+  TEMPLATE_CODE_REPO,
+  TEMPLATE_CONTENT_REPO,
+  TEMPLATE_SITE_URL,
+  TEMPLATE_WORKER,
+  workerName,
+} from "./server-setup.js";
+export {
   type CreatedSiteRepository,
   type NewSiteRepository,
   type RepositoryLink,

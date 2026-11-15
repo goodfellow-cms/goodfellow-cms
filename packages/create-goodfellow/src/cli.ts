@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { formatWordPressImport, importWordPress } from "@goodfellow-cms/core/node";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
+import { gitLines } from "./git-lines.js";
 import {
   allowsAdminAddress,
   type Backend,
@@ -37,6 +38,7 @@ import {
   type TemplateName,
 } from "./scaffold.js";
 import { type Choice, select } from "./select.js";
+import { createServerSite, isInteractive, serverOptionProblem } from "./server-cli.js";
 
 const HELP = `Creates a new Goodfellow site.
 
@@ -64,6 +66,11 @@ Options:
                       Plugins screen would. Give it once for each plugin
   --wordpress <from>  Brings a WordPress site's pages, posts, menus, and media into the new site,
                       from its export file (Tools → Export) or its address
+  --server cloudflare A full-stack site, whose editors sign in with the site's own accounts, on a
+                      Cloudflare Worker with a D1 database. Its code and content are kept in GitHub
+                      repositories of their own (--github and --content), and it offers to put the
+                      site online with wrangler
+  --url <address>     With --server: the site's address, such as https://www.example.org
   --no-install        Don't run npm install
   --no-git            Don't make the site a git repository, or commit it
   -y, --yes           Don't ask anything: use the options given, and defaults for the rest
@@ -158,6 +165,8 @@ async function main(): Promise<void> {
       admin: { type: "string" },
       broker: { type: "string" },
       "broker-domain": { type: "string" },
+      server: { type: "string" },
+      url: { type: "string" },
       "no-git": { type: "boolean" },
       "no-install": { type: "boolean" },
       yes: { type: "boolean", short: "y" },
@@ -166,6 +175,31 @@ async function main(): Promise<void> {
   });
   if (values.help) {
     stdout.write(HELP);
+    return;
+  }
+
+  const optionProblem = serverOptionProblem(values);
+  if (optionProblem) throw new ScaffoldError(optionProblem);
+  if (values.server !== undefined) {
+    await createServerSite(
+      {
+        server: values.server,
+        folder: positionals[0],
+        github: values.github,
+        content: values.content,
+        url: values.url,
+        otherHost: values.gitlab ?? values.bitbucket,
+        install: !values["no-install"],
+        git: !values["no-git"],
+        interactive: isInteractive(values.yes),
+      },
+      {
+        ask,
+        say: (text) => stdout.write(`${text}\n`),
+        templatesDir,
+        versions: JSON.parse(readFileSync(join(templatesDir, "versions.json"), "utf8")) as Record<string, string>,
+      },
+    );
     return;
   }
 
@@ -446,38 +480,6 @@ function contentLines(
   else if (git?.created) lines.push(`Commit everything in ${CONTENT_REPOSITORY_DIR}/ as well.`);
   lines.push("Push both repositories. README.md says what each needs to build the site.");
   return lines;
-}
-
-/** What happened with git, and what's left to do. */
-function gitLines(git: GitResult, commit: CommitResult | undefined, installed: boolean): string[] {
-  if (!git.created) {
-    return [
-      git.reason === "inside-repository"
-        ? "It's inside another git repository, so it isn't one of its own."
-        : "Git isn't installed, so it isn't a git repository yet: once it is, run git init -b main in it, then commit.",
-    ];
-  }
-  const repository = "It's a git repository on the branch main";
-  const origin = git.remote ? [`Its origin is ${git.remote}.`] : [];
-  if (commit === "committed") {
-    return [
-      `${repository}, with everything in its first commit.`,
-      ...origin,
-      ...(installed ? [] : ["Commit package-lock.json after npm install: the deploy setups need it."]),
-    ];
-  }
-  if (commit === "no-identity") {
-    return [
-      `${repository}, but git doesn't know your name and email yet, so nothing is committed. Tell it, then commit:`,
-      '  git config --global user.name "Your Name"',
-      "  git config --global user.email you@example.com",
-      // Two commands, since Windows PowerShell 5.1 has no &&.
-      "  git add -A",
-      '  git commit -m "Create the site"',
-      ...origin,
-    ];
-  }
-  return [`${repository}. Nothing is committed yet: commit everything once npm install has run.`, ...origin];
 }
 
 const BROKER_HOSTS: Record<BrokerHost, string> = {

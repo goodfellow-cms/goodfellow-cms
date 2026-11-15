@@ -58,6 +58,8 @@ npm create goodfellow@latest my-site -- --template parish --github your-name/you
 
 `--gitlab your-group/your-site` and `--bitbucket your-workspace/your-site` store it on GitLab or Bitbucket instead. `--admin https://admin.example.org` gives editors an admin address of its own, `--broker gitlab-pages` (or `github-pages` with `--broker-domain signin.example.org`, `cloudflare-pages`, or `vercel`) writes a token broker beside the site, `--content your-name/your-site-content` keeps the content in a repository of its own, and `--wordpress wordpress-export.xml` (or a WordPress site's address) starts the site with a WordPress site's pages, posts, menus, and media; see [Move from WordPress](/docs/move-from-wordpress). `--plugin goodfellow-plugin-guestbook`, once for each, installs a [plugin](/docs/plugins#install-a-plugin-from-the-admin-panel) as the admin panel would, saying what it asks to do. Run it with `--help` for every option.
 
+`--server cloudflare` makes a full-stack site instead, whose editors sign in with the site's own accounts, on a Cloudflare Worker with a database: see [Full-stack sites on Cloudflare](/docs/full-stack-cloudflare).
+
 > To try changes that haven't been released yet, use the sites in [the repository](https://github.com/goodfellow-cms/goodfellow-cms) instead: install [pnpm](https://pnpm.io) 12, run `pnpm install` and `pnpm build` at the root, then `pnpm dev` in `templates/starter`.
 
 ## Try it on your computer
