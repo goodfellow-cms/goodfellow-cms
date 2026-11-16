@@ -41,7 +41,57 @@ test("shows a documentation page with its navigation, headings, and highlighted,
   const code = page.locator("figure.gf-code").first();
   await expect(code.locator("pre.shiki")).toContainText("npm create goodfellow@latest my-site");
   await code.hover();
-  await code.getByRole("button", { name: "Copy code" }).click();
+  const copy = code.getByRole("button", { name: "Copy code" });
+  // Buttons on Goodfellow sites show the hand, not the arrow Tailwind gives them.
+  await expect(copy).toHaveCSS("cursor", "pointer");
+  // Not where it's turned off, however that's said, and never over a block's own classes.
+  const cursors = await page.evaluate(() => {
+    const style = document.createElement("style");
+    style.textContent = "@layer base { .gf-test-arrow { cursor: default } }";
+    document.head.append(style);
+    const made = {
+      disabled: "<button disabled>A</button>",
+      roleDisabled: '<button role="button" disabled>A</button>',
+      ariaDisabled: '<button aria-disabled="true">A</button>',
+      inputAriaDisabled: '<input type="submit" aria-disabled="true">',
+      divAriaDisabled: '<div role="button" aria-disabled="true">A</div>',
+      ownClass: '<button class="gf-test-arrow">A</button>',
+      roleOwnClass: '<div role="button" class="gf-test-arrow">A</div>',
+      summary: "<details><summary>A</summary></details>",
+      submit: '<input type="submit">',
+      image: '<input type="image" alt="Go">',
+    };
+    return Object.fromEntries(
+      Object.entries(made).map(([name, html]) => {
+        const box = document.createElement("div");
+        box.innerHTML = html;
+        document.body.append(box);
+        const element = box.querySelector("summary") ?? (box.firstElementChild as Element);
+        return [name, getComputedStyle(element).cursor];
+      }),
+    );
+  });
+  expect(cursors).toEqual({
+    disabled: "default",
+    roleDisabled: "default",
+    ariaDisabled: "default",
+    inputAriaDisabled: "default",
+    divAriaDisabled: "auto",
+    ownClass: "default",
+    roleOwnClass: "default",
+    summary: "pointer",
+    submit: "pointer",
+    image: "pointer",
+  });
+  // The file box's own button, which a pseudo-element's style says.
+  const fileButton = await page.evaluate(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    document.body.append(input);
+    return getComputedStyle(input, "::file-selector-button").cursor;
+  });
+  expect(fileButton).toBe("pointer");
+  await copy.click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe("npm create goodfellow@latest my-site");

@@ -22,6 +22,17 @@ test("opens the groups that fit what's edited", async ({ page }) => {
   await expect(group(page, "content")).toHaveAttribute("aria-expanded", "false");
 });
 
+test("keeps the site's pointer off buttons in the canvas, where a click selects the block", async ({ page }) => {
+  await openPageEditor(page, "/about", "About us");
+  const cursor = await canvas(page).evaluate((element) => {
+    const button = document.createElement("button");
+    button.textContent = "A";
+    element.append(button);
+    return getComputedStyle(button).cursor;
+  });
+  expect(cursor).not.toBe("pointer");
+});
+
 test("finds blocks by other words for them, and adds one found from the search", async ({ page }) => {
   await openPageEditor(page, "/about", "About us");
   await search(page).fill("divider");
