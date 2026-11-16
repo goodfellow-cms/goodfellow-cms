@@ -123,6 +123,20 @@ describe("signing up", () => {
       await expect(choose(auth, first)).rejects.toThrow(EditorsError);
       await choose(auth, second, "rita's very own password");
       expect((await signIn("rita@example.org", "rita's very own password")).response.status).toBe(200);
+      // Her account has the name she typed, not the stranger's, and a reset email greets nobody by name.
+      expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.name).toBe("Rita");
+      await auth.handler(
+        new Request(`${SITE}/api/auth/request-password-reset/`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.9" },
+          body: JSON.stringify({ email: "rita@example.org" }),
+        }),
+      );
+      await vi.waitFor(() => expect(sent).toHaveLength(3), SENT);
+      expect(sent[2]?.subject).toMatch(/^Choose a new password/);
+      expect(sent[2]?.text).toMatch(/^Hello,/);
+      expect(sent[2]?.text).not.toContain("Mallory");
+      sent.pop();
       // Once she has a password, signing up with her address sends nothing more.
       await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }, "203.0.113.8"));
       await new Promise((resolve) => setTimeout(resolve, 50));
