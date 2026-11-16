@@ -1,10 +1,12 @@
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import {
+  checkedFetchJson,
   EMPTY_RECORD,
   type FileChange,
   type GoodfellowConfig,
   planInstall,
+  REGISTRY_DIGESTS_FILE,
   REGISTRY_PACKAGES,
   registryIndexSchema,
   registryItemSchema,
@@ -18,7 +20,8 @@ import { describe, expect, it } from "vitest";
 import registry from "../registry.json" with { type: "json" };
 
 const built = fileURLToPath(new URL("../r/", import.meta.url));
-const registries = { "@goodfellow": "https://registry.example/r/{name}.json" };
+const REGISTRY = "https://registry.example/r/{name}.json";
+const registries = { "@goodfellow": REGISTRY };
 const fetchJson = async (url: string) => {
   const name = url.slice("https://registry.example/r/".length);
   return JSON.parse(await readFile(`${built}${name}`, "utf8"));
@@ -28,7 +31,7 @@ const blockNames = registry.items.map((item) => item.name);
 describe("the built registry", () => {
   it("lists every block and shadcn component, each valid", async () => {
     const index = registryIndexSchema.parse(await fetchJson("https://registry.example/r/registry.json"));
-    const files = (await readdir(built)).filter((file) => file !== "registry.json");
+    const files = (await readdir(built)).filter((file) => file !== "registry.json" && file !== REGISTRY_DIGESTS_FILE);
     expect(files.sort()).toEqual(index.items.map((item) => `${item.name}.json`).sort());
     for (const file of files) {
       const item = registryItemSchema.parse(JSON.parse(await readFile(`${built}${file}`, "utf8")));
@@ -38,6 +41,28 @@ describe("the built registry", () => {
       }
     }
     expect(index.items.filter((item) => item.meta?.goodfellow).map((item) => item.name)).toEqual(blockNames);
+  });
+
+  it("writes each file's SHA-256, which the admin panel built with it takes them only with", async () => {
+    const digests = JSON.parse(await readFile(`${built}${REGISTRY_DIGESTS_FILE}`, "utf8")) as Record<string, string>;
+    const files = (await readdir(built)).filter((file) => file !== REGISTRY_DIGESTS_FILE);
+    expect(Object.keys(digests).sort()).toEqual(files.map((file) => file.slice(0, -".json".length)).sort());
+    const fetch = checkedFetchJson(
+      REGISTRY,
+      digests,
+      (url) => readFile(`${built}${url.slice(REGISTRY.indexOf("{name}"))}`, "utf8"),
+      fetchJson,
+    );
+    for (const name of blockNames) {
+      await planInstall({
+        ref: `@goodfellow/${name}`,
+        registries,
+        fetchJson: fetch,
+        readFile: async () => undefined,
+        record: EMPTY_RECORD,
+        blocks: [],
+      });
+    }
   });
 
   it.each(blockNames)("installs %s with every file it imports", async (name) => {

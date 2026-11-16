@@ -12,9 +12,12 @@ import {
   type FetchJson,
   GOODFELLOW_REGISTRY,
   goodfellowRegistryUrl,
+  hashText,
   parseInstalledRecord,
   planUpdate,
+  REGISTRY_DIGESTS_FILE,
   REGISTRY_PACKAGES,
+  type RegistryDigests,
   RegistryError,
 } from "./registry.js";
 import {
@@ -111,6 +114,8 @@ export interface UpdateOptions {
   siteFiles?: readonly SiteFile[];
   /** For tests. */
   fetchJson?: FetchJson;
+  /** Fetches the text of Goodfellow's registry's items. For tests; defaults to the network. */
+  fetchText?: (url: string) => Promise<string>;
   /** Checks Goodfellow's releases' provenance before an automatic update. Defaults to `verifiedSource()`. */
   verifyRelease?: ReleaseVerifier;
   now?: Date;
@@ -264,6 +269,34 @@ const runCommand: RunCommand = (command, args, cwd) =>
     child.on("close", (code) => done({ code: code ?? 1, output }));
   });
 
+async function fetchTextFromNetwork(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+  return response.text();
+}
+
+/**
+ * The release of Goodfellow's registry the site's packages installed (a dependency of `@goodfellow-cms/admin`) and
+ * the SHA-256 of each of its items, or `undefined` where it isn't installed or is from before releases had them.
+ */
+async function installedRegistryDigests(
+  root: string,
+): Promise<{ version: string; digests: RegistryDigests } | undefined> {
+  for (const folder of [
+    join(root, "node_modules/@goodfellow-cms/registry"),
+    join(root, "node_modules/@goodfellow-cms/admin/node_modules/@goodfellow-cms/registry"),
+  ]) {
+    try {
+      const { version } = JSON.parse(await readFile(join(folder, "package.json"), "utf8")) as { version: string };
+      const digests = JSON.parse(await readFile(join(folder, "r", REGISTRY_DIGESTS_FILE), "utf8")) as RegistryDigests;
+      return { version, digests };
+    } catch {
+      // Not installed here, or from before releases had digests.
+    }
+  }
+  return undefined;
+}
+
 async function fetchJsonFromNetwork(url: string): Promise<unknown> {
   const response = await fetch(url, { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`${url} answered ${response.status}`);
@@ -304,6 +337,7 @@ async function updateSite(
 ): Promise<UpdateResult> {
   const root = resolve(options.root ?? ".");
   const fetchJson = options.fetchJson ?? fetchJsonFromNetwork;
+  const fetchText = options.fetchText ?? fetchTextFromNetwork;
   const run = options.run ?? runCommand;
   const log = options.log ?? ((line: string) => console.log(line));
   const env = options.env ?? process.env;
@@ -405,6 +439,37 @@ async function updateSite(
     return { state: "failed", from, ...(to && { to }), ...(rollback && { rollback }), ...result };
   };
 
+  /** The SHA-256 of each item fetched from Goodfellow's registry on the network, by name. */
+  const fetchedBlocks = new Map<string, string>();
+
+  /**
+   * Whether the blocks fetched from Goodfellow's registry are what `release` built, by the digests of the registry
+   * npm installed, which is checked against npm's own record of the release: a block's files are the site's code, and
+   * the address that served them could have answered with anything. A release from before registries had digests
+   * can't be checked, which it says.
+   */
+  async function blocksAsReleased(release: string): Promise<boolean> {
+    if (fetchedBlocks.size === 0) return true;
+    const installedRegistry = await installedRegistryDigests(root);
+    if (!installedRegistry) {
+      log(`Goodfellow ${release}'s blocks can't be checked, since its registry has no digests.`);
+      return true;
+    }
+    if (installedRegistry.version !== release) {
+      log(
+        `The blocks registry installed is ${installedRegistry.version}, not ${release}, so its blocks can't be checked.`,
+      );
+      return false;
+    }
+    for (const [name, digest] of fetchedBlocks) {
+      if (installedRegistry.digests[name] !== digest) {
+        log(`The block ${name} that was downloaded isn't the one Goodfellow ${release} released.`);
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * Blocks from Goodfellow's registry, from `release`'s registry, written where nobody changed them; the files
    * someone did change, or a failure.
@@ -422,12 +487,20 @@ async function updateSite(
       return { failed: await failed({ step: "blocks" }) };
     }
     const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(release) };
+    // Goodfellow's own release is fetched as text, so what came can be checked against the release npm installs.
+    const prefix = options.registry ? undefined : goodfellowRegistryUrl(release).replace("{name}.json", "");
+    const fetchItem: FetchJson = async (url) => {
+      if (!prefix || !url.startsWith(prefix) || !url.endsWith(".json")) return fetchJson(url);
+      const text = await fetchText(url);
+      fetchedBlocks.set(url.slice(prefix.length, -".json".length), await hashText(text));
+      return JSON.parse(text);
+    };
     const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;
     const packages = [...REGISTRY_PACKAGES, ...Object.keys(dependencies ?? {})];
     for (const [name, block] of Object.entries(record.blocks)) {
       if (!block.source.startsWith(`${GOODFELLOW_REGISTRY}/`)) continue;
       try {
-        const plan = await planUpdate({ name, record, registries, fetchJson, readFile: read, packages });
+        const plan = await planUpdate({ name, record, registries, fetchJson: fetchItem, readFile: read, packages });
         for (const change of plan.changes) await apply(change);
         record = plan.record;
         kept.push(...plan.kept);
@@ -457,6 +530,7 @@ async function updateSite(
     if (options.blocks) {
       const blocks = await updateBlocks(from);
       if ("failed" in blocks) return blocks.failed;
+      if (!(await blocksAsReleased(from))) return failed({ step: "blocks" });
       kept.push(...blocks.kept);
     }
     const files = current.changes.map((change) => change.path);
@@ -602,6 +676,9 @@ async function updateSite(
       return failed({ step: "provenance" });
     }
   }
+  // Blocks are fetched before the release is installed, so they're checked against it once it is, before any of
+  // their code runs.
+  if (!(await blocksAsReleased(to))) return failed({ step: "blocks" });
   log("Building the site with the update…");
   const built = await run("npm", ["run", "build"], root);
   if (built.code !== 0) {

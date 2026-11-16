@@ -2695,7 +2695,11 @@ registries in the same format, which `packages/registry/README.md` documents for
   (`giscusSettings()`) Disqus's (`disqusShortname()`) or Garrul's (`garrulAddress()`), else Site Settings' `comments`
   (see Comments), and escaped.
 - **Releases:** the admin panel installs from the `@goodfellow-cms/registry` release it was built with
-  (`__GOODFELLOW_REGISTRY_VERSION__`), through jsDelivr, so a version always means the same files. Its `registry` prop
+  (`__GOODFELLOW_REGISTRY_VERSION__`), through jsDelivr, so a version always means the same files, and takes each item
+  only where its text has the SHA-256 that release's build wrote (`r/digests.json`, `REGISTRY_DIGESTS_FILE`, embedded
+  as `__GOODFELLOW_REGISTRY_DIGESTS__` and checked by `checkedFetchJson()` in `registry-fetch.ts`, refusing others as
+  `changed`), whatever the address answers; `goodfellow update --blocks` checks what it fetched against the digests of
+  the registry npm installed (a dependency of the admin panel) before the site builds. Its `registry` prop
   points elsewhere; the dev servers serve the site's installed copy at `/__goodfellow/api/registry/{name}.json`
   (`localRegistryDir()`).
 - **Snapshot:** the registry's shadcn components in `packages/registry/site/components/ui/` are copied from shadcn/ui by

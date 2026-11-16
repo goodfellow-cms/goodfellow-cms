@@ -4,7 +4,6 @@ import {
   type BlockUse,
   blockUses,
   compareReleases,
-  type FetchJson,
   INSTALLED_RECORD_FILE,
   type InstalledRecord,
   parseInstalledRecord,
@@ -14,15 +13,12 @@ import {
 } from "@goodfellow-cms/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import { registryFetchJson } from "./registry-fetch.js";
 import { useUnsavedChanges } from "./router.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, Dialog, ErrorMessage } from "./ui.js";
 
-const fetchJson: FetchJson = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} answered ${response.status}.`);
-  return response.json();
-};
+const fetchJson = registryFetchJson;
 
 /** What went wrong with a block registry, in plain words. */
 function problemText(t: Translate, problem: RegistryProblem, name: string): string {

@@ -302,6 +302,76 @@ describe("goodfellow update", () => {
     expect(ran.some((line) => line.startsWith("git push"))).toBe(false);
   });
 
+  describe("from Goodfellow's registry on jsDelivr", () => {
+    const released = `${JSON.stringify({
+      name: "shadcn-faq",
+      type: "registry:block",
+      title: "FAQ",
+      files: [{ path: "blocks/shadcn-faq/block.tsx", type: "registry:block", content: "export default { v: 2 };\n" }],
+      meta: { goodfellow: { category: "Sections", version: "1.1.0" } },
+    })}\n`;
+    /** jsDelivr, answering `text` for the block, and how often it was asked. */
+    const jsDelivr = (text: string) => async (url: string) => {
+      if (!/^https:\/\/cdn\.jsdelivr\.net\/npm\/@goodfellow-cms\/registry@0\.4\.2\/r\/shadcn-faq\.json$/.test(url)) {
+        throw new Error(`404 ${url}`);
+      }
+      return text;
+    };
+    /** The registry release npm installed, as a dependency of the admin panel, with its blocks' digests. */
+    const installRegistry = async (version: string, digests: Record<string, string>) => {
+      const folder = join(root, "node_modules/@goodfellow-cms/registry");
+      await mkdir(join(folder, "r"), { recursive: true });
+      await writeFile(join(folder, "package.json"), JSON.stringify({ name: "@goodfellow-cms/registry", version }));
+      await writeFile(join(folder, "r/digests.json"), JSON.stringify(digests));
+    };
+
+    it("takes blocks only as the release npm installed says they were built", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) });
+      const options = { root, fetchJson, blocks: true, log: () => {}, env: {} };
+      // Something else answered for the block: nothing is written, and the site isn't built with it.
+      const changed = commands();
+      const result = await update({
+        ...options,
+        run: changed.run,
+        fetchText: jsDelivr(released.replace("v: 2", "v: 666")),
+      });
+      expect(result).toMatchObject({ state: "failed", from: "0.4.2", step: "blocks" });
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+      expect(changed.ran).not.toContain("npm run build");
+      // The block as it was released.
+      const same = commands();
+      expect(await update({ ...options, run: same.run, fetchText: jsDelivr(released) })).toEqual({
+        state: "up-to-date",
+        from: "0.4.2",
+      });
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("checks the blocks of a release it installs against it before building, and puts everything back", async () => {
+      await site();
+      const before = await read("package.json");
+      // What npm install would leave: the release's registry, which doesn't have what jsDelivr answered.
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) });
+      const { ran, run } = commands();
+      const result = await update({
+        root,
+        fetchJson,
+        fetchText: jsDelivr(released.replace("v: 2", "v: 666")),
+        run,
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "failed", from: "0.4.1", to: "0.4.2", step: "blocks" });
+      expect(ran.some((line) => line.startsWith("npm install "))).toBe(true);
+      expect(ran).not.toContain("npm run build");
+      expect(await read("package.json")).toBe(before);
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+    });
+  });
+
   it("updates to a newer release only when asked, and says when there's nothing newer", async () => {
     await site();
     const { run } = commands();

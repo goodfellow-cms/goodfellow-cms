@@ -673,6 +673,8 @@ export const defaultStrings = {
   "blocks.error.unreachable":
     "The blocks you can add couldn't be loaded. Check your internet connection and try again.",
   "blocks.error.invalid": "The list of blocks you can add has a problem, so it couldn't be read. Try again later.",
+  "blocks.error.changed":
+    "This block's files aren't the ones Goodfellow released, so it can't be added. Try again later, and tell whoever looks after the site if it keeps happening.",
   "blocks.error.untrusted": "This block comes from somewhere this site doesn't trust, so it can't be added.",
   "blocks.error.not-a-block": "This can't be added to the editor as a block.",
   "blocks.error.already-installed": "{name} has already been added.",
