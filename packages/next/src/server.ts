@@ -20,7 +20,7 @@ export interface GoodfellowApiOptions {
    * fine-grained GitHub token or a GitLab project access token. It never
    * reaches a browser. Defaults to the `GOODFELLOW_GIT_TOKEN` environment variable.
    */
-  token?: string | (() => Promise<string>);
+  token?: string | ((request?: { refresh?: boolean }) => Promise<string>);
   /**
    * Who's signed in, from the site's own sign-in (such as Better Auth's
    * `auth.api.getSession({ headers: request.headers })`): their name, email
