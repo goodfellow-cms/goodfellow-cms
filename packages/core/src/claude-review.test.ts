@@ -17,7 +17,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 const workflow = join(import.meta.dirname, "../../../.github/workflows/claude-review.yml");
-const steps = (parse(readFileSync(workflow, "utf8")).jobs.review.steps ?? []) as { name?: string; run?: string }[];
+const steps = (parse(readFileSync(workflow, "utf8")).jobs.review.steps ?? []) as {
+  name?: string;
+  run?: string;
+  env?: Record<string, string>;
+}[];
 const script = (name: string) => steps.find((step) => step.name === name)?.run ?? "";
 
 const dirs: string[] = [];
@@ -302,18 +306,41 @@ describe("the Claude review's file tools", () => {
 });
 
 describe("the Claude review's findings", () => {
-  function withheld(findings: unknown) {
+  /** What the step publishes, from an execution file of the given messages (none for no file at all). */
+  function published(messages?: unknown[]) {
     const runner = temp();
     const output = join(runner, "output");
+    const execution = join(runner, "execution-output.json");
+    if (messages) writeFileSync(execution, JSON.stringify(messages));
     const result = sh("bash", ["-eo", "pipefail", "-c", script("Withhold anything like a token")], runner, {
-      FINDINGS: JSON.stringify(findings),
+      EXECUTION_FILE: messages ? execution : "",
       GITHUB_OUTPUT: output,
       GITHUB_RUN_ID: "1",
     });
     expect(result.status, result.stderr).toBe(0);
     const text = readFileSync(output, "utf8");
-    return JSON.parse(text.slice(text.indexOf("\n") + 1, text.lastIndexOf("FINDINGS_1")));
+    return text.slice(text.indexOf("\n") + 1, text.lastIndexOf("FINDINGS_1")).trim();
   }
+  function withheld(findings: unknown) {
+    const messages = [
+      { type: "system", subtype: "init" },
+      { type: "result", subtype: "success", structured_output: findings },
+    ];
+    return JSON.parse(published(messages));
+  }
+
+  it("never hands the findings to the step in env:, which the runner writes into the job's log", () => {
+    const step = steps.find((each) => each.name === "Withhold anything like a token");
+    expect(Object.keys(step?.env ?? {})).toEqual(["EXECUTION_FILE"]);
+    expect(step?.env?.EXECUTION_FILE).toMatch(/^\$\{\{ steps\.claude\.outputs\.execution_file \}\}$/);
+    // Nor in the script, which the runner writes into the log as GitHub expanded it.
+    expect(step?.run).not.toMatch(/\$\{\{/);
+  });
+
+  it.skipIf(process.platform === "win32")("publishes nothing when the review left no findings", () => {
+    expect(published()).toBe("");
+    expect(published([{ type: "result", subtype: "success" }])).toBe("");
+  });
 
   it.skipIf(process.platform === "win32")("withholds anything shaped like a token before it's posted", () => {
     const tokens = [

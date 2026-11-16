@@ -2884,7 +2884,8 @@ pnpm test:e2e
   (fsmonitor, gpg, external diffs, textconv and the pager; the checkout's config names no filter drivers), with links
   leading outside the checkout or into `.git` taken out of it first and `Read(./.git/**)` denied, which
   `claude-review.test.ts` tries; it answers with its findings as structured output (`--json-schema`: each one's file,
-  line, and text), with anything shaped like a token withheld (`Withhold anything like a token`), which `finish` posts
+  line, and text), with anything shaped like a token withheld (`Withhold anything like a token`, which reads them from
+  the action's execution file, not through `env:`, which the runner writes into the job's log), which `finish` posts
   on those lines of the pull request it chose, or on the file where the line isn't part of the change, so every way a
   review starts publishes the same way; apart from choosing and announcing the review (`choose`, which reviews only the
   commit whose CI passed when CI starts it) and reporting, labelling, and refreshing the status (`finish`, which keeps
