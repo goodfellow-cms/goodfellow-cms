@@ -121,14 +121,6 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "HEAD:a.txt", "--", ":(literal).git//config"],
       ["diff", "HEAD:a.txt", "--", `${repo}/.git/config`],
       ["diff", "HEAD:a.txt", "--", ".git"],
-      // Pathspec magic that names a path on disk outside the checkout.
-      ["diff", "HEAD:a.txt", "--", ":(top)/etc/hostname"],
-      ["diff", "HEAD:a.txt", "--", ":(top,literal)/etc/hostname"],
-      ["diff", "HEAD:a.txt", "--", ":/:/etc/hostname"],
-      ["diff", "HEAD:a.txt", "--", ":(top)../outside"],
-      // Magic that never closes is refused rather than read.
-      ["diff", "HEAD:a.txt", "--", ":("],
-      ["diff", "HEAD:a.txt", "--", ":(top"],
       // Git's own options first, which only the action's own git uses, would skip every check.
       ["--no-pager", "diff", "--output=x", "HEAD"],
       ["-c", "core.fsmonitor=x", "diff"],
@@ -147,15 +139,35 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "--text", "HEAD~1", "HEAD"],
       ["log", "-L/two/,+1:a.txt", "-1"],
       ["diff", "HEAD~1", "HEAD", "--", "not.git"],
-      ["diff", "HEAD~1", "HEAD", "--", ":(top)a.txt"],
-      ["diff", "HEAD~1", "HEAD", "--", ":/a.txt"],
-      ["diff", "HEAD~1", "HEAD", "--", ":!b.txt"],
+      // A revision that searches commit messages is no pathspec.
+      ["log", "--oneline", ":/one"],
     ]) {
       const result = review(...args);
       expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
     }
     // Anything else still goes to git as it is, git's options first and all.
     expect(review("-c", "core.quotePath=false", "rev-parse", "HEAD").status).toBe(0);
+  });
+
+  it("never reads a file on disk through pathspec magic, which git takes as written", () => {
+    const { review } = setUp();
+    const secret = join(temp(), "secret.txt");
+    writeFileSync(secret, "not for the review\n");
+    for (const spec of [
+      `:(top)${secret}`,
+      `:(top,literal)${secret}`,
+      `:/:${secret}`,
+      `:^${secret}`,
+      `:!${secret}`,
+      ":(",
+      ":(top",
+      `:(top,attr:a=x\\))${secret}`,
+    ]) {
+      const result = review("diff", "HEAD:a.txt", "--", spec);
+      expect(result.stdout + result.stderr, spec).not.toContain("not for the review");
+      // Never left hanging or killed, as a check that called itself would be.
+      expect(result.status, spec).not.toBeNull();
+    }
   });
 
   it("never passes on an alias, nor a command it took from an option's value", () => {
