@@ -125,6 +125,23 @@ describe.skipIf(process.platform === "win32")("the Review status workflow", () =
     expect(result.statuses).toContain(`target_url=${REVIEW}`);
     const one = run([review("**⚠️ Outside diff range comments (1)**")]);
     expect(one.statuses).toContain("CodeRabbit raised 1 finding outside the diff in this commit");
+    // CodeRabbit's other wording, with nitpicks in the same section.
+    const nitpicks = run([review("**⚠️ Outside diff range and nitpick comments (3)**")]);
+    expect(nitpicks.statuses).toContain("CodeRabbit raised 3 findings outside the diff in this commit");
+  });
+
+  it("keeps failing after CodeRabbit replies in a thread, which GitHub records as a review with no body", () => {
+    const result = run([
+      review("**⚠️ Outside diff range comments (2)**"),
+      { ...review(""), html_url: "https://github.com/o/r/pull/7#pullrequestreview-2" },
+    ]);
+    expect(result.statuses).toContain("CodeRabbit raised 2 findings outside the diff in this commit");
+    expect(result.statuses).toContain(`target_url=${REVIEW}`);
+  });
+
+  it("doesn't count nitpicks or duplicates, which CodeRabbit's threads and labels cover", () => {
+    const result = run([review("**🧹 Nitpick comments (4)**\n**♻️ Duplicate comments (1)**")]);
+    expect(result.statuses).toContain("state=success");
   });
 
   it("passes once a newer commit's review has none, or where the review had none", () => {
