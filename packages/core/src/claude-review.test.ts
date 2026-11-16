@@ -1,7 +1,7 @@
 // The repository's own Claude review workflow (.github/workflows/claude-review.yml): the steps that keep the review
 // to reading, run with bash as the runner would.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -25,16 +25,10 @@ function sh(command: string, args: string[], cwd: string, env: Record<string, st
   return spawnSync(command, args, { cwd, encoding: "utf8", env: { ...process.env, ...env } });
 }
 
-/** A repository with two commits, and the review's git made by the workflow's step. */
-function setUp() {
+/** A repository with two commits, and the review's git made by the workflow's step, run in it. */
+function setUp(before: (repo: string) => void = () => {}) {
   const runner = temp();
   const output = join(runner, "path");
-  const made = sh("bash", ["-eo", "pipefail", "-c", script("Keep git to reading")], runner, {
-    RUNNER_TEMP: runner,
-    GITHUB_PATH: output,
-  });
-  expect(made.status, made.stderr).toBe(0);
-  const bin = readFileSync(output, "utf8").trim();
   const repo = temp();
   const git = (...args: string[]) => sh("git", args, repo);
   git("init", "-q", "-b", "main");
@@ -45,8 +39,15 @@ function setUp() {
   git("commit", "-qm", "one");
   writeFileSync(join(repo, "a.txt"), "two\n");
   git("commit", "-qam", "two");
+  before(repo);
+  const made = sh("bash", ["-eo", "pipefail", "-c", script("Keep git to reading")], repo, {
+    RUNNER_TEMP: runner,
+    GITHUB_PATH: output,
+  });
+  expect(made.status, made.stderr).toBe(0);
+  const bin = readFileSync(output, "utf8").trim();
   const review = (...args: string[]) => sh(join(bin, "git"), args, repo);
-  return { repo, git, review, marker: join(runner, "ran") };
+  return { repo, git, review, reviewGit: join(bin, "git"), marker: join(runner, "ran") };
 }
 
 describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
@@ -94,14 +95,91 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "--", "sub/../../outside"],
       ["diff", "~/.bashrc", "a.txt"],
       ["diff", ".."],
+      ["diff", "HEAD~1", "HEAD", "--orderfile=/proc/self/environ"],
+      ["diff", "--orderf=../outside"],
+      ["diff", "-O/etc/passwd"],
+      ["diff", "-pO/etc/passwd"],
+      ["blame", "--ignore-revs-file=/etc/passwd", "a.txt"],
+      ["blame", "-S/proc/self/environ", "a.txt"],
+      ["blame", "-S", "/proc/self/environ", "a.txt"],
+      ["diff", `${repo}/../outside`],
+      // Git's own options first, which only the action's own git uses, would skip every check.
+      ["--no-pager", "diff", "--output=x", "HEAD"],
+      ["-c", "core.fsmonitor=x", "diff"],
     ]) {
       const result = review(...args);
       expect(result.status, args.join(" ")).toBe(2);
       expect(result.stderr).toContain("a review can't use");
     }
     expect(readFileSync(join(repo, ".git", "config"), "utf8")).not.toContain("two");
-    // Ranges are fine, ".." and all.
+    // Ranges are fine, ".." and all, as are paths in the checkout however they're written, and git's own
+    // options that only start like a refused one.
     expect(review("diff", "HEAD~1..HEAD").status).toBe(0);
+    for (const args of [
+      ["diff", "HEAD~1", "HEAD", "--", join(repo, "a.txt")],
+      ["blame", join(repo, "a.txt")],
+      ["diff", "--text", "HEAD~1", "HEAD"],
+      ["log", "-L/two/,+1:a.txt", "-1"],
+    ]) {
+      const result = review(...args);
+      expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
+    }
+    // Anything else still goes to git as it is, git's options first and all.
+    expect(review("-c", "core.quotePath=false", "rev-parse", "HEAD").status).toBe(0);
+  });
+
+  it("never runs a filter driver the system's or the user's config names", () => {
+    const { repo, reviewGit, marker } = setUp();
+    const program = join(repo, "..", "filter.sh");
+    writeFileSync(program, `#!/bin/sh\ntouch '${marker}'\ncat\n`, { mode: 0o755 });
+    const global = join(repo, "..", "global.gitconfig");
+    writeFileSync(global, `[filter "evil"]\n\tclean = ${program}\n`);
+    writeFileSync(join(repo, ".gitattributes"), "*.txt filter=evil\n");
+    writeFileSync(join(repo, "a.txt"), "three\n");
+    const run = (command: string) => sh(command, ["diff"], repo, { GIT_CONFIG_GLOBAL: global });
+    run(reviewGit);
+    expect(existsSync(marker)).toBe(false);
+    run("git");
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  it("takes links that lead outside the checkout out of it, and keeps the rest", () => {
+    const { repo, git } = setUp((repo) => {
+      symlinkSync("/etc/hostname", join(repo, "out"));
+      symlinkSync("out", join(repo, "chain"));
+      symlinkSync("a.txt", join(repo, "in"));
+      symlinkSync("round", join(repo, "round"));
+      sh("git", ["add", "."], repo);
+      sh("git", ["commit", "-qm", "links"], repo);
+    });
+    expect(existsSync(join(repo, "in"))).toBe(true);
+    // One that goes round in a loop leads nowhere, so it stays, and doesn't stop the step.
+    expect(lstatSync(join(repo, "round")).isSymbolicLink()).toBe(true);
+    for (const link of ["out", "chain"]) expect(() => lstatSync(join(repo, link))).toThrow();
+    // Git still has them, so the change reads as it was.
+    expect(git("status", "--porcelain").stdout).toBe("");
+  });
+});
+
+describe("the Claude review's file tools", () => {
+  const review = steps.find((step) => step.name === "Review") as { with?: Record<string, string> };
+
+  it("never read outside the checkout, whatever their rules allow", () => {
+    expect(JSON.parse(review.with?.settings ?? "{}")).toMatchObject({
+      permissions: { blockReadsOutsideWorkingDirectories: true },
+    });
+  });
+
+  it("never read Claude Code's own settings and state, which hold what the job signs in with", () => {
+    const denied = /--disallowedTools "([^"]*)"/.exec(review.with?.claude_args ?? "")?.[1].split(",") ?? [];
+    expect(denied).toEqual(
+      expect.arrayContaining([
+        "Read(~/.claude/**)",
+        "Read(~/.claude.json)",
+        "Read(~/.claude.json.*)",
+        "Read(//proc/**)",
+      ]),
+    );
   });
 });
 
