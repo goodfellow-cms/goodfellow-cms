@@ -2876,45 +2876,50 @@ pnpm test:e2e
   review, since each uses the subscription, and only an exact `claude-review` or level label does (a level is one whole
   word). Claude runs in a job with only what reading needs (`review`), reading files only in the checkout (never
   `/proc`, `/sys`, `/dev`, or Claude Code's settings) and running git through a `git` the job puts first on its `PATH`
-  (`Keep git to reading`), which refuses options that write files or read outside the repository, shortened ones too,
-  and turns off every program the repository's config could start, which `claude-review.test.ts` tries; it answers with
-  its findings as structured output (`--json-schema`: each one's file, line, and text), with anything shaped like a
-  token withheld (`Withhold anything like a token`), which `finish` posts on those lines of the pull request it chose,
-  or on the file where the line isn't part of the change, so every way a review starts publishes the same way; apart
-  from choosing and announcing the review (`choose`, which reviews only the commit whose CI passed when CI starts it)
-  and reporting, labelling, and refreshing the status (`finish`, which keeps only the level label added last of those on
-  the pull request, read from its history, so reviews ending in any order leave the same one, leaving any request label
-  someone added again since it read that history, and takes back the comment of a CI review that turned out unneeded:
-  `review` checks again, once its turn comes, that no review ran meanwhile, either labelling the pull request or, with a
-  comment posted before this one's, still `reviewing`, since its `finish` labels the pull request only after the slot is
-  free); every step that could fail is caught (`continue-on-error`), in `choose` too, so a review never fails CI. It
-  asks for the code-review skill in words rather than as the slash command, since a slash command's skill ends the
-  session before Claude can return the findings, and allows the `Skill` tool. It runs Opus at Claude Code's default
-  effort, with tools to read the pull request and run git, never to edit or run its code, reading the change at the
-  commit it chose (`git diff` from its merge base with the branch it's merged into), never the pull request's live diff,
-  which may have moved on while it waited, and only the runner's own settings (`--setting-sources user`), never the
-  checkout's `.claude/` settings, whose hooks would run the pull request's commands, and never on pull requests from
-  forks, whose runs get no secrets. Each review keeps one comment up to date, marked
-  `<!-- claude-review sha=… outcome=reviewing|reviewed|noted|failed|replaced -->`: that it's reviewing a commit, then
-  that it found nothing, or findings no comment on the change could hold (`noted`, listed in it: lines outside the
-  change, and apart from those any GitHub didn't take after one more try, with a note that `no-claude-review` passes the
-  status where they don't apply; a comment past GitHub's length limit is cut short, the run's summary keeping all of
-  it), or why it couldn't (including a review that gave no findings to post, and a comment's request GitHub didn't
-  start, which `claude-review-request.yml` marks `failed` too), or that GitHub dropped it while it waited (`replaced`:
-  reviews of one pull request run one at a time, and GitHub keeps only the newest waiting one, so the comment says to
-  ask again, and the status passes over it); CI's review, once its turn comes, skips itself only where one that ran
-  meanwhile succeeded, waiting up to ten minutes for an earlier one's finish to say how it went, so one that failed
-  never takes the next with it, with the tokens it used, any tool Claude Code refused it (by name only), and Claude
-  Code's estimate of their cost at API prices, which is how its share of the plan's usage is followed, since the plan's
-  usage page doesn't break it down. A review never fails CI; `.github/workflows/review-status.yml` reads the latest of
-  those comments and sets the "Claude reviewed" status, which carries the review's result to later commits, naming the
-  commit reviewed: it fails while the review couldn't run or didn't finish (one still `reviewing` after two hours) or
-  listed findings in its comment (`noted`), and then until every review thread Claude (`github-actions`) started is
-  resolved, pending until the first review, and passing drafts, Dependabot's and other bots' pull requests until one is
-  reviewed (Claude Code's action doesn't run for a bot, so CI's review skips a run a bot started, and `/claude-review`
-  still asks, after which its result counts as any other's), forks' and ones labelled `no-claude-review`; it reads each
-  open pull request once, from the list, and stops after ten minutes rather than holding its group. It isn't a required
-  check. Its findings are claims to check, like CodeRabbit's.
+  (`Keep git to reading`), which gives Claude Code's own commands (marked by `CLAUDECODE`) only diff, log, show, and
+  blame, so none prints git's config, where the action can keep the job's token, refuses options that write files or
+  read outside the repository or in its `.git` folder, shortened ones too, runs only in the checkout's own repository
+  with only its config (never the system's or the user's) and pathspecs taken as written (`GIT_LITERAL_PATHSPECS`, so
+  magic such as `:(top)` can't name a file elsewhere), and turns off the programs that config could start there
+  (fsmonitor, gpg, external diffs, textconv and the pager; the checkout's config names no filter drivers), with links
+  leading outside the checkout or into `.git` taken out of it first and `Read(./.git/**)` denied, which
+  `claude-review.test.ts` tries; it answers with its findings as structured output (`--json-schema`: each one's file,
+  line, and text), with anything shaped like a token withheld (`Withhold anything like a token`), which `finish` posts
+  on those lines of the pull request it chose, or on the file where the line isn't part of the change, so every way a
+  review starts publishes the same way; apart from choosing and announcing the review (`choose`, which reviews only the
+  commit whose CI passed when CI starts it) and reporting, labelling, and refreshing the status (`finish`, which keeps
+  only the level label added last of those on the pull request, read from its history, so reviews ending in any order
+  leave the same one, leaving any request label someone added again since it read that history, and takes back the
+  comment of a CI review that turned out unneeded: `review` checks again, once its turn comes, that no review ran
+  meanwhile, either labelling the pull request or, with a comment posted before this one's, still `reviewing`, since its
+  `finish` labels the pull request only after the slot is free); every step that could fail is caught
+  (`continue-on-error`), in `choose` too, so a review never fails CI. It asks for the code-review skill in words rather
+  than as the slash command, since a slash command's skill ends the session before Claude can return the findings, and
+  allows the `Skill` tool. It runs Opus at Claude Code's default effort, with tools to read the pull request and run
+  git, never to edit or run its code, reading the change at the commit it chose (`git diff` from its merge base with the
+  branch it's merged into), never the pull request's live diff, which may have moved on while it waited, and only the
+  runner's own settings (`--setting-sources user`), never the checkout's `.claude/` settings, whose hooks would run the
+  pull request's commands, and never on pull requests from forks, whose runs get no secrets. Each review keeps one
+  comment up to date, marked `<!-- claude-review sha=… outcome=reviewing|reviewed|noted|failed|replaced -->`: that it's
+  reviewing a commit, then that it found nothing, or findings no comment on the change could hold (`noted`, listed in
+  it: lines outside the change, and apart from those any GitHub didn't take after one more try, with a note that
+  `no-claude-review` passes the status where they don't apply; a comment past GitHub's length limit is cut short, the
+  run's summary keeping all of it), or why it couldn't (including a review that gave no findings to post, and a
+  comment's request GitHub didn't start, which `claude-review-request.yml` marks `failed` too), or that GitHub dropped
+  it while it waited (`replaced`: reviews of one pull request run one at a time, and GitHub keeps only the newest
+  waiting one, so the comment says to ask again, and the status passes over it); CI's review, once its turn comes, skips
+  itself only where one that ran meanwhile succeeded, waiting up to ten minutes for an earlier one's finish to say how
+  it went, so one that failed never takes the next with it, with the tokens it used, any tool Claude Code refused it (by
+  name only), and Claude Code's estimate of their cost at API prices, which is how its share of the plan's usage is
+  followed, since the plan's usage page doesn't break it down. A review never fails CI;
+  `.github/workflows/review-status.yml` reads the latest of those comments and sets the "Claude reviewed" status, which
+  carries the review's result to later commits, naming the commit reviewed: it fails while the review couldn't run or
+  didn't finish (one still `reviewing` after two hours) or listed findings in its comment (`noted`), and then until
+  every review thread Claude (`github-actions`) started is resolved, pending until the first review, and passing drafts,
+  Dependabot's and other bots' pull requests until one is reviewed (Claude Code's action doesn't run for a bot, so CI's
+  review skips a run a bot started, and `/claude-review` still asks, after which its result counts as any other's),
+  forks' and ones labelled `no-claude-review`; it reads each open pull request once, from the list, and stops after ten
+  minutes rather than holding its group. It isn't a required check. Its findings are claims to check, like CodeRabbit's.
 - **Line endings:** files are LF everywhere, which Biome and the content files' canonical form expect. `.gitattributes`
   makes git check them out with LF on Windows too.
 - **Timeouts:** every package's `vitest.config.ts` uses `vitest.shared.ts` at the root, which gives tests 30 seconds and

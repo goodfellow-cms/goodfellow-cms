@@ -331,8 +331,11 @@ jobs:
           case "$sub" in
             diff | log | show | blame) ;;
             # Anything else is the action's own git, which names git's own commands: never an alias, which could
-            # be any command or program, nor the value of an option this scan doesn't know takes one.
+            # be any command or program, nor the value of an option this scan doesn't know takes one. Claude Code
+            # sets CLAUDECODE in the commands it runs, which get only those four: git's others print its config
+            # (config, remote, ls-remote --get-url, var -l), where the action can keep the job's token.
             *)
+              if [ -n "${CLAUDECODE:-}" ]; then refuse "${sub:-git without a command} in the review"; fi
               if [ -n "$sub" ] && ! "$real" --list-cmds=main | grep -qxF -- "$sub"; then
                 refuse "$sub, which isn't one of git's own commands"
               fi
@@ -345,7 +348,7 @@ jobs:
           top=$("$real" rev-parse --show-toplevel 2> /dev/null) || top=
           if [ "$top" != "$checkout" ]; then refuse "a repository other than the checkout"; fi
           # Whether a path leads outside the checkout: up from it, from a home, or from the root to anywhere else;
-          # or into git's own folder, whose config can hold the job's token, through pathspec magic (:/, :(top)) too.
+          # or into git's own folder, whose config can hold the job's token, however it's spelled.
           dotgit='(^|[/:)])\.git(/|$)'
           outside() {
             if [[ $1 =~ $dotgit ]]; then return 0; fi
@@ -383,6 +386,10 @@ jobs:
           # are), and nothing the environment adds.
           unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_EXTERNAL_DIFF GIT_PAGER
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          # Pathspecs are taken as written: magic such as :(top)/etc/passwd would name a file on disk past the checks
+          # above, so git never reads it (and the review loses :! and :(top), which it can do without).
+          unset GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
+          export GIT_LITERAL_PATHSPECS=1
           # What the checkout's config could still start: --no-ext-diff and --no-textconv turn off diff and textconv
           # drivers, and --no-pager the pager.
           off=(-c core.fsmonitor=false -c gpg.program=false -c gpg.ssh.program=false -c gpg.x509.program=false
