@@ -333,7 +333,8 @@ describe("the Claude review's findings", () => {
     const step = steps.find((each) => each.name === "Withhold anything like a token");
     expect(Object.keys(step?.env ?? {})).toEqual(["EXECUTION_FILE"]);
     expect(step?.env?.EXECUTION_FILE).toMatch(/^\$\{\{ steps\.claude\.outputs\.execution_file \}\}$/);
-    expect(step?.run).not.toContain("structured_output }}");
+    // Nor in the script, which the runner writes into the log as GitHub expanded it.
+    expect(step?.run).not.toMatch(/\$\{\{/);
   });
 
   it.skipIf(process.platform === "win32")("publishes nothing when the review left no findings", () => {
