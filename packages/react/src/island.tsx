@@ -225,44 +225,83 @@ export function island<T>(component: T, module: string, name: string): T {
   return Island as T;
 }
 
-/**
- * What a page's HTML is read as, for its templates: a comment, an element whose content is text (a script, a style,
- * a text area or a title), a template's end tag, or any start tag, its quoted attributes and all. The page holds what
- * the site's owners wrote as they wrote it (head and body code, Custom HTML used as written), so text that only looks
- * like a template, such as `"<template>"` in a script's string, a comment, or an attribute, never counts as one.
- */
-const TOKEN =
-  /<!--[\s\S]*?(?:-->|$)|<(script|style|textarea|title)\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?(?:<\/\1\s*>|$)|<\/template\s*>|<([a-zA-Z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
-
 /** A template React wrote for an island's content: exactly this, as `island()` renders it. */
 const SLOT_TEMPLATE = /^<template data-gf-slot="([^"]+)">$/;
 
-/** Finds `<template data-gf-slot>` elements that aren't inside other templates, with their contents. */
+/** Elements whose content is text, never markup, so a template's tag inside one isn't one. */
+const TEXT_ONLY = new Set(["script", "style", "textarea", "title"]);
+
+/** A template's end tag, read at a position. */
+const TEMPLATE_END = /<\/template\s*>/iy;
+
+/**
+ * Finds `<template data-gf-slot>` elements that aren't inside other templates, with their contents. The page holds
+ * what the site's owners wrote as they wrote it (head and body code, Custom HTML used as written), so it's read as a
+ * browser reads it, never by counting text that looks like a template: comments, the content of scripts, styles,
+ * text areas and titles, and quoted attributes are passed over, and an end tag that closes nothing is text. Each
+ * character is read once, however the page is written: a comment, element or tag that never ends ends the reading.
+ */
 function topLevelSlots(html: string) {
   const found: Array<{ id: string; start: number; end: number; inner: string }> = [];
+  const lower = html.toLowerCase();
   let depth = 0;
   let open: { id: string; start: number; innerStart: number } | undefined;
-  for (const match of html.matchAll(TOKEN)) {
-    const [token, , tag] = match;
-    if (/^<\/template/i.test(token)) {
-      // One that closes nothing is text, as a browser takes it.
-      if (depth === 0) continue;
-      depth--;
-      if (depth === 0 && open) {
-        found.push({
-          id: open.id,
-          start: open.start,
-          end: match.index + token.length,
-          inner: html.slice(open.innerStart, match.index),
-        });
-        open = undefined;
-      }
+  let i = html.indexOf("<");
+  while (i !== -1) {
+    if (html.startsWith("<!--", i)) {
+      const end = html.indexOf("-->", i + 4);
+      if (end === -1) break;
+      i = html.indexOf("<", end + 3);
       continue;
     }
-    if (tag?.toLowerCase() !== "template") continue;
-    const id = SLOT_TEMPLATE.exec(token)?.[1];
-    if (depth === 0 && id) open = { id, start: match.index, innerStart: match.index + token.length };
-    depth++;
+    if (html[i + 1] === "/") {
+      TEMPLATE_END.lastIndex = i;
+      const match = TEMPLATE_END.exec(html);
+      if (match && depth > 0) {
+        depth--;
+        if (depth === 0 && open) {
+          found.push({
+            id: open.id,
+            start: open.start,
+            end: i + match[0].length,
+            inner: html.slice(open.innerStart, i),
+          });
+          open = undefined;
+        }
+      }
+      i = html.indexOf("<", i + 1);
+      continue;
+    }
+    if (!/[a-z]/i.test(html[i + 1] ?? "")) {
+      i = html.indexOf("<", i + 1);
+      continue;
+    }
+    // A start tag: its name, then its attributes to the > that ends it, quotes and all.
+    let j = i + 1;
+    while (j < html.length && !/[\s/>]/.test(html[j] ?? "")) j++;
+    const name = lower.slice(i + 1, j);
+    let quote = "";
+    for (; j < html.length; j++) {
+      const char = html[j];
+      if (quote) {
+        if (char === quote) quote = "";
+      } else if (char === '"' || char === "'") quote = char;
+      else if (char === ">") break;
+    }
+    if (j >= html.length) break;
+    const end = j + 1;
+    if (TEXT_ONLY.has(name)) {
+      const close = lower.indexOf(`</${name}`, end);
+      if (close === -1) break;
+      i = html.indexOf("<", close + 1);
+      continue;
+    }
+    if (name === "template") {
+      const id = SLOT_TEMPLATE.exec(html.slice(i, end))?.[1];
+      if (depth === 0 && id) open = { id, start: i, innerStart: end };
+      depth++;
+    }
+    i = html.indexOf("<", end);
   }
   return found;
 }

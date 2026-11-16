@@ -239,6 +239,25 @@ describe("fillSlots", () => {
     }
   });
 
+  it("reads any page in one pass, however its tags are written", () => {
+    const filled = `<gf-island>${slot("a.0", "<b>Passed</b>")}</gf-island>`;
+    const island = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0"><b>Passed</b></template>`;
+    expect(fillSlots(`${island}<p title="${"<a ".repeat(20)}"></p>`)).toBe(
+      `${filled}<p title="${"<a ".repeat(20)}"></p>`,
+    );
+    // Tags, comments and quotes that never end, which a backtracking pattern takes far longer than this to read.
+    for (const rest of [
+      `<a${"!".repeat(200_000)}`,
+      "<a".repeat(100_000),
+      "<!--".repeat(100_000),
+      `<a "${"'".repeat(100_000)}`,
+    ]) {
+      const started = performance.now();
+      expect(fillSlots(`${island}${rest}`)).toBe(`${filled}${rest}`);
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+  });
+
   it("keeps templates whose slots weren't rendered", () => {
     const html = `<gf-island></gf-island><template data-gf-slot="a.0">Later</template><p>After</p>`;
     expect(fillSlots(html)).toBe(html);

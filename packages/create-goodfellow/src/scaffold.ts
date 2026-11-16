@@ -106,7 +106,9 @@ export function secretFiles(paths: Iterable<string>): string[] {
 export async function bundleTemplate(repo: string, source: string, to: string): Promise<void> {
   const listed = spawnSync("git", ["ls-files", "-z", "--", source], { cwd: repo, encoding: "utf8" });
   if (listed.status !== 0) throw new ScaffoldError(`git couldn't list ${source}'s files: ${listed.stderr.trim()}`);
-  const prefix = `${source.replace(/\/+$/, "")}/`;
+  let folder = source;
+  while (folder.endsWith("/")) folder = folder.slice(0, -1);
+  const prefix = `${folder}/`;
   const tracked = await mkdtemp(join(tmpdir(), "goodfellow-template-"));
   try {
     for (const path of listed.stdout.split("\0").filter(Boolean)) {
