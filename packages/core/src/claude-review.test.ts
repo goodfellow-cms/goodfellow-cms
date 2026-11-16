@@ -280,6 +280,15 @@ describe("the Claude review's file tools", () => {
     });
   });
 
+  it("let the commands' sandbox see the git that keeps git to reading, so plain git never runs in its place", () => {
+    const keep = steps.find((step) => step.name === "Keep git to reading") as { run?: string };
+    expect(keep.run).toContain('bin="$RUNNER_TEMP/review-bin"');
+    expect(JSON.parse(review.with?.settings ?? "{}").sandbox).toEqual({
+      // GitHub's expression for $RUNNER_TEMP, written in two parts so it reads as text, not a template.
+      filesystem: { allowRead: [["$", "{{ runner.temp }}/review-bin"].join("")] },
+    });
+  });
+
   const tools = (flag: string) =>
     new RegExp(`${flag} "([^"]*)"`).exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
 
