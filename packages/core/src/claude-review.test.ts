@@ -1,7 +1,16 @@
 // The repository's own Claude review workflow (.github/workflows/claude-review.yml): the steps that keep the review
 // to reading, run with bash as the runner would.
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,7 +25,8 @@ afterEach(() => {
   for (const made of dirs.splice(0)) rmSync(made, { recursive: true, force: true });
 });
 function temp() {
-  const dir = mkdtempSync(join(tmpdir(), "claude-review-"));
+  // The physical path, as git's own top level is: macOS's temporary folder is under a link.
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "claude-review-")));
   dirs.push(dir);
   return dir;
 }
@@ -218,14 +228,24 @@ describe("the Claude review's file tools", () => {
     });
   });
 
+  const tools = (flag: string) =>
+    new RegExp(`${flag} "([^"]*)"`).exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
+
+  it("read only the checkout's files, never everything Read could", () => {
+    expect(tools("--allowedTools")).toContain("Read(./**)");
+    expect(tools("--allowedTools")).not.toContain("Read");
+  });
+
   it("never read Claude Code's own settings and state, nor git's config, which hold what the job signs in with", () => {
-    const denied = /--disallowedTools "([^"]*)"/.exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
-    expect(denied).toEqual(
+    expect(tools("--disallowedTools")).toEqual(
       expect.arrayContaining([
         "Read(~/.claude/**)",
         "Read(~/.claude.json)",
         "Read(~/.claude.json.*)",
+        "Read(~/.config/**)",
         "Read(//proc/**)",
+        "Read(//sys/**)",
+        "Read(//dev/**)",
         // The action can put the job's token in the checkout's origin address.
         "Read(./.git/**)",
       ]),
