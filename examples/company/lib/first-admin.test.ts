@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { setupCodeHash } from "@goodfellow-cms/core";
 import { betterAuth } from "better-auth";
 import { afterEach, describe, expect, it } from "vitest";
-import { type AdminMaker, createAdmin, newAdminProblem, SETUP_RETIRED } from "./admins.ts";
+import { type AdminMaker, createAdmin, newAdminProblem, SETUP_RETIRED, SetupClaimLost } from "./admins.ts";
 import { authOptions } from "./auth.ts";
 import { addAdmin } from "./db/new-admin.ts";
 import type { SiteEnv } from "./env.ts";
@@ -129,6 +129,46 @@ describe("setUpFirstAdmin", () => {
     site.db.exec(`update "user" set role = 'member'`);
     expect(await statusOf(site.setUp(OLIVE))).toBe(409);
     expect(site.admins()).toEqual([]);
+  });
+
+  it("makes no admin where npm run new-admin retires the code after /setup/ claims it, before /setup/ uses it", async () => {
+    const site = await freshSite();
+    const context = await site.auth.$context;
+    // Hashing the password comes after the claim and before using it: the command makes Ada just then.
+    const hash = context.password.hash;
+    context.password.hash = async (password) => {
+      await addAdmin(site.db, { email: "ada@example.org", name: "Ada", password: PASSWORD });
+      return hash(password);
+    };
+    expect(await statusOf(site.setUp(OLIVE))).toBe(409);
+    expect(site.admins()).toEqual(["ada@example.org"]);
+    expect(site.db.prepare(`select value from verification where id = ?`).all(SETUP_DONE)).toEqual([
+      { value: SETUP_RETIRED },
+    ]);
+    // Nor through createAdmin() itself, given a claim the row no longer holds.
+    context.password.hash = hash;
+    await expect(createAdmin(context, { ...OLIVE, email: "olive@example.org" }, { claim: "gone" })).rejects.toThrow(
+      SetupClaimLost,
+    );
+    expect(site.admins()).toEqual(["ada@example.org"]);
+  });
+
+  it("keeps the code retired when npm run new-admin writes over /setup/'s use of it, and /setup/ then fails", async () => {
+    const site = await freshSite();
+    const context = await site.auth.$context;
+    // /setup/ has used its claim, then the command makes Ada, then /setup/'s own admin fails.
+    const link = context.internalAdapter.linkAccount;
+    context.internalAdapter.linkAccount = async () => {
+      await addAdmin(site.db, { email: "ada@example.org", name: "Ada", password: PASSWORD });
+      throw new Error("D1 went away");
+    };
+    await expect(site.setUp(OLIVE)).rejects.toThrow("D1 went away");
+    context.internalAdapter.linkAccount = link;
+    expect(site.db.prepare(`select value from verification where id = ?`).all(SETUP_DONE)).toEqual([
+      { value: SETUP_RETIRED },
+    ]);
+    site.db.exec(`update "user" set role = 'member'`);
+    expect(await statusOf(site.setUp(OLIVE))).toBe(409);
   });
 
   it("lets the code be used again when /setup/ fails after retiring it for its own admin", async () => {

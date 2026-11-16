@@ -3,7 +3,15 @@
 // wrangler.jsonc's `GOODFELLOW_SETUP_CODE_HASH`, so the code can't be read from the repository even where it's public.
 // It makes one admin, once: while the site has no admin, and never again after, whatever happens to them.
 import { SETUP_CODE_VARIABLE, setupCodeHash } from "@goodfellow-cms/core";
-import { AdminTaken, createAdmin, type NewAdmin, newAdminProblem, SETUP_DONE } from "./admins.ts";
+import {
+  AdminTaken,
+  createAdmin,
+  type NewAdmin,
+  newAdminProblem,
+  SETUP_DONE,
+  SetupClaimLost,
+  setupUsedBy,
+} from "./admins.ts";
 import { claimRow, type SiteAuth, takeEmailSlot } from "./auth.ts";
 import type { SiteEnv } from "./env.ts";
 import { fromThisSite } from "./sign-out.ts";
@@ -100,14 +108,19 @@ export async function setUpFirstAdmin(siteAuth: SiteAuth, siteEnv: SiteEnv, requ
   try {
     await createAdmin(context, asked, { claim: holder });
   } catch (error) {
-    // Nobody was made an admin, so the code works again.
-    await adapter.deleteMany({
-      model: "verification",
-      where: [
-        { field: "id", value: SETUP_DONE },
-        { field: "value", value: holder },
-      ],
-    });
+    // `npm run new-admin` made an admin first, and the row says so: nothing of this request's to take out.
+    if (error instanceof SetupClaimLost) throw done;
+    // Nobody was made an admin, so the code works again: the row is taken out only where it's still this request's,
+    // its claim or its mark, never where `npm run new-admin` has retired it since.
+    for (const value of [holder, setupUsedBy(holder)]) {
+      await adapter.deleteMany({
+        model: "verification",
+        where: [
+          { field: "id", value: SETUP_DONE },
+          { field: "value", value },
+        ],
+      });
+    }
     if (error instanceof AdminTaken) throw new SetupError(409, "That address has an account already. Use another.");
     throw error;
   }
