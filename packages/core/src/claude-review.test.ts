@@ -149,13 +149,13 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       symlinkSync("out", join(repo, "chain"));
       symlinkSync("a.txt", join(repo, "in"));
       symlinkSync("round", join(repo, "round"));
+      symlinkSync("nothing-here", join(repo, "missing"));
       sh("git", ["add", "."], repo);
       sh("git", ["commit", "-qm", "links"], repo);
     });
     expect(existsSync(join(repo, "in"))).toBe(true);
-    // One that goes round in a loop leads nowhere, so it stays, and doesn't stop the step.
-    expect(lstatSync(join(repo, "round")).isSymbolicLink()).toBe(true);
-    for (const link of ["out", "chain"]) expect(() => lstatSync(join(repo, link))).toThrow();
+    // So do ones that lead nowhere, round in a loop or to a missing file, without stopping the step.
+    for (const link of ["out", "chain", "round", "missing"]) expect(() => lstatSync(join(repo, link))).toThrow();
     // Git still has them, so the change reads as it was.
     expect(git("status", "--porcelain").stdout).toBe("");
   });
