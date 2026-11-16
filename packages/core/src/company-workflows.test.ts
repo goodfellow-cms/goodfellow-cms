@@ -1,7 +1,7 @@
 // The company example's workflows' scripts, which sites copy, run with bash against a stand-in for wrangler, as
 // GitHub's runners run them (`bash -e`, with pipefail).
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -407,5 +407,127 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
     });
     expect(badAccount.status).not.toBe(0);
     expect(readFileSync(join(dir, "wrangler.jsonc"), "utf8")).not.toContain("evil");
+  });
+});
+
+describe("the company example's deploy job's check of what the build handed over", () => {
+  const example = join(import.meta.dirname, "../../../examples/company");
+  const check = join(example, "scripts/check-build.ts");
+
+  /** The build's config as vinext's build writes it for the example's wrangler.jsonc, in `root`. */
+  const builtConfig = (root: string) => ({
+    configPath: join(root, "wrangler.jsonc"),
+    userConfigPath: join(root, "wrangler.jsonc"),
+    topLevelName: "goodfellow-company",
+    definedEnvironments: [],
+    keep_vars: true,
+    compatibility_date: "2026-11-01",
+    compatibility_flags: ["nodejs_compat"],
+    jsx_factory: "React.createElement",
+    jsx_fragment: "React.Fragment",
+    rules: [{ type: "ESModule", globs: ["**/*.js", "**/*.mjs"] }],
+    name: "goodfellow-company",
+    main: "index.js",
+    triggers: {},
+    assets: {
+      directory: "../client",
+      html_handling: "none",
+      not_found_handling: "none",
+      binding: "ASSETS",
+      run_worker_first: ["/*", "!/_next/static/*", "!/*/_next/static/*"],
+    },
+    vars: { GOODFELLOW_SITE_URL: "https://www.example.com" },
+    durable_objects: { bindings: [] },
+    kv_namespaces: [{ binding: "VINEXT_KV_CACHE", id: "your-kv-namespace-id" }],
+    d1_databases: [
+      {
+        binding: "DB",
+        database_name: "goodfellow-company",
+        database_id: "your-database-id",
+        migrations_dir: "../../migrations/sqlite",
+      },
+    ],
+    images: { binding: "IMAGES" },
+    logfwdr: { bindings: [] },
+    upload_source_maps: true,
+    python_modules: { exclude: ["**/*.pyc"] },
+    dev: { ip: "localhost", local_protocol: "http", upstream_protocol: "http", enable_containers: true },
+    no_bundle: true,
+  });
+
+  /** Runs the check on a build's files, its config changed by `change`, with what it printed and its exit status. */
+  function checked(change: (config: Record<string, unknown>, root: string) => void = () => {}) {
+    dir = mkdtempSync(join(tmpdir(), "company-check-"));
+    writeFileSync(join(dir, "wrangler.jsonc"), readFileSync(join(example, "wrangler.jsonc"), "utf8"));
+    mkdirSync(join(dir, "dist/server"), { recursive: true });
+    mkdirSync(join(dir, "dist/client"), { recursive: true });
+    mkdirSync(join(dir, ".wrangler/deploy"), { recursive: true });
+    writeFileSync(join(dir, "dist/server/index.js"), "export default {};\n");
+    writeFileSync(
+      join(dir, ".wrangler/deploy/config.json"),
+      JSON.stringify({ configPath: "../../dist/server/wrangler.json", auxiliaryWorkers: [] }),
+    );
+    const config: Record<string, unknown> = builtConfig(dir);
+    change(config, dir);
+    writeFileSync(join(dir, "dist/server/wrangler.json"), JSON.stringify(config));
+    const result = spawnSync("node", [check], { cwd: dir, encoding: "utf8" });
+    return { status: result.status, out: `${result.stdout}${result.stderr}` };
+  }
+
+  it("takes the build's config where it's wrangler.jsonc's, comments and all, with its files in dist/", () => {
+    const { status, out } = checked();
+    expect(status, out).toBe(0);
+  });
+
+  it("stops at anything that would run, or upload files outside dist/, with the deploy's keys in reach", () => {
+    const changes: [string, (config: Record<string, unknown>, root: string) => void][] = [
+      ["a command to build with", (config) => (config.build = { command: "env > leaked" })],
+      ["an image to build", (config) => (config.containers = [{ class_name: "C", image: "./Dockerfile" }])],
+      ["a file to upload from elsewhere", (config) => (config.text_blobs = { ENV: "/proc/self/environ" })],
+      ["a Worker outside dist/", (config) => (config.main = "../../wrangler.jsonc")],
+      ["static files outside dist/", (config) => ((config.assets as Record<string, unknown>).directory = "/")],
+      ["a binding of its own", (config) => (config.vars = { GOODFELLOW_SITE_URL: "https://evil.example" })],
+      [
+        "migrations from elsewhere",
+        (config) => (config.d1_databases = [{ ...(config.d1_databases as object[])[0], migrations_dir: "../client" }]),
+      ],
+      ["another wrangler.jsonc", (config) => (config.userConfigPath = "/tmp/wrangler.jsonc")],
+      ["a key no build writes", (config) => (config.unsafe = { bindings: [{ name: "X", type: "x" }] })],
+    ];
+    for (const [what, change] of changes) {
+      const { status, out } = checked(change);
+      expect(status, what).toBe(1);
+      expect(out, what).toContain("::error::");
+    }
+  });
+
+  it("stops where the build's config is elsewhere, or its files are links", () => {
+    const elsewhere = checked((_config, root) => {
+      writeFileSync(join(root, "wrangler.json"), "{}");
+      writeFileSync(join(root, ".wrangler/deploy/config.json"), JSON.stringify({ configPath: "../../wrangler.json" }));
+    });
+    expect(elsewhere.status).toBe(1);
+    expect(elsewhere.out).toContain("isn't in dist/");
+    const linked = checked((_config, root) => {
+      rmSync(join(root, "dist/server/index.js"));
+      symlinkSync("/proc/self/environ", join(root, "dist/server/index.js"));
+    });
+    expect(linked.status).toBe(1);
+    expect(linked.out).toContain("is a link");
+  });
+
+  it("runs in the deploy job before anything reads the build's files, with none of the job's secrets", () => {
+    const steps = parse(readFileSync(join(workflows, "deploy.yml"), "utf8")).jobs.deploy.steps as {
+      name?: string;
+      run?: string;
+      uses?: string;
+      env?: Record<string, string>;
+    }[];
+    const at = steps.findIndex((step) => step.name === "Check what the build handed over");
+    expect(steps[at]?.run).toBe("node scripts/check-build.ts");
+    expect(steps[at]?.env).toBeUndefined();
+    expect(steps.findIndex((step) => step.uses?.startsWith("actions/download-artifact@"))).toBeLessThan(at);
+    expect(steps.findIndex((step) => step.run === "npm ci")).toBeGreaterThan(at);
+    expect(steps.findIndex((step) => step.run?.includes("wrangler d1 migrations apply"))).toBeGreaterThan(at);
   });
 });

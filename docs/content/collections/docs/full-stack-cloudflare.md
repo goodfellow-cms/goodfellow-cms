@@ -67,7 +67,7 @@ Each step can be skipped. A skipped or failed step stops the ones after it, whic
 
 A site made with the command has done what the setup page's **Set up Cloudflare** workflow does, so it doesn't need it.
 
-Once it's online, the code repository's **Deploy** workflow builds and deploys the site after each change to its code, and each night, so new photos reach it. It needs secrets of its own on GitHub: its file, and the README, say which. The first admin then signs in and turns on two-factor sign-in at `/account/`, without which they can edit pages but not change Site Settings or manage editors.
+Once it's online, the code repository's **Deploy** workflow builds and deploys the site after each change to its code, and each night, so new photos reach it. It builds in one job and deploys in another, which runs none of the site's code and holds the Cloudflare token: it uses what the build made only where the build's config is `wrangler.jsonc`'s, with its files in `dist/` (`scripts/check-build.ts`), so a package that turned hostile while the site built can't reach the token or the site's keys. Sites made before 0.14 don't have that check until a developer copies the example's `.github/workflows/deploy.yml` and `scripts/check-build.ts`. It needs secrets of its own on GitHub: its file, and the README, say which. The first admin then signs in and turns on two-factor sign-in at `/account/`, without which they can edit pages but not change Site Settings or manage editors.
 
 ## What it costs
 

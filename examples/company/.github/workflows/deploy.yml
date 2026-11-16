@@ -164,7 +164,8 @@ jobs:
           retention-days: 1
 
   # Runs none of the site's code, so the Cloudflare token never meets it: it only applies the database's migrations
-  # and uploads what the build job built, with wrangler.
+  # and uploads what the build job built, with wrangler. The build's config is checked first, since the build job
+  # wrote it and wrangler would follow it: a command for wrangler to run, or files outside dist/, would reach the token.
   deploy:
     needs: [build, publish-lockfile]
     if: ${{ !cancelled() && needs.build.result == 'success' }}
@@ -201,6 +202,11 @@ jobs:
           node-version: 22
           check-latest: true
           cache: npm
+      # What the build handed over is used only where its config is wrangler.jsonc's, with its files in dist/
+      # (scripts/check-build.ts, this checkout's, which reads the build's files and runs none of them).
+      - name: Check what the build handed over
+        if: steps.head.outputs.current == 'true'
+        run: node scripts/check-build.ts
       # .npmrc's ignore-scripts=true keeps every package's install scripts from running.
       - if: steps.head.outputs.current == 'true'
         run: npm ci
