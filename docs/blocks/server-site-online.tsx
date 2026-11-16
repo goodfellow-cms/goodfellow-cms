@@ -272,9 +272,10 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
         <p>
           On <Out href={CLOUDFLARE_TOKENS}>Cloudflare's API tokens page</Out>, create a token from the{" "}
           <strong>Edit Cloudflare Workers</strong> template, add <strong>Account → D1 → Edit</strong> to its
-          permissions, since the template leaves out the site's database, keep it to your account only (under Account
-          Resources), and paste it here. The page saves it in {code.repo}'s secrets, which give it to its workflows
-          only, and forgets it.
+          permissions, since the template leaves out the site's database, and, for a site at a domain of its own,{" "}
+          <strong>Zone → Zone → Read</strong>, so the deploy can find the domain's zone (with that zone among the
+          token's Zone Resources). Keep it to your account only (under Account Resources), and paste it here. The page
+          saves it in {code.repo}'s secrets, which give it to its workflows only, and forgets it.
         </p>
         {cloudflareSaved ? (
           <p aria-live="polite">

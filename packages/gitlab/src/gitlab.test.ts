@@ -3,6 +3,7 @@ import {
   ConflictError,
   EDITABLE_FOLDERS,
   loadSiteContent,
+  SignInError,
   type StorageLike,
   writeChanges,
 } from "@goodfellow-cms/core";
@@ -869,6 +870,21 @@ describe("on a full-stack site's server", () => {
     if (!git) throw new Error("gitlab() has no server access");
     return { fake, git };
   }
+
+  it("asks a token that renews itself for a new one where GitLab refuses it, and a plain one only once", async () => {
+    const fake = fakeGitLab({ project: "parish/web/site", files: FILES });
+    const asked: unknown[] = [];
+    const token = async (request?: { refresh?: boolean }) => {
+      asked.push(request);
+      return request?.refresh ? "test-token" : "expired-token";
+    };
+    const git = gitlab({ project: "parish/web/site", fetch: fake.fetch }).server?.({ token });
+    expect(await git?.revision()).toBeTruthy();
+    expect(asked.slice(0, 2)).toEqual([undefined, { refresh: true }]);
+
+    const plain = gitlab({ project: "parish/web/site", fetch: fake.fetch }).server?.({ token: "expired-token" });
+    await expect(plain?.revision()).rejects.toBeInstanceOf(SignInError);
+  });
 
   it("reads the revision a browser loaded, even after someone publishes", async () => {
     const { fake, git } = server();

@@ -10,6 +10,7 @@ import {
   loadSiteContent,
   newTaskRequestId,
   openTaskAnswer,
+  SignInError,
   type StorageLike,
   sealTaskAnswer,
   TASK_BRANCH_PREFIX,
@@ -815,6 +816,25 @@ describe("a repository of content only", () => {
 });
 
 describe("on a full-stack site's server", () => {
+  it("asks a token that renews itself for a new one where Bitbucket refuses it, and a plain one only once", async () => {
+    const fake = fakeBitbucket({
+      repo: "parish/site",
+      files: FILES,
+      tokens: { "site-token": { nickname: "site", access: true } },
+    });
+    const asked: unknown[] = [];
+    const token = async (request?: { refresh?: boolean }) => {
+      asked.push(request);
+      return request?.refresh ? "site-token" : "expired-token";
+    };
+    const server = bitbucket({ repo: "parish/site", fetch: fake.fetch }).server?.({ token });
+    expect(await server?.revision()).toBeTruthy();
+    expect(asked.slice(0, 2)).toEqual([undefined, { refresh: true }]);
+
+    const plain = bitbucket({ repo: "parish/site", fetch: fake.fetch }).server?.({ token: "expired-token" });
+    await expect(plain?.revision()).rejects.toBeInstanceOf(SignInError);
+  });
+
   it("reads the revision a browser loaded, and publishes in the editor's name", async () => {
     const fake = fakeBitbucket({
       repo: "parish/site",

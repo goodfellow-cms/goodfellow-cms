@@ -198,7 +198,12 @@ export function bitbucket(options: BitbucketOptions): GitHost {
   function server({ token }: ServerGitOptions): ServerGit {
     const api: ApiOptions = {
       apiUrl: BITBUCKET_API,
-      authorization: async () => authorizationFor(credentialsFrom(typeof token === "string" ? token : await token())),
+      authorization: async ({ refresh } = {}) =>
+        authorizationFor(
+          credentialsFrom(typeof token === "string" ? token : await token(refresh ? { refresh } : undefined)),
+        ),
+      // A token that renews itself is asked for a new one where Bitbucket refuses it.
+      canRefresh: typeof token !== "string",
       fetch: fetcher,
     };
     let branch: Promise<string> | undefined;
