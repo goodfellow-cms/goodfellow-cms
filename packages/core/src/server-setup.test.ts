@@ -85,18 +85,14 @@ describe("planServerSite", () => {
     expect(text(".github/workflows/deploy.yml")).toContain("repository: your-name/your-site\n");
   });
 
-  it("keeps the content in a repository of its own, which asks the code's to build after each publish", () => {
+  it("keeps the content in a repository of its own, which runs no workflows", () => {
     const files = planServerSite({ template: companyFiles(), name: "acme", versions, code: "acme/site" });
     const paths = [...files.keys()];
     expect(paths.filter((path) => path.startsWith("content/") || path.startsWith("public/media/"))).toEqual([]);
     expect(files.has("content-repository/content/site.json")).toBe(true);
-    const workflow = parse(siteFileText(files.get("content-repository/.github/workflows/deploy-site.yml") ?? ""));
-    // It asks only once its token is there, and otherwise says so rather than fail, as on the content's first commit.
-    expect(workflow.jobs.deploy.steps).toEqual([
-      { if: "env.GH_TOKEN != ''", run: "gh workflow run deploy.yml --repo acme/site" },
-      { if: "env.GH_TOKEN == ''", run: expect.stringContaining("GOODFELLOW_DEPLOY_TOKEN") },
-    ]);
-    expect(workflow.jobs.deploy.env.GH_TOKEN).toMatch(/^\$\{\{ secrets\.GOODFELLOW_DEPLOY_TOKEN \}\}$/);
+    // Whoever can change the content can't start the code's workflows: the code's Deploy runs each night instead.
+    expect(paths.filter((path) => path.startsWith("content-repository/.github/"))).toEqual([]);
+    expect(siteFileText(files.get("content-repository/README.md") ?? "")).toContain("runs each night");
     expect(siteFileText(files.get(".gitignore") ?? "")).toContain("/content-repository/");
     const readme = siteFileText(files.get("README.md") ?? "");
     expect(readme).toContain("**acme/site**");

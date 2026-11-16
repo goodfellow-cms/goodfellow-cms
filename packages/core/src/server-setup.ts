@@ -127,31 +127,6 @@ function withSetupCodeHash(wrangler: string, hash: string): string {
   return wrangler.replace(vars, `$1 "${SETUP_CODE_VARIABLE}": "${hash}",`);
 }
 
-/** The content repository's workflow, which asks the code's Deploy workflow to build the site after each publish. */
-export function deploySiteWorkflow(code: string): string {
-  return `# Asks the code repository to build the site and put it online after each publish, so new photos and other
-# files reach the site's own files. Pages show a publish without it, but a photo a page shows is missing until then.
-# It needs one secret (Settings → Secrets and variables → Actions): GOODFELLOW_DEPLOY_TOKEN, a fine-grained token for
-# the code repository with only Actions: Read and write, which can start its workflows but never change its code.
-# Until it's added, this says so and asks nothing, rather than fail.
-name: Put the site online
-on:
-  push:
-    branches: [main]
-permissions: {}
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: \${{ secrets.GOODFELLOW_DEPLOY_TOKEN }}
-    steps:
-      - if: env.GH_TOKEN != ''
-        run: gh workflow run deploy.yml --repo ${code}
-      - if: env.GH_TOKEN == ''
-        run: echo "::notice::Add the GOODFELLOW_DEPLOY_TOKEN secret, as this file says, so publishes reach the site's files."
-`;
-}
-
 /** The content repository's README. */
 export function serverContentReadme(name: string, code: string): string {
   return `# ${name}: content
@@ -160,8 +135,9 @@ The pages, collections, settings, and media of ${name}, which its editors change
 site's server publishes their changes here, with a token that can change this repository only; the site's code is in
 [${code}](https://github.com/${code}).
 
-\`.github/workflows/deploy-site.yml\` asks the code repository to build the site after each publish, so new photos reach
-the site's own files. It needs the secret \`GOODFELLOW_DEPLOY_TOKEN\`, as the file says.
+Pages show a publish at once. New photos and other files reach the site with its next build, which the code
+repository runs each night, or sooner from its Actions tab (Deploy → Run workflow). This repository runs no workflows
+and holds no secrets, so whoever can change it can't change the site's code or reach its keys.
 `;
 }
 
@@ -191,7 +167,7 @@ ${page ? "Goodfellow's setup page" : "`create-goodfellow`"} made this site with 
     page
       ? `which developers clone into \`${CONTENT_REPOSITORY_DIR}/\`, where \`content/\` and \`public/media/\` link to it (\`npx goodfellow-next content link\`)`
       : `which is in \`${CONTENT_REPOSITORY_DIR}/\`, a repository of its own that \`content/\` and \`public/media/\` link to`
-  }, with its own README and the workflow that asks this repository to build after each publish (\`.github/workflows/deploy-site.yml\`).${
+  }, with its own README. This repository's Deploy workflow builds the site each night, so new photos reach it.${
     page ? "" : " Push each to GitHub as it is, the content's first."
   }
 - The Worker and its D1 database, **${worker}**, and its KV namespace, **${worker}-cache**.${
@@ -208,8 +184,7 @@ ${page ? "Goodfellow's setup page" : "`create-goodfellow`"} made this site with 
 /**
  * A full-stack site's files from the company example's: its Worker, database, and KV namespace named for the site,
  * its repositories and address filled in where they're known, and its content in `content-repository/`, a
- * repository of its own, as the example's Deploy workflow builds it, with a workflow that asks the code repository
- * to build after each publish.
+ * repository of its own, as the example's Deploy workflow builds it.
  */
 export function planServerSite({
   template,
@@ -261,7 +236,6 @@ export function planServerSite({
     }
   }
   if (files.has("vitest.config.ts")) files.set("vitest.config.ts", SITE_VITEST_CONFIG);
-  files.set(`${CONTENT_REPOSITORY_DIR}/.github/workflows/deploy-site.yml`, deploySiteWorkflow(codeRepo));
   files.set(`${CONTENT_REPOSITORY_DIR}/README.md`, serverContentReadme(sitePackageName(name), codeRepo));
   const gitignore = files.get(".gitignore");
   files.set(".gitignore", `${gitignore === undefined ? "" : siteFileText(gitignore).trimEnd()}\n${CODE_GITIGNORE}`);

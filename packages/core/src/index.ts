@@ -1352,7 +1352,6 @@ export {
 } from "./scheduled-builds.js";
 export { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
 export {
-  deploySiteWorkflow,
   newSetupCode,
   planServerSite,
   SERVER_HOSTS,
