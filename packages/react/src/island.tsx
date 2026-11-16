@@ -225,28 +225,43 @@ export function island<T>(component: T, module: string, name: string): T {
   return Island as T;
 }
 
-const TEMPLATE = /<template data-gf-slot="([^"]+)">|<template[\s>]|<\/template>/g;
+/**
+ * What a page's HTML is read as, for its templates: a comment, an element whose content is text (a script, a style,
+ * a text area or a title), a template's end tag, or any start tag, its quoted attributes and all. The page holds what
+ * the site's owners wrote as they wrote it (head and body code, Custom HTML used as written), so text that only looks
+ * like a template, such as `"<template>"` in a script's string, a comment, or an attribute, never counts as one.
+ */
+const TOKEN =
+  /<!--[\s\S]*?(?:-->|$)|<(script|style|textarea|title)\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?(?:<\/\1\s*>|$)|<\/template\s*>|<([a-zA-Z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+
+/** A template React wrote for an island's content: exactly this, as `island()` renders it. */
+const SLOT_TEMPLATE = /^<template data-gf-slot="([^"]+)">$/;
 
 /** Finds `<template data-gf-slot>` elements that aren't inside other templates, with their contents. */
 function topLevelSlots(html: string) {
   const found: Array<{ id: string; start: number; end: number; inner: string }> = [];
   let depth = 0;
   let open: { id: string; start: number; innerStart: number } | undefined;
-  for (const match of html.matchAll(TEMPLATE)) {
-    if (match[0] === "</template>") {
+  for (const match of html.matchAll(TOKEN)) {
+    const [token, , tag] = match;
+    if (/^<\/template/i.test(token)) {
+      // One that closes nothing is text, as a browser takes it.
+      if (depth === 0) continue;
       depth--;
       if (depth === 0 && open) {
         found.push({
           id: open.id,
           start: open.start,
-          end: match.index + match[0].length,
+          end: match.index + token.length,
           inner: html.slice(open.innerStart, match.index),
         });
         open = undefined;
       }
       continue;
     }
-    if (depth === 0 && match[1]) open = { id: match[1], start: match.index, innerStart: match.index + match[0].length };
+    if (tag?.toLowerCase() !== "template") continue;
+    const id = SLOT_TEMPLATE.exec(token)?.[1];
+    if (depth === 0 && id) open = { id, start: match.index, innerStart: match.index + token.length };
     depth++;
   }
   return found;

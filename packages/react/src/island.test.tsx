@@ -223,6 +223,22 @@ describe("fillSlots", () => {
     );
   });
 
+  it("counts only templates, never text that looks like one in the site's own code", () => {
+    const filled = `<gf-island>${slot("a.0", "<b>Passed</b>")}</gf-island>`;
+    const page = (code: string) =>
+      `<head>${code}</head><gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0"><b>Passed</b></template>`;
+    for (const code of [
+      `<script>var t = "<template>";</script>`,
+      `<script>document.write("</template>")</script>`,
+      "<style>/* <template> */</style>",
+      "<!-- <template> -->",
+      `<meta name="x" content="a > <template>">`,
+      "</template>",
+    ]) {
+      expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
+    }
+  });
+
   it("keeps templates whose slots weren't rendered", () => {
     const html = `<gf-island></gf-island><template data-gf-slot="a.0">Later</template><p>After</p>`;
     expect(fillSlots(html)).toBe(html);
