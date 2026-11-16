@@ -1,4 +1,12 @@
-import { type Collection, type Entry, entryTitle, formatFieldValue, itemTitleIn } from "@goodfellow-cms/core";
+import {
+  type Collection,
+  type Entry,
+  entryTitle,
+  formatFieldValue,
+  isSafeUrl,
+  isScriptUrl,
+  itemTitleIn,
+} from "@goodfellow-cms/core";
 import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
 import type { SiteContextValue } from "./site-types.js";
 
@@ -6,7 +14,148 @@ import type { SiteContextValue } from "./site-types.js";
 const PLACEHOLDER = /\{([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\}/g;
 
 function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * A value escaped for any attribute value, quoted with either quote or not at all: an unquoted value ends at
+ * whitespace, and a backtick or `=` ends one in some browsers.
+ */
+function escapeAttribute(text: string): string {
+  return escapeHtml(text).replace(/[`=\s]/g, (char) => `&#${char.charCodeAt(0)};`);
+}
+
+/** Attributes whose value is an address a browser follows or loads, so one of its own scheme could run script. */
+const ADDRESS_ATTRIBUTES = new Set([
+  "action",
+  "background",
+  "cite",
+  "codebase",
+  "data",
+  "formaction",
+  "href",
+  "longdesc",
+  "manifest",
+  "ping",
+  "poster",
+  "src",
+  "xlink:href",
+]);
+
+/** Elements whose content is never markup, so no escaping keeps a value in them from being code. */
+const RAW_TEXT = new Set(["script", "style", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext"]);
+
+/**
+ * HTML a block shows as it is, such as Custom HTML's, with an item's values put in where its placeholders are, each
+ * by where it sits in the owners' HTML: escaped between tags and in attributes' values, and an address at the start
+ * of one that's followed or loaded only where it's a safe one. Where no escaping would keep a value from being
+ * markup or script, in a tag outside an attribute's value, an `on…` handler, `srcdoc`, or a script or style, it's
+ * left out.
+ */
+function fillHtml(text: string, values: Values): string {
+  type State = "text" | "comment" | "tag" | "attribute" | "afterAttribute" | "beforeValue" | "value" | "raw";
+  let state: State = "text";
+  let out = "";
+  let tag = "";
+  let closing = false;
+  let attribute = "";
+  let quote = "";
+  // Whether the attribute's value so far is only spaces, for an address at its start.
+  let atStart = true;
+  const placeholder = new RegExp(PLACEHOLDER.source, "y");
+  let i = 0;
+  while (i < text.length) {
+    placeholder.lastIndex = i;
+    const match = placeholder.exec(text);
+    const value = match ? values.get(match[1] ?? "") : undefined;
+    if (match && value !== undefined) {
+      if (state === "beforeValue") {
+        state = "value";
+        quote = "";
+        atStart = true;
+      }
+      if (state === "text" || state === "comment") out += escapeHtml(value);
+      else if (state === "value") {
+        const name = attribute.toLowerCase();
+        const unsafe =
+          name.startsWith("on") ||
+          name === "srcdoc" ||
+          (ADDRESS_ATTRIBUTES.has(name) && atStart && (!isSafeUrl(value) || isScriptUrl(value)));
+        if (!unsafe) out += escapeAttribute(value);
+        if (value.trim() !== "") atStart = false;
+      }
+      i += match[0].length;
+      continue;
+    }
+    const char = text[i] ?? "";
+    out += char;
+    i++;
+    switch (state) {
+      case "text":
+        if (char === "<" && text.startsWith("!--", i)) {
+          out += "!--";
+          i += 3;
+          state = "comment";
+        } else if (char === "<" && /[a-zA-Z/]/.test(text[i] ?? "")) {
+          closing = text[i] === "/";
+          tag = "";
+          state = "tag";
+        }
+        break;
+      case "comment":
+        if (char === ">" && out.endsWith("-->")) state = "text";
+        break;
+      case "tag":
+        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        else if (/\s/.test(char)) state = "afterAttribute";
+        else if (char !== "/") tag += char;
+        break;
+      case "afterAttribute":
+        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        else if (char === "=") state = "beforeValue";
+        else if (!/[\s/]/.test(char)) {
+          attribute = char;
+          state = "attribute";
+        }
+        break;
+      case "attribute":
+        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        else if (char === "=") state = "beforeValue";
+        else if (/[\s/]/.test(char)) state = "afterAttribute";
+        else attribute += char;
+        break;
+      case "beforeValue":
+        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        else if (char === '"' || char === "'") {
+          quote = char;
+          atStart = true;
+          state = "value";
+        } else if (!/\s/.test(char)) {
+          quote = "";
+          atStart = false;
+          state = "value";
+        }
+        break;
+      case "value":
+        if (quote ? char === quote : /\s/.test(char)) state = "afterAttribute";
+        else if (!quote && char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        else if (!/\s/.test(char)) atStart = false;
+        break;
+      case "raw":
+        if (char === "<" && text.slice(i, i + tag.length + 1).toLowerCase() === `/${tag.toLowerCase()}`) {
+          closing = true;
+          state = "tag";
+          tag = "";
+        }
+        break;
+    }
+  }
+  return out;
 }
 
 type Values = Map<string, string>;
@@ -56,10 +205,10 @@ function fillProps(
       if (type === "slot" && Array.isArray(value)) {
         return [key, value.map((child) => fillComponent(child as ComponentData, values, config))];
       }
-      // Rich text, and text a block shows as HTML, such as Custom HTML's, get values as text, never markup.
-      if ((type === "richtext" || isHtmlField(fields?.[key])) && typeof value === "string") {
-        return [key, fillText(value, values, true)];
-      }
+      // Text a block shows as HTML, such as Custom HTML's, gets values by where each placeholder sits, never as
+      // markup or script, and rich text gets them as text, before it's sanitized.
+      if (isHtmlField(fields?.[key]) && typeof value === "string") return [key, fillHtml(value, values)];
+      if (type === "richtext" && typeof value === "string") return [key, fillText(value, values, true)];
       // A list's rows and an object's settings follow their own fields, so rich text inside them is escaped too.
       const field = fields?.[key] as { arrayFields?: Fields; objectFields?: Fields } | undefined;
       if (type === "array" && Array.isArray(value) && field?.arrayFields) {

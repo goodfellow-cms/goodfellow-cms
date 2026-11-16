@@ -50,7 +50,7 @@ Settings also choose the order items are listed in, such as newest first, and wh
 
 ## The page design
 
-**Page design** opens the editor on the page every item shares. Use the **Item field** block to show one of the item's fields, or type a field's name in braces in any text, such as a heading reading `{title}` or a button linking to `{video}`. In rich text and in Custom HTML, an item's values go in as text, never as HTML, so whoever writes an item can't change the page's markup. Blocks such as **Previous and next** only make sense here, so the page editor doesn't offer them.
+**Page design** opens the editor on the page every item shares. Use the **Item field** block to show one of the item's fields, or type a field's name in braces in any text, such as a heading reading `{title}` or a button linking to `{video}`. In rich text and in Custom HTML, an item's values go in as text, never as HTML, so whoever writes an item can't change the page's markup. In Custom HTML used exactly as written, a value at the start of an address, such as `<iframe src="{video}">`, goes in only where it's a web, email, or phone address or one on the site, and a placeholder where no value could be safe (inside a tag outside an attribute's value, in an `on…` attribute or `srcdoc`, or in a script or style) is left empty. Blocks such as **Previous and next** only make sense here, so the page editor doesn't offer them.
 
 ## Items
 

@@ -60,6 +60,54 @@ describe("filling in an item's values", () => {
     );
   });
 
+  it("puts them into HTML by where each sits, so a value can't end an attribute or run as an address", () => {
+    /** Custom HTML `html` with `{title}` filled in from `title`. */
+    const fill = (html: string, title: string) =>
+      applyEntry({ root: { props: {} }, content: [{ type: "Html", props: { id: "x", html } }] }, config, news, {
+        collection: "news",
+        slug: "a",
+        file: "content/collections/news/a.json",
+        path: "/news/a",
+        content: { version: 1, fields: { title } },
+      }).content[0]?.props.html;
+    // A single quote ends a single-quoted value, and a space or > an unquoted one.
+    expect(fill("<a href='/x' title='{title}'>Go</a>", "x' autofocus onfocus='alert(1)")).toBe(
+      "<a href='/x' title='x&#39;&#32;autofocus&#32;onfocus&#61;&#39;alert(1)'>Go</a>",
+    );
+    expect(fill("<img alt={title} src=/a.png>", "x onerror=alert(1)")).toBe(
+      "<img alt=x&#32;onerror&#61;alert(1) src=/a.png>",
+    );
+    // An address that's followed or loaded is left out where it could run script, however it's spelled.
+    for (const address of [
+      "javascript:alert(1)",
+      " JaVaScRiPt:alert(1)",
+      "java\tscript:alert(1)",
+      "data:text/html,x",
+    ]) {
+      expect(fill('<iframe src="{title}"></iframe>', address)).toBe('<iframe src=""></iframe>');
+      expect(fill("<a href={title}>Go</a>", address)).toBe("<a href=>Go</a>");
+    }
+    expect(fill('<iframe src="{title}"></iframe>', "https://www.youtube-nocookie.com/embed/x")).toBe(
+      '<iframe src="https://www.youtube-nocookie.com/embed/x"></iframe>',
+    );
+    // Further into an address, a value is only part of it.
+    expect(fill('<a href="/go?to={title}">Go</a>', "javascript:x")).toBe('<a href="/go?to=javascript:x">Go</a>');
+    // Handlers, srcdoc, scripts, styles and the tag itself are code or markup whatever the escaping, so nothing goes in.
+    expect(fill(`<button onclick="go('{title}')">Go</button>`, "x');alert(1);('")).toBe(
+      `<button onclick="go('')">Go</button>`,
+    );
+    expect(fill('<iframe srcdoc="{title}"></iframe>', "<script>alert(1)</script>")).toBe('<iframe srcdoc=""></iframe>');
+    expect(fill("<script>var t = {title};</script><p>{title}</p>", "alert(1)")).toBe(
+      "<script>var t = ;</script><p>alert(1)</p>",
+    );
+    expect(fill("<style>a{color:{title}}</style>", "red}body{display:none")).toBe("<style>a{color:}</style>");
+    expect(fill("<div {title}>x</div>", "onmouseover=alert(1)")).toBe("<div >x</div>");
+    // Between tags and in comments, it's text.
+    expect(fill("<p>{title}</p><!-- {title} -->", "it's <b>&")).toBe(
+      "<p>it&#39;s &lt;b&gt;&amp;</p><!-- it&#39;s &lt;b&gt;&amp; -->",
+    );
+  });
+
   it("escapes them in rich text inside lists and objects too", () => {
     const filled = applyEntry(
       {

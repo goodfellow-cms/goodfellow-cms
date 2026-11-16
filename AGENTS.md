@@ -79,8 +79,11 @@ Content files are the product's data format; treat changes to them like API chan
   (`collectionSettingsChanges()`), because the loader rejects values that don't match their field.
 - **Addresses:** `allPages()` lists pages and entries' pages together. Use it wherever addresses are served or checked,
   so an entry can never take a page's address or the other way round.
-- **Templates:** `{name}` placeholders in any text prop are filled in by `applyEntry()`, escaped in rich text and in
-  fields a block shows as HTML (`metadata: { html: true }`, `isHtmlField()`, which the registry's `custom-html` marks).
+- **Templates:** `{name}` placeholders in any text prop are filled in by `applyEntry()`, escaped in rich text, and in
+  fields a block shows as HTML (`metadata: { html: true }`, `isHtmlField()`, which the registry's `custom-html` marks)
+  by where each sits in the owners' HTML (`fillHtml()`: escaped as text or as any attribute's value, an address at the
+  start of one a browser follows or loads (`ADDRESS_ATTRIBUTES`) only where `isSafeUrl()` takes it, and left out in a
+  tag outside a value, an `on…` attribute, `srcdoc`, or `RAW_TEXT` elements such as scripts and styles).
   Blocks that need the entry itself read `useSite().entry` and `useSite().collection`, or Puck's `metadata` in
   `resolveFields` and `resolveData`. Wrap blocks that only make sense in templates in `templateOnly()`, which leaves
   them out of the page, header, and footer editors.
