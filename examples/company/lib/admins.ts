@@ -62,22 +62,35 @@ export const SETUP_DONE = "first-admin";
 /** What the row says once an admin has been made, whoever made them (`/setup/` holds it with a value of its own until then). */
 export const SETUP_RETIRED = "retired";
 
+/**
+ * What the row says once `/setup/` has used its claim to make its admin: retired, and by that request, so it alone can
+ * take the row out again if making its admin fails. `npm run new-admin` writes `SETUP_RETIRED` over it, so a failing
+ * `/setup/` then leaves the code retired beside the command's admin.
+ */
+export function setupUsedBy(claim: string): string {
+  return `${SETUP_RETIRED} by ${claim}`;
+}
+
+/** `/setup/` lost the setup code's row before it could use it: `npm run new-admin` made an admin meanwhile. */
+export class SetupClaimLost extends Error {
+  override name = "SetupClaimLost";
+}
+
 /** How many times `retireSetupCode()` writes the row before giving up, should `/setup/` keep changing it meanwhile. */
 const RETIRE_TRIES = 5;
 
 /**
- * Writes the row that retires the setup code (`SETUP_DONE`) for good, unless `claim`, the value `/setup/` holds it
- * with while making its admin, is what it says: a row `/setup/` holds is taken over, since `/setup/` takes out only a
- * row with its own value when it fails, and that would make the code work again beside this admin. Each write is
- * read back, since `/setup/` may write or take out its row between the read and the write; it throws, before any
- * admin is made, if the row still isn't retired after `RETIRE_TRIES` writes.
+ * Writes the row that retires the setup code (`SETUP_DONE`) for good, for `npm run new-admin`: over whatever `/setup/`
+ * holds it with, since `/setup/` takes out only a row with its own value when it fails, and that would make the code
+ * work again beside this admin. Each write is read back, since `/setup/` may write or take out its row between the
+ * read and the write; it throws, before any admin is made, if the row still isn't retired after `RETIRE_TRIES` writes.
  */
-async function retireSetupCode(adapter: AdminMaker["adapter"], claim?: string): Promise<void> {
+async function retireSetupCode(adapter: AdminMaker["adapter"]): Promise<void> {
   const where = [{ field: "id", value: SETUP_DONE }];
   // Each write is read back by the next turn's read, the last one's too, before giving up.
   for (let writes = 0; ; writes++) {
     const row = (await adapter.findOne({ model: "verification", where })) as { value?: unknown } | null;
-    if (row && (row.value === SETUP_RETIRED || (claim !== undefined && row.value === claim))) return;
+    if (row?.value === SETUP_RETIRED) return;
     if (writes === RETIRE_TRIES) break;
     const now = new Date();
     // Either write can miss or fail where `/setup/` got there first; the next read says what's there.
@@ -103,6 +116,25 @@ async function retireSetupCode(adapter: AdminMaker["adapter"], claim?: string): 
     }
   }
   throw new Error("The site's setup code couldn't be marked as used. Try again in a moment.");
+}
+
+/**
+ * Uses `/setup/`'s claim on the setup code's row: writes `setupUsedBy(claim)` only where the row still holds the claim,
+ * in one statement, then reads it back. Where `npm run new-admin` retired the row first, the write matches nothing and
+ * the read says so, so `/setup/` makes no admin beside the command's; where `/setup/` got there first, the command
+ * writes over its mark afterwards, which leaves the code retired, as an admin was made.
+ */
+async function useSetupClaim(adapter: AdminMaker["adapter"], claim: string): Promise<boolean> {
+  const id = { field: "id", value: SETUP_DONE };
+  await adapter
+    .update({
+      model: "verification",
+      where: [id, { field: "value", value: claim }],
+      update: { value: setupUsedBy(claim), updatedAt: new Date() },
+    })
+    .catch(() => undefined);
+  const row = (await adapter.findOne({ model: "verification", where: [id] })) as { value?: unknown } | null;
+  return row?.value === setupUsedBy(claim);
 }
 
 /** An address someone already has an account with. */
@@ -139,7 +171,8 @@ export interface AdminMaker {
 
 /**
  * Adds the admin through Better Auth's adapter, refusing an email address someone already has. `claim` is the value
- * `/setup/` holds the setup code's row with, which it takes out again if this fails.
+ * `/setup/` holds the setup code's row with, which it takes out again, or its `setupUsedBy()`, if this fails; with a
+ * claim, it throws `SetupClaimLost` where the row no longer holds it, making nobody an admin.
  */
 export async function createAdmin(
   context: AdminMaker,
@@ -152,8 +185,12 @@ export async function createAdmin(
   if (await context.internalAdapter.findUserByEmail(email)) throw new AdminTaken(`${email} already has an account.`);
   // Before anything is written, so a failure leaves no account without a password.
   const password = await context.password.hash(person.password);
-  // Before the admin is made, so there's never an admin while the code still works: `/setup/` has written it already.
-  await retireSetupCode(context.adapter, claim);
+  // Before the admin is made, so there's never an admin while the code still works, and none from the code once
+  // another admin has been made.
+  if (claim === undefined) await retireSetupCode(context.adapter);
+  else if (!(await useSetupClaim(context.adapter, claim))) {
+    throw new SetupClaimLost("The site's setup code was used up while this admin was being made.");
+  }
   // A reader until it has its password, then an admin: D1 has no transactions, so an account left half made, even
   // where removing it fails too, is never an admin nobody can sign in as, which would count as the site's.
   const user = await context.internalAdapter.createUser(
