@@ -19,7 +19,15 @@ import {
 } from "@goodfellow-cms/github/app";
 import { SiteLink, useSite } from "@goodfellow-cms/react";
 import { useEffect, useId, useRef, useState } from "react";
-import { APP_CHANNEL, APP_RETURN_PATH, appReturnFor, newAppState, setupLink, workersAddressIn } from "./publishing-app";
+import {
+  APP_CHANNEL,
+  APP_RETURN_PATH,
+  appCodes,
+  appReturnFor,
+  newAppState,
+  setupLink,
+  workersAddressIn,
+} from "./publishing-app";
 import { button, input, link, Note } from "./site-setup-ui";
 
 /** Cloudflare's API tokens page, where the "Edit Cloudflare Workers" template is. */
@@ -81,7 +89,7 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
   const [busy, setBusy] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const appRef = useRef(app);
-  const converting = useRef(false);
+  const [codes] = useState(appCodes);
   appRef.current = app;
   const siteAddress = address || learned;
   const canSave = Boolean(account.saveSecrets);
@@ -95,13 +103,8 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
     setupUrl: returnUrl,
   });
 
-  /**
-   * Turns GitHub's code into the app, and saves its id and key as the code's secrets. One at a time: where the app
-   * was made again in another tab meanwhile, only the first to come back counts, so a later one failing can't undo it.
-   */
+  /** Turns GitHub's code into the app, and saves its id and key as the code's secrets. */
   async function made(codeFromGitHub: string) {
-    if (converting.current) return;
-    converting.current = true;
     setBusy(true);
     setAppProblem(undefined);
     try {
@@ -115,7 +118,6 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
       setApp({ stage: "start" });
       setAppProblem(problemOf(caught));
     } finally {
-      converting.current = false;
       setBusy(false);
     }
   }
@@ -142,7 +144,9 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
     channel.onmessage = (event: MessageEvent) => {
       const said = appReturnFor(event.data, state);
       const now = appRef.current;
-      if (said?.kind === "created" && now.stage === "making") void made(said.code);
+      // Only the first code since the app was asked for: where it was made again in another tab, a later code,
+      // even one that comes before this page has drawn the app the first made, can't undo it.
+      if (said?.kind === "created" && codes.take()) void made(said.code);
       if (said?.kind === "installed" && now.stage === "install") void check(now.app);
     };
     return () => channel.close();
@@ -215,7 +219,10 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
             method="post"
             action={appManifestFormAction(state, owner.kind === "organization" ? owner.path : undefined)}
             target="_blank"
-            onSubmit={() => setApp({ stage: "making" })}
+            onSubmit={() => {
+              codes.asked();
+              setApp({ stage: "making" });
+            }}
             rel="noopener"
           >
             <input type="hidden" name="manifest" value={JSON.stringify(manifest)} />

@@ -229,13 +229,22 @@ describe("githubSetup", () => {
     const owner = (await account.owners())[0];
     if (!owner) throw new Error("no owner");
     // With a workflow that runs only on its schedule, which can't be started by hand.
-    const scheduled = { path: ".github/workflows/scheduled.yml", content: "name: Scheduled\non:\n  schedule: []\n" };
+    // Its comment and a job's name mention workflow_dispatch, which doesn't make it one.
+    const scheduled = {
+      path: ".github/workflows/scheduled.yml",
+      content:
+        "name: Scheduled\n# Not workflow_dispatch: it runs only on its schedule.\non:\n  schedule: []\njobs:\n  workflow_dispatch:\n    runs-on: ubuntu-latest\n",
+    };
     await account.createSite({
       owner,
       name: "site",
       private: true,
       pages: false,
-      files: [...files, scheduled],
+      files: [
+        ...files,
+        scheduled,
+        { path: ".github/workflows/listed.yml", content: "on: [push, workflow_dispatch] # by hand too\n" },
+      ],
       message: "Create",
     });
     await account.saveSecrets?.("someone/site", { CLOUDFLARE_API_TOKEN: "cf-token", GOODFELLOW_APP_ID: "5001" });
@@ -247,6 +256,7 @@ describe("githubSetup", () => {
     // A workflow it doesn't have, or one that can't be started by hand.
     expect(await account.startWorkflow?.("someone/site", "setup-cloudflare.yml")).toBe(false);
     expect(await account.startWorkflow?.("someone/site", "scheduled.yml")).toBe(false);
+    expect(await account.startWorkflow?.("someone/site", "listed.yml")).toBe(true);
     expect(await account.readFile?.("someone/site", "package.json")).toBe("{}\n");
     expect(await account.readFile?.("someone/site", "wrangler.jsonc")).toBeUndefined();
     // Not one it created.

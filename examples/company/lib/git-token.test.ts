@@ -42,6 +42,11 @@ describe("gitToken", () => {
       repositories: [CONTENT],
       permissions: { contents: "write" },
     });
+    // Where GitHub refused it, the backend asks for another, which is kept in its place.
+    const again = await token({ refresh: true });
+    expect(again).toMatch(/^ghs_/);
+    expect(again).not.toBe(first);
+    expect(await token()).toBe(again);
   });
 
   it("uses GOODFELLOW_GIT_TOKEN where there's no app, and says what's missing where there's neither", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appReturnFor, appReturnOf, newAppState, setupLink, workersAddressIn } from "./publishing-app";
+import { appCodes, appReturnFor, appReturnOf, newAppState, setupLink, workersAddressIn } from "./publishing-app";
 
 const STATE = "0123456789abcdef0123456789abcdef";
 
@@ -40,5 +40,22 @@ describe("the setup page's links", () => {
 
   it("puts the setup code where browsers never send it", () => {
     expect(setupLink("https://www.acme.example", "ABCD-EFGH")).toBe("https://www.acme.example/setup/#code=ABCD-EFGH");
+  });
+});
+
+describe("the publishing app's codes", () => {
+  it("turns only the first code since the app was asked for into the app, however soon the next comes", () => {
+    const codes = appCodes();
+    // None before it's asked for.
+    expect(codes.take()).toBe(false);
+    codes.asked();
+    // Asked for again in another tab before either came back.
+    codes.asked();
+    expect(codes.take()).toBe(true);
+    // The other tab's, while the first is still being made or just after, before the page has drawn it.
+    expect(codes.take()).toBe(false);
+    // Asked for once more, as after one that failed.
+    codes.asked();
+    expect(codes.take()).toBe(true);
   });
 });

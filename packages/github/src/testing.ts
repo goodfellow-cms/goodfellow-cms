@@ -824,7 +824,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       const text = repo.files().get(workflow);
       if (text === undefined) return json({ message: "Not Found" }, 404);
       // GitHub runs by hand only a workflow that says it may be.
-      if (!String(text).includes("workflow_dispatch")) {
+      if (!dispatchable(String(text))) {
         return json({ message: "Workflow does not have 'workflow_dispatch' trigger" }, 422);
       }
       const body = (await request.json()) as { ref: string; inputs?: Record<string, string> };
@@ -1891,3 +1891,24 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 }
 
 export type FakeGitHub = ReturnType<typeof fakeGitHub>;
+
+/**
+ * Whether a workflow's `on` says it may be started by hand, as GitHub reads it: `on: workflow_dispatch`, a list or
+ * map naming it, or a `workflow_dispatch:` key just under `on:`, never a word elsewhere or in a comment.
+ */
+function dispatchable(workflow: string): boolean {
+  const lines = workflow.split("\n").map((line) => line.replace(/(^|\s)#.*$/, "$1").trimEnd());
+  const at = lines.findIndex((line) => /^["']?on["']?\s*:/.test(line));
+  if (at < 0) return false;
+  const rest = (lines[at] ?? "").replace(/^["']?on["']?\s*:/, "").trim();
+  if (rest) return /(^|[\s,[{])["']?workflow_dispatch["']?(\s*[:,\]}]|$)/.test(rest);
+  let indent: number | undefined;
+  for (const line of lines.slice(at + 1)) {
+    if (!line.trim()) continue;
+    const own = line.length - line.trimStart().length;
+    if (own === 0) break;
+    indent ??= own;
+    if (own === indent && /^\s*(-\s*)?["']?workflow_dispatch["']?\s*(:|$)/.test(line)) return true;
+  }
+  return false;
+}

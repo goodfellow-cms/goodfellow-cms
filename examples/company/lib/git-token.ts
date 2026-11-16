@@ -15,14 +15,15 @@ function contentRepository(source: HostSource | undefined): { repo: string; api?
  * The token the server reads and publishes to the content repository with, asked for on each request: from the
  * site's own publishing app (`GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`, which Goodfellow's setup page makes), an
  * hour-long token for the content repository alone, made again as it ends; or else `GOODFELLOW_GIT_TOKEN`, a
- * fine-grained token made by hand. `backend` is the config's.
+ * fine-grained token made by hand. `backend` is the config's. `refresh`, which GitHub's backend asks for once GitHub
+ * refuses a token, makes the app's again at once.
  */
 export function gitToken(
   backend: { source?: HostSource } | undefined,
   read: () => Promise<SiteEnv> = env,
-): () => Promise<string> {
-  let fromApp: { key: string; token: () => Promise<string> } | undefined;
-  return async () => {
+): (request?: { refresh?: boolean }) => Promise<string> {
+  let fromApp: { key: string; token: (request?: { refresh?: boolean }) => Promise<string> } | undefined;
+  return async (request) => {
     const vars = await read();
     if (vars.GOODFELLOW_APP_ID && vars.GOODFELLOW_APP_KEY) {
       const key = `${vars.GOODFELLOW_APP_ID}\n${vars.GOODFELLOW_APP_KEY}`;
@@ -34,7 +35,7 @@ export function gitToken(
         });
         fromApp = { key, token };
       }
-      return fromApp.token();
+      return fromApp.token(request);
     }
     if (vars.GOODFELLOW_GIT_TOKEN) return vars.GOODFELLOW_GIT_TOKEN;
     throw new Error(

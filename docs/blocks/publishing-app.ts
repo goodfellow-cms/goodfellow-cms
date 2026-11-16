@@ -57,3 +57,21 @@ export function workersAddressIn(wrangler: string): string | undefined {
 export function setupLink(address: string, code: string): string {
   return `${address.replace(/\/$/, "")}/setup/#${new URLSearchParams({ code })}`;
 }
+
+/**
+ * Which of the codes GitHub sends back the setup page turns into its app: the first after each time the app is asked
+ * for, and no other, however soon it comes, so a code from another tab can't undo the app the first one made.
+ */
+export function appCodes(): { asked(): void; take(): boolean } {
+  let waiting = false;
+  return {
+    asked() {
+      waiting = true;
+    },
+    take() {
+      const was = waiting;
+      waiting = false;
+      return was;
+    },
+  };
+}
