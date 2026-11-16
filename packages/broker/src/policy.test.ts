@@ -263,6 +263,7 @@ describe("what the broker asks before making a call", () => {
       ["history", ["content", { page: 2 }]],
       ["updates.code.readAt", ["package.json", commit]],
       ["filesAt.list", [commit, "public/media"]],
+      ["scheduledBuilds.sync", [[], { known: [] }]],
     ];
     for (const [path, args] of allowed) {
       expect(await decide({ path, args, target: {} }, SITE), path).toEqual({ action: "allow" });
@@ -282,6 +283,9 @@ describe("what the broker asks before making a call", () => {
       ["deployStatus", ["../../pipelines"]],
       ["filesAt.read", ["..", "content/site.json"]],
       ["filesAt.readBytes", [commit, "public\\media"]],
+      // An extra argument to filesAt() would move its method's path out of the place that's checked.
+      ["filesAt.read", [commit, "content/site.json", "../../user"]],
+      ["read", ["content/site.json", "../../user"]],
       ["draft.store.read", ["content/../.."]],
       ["updates.code.read", ["../x"]],
       ["updates.code.history", [".."]],

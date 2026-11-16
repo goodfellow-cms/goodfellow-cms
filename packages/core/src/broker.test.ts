@@ -253,6 +253,20 @@ describe("the broker's backend in the admin panel", () => {
     };
   }
 
+  it("makes a factory's call with the arguments its check gives back, the factory's and its method's", async () => {
+    const commit = "c".repeat(40);
+    const seen: unknown[][] = [];
+    const { remote, close } = await connect({
+      check: ({ path, args }) => {
+        seen.push(args);
+        return path === "filesAt.read" ? { args: [args[0], "content/menus.json"] } : undefined;
+      },
+    });
+    expect(await remote.filesAt(commit).read("content/site.json")).toBe(`${commit}:content/menus.json`);
+    expect(seen.at(-1)).toEqual([commit, "content/site.json"]);
+    close();
+  });
+
   it("reads, publishes, and keeps the classes of errors", async () => {
     const { remote, files, close } = await connect();
     expect(remote.user).toEqual({ login: "maria" });
