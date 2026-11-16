@@ -124,7 +124,7 @@ async function retireSetupCode(adapter: AdminMaker["adapter"]): Promise<void> {
  * the read says so, so `/setup/` makes no admin beside the command's; where `/setup/` got there first, the command
  * writes over its mark afterwards, which leaves the code retired, as an admin was made.
  */
-async function useSetupClaim(adapter: AdminMaker["adapter"], claim: string): Promise<boolean> {
+async function spendSetupClaim(adapter: AdminMaker["adapter"], claim: string): Promise<boolean> {
   const id = { field: "id", value: SETUP_DONE };
   await adapter
     .update({
@@ -188,7 +188,7 @@ export async function createAdmin(
   // Before the admin is made, so there's never an admin while the code still works, and none from the code once
   // another admin has been made.
   if (claim === undefined) await retireSetupCode(context.adapter);
-  else if (!(await useSetupClaim(context.adapter, claim))) {
+  else if (!(await spendSetupClaim(context.adapter, claim))) {
     throw new SetupClaimLost("The site's setup code was used up while this admin was being made.");
   }
   // A reader until it has its password, then an admin: D1 has no transactions, so an account left half made, even
