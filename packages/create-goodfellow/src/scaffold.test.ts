@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { fakePlugins, samplePluginFiles } from "@goodfellow-cms/core/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  bundleTemplate,
   commitAll,
   configureBackend,
   copyTemplate,
@@ -20,6 +21,7 @@ import {
   scaffold,
   scaffoldBroker,
   scaffoldServer,
+  secretFiles,
   sitePackageJson,
 } from "./scaffold.js";
 
@@ -401,6 +403,55 @@ describe("copyTemplate", () => {
     for (const name of [".gitignore", ".npmrc"]) {
       expect(await readFile(join(dir, "site", name), "utf8")).toBe(await readFile(join(starter, name), "utf8"));
     }
+  });
+});
+
+describe("bundleTemplate", () => {
+  /** A repository holding a template in `site/`, with its `files` committed. */
+  async function repository(files: Record<string, string>) {
+    const root = join(dir, "repo");
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(join(root, path, ".."), { recursive: true });
+      await writeFile(join(root, path), text);
+    }
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: root });
+    git("init", "-q");
+    git("add", "-A");
+    git("-c", "user.name=x", "-c", "user.email=x@example.org", "commit", "-q", "-m", "template");
+    return root;
+  }
+
+  it("takes only the files git keeps, so a developer's secrets and build output stay behind", async () => {
+    const root = await repository({
+      "site/.gitignore": ".env\n.env.*\n!.env.example\n.dev.vars\nbuild/\n",
+      "site/.env.example": "S3_KEY=\n",
+      "site/package.json": "{}\n",
+      "other/file.txt": "not the template's\n",
+    });
+    // What trying plugins and building leave in a developer's copy.
+    await writeFile(join(root, "site/.env.local"), "S3_KEY=placeholder-secret\n");
+    await writeFile(join(root, "site/.dev.vars"), "BETTER_AUTH_SECRET=placeholder-secret\n");
+    await mkdir(join(root, "site/build"));
+    await writeFile(join(root, "site/build/out.js"), "built\n");
+    await bundleTemplate(root, "site", join(dir, "bundled"));
+    expect(existsSync(join(dir, "bundled/.env.local"))).toBe(false);
+    expect(existsSync(join(dir, "bundled/.dev.vars"))).toBe(false);
+    expect(existsSync(join(dir, "bundled/build"))).toBe(false);
+    expect(existsSync(join(dir, "bundled/file.txt"))).toBe(false);
+    expect(await readFile(join(dir, "bundled/.env.example"), "utf8")).toBe("S3_KEY=\n");
+    expect(existsSync(join(dir, "bundled/_gitignore"))).toBe(true);
+  });
+
+  it("refuses a template whose kept files look like secrets, leaving nothing bundled", async () => {
+    const root = await repository({ "site/package.json": "{}\n", "site/config/.env.production": "KEY=x\n" });
+    await expect(bundleTemplate(root, "site", join(dir, "bundled"))).rejects.toThrow(/config\/\.env\.production/);
+    expect(existsSync(join(dir, "bundled"))).toBe(false);
+  });
+
+  it("knows secrets by their names, and their examples apart", () => {
+    expect(
+      secretFiles([".env", "a/.env.local", ".dev.vars", ".dev.vars.staging", ".env.example", ".envrc", "env.ts"]),
+    ).toEqual([".env", "a/.env.local", ".dev.vars", ".dev.vars.staging"]);
   });
 });
 

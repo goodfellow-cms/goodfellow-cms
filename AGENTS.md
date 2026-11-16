@@ -3037,7 +3037,9 @@ pnpm test:e2e
   `planSite()`, then creates the repository through `githubSetup()` or `gitlabSetup()`. Full-stack sites have a page of
   their own (see Full-stack sites from the setup page below), for which `starters.mjs` packs the company example too.
 - **Bundling:** `create-goodfellow`'s build copies the sites into its `templates/` folder
-  (`scripts/bundle-templates.mjs`), with every package's version in `templates/versions.json`. It also copies the built
+  (`scripts/bundle-templates.mjs`), only the files git keeps (`bundleTemplate()`), never the folder as it is, since a
+  developer's copy holds secrets `.gitignore` leaves out, and stops where one still looks like a secret
+  (`secretFiles()`), with every package's version in `templates/versions.json`. It also copies the built
   token broker to `templates/broker`, and the built block registry to `templates/registry`, which `--blocks recommended`
   (the default) installs from with `planInstall()`, so new sites need no download. It depends on them so Turborepo
   rebuilds it when they change. A new example needs adding there and to `TEMPLATES` in `scaffold.ts`.

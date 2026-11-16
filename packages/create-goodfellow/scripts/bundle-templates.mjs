@@ -1,39 +1,28 @@
 // Copies the starter and the examples into templates/ (the company example for full-stack sites), with the version of every
 // Goodfellow package, so the published create-goodfellow has everything it copies.
-import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { recordRelease } from "../../worker/deploy/update.mjs";
-import { copyTemplate } from "../dist/index.js";
+import { bundleTemplate } from "../dist/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "../../..");
 const out = join(here, "../templates");
 
-const sources = { starter: "templates/starter", parish: "examples/parish", next: "templates/next" };
+// The company example is for full-stack sites (--server cloudflare). Each is copied from the files git keeps, never
+// the folder as it is, since a developer's copy holds build output and secrets that .gitignore leaves out (.env.local
+// for trying plugins, .dev.vars), and the copy stops where anything that looks like a secret is still there.
+const sources = {
+  starter: "templates/starter",
+  parish: "examples/parish",
+  next: "templates/next",
+  company: "examples/company",
+};
 
 rmSync(out, { recursive: true, force: true });
 for (const [name, source] of Object.entries(sources)) {
-  await copyTemplate(join(repo, source), join(out, name), { bundling: true });
-}
-
-// The company example, for full-stack sites (--server cloudflare): only the files git keeps, since its build writes
-// files into its folder that .gitignore leaves out, and a developer's copy holds secrets (.dev.vars, .env.local).
-const tracked = mkdtempSync(join(tmpdir(), "goodfellow-company-"));
-try {
-  const paths = execFileSync("git", ["ls-files", "-z", "--", "examples/company"], { cwd: repo, encoding: "utf8" })
-    .split("\0")
-    .filter(Boolean);
-  for (const path of paths) {
-    const to = join(tracked, path.slice("examples/company/".length));
-    mkdirSync(dirname(to), { recursive: true });
-    cpSync(join(repo, path), to);
-  }
-  await copyTemplate(tracked, join(out, "company"), { bundling: true });
-} finally {
-  rmSync(tracked, { recursive: true, force: true });
+  await bundleTemplate(repo, source, join(out, name));
 }
 
 // The block registry, so new sites can start with the recommended blocks without downloading them.
