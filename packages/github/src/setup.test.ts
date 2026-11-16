@@ -244,6 +244,9 @@ describe("githubSetup", () => {
         ...files,
         scheduled,
         { path: ".github/workflows/listed.yml", content: "on: [push, workflow_dispatch] # by hand too\n" },
+        { path: ".github/workflows/mapped.yml", content: "on: {push: {branches: [main]}, workflow_dispatch: {}}\n" },
+        // Only pushes, to a branch that happens to share the name.
+        { path: ".github/workflows/branch.yml", content: "on: {push: {branches: [workflow_dispatch]}}\n" },
       ],
       message: "Create",
     });
@@ -257,6 +260,8 @@ describe("githubSetup", () => {
     expect(await account.startWorkflow?.("someone/site", "setup-cloudflare.yml")).toBe(false);
     expect(await account.startWorkflow?.("someone/site", "scheduled.yml")).toBe(false);
     expect(await account.startWorkflow?.("someone/site", "listed.yml")).toBe(true);
+    expect(await account.startWorkflow?.("someone/site", "mapped.yml")).toBe(true);
+    expect(await account.startWorkflow?.("someone/site", "branch.yml")).toBe(false);
     expect(await account.readFile?.("someone/site", "package.json")).toBe("{}\n");
     expect(await account.readFile?.("someone/site", "wrangler.jsonc")).toBeUndefined();
     // Not one it created.

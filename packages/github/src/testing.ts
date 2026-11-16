@@ -1896,12 +1896,41 @@ export type FakeGitHub = ReturnType<typeof fakeGitHub>;
  * Whether a workflow's `on` says it may be started by hand, as GitHub reads it: `on: workflow_dispatch`, a list or
  * map naming it, or a `workflow_dispatch:` key just under `on:`, never a word elsewhere or in a comment.
  */
+/**
+ * The events an `on:` written on one line names: itself, a list's items, or a map's keys, at its own top level only,
+ * never a branch or path inside one (`{push: {branches: [workflow_dispatch]}}`).
+ */
+function topLevelEvents(value: string): string[] {
+  const unquote = (name: string) => name.trim().replace(/^["']|["']$/g, "");
+  const open = value[0];
+  if (open !== "[" && open !== "{") return [unquote(value)];
+  const events: string[] = [];
+  let depth = 0;
+  let part = "";
+  for (const char of value.slice(1)) {
+    if (char === "[" || char === "{") depth++;
+    if (char === "]" || char === "}") {
+      if (depth === 0) break;
+      depth--;
+    }
+    if (char === "," && depth === 0) {
+      events.push(part);
+      part = "";
+    } else {
+      part += char;
+    }
+  }
+  events.push(part);
+  // A map's keys are before their colons.
+  return events.map((item) => unquote(open === "{" ? (item.split(":")[0] ?? "") : item)).filter(Boolean);
+}
+
 function dispatchable(workflow: string): boolean {
   const lines = workflow.split("\n").map((line) => line.replace(/(^|\s)#.*$/, "$1").trimEnd());
   const at = lines.findIndex((line) => /^["']?on["']?\s*:/.test(line));
   if (at < 0) return false;
   const rest = (lines[at] ?? "").replace(/^["']?on["']?\s*:/, "").trim();
-  if (rest) return /(^|[\s,[{])["']?workflow_dispatch["']?(\s*[:,\]}]|$)/.test(rest);
+  if (rest) return topLevelEvents(rest).includes("workflow_dispatch");
   let indent: number | undefined;
   for (const line of lines.slice(at + 1)) {
     if (!line.trim()) continue;
