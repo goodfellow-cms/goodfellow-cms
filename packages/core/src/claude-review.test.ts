@@ -65,7 +65,7 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
 
   it("never starts a program the repository's config names", () => {
     const { repo, git, review, marker } = setUp();
-    const program = join(repo, "..", "program.sh");
+    const program = join(temp(), "program.sh");
     writeFileSync(program, `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 });
     git("config", "core.fsmonitor", program);
     git("config", "diff.external", program);
@@ -129,8 +129,8 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
   });
 
   it("never passes on an alias, nor a command it took from an option's value", () => {
-    const { repo, review, marker } = setUp();
-    const out = join(repo, "..", "out.txt");
+    const { review, marker } = setUp();
+    const out = join(temp(), "out.txt");
     for (const args of [
       ["-c", "alias.d=diff", "d", `--output=${out}`],
       ["-c", `alias.d=!touch '${marker}'`, "d"],
@@ -150,7 +150,7 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
     const { repo, reviewGit, marker } = setUp();
     const nested = join(repo, "nested");
     sh("git", ["init", "-q", nested], repo);
-    const program = join(repo, "..", "nested-filter.sh");
+    const program = join(temp(), "nested-filter.sh");
     writeFileSync(program, `#!/bin/sh\ntouch '${marker}'\ncat\n`, { mode: 0o755 });
     writeFileSync(join(nested, ".gitattributes"), "* filter=evil\n");
     writeFileSync(join(nested, "b.txt"), "one\n");
@@ -165,9 +165,9 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
 
   it("never runs a filter driver the system's or the user's config names", () => {
     const { repo, reviewGit, marker } = setUp();
-    const program = join(repo, "..", "filter.sh");
+    const program = join(temp(), "filter.sh");
     writeFileSync(program, `#!/bin/sh\ntouch '${marker}'\ncat\n`, { mode: 0o755 });
-    const global = join(repo, "..", "global.gitconfig");
+    const global = join(temp(), "global.gitconfig");
     writeFileSync(global, `[filter "evil"]\n\tclean = ${program}\n`);
     writeFileSync(join(repo, ".gitattributes"), "*.txt filter=evil\n");
     writeFileSync(join(repo, "a.txt"), "three\n");
@@ -205,7 +205,7 @@ describe("the Claude review's file tools", () => {
     });
   });
 
-  it("never read Claude Code's own settings and state, which hold what the job signs in with", () => {
+  it("never read Claude Code's own settings and state, nor git's config, which hold what the job signs in with", () => {
     const denied = /--disallowedTools "([^"]*)"/.exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
     expect(denied).toEqual(
       expect.arrayContaining([
@@ -213,6 +213,8 @@ describe("the Claude review's file tools", () => {
         "Read(~/.claude.json)",
         "Read(~/.claude.json.*)",
         "Read(//proc/**)",
+        // The action can put the job's token in the checkout's origin address.
+        "Read(./.git/**)",
       ]),
     );
   });
