@@ -171,7 +171,7 @@ describe("the Claude review's file tools", () => {
   });
 
   it("never read Claude Code's own settings and state, which hold what the job signs in with", () => {
-    const denied = /--disallowedTools "([^"]*)"/.exec(review.with?.claude_args ?? "")?.[1].split(",") ?? [];
+    const denied = /--disallowedTools "([^"]*)"/.exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
     expect(denied).toEqual(
       expect.arrayContaining([
         "Read(~/.claude/**)",
