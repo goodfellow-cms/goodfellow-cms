@@ -32,7 +32,9 @@ function temp() {
 }
 
 function sh(command: string, args: string[], cwd: string, env: Record<string, string> = {}) {
-  return spawnSync(command, args, { cwd, encoding: "utf8", env: { ...process.env, ...env } });
+  // Without Claude Code's own mark, which the tests set where they mean to, though they may run under it.
+  const { CLAUDECODE: _, ...inherited } = process.env;
+  return spawnSync(command, args, { cwd, encoding: "utf8", env: { ...inherited, ...env } });
 }
 
 /** A repository with two commits, and the review's git made by the workflow's step, run in it. */
@@ -168,6 +170,29 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       // Never left hanging or killed, as a check that called itself would be.
       expect(result.status, spec).not.toBeNull();
     }
+  });
+
+  it("gives Claude Code's own commands only diff, log, show and blame, never git's config", () => {
+    const { repo, git, reviewGit } = setUp();
+    git("remote", "add", "origin", "https://x-access-token:ghs_secret@github.com/o/r.git");
+    const asClaude = (...args: string[]) => sh(reviewGit, args, repo, { CLAUDECODE: "1" });
+    for (const args of [
+      ["config", "--get", "remote.origin.url"],
+      ["config", "-l"],
+      ["remote", "-v"],
+      ["remote", "get-url", "origin"],
+      ["ls-remote", "--get-url", "origin"],
+      ["var", "-l"],
+      ["-C", ".", "config", "-l"],
+      ["--version"],
+    ]) {
+      const result = asClaude(...args);
+      expect(result.status, args.join(" ")).toBe(2);
+      expect(result.stdout + result.stderr, args.join(" ")).not.toContain("ghs_secret");
+    }
+    expect(asClaude("diff", "HEAD~1", "HEAD").stdout).toContain("+two");
+    // The action's own git, which Claude Code doesn't run, still configures the checkout.
+    expect(sh(reviewGit, ["config", "--get", "remote.origin.url"], repo).stdout).toContain("ghs_secret");
   });
 
   it("never passes on an alias, nor a command it took from an option's value", () => {
