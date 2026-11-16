@@ -455,7 +455,9 @@ test("creates a full-stack site's code and content on a page of its own, with a 
   expect(code?.secrets.get("GOODFELLOW_APP_KEY")).toContain("BEGIN RSA PRIVATE KEY");
   const installTab = page.context().waitForEvent("page");
   await page.getByRole("link", { name: "Install it on someone/acme-content" }).click();
-  await (await installTab).close();
+  const back = await installTab;
+  await expect(back.getByText("The app is installed.")).toBeVisible();
+  await back.close();
   await expect(page.getByText(/installed on other repositories besides someone\/acme-content/)).toBeVisible();
   // Put right on GitHub, then checked again.
   const installed = app?.installations.at(-1);
