@@ -17,6 +17,7 @@ import {
 import { githubSetup } from "@goodfellow-cms/github";
 import { SiteLink, useSite } from "@goodfellow-cms/react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { PutOnline } from "./server-site-online";
 import {
   createMessage,
   decodeBase64,
@@ -111,9 +112,6 @@ function githubRepo(repo: string): CreatedSiteRepository {
   return { repo, webUrl: `https://github.com/${repo}`, buildsUrl: `https://github.com/${repo}/actions`, warnings: [] };
 }
 
-/** Where in Cloudflare's dashboard the token for deploying is made: its "Edit Cloudflare Workers" template. */
-const CLOUDFLARE_TOKENS = "https://dash.cloudflare.com/profile/api-tokens";
-
 interface Answers {
   name: string;
   visibility: Visibility;
@@ -132,16 +130,6 @@ export function siteAddressOf(typed: string): { address: string } | { problem: s
     return { problem: "The site's address is https:// and a domain, such as https://www.example.org." };
   }
   return { address: url.origin };
-}
-
-/** The address of GitHub's page that makes a fine-grained token, with its name, owner, and permissions filled in. */
-function tokenUrl(owner: string, name: string, description: string, permissions: Record<string, string>): string {
-  return `https://github.com/settings/personal-access-tokens/new?${new URLSearchParams({
-    name,
-    description,
-    target_name: owner,
-    ...permissions,
-  })}`;
 }
 
 /** The full-stack site's files, as `create-goodfellow --server cloudflare` makes them, with the setup code's hash. */
@@ -423,6 +411,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       keepUnfinished(answers.name, [code, content], false);
       setBegun(undefined);
       setCreated({
+        owner: chosenOwner,
         code: codeRepo,
         content: contentRepo,
         setupCode: setupCode.code,
@@ -463,7 +452,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   }
 
   if (loading) return <p aria-live="polite">Loading…</p>;
-  if (created) return <Created created={created} withToken={withToken} />;
+  if (created && account) return <Created created={created} account={account} withToken={withToken} />;
 
   return (
     <div className="grid gap-8">
@@ -722,6 +711,7 @@ function RepoList({ repos }: { repos: string[] }) {
 
 /** Both repositories, made, with the setup code and the address the code's has. */
 interface CreatedSite {
+  owner: SetupOwner;
   code: CreatedSiteRepository;
   content: CreatedSiteRepository;
   setupCode: string;
@@ -772,11 +762,9 @@ function SetupCode({ code }: { code: string }) {
   );
 }
 
-/** What's left once both repositories are made, in order, with links to where each step is done. */
-function Created({ created, withToken }: { created: CreatedSite; withToken: boolean }) {
-  const { code, content, setupCode, address, worker } = created;
-  const owner = code.repo.split("/")[0] ?? "";
-  const secretsOf = (repo: CreatedSiteRepository) => `${repo.webUrl}/settings/secrets/actions/new`;
+/** What's left once both repositories are made, which the page does with the person, step by step. */
+function Created({ created, account, withToken }: { created: CreatedSite; account: SetupAccount; withToken: boolean }) {
+  const { owner, code, content, setupCode, address, worker } = created;
   return (
     <div className="grid gap-4" aria-live="polite">
       <h2 className="font-heading text-2xl font-semibold">Your site has been created</h2>
@@ -791,76 +779,23 @@ function Created({ created, withToken }: { created: CreatedSite; withToken: bool
           its private half to {code.repo} as the GOODFELLOW_CONTENT_KEY secret.
         </Note>
       )}
-      <ol className="grid list-decimal gap-3 pl-5">
-        <li>
-          <strong>Cloudflare.</strong> Make an API token on{" "}
-          <Out href={CLOUDFLARE_TOKENS}>Cloudflare's API tokens page</Out> from the "Edit Cloudflare Workers" template,
-          and add it to <Out href={secretsOf(code)}>{`${code.repo}'s secrets`}</Out> as{" "}
-          <code>CLOUDFLARE_API_TOKEN</code>. Add your account's ID there too, as <code>CLOUDFLARE_ACCOUNT_ID</code>:
-          it's shown on the dashboard's Workers &amp; Pages page.
-        </li>
-        <li>
-          <strong>Publishing.</strong>{" "}
-          <Out
-            href={tokenUrl(owner, `Publish ${content.repo}`, `The site's server publishes editors' changes`, {
-              contents: "write",
-            })}
-          >
-            Make a fine-grained token
-          </Out>{" "}
-          for {content.repo} only (under Repository access, choose Only select repositories), and add it to{" "}
-          <Out href={secretsOf(code)}>{`${code.repo}'s secrets`}</Out> as <code>GOODFELLOW_GIT_TOKEN</code>. The site
-          publishes editors' changes with it, so when it expires, make a new one.
-        </li>
-        <li>
-          <strong>Photos and files.</strong>{" "}
-          <Out
-            href={tokenUrl(owner, `Deploy ${code.repo}`, "Puts the site online after each publish", {
-              actions: "write",
-            })}
-          >
-            Make another fine-grained token
-          </Out>{" "}
-          for {code.repo} only, and add it to <Out href={secretsOf(content)}>{`${content.repo}'s secrets`}</Out> as{" "}
-          <code>GOODFELLOW_DEPLOY_TOKEN</code>. It can start the code's workflows but never change them, so new photos
-          reach the site after each publish.
-        </li>
-        <li>
-          <strong>Set up Cloudflare.</strong> In {code.repo}, run{" "}
-          <Out href={`${code.webUrl}/actions/workflows/setup-cloudflare.yml`}>Set up Cloudflare</Out> (Run workflow). It
-          makes the site's database and cache, names them in wrangler.jsonc, and starts the Deploy workflow, which puts
-          the site online. Both take a few minutes.
-        </li>
-        {address ? (
-          <li>
-            <strong>The domain.</strong> In <Out href="https://dash.cloudflare.com/">Cloudflare's dashboard</Out>, open
-            Workers &amp; Pages → {worker} → Settings → Domains &amp; Routes, and add {new URL(address).host}.
-          </li>
-        ) : null}
-        <li>
-          <strong>The first admin.</strong>{" "}
-          {address ? (
-            <>
-              Open <Out href={`${address}/setup/`}>{`${address}/setup/`}</Out>,
-            </>
-          ) : (
-            <>
-              Open <code>/setup/</code> at the site's address,{" "}
-              <code>{`https://${worker}.<your-subdomain>.workers.dev`}</code>, which the Set up Cloudflare run shows in
-              its summary,
-            </>
-          )}{" "}
-          give the setup code, your email address, your name, and a password, then sign in and turn on two-factor
-          sign-in on your account page straight away.
-        </li>
-      </ol>
+      <PutOnline
+        account={account}
+        owner={owner}
+        code={code}
+        content={content}
+        setupCode={setupCode}
+        address={address}
+        worker={worker}
+      />
       <h3 className="font-heading text-lg font-semibold">Next</h3>
       <ul className="grid list-disc gap-1 pl-5">
         {!address && (
           <li>
-            To use a domain of your own later, add it to the Worker in Cloudflare's dashboard (Workers &amp; Pages →{" "}
-            {worker} → Settings → Domains &amp; Routes), and put it in place of the workers.dev address as{" "}
-            <code>GOODFELLOW_SITE_URL</code> in {code.repo}'s wrangler.jsonc: signing in works only at that address.
+            To use a domain of your own later, put it in place of the workers.dev address as{" "}
+            <code>GOODFELLOW_SITE_URL</code> in {code.repo}'s wrangler.jsonc: signing in works only at that address. The
+            next deploy gives it to the Worker where its zone is on your Cloudflare account, or says to add it in
+            Cloudflare's dashboard (Workers &amp; Pages → {worker} → Settings → Domains &amp; Routes).
           </li>
         )}
         <li>

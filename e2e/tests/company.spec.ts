@@ -522,6 +522,15 @@ test("checks the setup code on the Worker, and makes no admin on a site that has
   await expect(page.getByRole("alert")).toHaveText("This site has its first admin already. Sign in instead.");
 });
 
+test("takes the setup code from the setup page's link, out of the address at once", async ({ page }) => {
+  await page.goto(`${SITE}/setup/#code=${COMPANY.setupCode}`);
+  await expect(page.getByLabel("Setup code")).toHaveValue(COMPANY.setupCode);
+  expect(new URL(page.url()).hash).toBe("");
+  // Not in the history entry either.
+  await page.reload();
+  await expect(page.getByLabel("Setup code")).toHaveValue("");
+});
+
 test("keeps Better Auth's admin routes from the browser", async ({ page }) => {
   await signIn(page, "admin");
   const statuses = await page.evaluate(async () =>

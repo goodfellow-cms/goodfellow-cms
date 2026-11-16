@@ -418,13 +418,68 @@ test("creates a full-stack site's code and content on a page of its own, with a 
       .filter({ hasText: /^[A-Z2-7]{4}(-[A-Z2-7]{4}){5}$/ })
       .textContent()) ?? "";
   expect(setupCode).not.toBe("");
-  await expect(page.getByRole("link", { name: "Set up Cloudflare" })).toHaveAttribute(
-    "href",
-    "https://github.com/someone/acme/actions/workflows/setup-cloudflare.yml",
-  );
-  await expect(page.getByRole("link", { name: "https://www.acme.example/setup/" })).toBeVisible();
 
+  // The publishing app: made on GitHub's page in a new tab, which comes back to the return page, which tells this one.
+  const manifests = new Map<string, { redirect_url: string; setup_url: string }>();
+  await page.context().route("https://github.com/settings/apps/new?*", async (route) => {
+    const state = new URL(route.request().url()).searchParams.get("state") ?? "";
+    const manifest = JSON.parse(new URLSearchParams(route.request().postData() ?? "").get("manifest") ?? "{}");
+    expect(manifest.default_permissions).toEqual({ contents: "write", metadata: "read" });
+    expect(manifest.public).toBe(false);
+    const { code, app } = await github.createApp(manifest, "someone");
+    manifests.set(app.slug, manifest);
+    await route.fulfill({ status: 302, headers: { location: `${manifest.redirect_url}?code=${code}&state=${state}` } });
+  });
+  // Installing it: first on the code too, as someone might, then on the content alone.
+  let installOn = ["someone/acme-content", "someone/acme"];
+  await page.context().route("https://github.com/apps/*/installations/new?*", async (route) => {
+    const url = new URL(route.request().url());
+    const slug = url.pathname.split("/")[2] ?? "";
+    const { installation } = github.install(slug, "someone", installOn);
+    const back = `${manifests.get(slug)?.setup_url}?installation_id=${installation}&setup_action=install&state=${url.searchParams.get("state")}`;
+    await route.fulfill({ status: 302, headers: { location: back } });
+  });
+  const online = page.getByRole("button", { name: "Put the site online" });
+  await expect(online).toBeDisabled();
+  const madeTab = page.context().waitForEvent("page");
+  await page.getByRole("button", { name: "Make the publishing app" }).click();
+  const returned = await madeTab;
+  await expect(returned.getByText("The app is made.")).toBeVisible();
+  // The return page takes GitHub's code out of its address.
+  expect(new URL(returned.url()).search).toBe("");
+  await returned.close();
+  await expect(page.getByText(/Made, and its key saved in someone\/acme's secrets/)).toBeVisible();
   const code = github.created.get("someone/acme");
+  const app = github.apps.at(-1);
+  expect(code?.secrets.get("GOODFELLOW_APP_ID")).toBe(app?.id);
+  expect(code?.secrets.get("GOODFELLOW_APP_KEY")).toContain("BEGIN RSA PRIVATE KEY");
+  const installTab = page.context().waitForEvent("page");
+  await page.getByRole("link", { name: "Install it on someone/acme-content" }).click();
+  await (await installTab).close();
+  await expect(page.getByText(/installed on other repositories besides someone\/acme-content/)).toBeVisible();
+  // Put right on GitHub, then checked again.
+  const installed = app?.installations.at(-1);
+  if (installed) installed.repositories = ["someone/acme-content"];
+  installOn = ["someone/acme-content"];
+  await page.getByRole("button", { name: "I've installed it: check again" }).click();
+  await expect(page.getByText(/Installed on someone\/acme-content alone/)).toBeVisible();
+  // The check's tokens are revoked.
+  expect(github.issued.filter((issued) => issued.app === app?.slug).every((issued) => issued.revoked)).toBe(true);
+
+  // Cloudflare's token, pasted and saved as the code's secret.
+  await page.getByPlaceholder("Paste the Cloudflare token here").fill("cloudflare-token");
+  await page.getByRole("button", { name: "Save it" }).click();
+  await expect(page.getByText("Saved in someone/acme's secrets.")).toBeVisible();
+  expect(code?.secrets.get("CLOUDFLARE_API_TOKEN")).toBe("cloudflare-token");
+  await online.click();
+  await expect(page.getByText(/Started: follow it on/)).toBeVisible();
+  expect(code?.dispatched).toEqual([{ workflow: ".github/workflows/setup-cloudflare.yml", ref: "main" }]);
+  // The first admin's link carries the setup code where browsers never send it.
+  await expect(page.getByRole("link", { name: "open https://www.acme.example/setup/" })).toHaveAttribute(
+    "href",
+    `https://www.acme.example/setup/#code=${setupCode}`,
+  );
+
   const content = github.created.get("someone/acme-content");
   // Private by default, so the code's Deploy workflow reads the content with a key of its own.
   expect(code?.private).toBe(true);
@@ -448,7 +503,9 @@ test("creates a full-stack site's code and content on a page of its own, with a 
   expect(wrangler).not.toContain(setupCode);
   expect([...codeFiles.keys()].some((path) => path.startsWith("content/"))).toBe(false);
   expect(contentFiles.has("content/site.json")).toBe(true);
-  expect(text(contentFiles.get(".github/workflows/deploy-site.yml"))).toContain("--repo someone/acme");
+  // The content runs no workflows and holds no secrets.
+  expect([...contentFiles.keys()].some((path) => path.startsWith(".github/"))).toBe(false);
+  expect(content?.secrets.size).toBe(0);
 });
 
 test("creates a full-stack site at the Worker's own address, and carries on with what it made after a failure", async ({

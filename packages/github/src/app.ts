@@ -284,6 +284,19 @@ export async function publishingToken(options: PublishingAppOptions): Promise<Pu
   }
 }
 
+/**
+ * Checks the app as the server will, from the setup page: that it's installed on the content repository alone with
+ * Contents only, by making a token as `publishingToken()` does and revoking it straight away. Throws
+ * `PublishingAppError` saying what to change.
+ */
+export async function checkPublishingApp(options: PublishingAppOptions): Promise<void> {
+  const { token } = await publishingToken(options);
+  await (options.fetch ?? fetch)(`${options.api ?? "https://api.github.com"}/installation/token`, {
+    method: "DELETE",
+    headers: { ...HEADERS, authorization: `Bearer ${token}` },
+  }).catch(() => {});
+}
+
 /** How long before a token ends it's made again. */
 const RENEW_MS = 10 * 60_000;
 

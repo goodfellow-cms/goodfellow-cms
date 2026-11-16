@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appInstallUrl,
   appManifestFormAction,
+  checkPublishingApp,
   convertAppManifest,
   PUBLISHING_APP_PERMISSIONS,
   PublishingAppError,
@@ -176,5 +177,17 @@ describe("publishingAppToken", () => {
     github.install(app.slug, "someone", ["someone/acme"]);
     now += 55 * 60_000;
     expect(await problemOf(token())).toBe("other-repositories");
+  });
+});
+
+describe("checkPublishingApp", () => {
+  it("checks the installation as the server will, leaving no token behind", async () => {
+    const { github, app, options } = await setUp();
+    expect(await problemOf(checkPublishingApp(options))).toBe("not-installed");
+    github.install(app.slug, "someone", [CONTENT]);
+    await checkPublishingApp(options);
+    const made = github.issued.filter((issued) => issued.app === app.slug);
+    expect(made).toHaveLength(2);
+    expect(made.every((issued) => issued.revoked)).toBe(true);
   });
 });

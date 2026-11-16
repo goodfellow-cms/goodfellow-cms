@@ -1,13 +1,29 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { NewPasswordFields, passwordProblem } from "@/app/reset-password/new-password-fields";
+
+/**
+ * The setup code given in the address's fragment (`/setup/#code=…`), as the setup page's link gives it: browsers never
+ * send a fragment, and the page takes it out of the address and its history entry at once.
+ */
+export function codeFromFragment(hash: string): string {
+  const code = new URLSearchParams(hash.replace(/^#/, "")).get("code") ?? "";
+  return /^[A-Z2-7]{4}(-[A-Z2-7]{4}){5}$/.test(code) ? code : "";
+}
 
 /** The setup code, the first admin's details, and a password typed twice, which the API checks again. */
 export function SetupForm() {
   const [problem, setProblem] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [code, setCode] = useState("");
+
+  useEffect(() => {
+    if (!window.location.hash) return;
+    setCode(codeFromFragment(window.location.hash));
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }, []);
 
   async function setUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,6 +72,8 @@ export function SetupForm() {
           autoComplete="off"
           spellCheck={false}
           required
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
           className="rounded border px-3 py-2 font-mono"
         />
       </label>
