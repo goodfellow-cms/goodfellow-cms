@@ -284,8 +284,16 @@ describe("the Claude review's file tools", () => {
     new RegExp(`${flag} "([^"]*)"`).exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
 
   it("run no commands but git's reading ones, without the Claude token in their environment", () => {
-    const review = steps.find((step) => step.name === "Review") as { env?: Record<string, string> };
+    const review = steps.find((step) => step.name === "Review") as { env?: Record<string, string>; if?: string };
     expect(review.env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");
+    // Which needs bubblewrap and socat, or Claude Code won't start or no command runs; the review waits for them.
+    const at = steps.findIndex((step) => step.name === "Give the review's commands their sandbox");
+    const sandbox = steps[at] as { id?: string; run?: string };
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(steps.indexOf(review));
+    expect(sandbox.run).toContain("apt-get install -y --no-install-recommends bubblewrap socat");
+    expect(sandbox.run).toContain("bwrap --ro-bind / / --unshare-pid true");
+    expect(review.if).toContain(`steps.${sandbox.id}.outcome == 'success'`);
     // gh's --jq reads its environment ($ENV), so any gh command could print a token in a form withholding misses.
     expect(tools("--allowedTools").filter((tool) => tool.startsWith("Bash("))).toEqual([
       "Bash(git diff:*)",
