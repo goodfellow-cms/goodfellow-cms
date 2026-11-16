@@ -28,6 +28,7 @@
  * whichever is first; then it's revoked.
  */
 
+import { pkcs8Key } from "@goodfellow-cms/github/app";
 import githubAppJwt from "universal-github-app-jwt";
 import { boundedText } from "./bounded.js";
 import {
@@ -43,7 +44,6 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
-import { pkcs8Key } from "./keys.js";
 import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "./seal.js";
 import { createSelfSetup } from "./self-setup.js";
 

@@ -4,7 +4,7 @@
  * the test. Never import this from code that ships.
  */
 
-import { pkcs1Pem } from "./keys.js";
+import { pkcs1Pem } from "@goodfellow-cms/github/app";
 import { createWorker, type WorkerEnv } from "./worker.js";
 
 export { challengeFor } from "./seal.js";

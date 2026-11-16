@@ -6,6 +6,7 @@
  * once GitHub says the person still edits it.
  */
 import { GitHubBackend } from "@goodfellow-cms/github";
+import { pkcs8Key } from "@goodfellow-cms/github/app";
 import { ToolError } from "@goodfellow-cms/mcp";
 import {
   type App,
@@ -18,7 +19,6 @@ import {
   revokeUserToken,
   userTokens,
 } from "@goodfellow-cms/worker/github";
-import { pkcs8Key } from "@goodfellow-cms/worker/keys";
 import githubAppJwt from "universal-github-app-jwt";
 import { type GitHubSite, MAX_SITES } from "./connection.js";
 import { PERMISSIONS } from "./permissions.js";
