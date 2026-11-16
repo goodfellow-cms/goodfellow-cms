@@ -1,5 +1,6 @@
 // The copy of the sign-in worker Cloudflare's Deploy to Cloudflare button deploys (`packages/worker/deploy/`),
 // which this package's build carries as `templates/sign-in/`, for copies to update themselves from.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -44,5 +45,72 @@ describe("the Deploy to Cloudflare copy", () => {
     expect(workflow).not.toMatch(/npm (ci|install|run)/);
     for (const action of workflow.match(/uses: \S+/g) ?? []) expect(action).toMatch(/^uses: actions\/[\w-]+@v\d+$/);
     expect(read("update.mjs")).toContain("--ignore-scripts");
+  });
+});
+
+describe("the Deploy to Cloudflare copy's update", async () => {
+  const update = (await import(new URL("../../worker/deploy/update.mjs", import.meta.url).href)) as {
+    chooseRelease(time: Record<string, string>, current: string | undefined, now?: number): string | undefined;
+    provenanceProblem(answer: unknown, integrity: string): string | undefined;
+  };
+  const now = Date.parse("2026-11-16T12:00:00Z");
+  const days = (n: number) => new Date(now - n * 86_400_000).toISOString();
+
+  it("takes the highest release that's been out a day, never an older one than the copy has", () => {
+    const time = {
+      created: days(400),
+      modified: days(0),
+      "0.12.4": days(2),
+      "0.13.0": days(5),
+      "0.13.1": days(0.5),
+      "0.14.0-beta.1": days(3),
+    };
+    // Not the one published last (0.12.4, a fix to an older line), nor one out less than a day.
+    expect(update.chooseRelease(time, undefined, now)).toBe("0.13.0");
+    expect(update.chooseRelease(time, "0.12.9", now)).toBe("0.13.0");
+    // A copy that's further on stays where it is.
+    expect(update.chooseRelease(time, "0.13.1", now)).toBe("0.13.1");
+    expect(update.chooseRelease({ "1.0.0": days(0.1) }, undefined, now)).toBeUndefined();
+  });
+
+  it("takes a release only where its provenance names Goodfellow's release workflow and the packed file", () => {
+    const file = Buffer.from("the packed release");
+    const digest = createHash("sha512").update(file).digest();
+    const integrity = `sha512-${digest.toString("base64")}`;
+    const answer = (workflow: { repository: string; path: string }, sha512 = digest.toString("hex")) => ({
+      attestations: [
+        { predicateType: "https://github.com/npm/attestation/tree/main/specs/publish/v0.1", bundle: {} },
+        {
+          predicateType: "https://slsa.dev/provenance/v1",
+          bundle: {
+            dsseEnvelope: {
+              payload: Buffer.from(
+                JSON.stringify({
+                  predicateType: "https://slsa.dev/provenance/v1",
+                  subject: [{ name: "pkg:npm/create-goodfellow@0.13.0", digest: { sha512 } }],
+                  predicate: {
+                    buildDefinition: { externalParameters: { workflow: { ...workflow, ref: "refs/heads/master" } } },
+                  },
+                }),
+              ).toString("base64"),
+            },
+          },
+        },
+      ],
+    });
+    const ours = {
+      repository: "https://github.com/goodfellow-cms/goodfellow-cms",
+      path: ".github/workflows/release.yml",
+    };
+    expect(update.provenanceProblem(answer(ours), integrity)).toBeUndefined();
+    expect(
+      update.provenanceProblem(answer({ ...ours, repository: "https://github.com/someone/fork" }), integrity),
+    ).toMatch(/built by https:\/\/github.com\/someone\/fork/);
+    expect(update.provenanceProblem(answer({ ...ours, path: ".github/workflows/other.yml" }), integrity)).toMatch(
+      /other.yml/,
+    );
+    expect(update.provenanceProblem(answer(ours, "00"), integrity)).toBe("its provenance is for another file");
+    expect(update.provenanceProblem({ attestations: [] }, integrity)).toBe("it has no provenance");
+    expect(update.provenanceProblem(undefined, integrity)).toBe("it has no provenance");
   });
 });
