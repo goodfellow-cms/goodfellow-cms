@@ -51,7 +51,8 @@ const MAIN = "main";
  * Links to GitHub's token pages with what creating a site needs: creating the
  * repository and adding deploy keys (administration), writing its files and
  * its build setup (contents and workflows), turning on GitHub Pages (pages),
- * and giving a workflow the key to another of the site's repositories (secrets).
+ * giving a workflow the key to another of the site's repositories (secrets),
+ * and starting a full-stack site's first workflow (actions).
  */
 export function githubSetupTokenLinks(webUrl = "https://github.com") {
   const fineGrained = new URLSearchParams({
@@ -63,6 +64,7 @@ export function githubSetupTokenLinks(webUrl = "https://github.com") {
     workflows: "write",
     pages: "write",
     secrets: "write",
+    actions: "write",
   });
   const classic = new URLSearchParams({ scopes: "repo,workflow", description: "Goodfellow site setup" });
   return {
@@ -233,8 +235,52 @@ function setupAccount(creator: Creator): SetupAccount {
     }
   }
 
+  /** The token for a repository this account created. */
+  function createdApi(repo: string): ApiOptions {
+    const api = createdApis.get(repo.toLowerCase());
+    if (!api) throw new Error(`${repo} wasn't created with this sign-in.`);
+    return api;
+  }
+
   return {
     user: creator.user,
+    async saveSecrets(repo, secrets) {
+      const api = createdApi(repo);
+      const { sealSecret } = await import("./deploy-keys.js");
+      const base = `/repos/${repoPath(repo)}/actions/secrets`;
+      try {
+        const publicKey = await githubJson<{ key_id: string; key: string }>(api, `${base}/public-key`);
+        for (const [name, value] of Object.entries(secrets)) {
+          if (!/^[A-Z][A-Z0-9_]*$/.test(name)) throw new Error(`${name} isn't a secret's name.`);
+          const sealed = await sealSecret(value, decodeBase64(publicKey.key));
+          await githubRequest(api, `${base}/${name}`, {
+            method: "PUT",
+            body: { encrypted_value: encodeBase64Bytes(sealed), key_id: publicKey.key_id },
+          });
+        }
+      } catch (error) {
+        if (error instanceof GitApiError && [401, 403, 404].includes(error.status)) {
+          throw new SetupError("not-allowed", `This sign-in can't save ${repo}'s secrets.`);
+        }
+        throw error;
+      }
+    },
+    async startWorkflow(repo, workflow) {
+      const response = await githubRequest(
+        createdApi(repo),
+        `/repos/${repoPath(repo)}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
+        { method: "POST", body: { ref: MAIN }, allow: [401, 403, 404, 422] },
+      );
+      return response.ok;
+    },
+    async readFile(repo, path) {
+      const response = await githubRequest(
+        createdApi(repo),
+        `/repos/${repoPath(repo)}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${MAIN}`,
+        { accept: "application/vnd.github.raw+json", allow: [404] },
+      );
+      return response.status === 404 ? undefined : await response.text();
+    },
     owners: () => creator.owners(),
     isAvailable: (owner, name) => creator.isAvailable(owner, name),
     async createSite(

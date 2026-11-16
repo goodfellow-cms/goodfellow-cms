@@ -222,4 +222,38 @@ describe("githubSetup", () => {
     expect(open.warnings).toEqual([]);
     expect(fake.created.get("someone/open")?.deployKeys).toEqual([]);
   });
+
+  it("saves secrets, starts workflows, and reads files of the repositories it created, and only those", async () => {
+    const { fake, host } = setup({ repo: "someone/existing", tokens: { t: { login: "someone" } } });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    await account.createSite({ owner, name: "site", private: true, pages: false, files, message: "Create" });
+    await account.saveSecrets?.("someone/site", { CLOUDFLARE_API_TOKEN: "cf-token", GOODFELLOW_APP_ID: "5001" });
+    const code = fake.created.get("someone/site");
+    expect(code?.secrets.get("CLOUDFLARE_API_TOKEN")).toBe("cf-token");
+    expect(code?.secrets.get("GOODFELLOW_APP_ID")).toBe("5001");
+    expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(true);
+    expect(code?.dispatched).toEqual([{ workflow: ".github/workflows/deploy.yml", ref: "main" }]);
+    // A workflow it doesn't have.
+    expect(await account.startWorkflow?.("someone/site", "setup-cloudflare.yml")).toBe(false);
+    expect(await account.readFile?.("someone/site", "package.json")).toBe("{}\n");
+    expect(await account.readFile?.("someone/site", "wrangler.jsonc")).toBeUndefined();
+    // Not one it created.
+    await expect(account.saveSecrets?.("someone/existing", { A: "b" })).rejects.toThrow(/wasn't created/);
+    await expect(account.saveSecrets?.("someone/site", { "bad name": "b" })).rejects.toThrow(/isn't a secret/);
+  });
+
+  it("says when the sign-in can't save secrets or start workflows", async () => {
+    const { host } = setup({
+      repo: "someone/existing",
+      tokens: { t: { login: "someone", secrets: false, actionsWrite: false } },
+    });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    await account.createSite({ owner, name: "site", private: true, pages: false, files, message: "Create" });
+    await expect(account.saveSecrets?.("someone/site", { A: "b" })).rejects.toMatchObject({ problem: "not-allowed" });
+    expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(false);
+  });
 });

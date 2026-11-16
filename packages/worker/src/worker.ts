@@ -173,6 +173,8 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
     workflows: "write",
     pages: "write",
     secrets: "write",
+    // Starting a full-stack site's first workflow, which puts it online. The owners' app has it already.
+    actions: "write",
     metadata: "read",
   },
 };
