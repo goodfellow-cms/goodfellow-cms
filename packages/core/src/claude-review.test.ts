@@ -103,6 +103,14 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["blame", "-S/proc/self/environ", "a.txt"],
       ["blame", "-S", "/proc/self/environ", "a.txt"],
       ["diff", `${repo}/../outside`],
+      // Git's own folder, whose config can hold the job's token: a blob against a path prints the path's file.
+      ["diff", "HEAD:a.txt", "--", ".git/config"],
+      ["diff", "HEAD:a.txt", "./.git/config"],
+      ["diff", "HEAD:a.txt", "--", ":/.git/config"],
+      ["diff", "HEAD:a.txt", "--", ":(top).git/config"],
+      ["diff", "HEAD:a.txt", "--", ":(literal).git//config"],
+      ["diff", "HEAD:a.txt", "--", `${repo}/.git/config`],
+      ["diff", "HEAD:a.txt", "--", ".git"],
       // Git's own options first, which only the action's own git uses, would skip every check.
       ["--no-pager", "diff", "--output=x", "HEAD"],
       ["-c", "core.fsmonitor=x", "diff"],
@@ -120,6 +128,7 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["blame", join(repo, "a.txt")],
       ["diff", "--text", "HEAD~1", "HEAD"],
       ["log", "-L/two/,+1:a.txt", "-1"],
+      ["diff", "HEAD~1", "HEAD", "--", "not.git"],
     ]) {
       const result = review(...args);
       expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
@@ -178,19 +187,23 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
     expect(existsSync(marker)).toBe(true);
   });
 
-  it("takes links that lead outside the checkout out of it, and keeps the rest", () => {
+  it("takes links that lead outside the checkout, or into git's own folder, out of it, and keeps the rest", () => {
     const { repo, git } = setUp((repo) => {
       symlinkSync("/etc/hostname", join(repo, "out"));
       symlinkSync("out", join(repo, "chain"));
       symlinkSync("a.txt", join(repo, "in"));
       symlinkSync("round", join(repo, "round"));
       symlinkSync("nothing-here", join(repo, "missing"));
+      symlinkSync(".git", join(repo, "dotgit"));
+      symlinkSync(".git/config", join(repo, "config"));
       sh("git", ["add", "."], repo);
       sh("git", ["commit", "-qm", "links"], repo);
     });
     expect(existsSync(join(repo, "in"))).toBe(true);
     // So do ones that lead nowhere, round in a loop or to a missing file, without stopping the step.
-    for (const link of ["out", "chain", "round", "missing"]) expect(() => lstatSync(join(repo, link))).toThrow();
+    for (const link of ["out", "chain", "round", "missing", "dotgit", "config"]) {
+      expect(() => lstatSync(join(repo, link))).toThrow();
+    }
     // Git still has them, so the change reads as it was.
     expect(git("status", "--porcelain").stdout).toBe("");
   });
