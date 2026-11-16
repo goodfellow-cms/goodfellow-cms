@@ -141,7 +141,24 @@ export interface SetupAccount {
   owners(): Promise<SetupOwner[]>;
   /** Whether a repository with this name can still be created there. */
   isAvailable(owner: SetupOwner, name: string): Promise<boolean>;
-  createSite(site: NewSiteRepository, onStep?: (step: SetupStep) => void): Promise<CreatedSiteRepository>;
+  /**
+   * Creates the site's repository and sets it up. `onCreated` is told the repository's path as soon as the host has
+   * made it, before anything else that could fail, so a caller can say what's left where the rest of the setup fails.
+   */
+  createSite(
+    site: NewSiteRepository,
+    onStep?: (step: SetupStep) => void,
+    onCreated?: (repo: string) => void,
+  ): Promise<CreatedSiteRepository>;
+  /**
+   * Saves secrets for a repository this account created, for its workflows, which never give them back. Throws
+   * `SetupError` `not-allowed` where the sign-in can't. Not every host has it.
+   */
+  saveSecrets?(repo: string, secrets: Record<string, string>): Promise<void>;
+  /** Starts a workflow of a repository this account created, on its main branch, saying whether the host did. */
+  startWorkflow?(repo: string, workflow: string): Promise<boolean>;
+  /** A file of a repository this account created, as its main branch has it now, or nothing where it has none. */
+  readFile?(repo: string, path: string): Promise<string | undefined>;
 }
 
 /** Signing in to a git host to create a site. Tokens are kept in memory only, since they're needed just once. */

@@ -1,11 +1,18 @@
-# Builds the site with its content and puts it online on Cloudflare: after every change to the code, and when the
-# content repository asks (see README.md), which it does after each publish.
+# Builds the site with its content and puts it online on Cloudflare: after every change to the code, and each night,
+# so new photos and other files published to the content repository reach the site (pages show a publish without a
+# build). It deploys only the main branch's newest commit, so an older run started again never puts older code back.
 #
 # It needs these secrets (Settings → Secrets and variables → Actions):
-# - CLOUDFLARE_API_TOKEN, a token made from Cloudflare's "Edit Cloudflare Workers" template, which can also apply the
-#   database's migrations, and CLOUDFLARE_ACCOUNT_ID, the account it's for.
+# - CLOUDFLARE_API_TOKEN, a token that can edit Workers, D1, and KV, which can also apply the database's migrations.
+#   wrangler.jsonc's account_id says which account, which Set up Cloudflare writes; or set CLOUDFLARE_ACCOUNT_ID.
 # - GOODFELLOW_CONTENT_KEY, if the content repository is private: the private half of a deploy key that can only read
 #   it, whose public half is added to the content repository (Settings → Deploy keys, without write access).
+# - GOODFELLOW_APP_ID and GOODFELLOW_APP_KEY, the site's publishing app: a GitHub App installed on the content
+#   repository alone, which the Worker makes hour-long tokens for it with (README.md's "Publishing"). Or else
+#   GOODFELLOW_GIT_TOKEN, a fine-grained token (Contents: Read and write, on the content repository only). Each deploy
+#   gives them to the Worker, where they aren't set with wrangler instead.
+# - BETTER_AUTH_SECRET, if you want to choose the session key yourself: otherwise the first deploy makes one and gives
+#   it only to the Worker, and later deploys keep it.
 # - EMAIL_API_KEY, the email service's key, which each deploy gives the Worker.
 # - STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, for taking payments (README.md's "Payments"), which each deploy gives
 #   the Worker too.
@@ -18,6 +25,8 @@ name: Deploy
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "23 4 * * *"
   workflow_dispatch:
 
 permissions: {}
@@ -28,13 +37,107 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Until wrangler.jsonc names the site's database and cache (setup-cloudflare.yml), there's nothing to deploy to, so
+  # the rest is skipped rather than fail, as on the commits that create a site on Goodfellow's setup page. Runs for
+  # other branches are skipped too: only main is the site.
+  ready:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: check
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::notice::Only the main branch is put online, and this run is for $GITHUB_REF."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif grep -q -e '"your-database-id"' -e '"your-kv-namespace-id"' wrangler.jsonc; then
+            echo "::notice::wrangler.jsonc doesn't name the site's database and cache yet: run Set up Cloudflare first."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  lockfile:
+    # When package.json names packages package-lock.json doesn't have, such as a plugin installed from the
+    # admin panel: writes package-lock.json, installing nothing and running none of the packages' code, with
+    # releases at least 3 days old for what it adds. publish-lockfile publishes it.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.lockfile.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          check-latest: true
+      - id: lockfile
+        env:
+          CHECK: 'const fs = require("fs"); const read = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return undefined; } }; const site = read("package.json") || {}; const root = ((read("package-lock.json") || {}).packages || {})[""]; const same = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort()); process.exit(root && ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].every((key) => same(site[key], root[key])) ? 0 : 1);'
+          EARLY: 'const fs = require("fs"); let record; try { record = JSON.parse(fs.readFileSync("plugins/installed/installed.json", "utf8")); } catch { process.exit(0); } process.exit(Object.values(record.plugins || {}).some((plugin) => plugin && plugin.early) ? 1 : 0);'
+        run: |
+          if node -e "$CHECK"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          elif node -e "$EARLY"; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            # A plugin installed before it was 3 days old, which only its provenance allows:
+            # checked first, and if it doesn't check out the job fails, publishing nothing.
+            core=$(node -e 'const release = (require("./package.json").dependencies || {})["@goodfellow-cms/core"]; if (!/^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } console.log(release);') || exit 1; npm exec --yes --package="@goodfellow-cms/core@$core" -- goodfellow-early
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.lockfile.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockfile
+          path: package-lock.json
+          retention-days: 1
+
+  publish-lockfile:
+    # Publishes the lockfile, without running any of the site's code.
+    needs: lockfile
+    if: needs.lockfile.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.publish.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: lockfile
+      - id: publish
+        env:
+          # The lockfile was written where the site's packages were read, so it's checked before it's published.
+          CHECK: 'const { execFileSync } = require("child_process"); const fs = require("fs"); const read = (text) => { try { return JSON.parse(text); } catch { return undefined; } }; const found = (value, into) => { if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) { if (key === "resolved") into.add(String(item)); else found(item, into); } return into; }; let before; try { before = read(execFileSync("git", ["show", "HEAD:package-lock.json"], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] })); } catch {} const had = found(before, new Set()); const refused = [...found(read(fs.readFileSync("package-lock.json", "utf8")), new Set())].filter((address) => !had.has(address) && !address.startsWith("https://registry.npmjs.org/")); for (const address of refused) console.log("::error::package-lock.json takes a package from somewhere other than npm, so it was not published: " + address); process.exit(refused.length > 0 ? 1 : 0);'
+        run: |
+          node -e "$CHECK"
+          git add package-lock.json
+          git -c user.name="Goodfellow" -c user.email=lockfile@goodfellow.invalid commit -m "Write package-lock.json for the packages package.json names"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: [ready, lockfile, publish-lockfile]
+    # Never after the lockfile job failed, and with the lockfile it published, where it published one.
+    if: ${{ !cancelled() && needs.ready.outputs.ready == 'true' && needs.lockfile.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ needs.publish-lockfile.outputs.sha || github.sha }}
           persist-credentials: false
       # The site's content, in content-repository/, as on a developer's computer.
       - uses: actions/checkout@v5
@@ -63,26 +166,50 @@ jobs:
   # Runs none of the site's code, so the Cloudflare token never meets it: it only applies the database's migrations
   # and uploads what the build job built, with wrangler.
   deploy:
-    needs: build
+    needs: [build, publish-lockfile]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      # A run started again for an older commit, or one a newer commit's run will follow, deploys nothing.
+      - name: Check it's main's newest commit
+        id: head
+        run: |
+          newest=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$newest" = "$DEPLOYING" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has a newer commit than $DEPLOYING, which its own run puts online, so this one doesn't."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYING: ${{ needs.publish-lockfile.outputs.sha || github.sha }}
+      - if: steps.head.outputs.current == 'true'
+        uses: actions/checkout@v5
         with:
+          ref: ${{ needs.publish-lockfile.outputs.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - if: steps.head.outputs.current == 'true'
+        uses: actions/download-artifact@v4
         with:
           name: worker
-      - uses: actions/setup-node@v5
+      - if: steps.head.outputs.current == 'true'
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           check-latest: true
           cache: npm
       # .npmrc's ignore-scripts=true keeps every package's install scripts from running.
-      - run: npm ci
-      # Each migration that hasn't run yet, before the code that needs it is online.
-      - run: npx wrangler d1 migrations apply goodfellow-company --remote
+      - if: steps.head.outputs.current == 'true'
+        run: npm ci
+      # Each migration that hasn't run yet, before the code that needs it is online. Without CLOUDFLARE_ACCOUNT_ID,
+      # wrangler.jsonc's account_id says the account.
+      - if: steps.head.outputs.current == 'true'
+        run: |
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || unset CLOUDFLARE_ACCOUNT_ID
+          npx wrangler d1 migrations apply goodfellow-company --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -90,17 +217,42 @@ jobs:
       # has none, so one taken away there goes from the Worker too (wrangler.jsonc keeps variables a deploy isn't
       # given, so deploys from a computer don't touch them). The keys go up with the deploy, from a file only this
       # job reads, removed however the deploy ends; for a secret the repository doesn't have, the Worker keeps the one
-      # it has. Values reach the script through `env`, never its text.
+      # it has. Values reach the script through `env`, never its text. On the first deploy, where neither the
+      # repository nor the Worker has a session key, one is made here, which only the Worker is given.
       - name: Deploy
+        if: steps.head.outputs.current == 'true'
         run: |
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || unset CLOUDFLARE_ACCOUNT_ID
           secrets="$RUNNER_TEMP/secrets.json"
           trap 'rm -f "$secrets"' EXIT
           args=()
+          if [ -z "$BETTER_AUTH_SECRET" ]; then
+            # The Worker's secrets' names, or none for a Worker that doesn't exist yet (Cloudflare's error 10007,
+            # which wrangler says as `Worker "…" not found`); anything else stops the deploy, rather than replace a
+            # session key it couldn't see.
+            said="$RUNNER_TEMP/secret-list.txt"
+            if listed=$(npx wrangler secret list --format json 2>"$said"); then
+              has=$(printf '%s' "$listed" | node -e '
+                const text = require("node:fs").readFileSync(0, "utf8");
+                const names = JSON.parse(text.slice(text.search(/^\[/m))).map((secret) => secret.name);
+                process.stdout.write(names.includes("BETTER_AUTH_SECRET") ? "yes" : "no");
+              ')
+            elif grep -q -E '10007|Worker "[^"]*" not found' "$said"; then
+              has=no
+            else
+              echo "Couldn't read the Worker's secrets, so this deploy stops rather than make a new session key."
+              exit 1
+            fi
+            if [ "$has" = no ]; then
+              BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+              export BETTER_AUTH_SECRET
+            fi
+          fi
           for name in EMAIL_PROVIDER EMAIL_FROM EMAIL_DOMAIN EMAIL_REGION EMAIL_KEY_ID; do
             args+=(--var "$name:${!name}")
           done
           (umask 077 && node -e '
-            const names = ["EMAIL_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
+            const names = ["BETTER_AUTH_SECRET", "GOODFELLOW_APP_ID", "GOODFELLOW_APP_KEY", "GOODFELLOW_GIT_TOKEN", "EMAIL_API_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"];
             const given = Object.fromEntries(names.filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
             process.stdout.write(JSON.stringify(given));
           ' > "$secrets")
@@ -116,6 +268,64 @@ jobs:
           EMAIL_DOMAIN: ${{ vars.EMAIL_DOMAIN }}
           EMAIL_REGION: ${{ vars.EMAIL_REGION }}
           EMAIL_KEY_ID: ${{ vars.EMAIL_KEY_ID }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          GOODFELLOW_APP_ID: ${{ secrets.GOODFELLOW_APP_ID }}
+          GOODFELLOW_APP_KEY: ${{ secrets.GOODFELLOW_APP_KEY }}
+          GOODFELLOW_GIT_TOKEN: ${{ secrets.GOODFELLOW_GIT_TOKEN }}
           EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      # The site's domain, as the Worker's own, once the Worker exists: on every deploy until it's connected, where its
+      # zone is on the Cloudflare account. Never with DNS records already there, which Cloudflare's dashboard offers to
+      # replace, and never failing the deploy: it only warns.
+      - name: Connect the domain
+        if: steps.head.outputs.current == 'true'
+        continue-on-error: true
+        run: |
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] ||
+            CLOUDFLARE_ACCOUNT_ID=$(sed -n 's/^ *"account_id": "\([0-9a-f]\{32\}\)".*/\1/p' wrangler.jsonc | head -n 1)
+          host=$(sed -n 's/.*"GOODFELLOW_SITE_URL": "https:\/\/\([a-z0-9.-]*\)".*/\1/p' wrangler.jsonc | head -n 1)
+          worker=$(sed -n 's/^  "name": "\([a-z0-9-]*\)".*/\1/p' wrangler.jsonc | head -n 1)
+          if [ -z "$host" ] || [[ "$host" == *.workers.dev ]] || [ -z "$worker" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            exit 0
+          fi
+          api="https://api.cloudflare.com/client/v4"
+          ask() { curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "content-type: application/json" "$@" || true; }
+          # Reads Cloudflare's answer on standard input with the script $1, given the rest as its arguments.
+          read_answer() {
+            node -e '
+              let answer = {};
+              try { answer = JSON.parse(require("node:fs").readFileSync(0, "utf8")); } catch {}
+              const [, script, ...rest] = process.argv;
+              process.stdout.write(String(new Function("answer", "rest", script)(answer, rest) ?? ""));
+            ' "$@"
+          }
+          attached=$(ask "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains?hostname=$host" | read_answer '
+            return (answer.result ?? []).some((domain) => domain.hostname === rest[0] && domain.service === rest[1]) ? "yes" : "";
+          ' "$host" "$worker")
+          [ "$attached" = yes ] && exit 0
+          # Its zone: the address's own name, or the nearest one above it on the account.
+          name=$host
+          zone=""
+          while [[ "$name" == *.* ]]; do
+            zone=$(ask "$api/zones?name=$name&account.id=$CLOUDFLARE_ACCOUNT_ID" | read_answer 'return answer.result?.[0]?.id;')
+            [[ "$zone" =~ ^[0-9a-f]{32}$ ]] && break
+            zone=""
+            name=${name#*.}
+          done
+          if [ -z "$zone" ]; then
+            echo "::warning::$host's zone isn't on this Cloudflare account, or the token can't see it, so the site isn't at $host yet. Add the domain to Cloudflare, then run Deploy again, or add it to the Worker yourself (Workers & Pages → $worker → Settings → Domains & Routes)."
+            exit 0
+          fi
+          body=$(node -e 'process.stdout.write(JSON.stringify({ hostname: process.argv[1], service: process.argv[2], zone_id: process.argv[3], environment: "production" }))' "$host" "$worker" "$zone")
+          said=$(ask -X PUT "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains" --data "$body" | read_answer '
+            return answer.success === true ? "connected" : (answer.errors ?? []).map((error) => error.message).join(" ") || "no answer";
+          ')
+          if [ "$said" = connected ]; then
+            echo "The site is at https://$host." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::Cloudflare didn't give the Worker $host ($said). Where $host has DNS records already, add it in the dashboard (Workers & Pages → $worker → Settings → Domains & Routes), which offers to replace them."
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

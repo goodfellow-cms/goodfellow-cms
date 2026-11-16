@@ -453,7 +453,7 @@ describe("scaffoldServer", { timeout: GIT_TIMEOUT }, () => {
     expect((await lstat(join(target, "content"))).isSymbolicLink()).toBe(true);
     expect(existsSync(join(target, "content-repository/content/pages/index.json"))).toBe(true);
     expect(existsSync(join(target, "content/pages/index.json"))).toBe(true);
-    expect(await read("content-repository/.github/workflows/deploy-site.yml")).toContain("--repo acme/site");
+    expect(existsSync(join(target, "content-repository/.github"))).toBe(false);
     await expect(scaffoldServer({ template: company, target, versions })).rejects.toThrow(ScaffoldError);
   });
 });

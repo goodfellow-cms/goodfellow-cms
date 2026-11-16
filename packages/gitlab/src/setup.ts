@@ -207,7 +207,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
         return [...owners.filter((owner) => owner.kind === "personal"), ...owners.filter((o) => o.kind !== "personal")];
       },
       isAvailable,
-      async createSite(site: NewSiteRepository, onStep): Promise<CreatedSiteRepository> {
+      async createSite(site: NewSiteRepository, onStep, onCreated): Promise<CreatedSiteRepository> {
         onStep?.("repository");
         if (!(await isAvailable(site.owner, site.name))) {
           throw new SetupError("name-taken", `There's already a project called ${site.owner.path}/${site.name}.`);
@@ -235,6 +235,7 @@ export function gitlabSetup(options: GitLabSetupOptions = {}): SetupHost {
           }
           throw error;
         }
+        onCreated?.(project.path_with_namespace);
         const warnings: SetupWarning[] = [];
         const unconnected: UnmadeConnection[] = [];
         if (site.link) {

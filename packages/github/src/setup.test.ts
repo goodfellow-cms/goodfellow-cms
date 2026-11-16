@@ -5,9 +5,18 @@ import { fakeGitHub } from "./testing.js";
 
 const files = [
   { path: "package.json", content: "{}\n" },
-  { path: ".github/workflows/deploy.yml", content: "name: Deploy\n" },
+  { path: ".github/workflows/deploy.yml", content: "name: Deploy\non:\n  workflow_dispatch:\n" },
   { path: "public/media/logo.png", bytes: new Uint8Array([137, 80, 78, 71, 0, 255]) },
 ];
+
+/** The fake's fetch, refusing every request whose address matches. */
+function refusing(fetch: typeof globalThis.fetch, address: RegExp): typeof globalThis.fetch {
+  return async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (!address.test(url)) return fetch(input, init);
+    return new Response('{"message":"Server Error"}', { status: 500, headers: { "content-type": "application/json" } });
+  };
+}
 
 function setup(options: Parameters<typeof fakeGitHub>[0] = { repo: "someone/existing" }) {
   const fake = fakeGitHub(options);
@@ -15,6 +24,23 @@ function setup(options: Parameters<typeof fakeGitHub>[0] = { repo: "someone/exis
 }
 
 describe("githubSetup", () => {
+  it("says which repository it made as soon as GitHub has made it, before the rest of its setup can fail", async () => {
+    const fake = fakeGitHub({ repo: "someone/existing", newRepoBranch: "master", tokens: { t: { login: "someone" } } });
+    const account = await githubSetup({ fetch: refusing(fake.fetch, /\/git\/ref\//) }).signInWithToken("t");
+    const [owner] = await account.owners();
+    if (!owner) throw new Error("no owner");
+    const made: string[] = [];
+    await expect(
+      account.createSite(
+        { owner, name: "parish", private: false, pages: false, files, message: "Create the site" },
+        undefined,
+        (repo) => made.push(repo),
+      ),
+    ).rejects.toThrow();
+    expect(fake.created.has("someone/parish")).toBe(true);
+    expect(made).toEqual(["someone/parish"]);
+  });
+
   it("lists the person's own account first, then their organizations", async () => {
     const { host } = setup({ repo: "someone/existing", orgs: ["st-joseph"], tokens: { t: { login: "someone" } } });
     const account = await host.signInWithToken(" t ");
@@ -195,5 +221,81 @@ describe("githubSetup", () => {
     });
     expect(open.warnings).toEqual([]);
     expect(fake.created.get("someone/open")?.deployKeys).toEqual([]);
+  });
+
+  it("saves secrets, starts workflows, and reads files of the repositories it created, and only those", async () => {
+    const { fake, host } = setup({ repo: "someone/existing", tokens: { t: { login: "someone", actionsWrite: true } } });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    // With a workflow that runs only on its schedule, which can't be started by hand.
+    // Its comment and a job's name mention workflow_dispatch, which doesn't make it one.
+    const scheduled = {
+      path: ".github/workflows/scheduled.yml",
+      content:
+        "name: Scheduled\n# Not workflow_dispatch: it runs only on its schedule.\non:\n  schedule: []\njobs:\n  workflow_dispatch:\n    runs-on: ubuntu-latest\n",
+    };
+    await account.createSite({
+      owner,
+      name: "site",
+      private: true,
+      pages: false,
+      files: [
+        ...files,
+        scheduled,
+        { path: ".github/workflows/listed.yml", content: "on: [push, workflow_dispatch] # by hand too\n" },
+        { path: ".github/workflows/mapped.yml", content: "on: {push: {branches: [main]}, workflow_dispatch: {}}\n" },
+        // Only pushes, to a branch that happens to share the name.
+        { path: ".github/workflows/branch.yml", content: "on: {push: {branches: [workflow_dispatch]}}\n" },
+      ],
+      message: "Create",
+    });
+    await account.saveSecrets?.("someone/site", { CLOUDFLARE_API_TOKEN: "cf-token", GOODFELLOW_APP_ID: "5001" });
+    const code = fake.created.get("someone/site");
+    expect(code?.secrets.get("CLOUDFLARE_API_TOKEN")).toBe("cf-token");
+    expect(code?.secrets.get("GOODFELLOW_APP_ID")).toBe("5001");
+    expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(true);
+    expect(code?.dispatched).toEqual([{ workflow: ".github/workflows/deploy.yml", ref: "main" }]);
+    // A workflow it doesn't have, or one that can't be started by hand.
+    expect(await account.startWorkflow?.("someone/site", "setup-cloudflare.yml")).toBe(false);
+    expect(await account.startWorkflow?.("someone/site", "scheduled.yml")).toBe(false);
+    expect(await account.startWorkflow?.("someone/site", "listed.yml")).toBe(true);
+    expect(await account.startWorkflow?.("someone/site", "mapped.yml")).toBe(true);
+    expect(await account.startWorkflow?.("someone/site", "branch.yml")).toBe(false);
+    expect(await account.readFile?.("someone/site", "package.json")).toBe("{}\n");
+    expect(await account.readFile?.("someone/site", "wrangler.jsonc")).toBeUndefined();
+    // Not one it created.
+    await expect(account.saveSecrets?.("someone/existing", { A: "b" })).rejects.toThrow(/wasn't created/);
+    await expect(account.saveSecrets?.("someone/site", { "bad name": "b" })).rejects.toThrow(/isn't a secret/);
+  });
+
+  it("says the same once GitHub stops taking the sign-in, which it answers with a 401", async () => {
+    const fake = fakeGitHub({ repo: "someone/existing", tokens: { t: { login: "someone", actionsWrite: true } } });
+    let expired = false;
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      expired
+        ? Response.json({ message: "Bad credentials" }, { status: 401 })
+        : fake.fetch(input, init)) as typeof fetch;
+    const account = await githubSetup({ fetch: fetcher }).signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    await account.createSite({ owner, name: "site", private: true, pages: false, files, message: "Create" });
+    expired = true;
+    await expect(account.saveSecrets?.("someone/site", { A: "b" })).rejects.toMatchObject({ problem: "not-allowed" });
+    expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(false);
+  });
+
+  it("says when the sign-in can't save secrets or start workflows", async () => {
+    const { host } = setup({
+      repo: "someone/existing",
+      // A token without Actions write, which it has only where it says so (or has Administration).
+      tokens: { t: { login: "someone", secrets: false } },
+    });
+    const account = await host.signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    await account.createSite({ owner, name: "site", private: true, pages: false, files, message: "Create" });
+    await expect(account.saveSecrets?.("someone/site", { A: "b" })).rejects.toMatchObject({ problem: "not-allowed" });
+    expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(false);
   });
 });

@@ -51,7 +51,8 @@ const MAIN = "main";
  * Links to GitHub's token pages with what creating a site needs: creating the
  * repository and adding deploy keys (administration), writing its files and
  * its build setup (contents and workflows), turning on GitHub Pages (pages),
- * and giving a workflow the key to another of the site's repositories (secrets).
+ * giving a workflow the key to another of the site's repositories (secrets),
+ * and starting a full-stack site's first workflow (actions).
  */
 export function githubSetupTokenLinks(webUrl = "https://github.com") {
   const fineGrained = new URLSearchParams({
@@ -63,6 +64,7 @@ export function githubSetupTokenLinks(webUrl = "https://github.com") {
     workflows: "write",
     pages: "write",
     secrets: "write",
+    actions: "write",
   });
   const classic = new URLSearchParams({ scopes: "repo,workflow", description: "Goodfellow site setup" });
   return {
@@ -89,7 +91,8 @@ interface Creator {
   user: GitUser;
   owners(): Promise<SetupOwner[]>;
   isAvailable(owner: SetupOwner, name: string): Promise<boolean>;
-  create(site: NewSiteRepository): Promise<CreatedRepo>;
+  /** Creates the repository, telling `onCreated` as soon as it exists, even where the rest of the creating fails. */
+  create(site: NewSiteRepository, onCreated?: (repo: string) => void): Promise<CreatedRepo>;
   /** Who the first commit names, when the token is an app's rather than the person's. */
   author?: { name: string; email: string };
 }
@@ -232,14 +235,68 @@ function setupAccount(creator: Creator): SetupAccount {
     }
   }
 
+  /** The token for a repository this account created. */
+  function createdApi(repo: string): ApiOptions {
+    const api = createdApis.get(repo.toLowerCase());
+    if (!api) throw new Error(`${repo} wasn't created with this sign-in.`);
+    return api;
+  }
+
   return {
     user: creator.user,
+    async saveSecrets(repo, secrets) {
+      const api = createdApi(repo);
+      const { sealSecret } = await import("./deploy-keys.js");
+      const base = `/repos/${repoPath(repo)}/actions/secrets`;
+      try {
+        const publicKey = await githubJson<{ key_id: string; key: string }>(api, `${base}/public-key`);
+        for (const [name, value] of Object.entries(secrets)) {
+          if (!/^[A-Z][A-Z0-9_]*$/.test(name)) throw new Error(`${name} isn't a secret's name.`);
+          const sealed = await sealSecret(value, decodeBase64(publicKey.key));
+          await githubRequest(api, `${base}/${name}`, {
+            method: "PUT",
+            body: { encrypted_value: encodeBase64Bytes(sealed), key_id: publicKey.key_id },
+          });
+        }
+      } catch (error) {
+        // GitHub's refusal, or a sign-in it no longer takes (`githubRequest()` makes a 401 a `SignInError`).
+        if ((error instanceof GitApiError && [403, 404].includes(error.status)) || error instanceof SignInError) {
+          throw new SetupError("not-allowed", `This sign-in can't save ${repo}'s secrets.`);
+        }
+        throw error;
+      }
+    },
+    async startWorkflow(repo, workflow) {
+      try {
+        const response = await githubRequest(
+          createdApi(repo),
+          `/repos/${repoPath(repo)}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
+          { method: "POST", body: { ref: MAIN }, allow: [403, 404, 422] },
+        );
+        return response.ok;
+      } catch (error) {
+        if (error instanceof SignInError) return false;
+        throw error;
+      }
+    },
+    async readFile(repo, path) {
+      const response = await githubRequest(
+        createdApi(repo),
+        `/repos/${repoPath(repo)}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${MAIN}`,
+        { accept: "application/vnd.github.raw+json", allow: [404] },
+      );
+      return response.status === 404 ? undefined : await response.text();
+    },
     owners: () => creator.owners(),
     isAvailable: (owner, name) => creator.isAvailable(owner, name),
-    async createSite(site, onStep?: (step: SetupStep) => void): Promise<CreatedSiteRepository> {
+    async createSite(
+      site,
+      onStep?: (step: SetupStep) => void,
+      onCreated?: (repo: string) => void,
+    ): Promise<CreatedSiteRepository> {
       const warnings: SetupWarning[] = [];
       onStep?.("repository");
-      const { repo, api, signInInstallUrl } = await creator.create(site);
+      const { repo, api, signInInstallUrl } = await creator.create(site, onCreated);
       const connect = async (link: RepositoryLink) => {
         onStep?.("connect");
         return connectRepositories(link);
@@ -303,7 +360,7 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
       return [own, ...orgs.map((org): SetupOwner => ({ path: org.login, name: org.login, kind: "organization" }))];
     },
     isAvailable,
-    async create(site) {
+    async create(site, onCreated) {
       const path =
         site.owner.kind === "personal" ? "/user/repos" : `/orgs/${encodeURIComponent(site.owner.path)}/repos`;
       // GitHub's answer when a name is taken doesn't say so in its message, so it's checked first.
@@ -316,6 +373,7 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
           method: "POST",
           body: { name: site.name, private: site.private, description: site.description, auto_init: true },
         });
+        onCreated?.(repo.full_name);
         return { repo, api };
       } catch (error) {
         if (error instanceof GitApiError && error.status === 422) {
@@ -337,10 +395,17 @@ async function tokenCreator(api: ApiOptions): Promise<Creator> {
 function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof fetch, signedIn: SignedIn): Creator {
   let session = signedIn.session;
 
-  async function call<T>(path: string, body: Record<string, unknown>): Promise<Partial<T>> {
+  async function call<T>(
+    path: string,
+    body: Record<string, unknown>,
+    onProblem?: (answer: WorkerProblem) => void,
+  ): Promise<Partial<T>> {
     const answer = await service.postAnswer<T & { session?: string }>(path, { session, ...body });
     if (typeof answer.body.session === "string") session = answer.body.session;
-    if (!answer.ok) throw setupProblem(answer.body);
+    if (!answer.ok) {
+      onProblem?.(answer.body);
+      throw setupProblem(answer.body);
+    }
     return answer.body;
   }
 
@@ -362,7 +427,7 @@ function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof f
       const found = await call<{ available: boolean }>("/github/setup/available", { owner: owner.path, name });
       return found.available === true;
     },
-    async create(site) {
+    async create(site, onCreated) {
       if (site.owner.installUrl) {
         throw new SetupError(
           "not-installed",
@@ -379,8 +444,14 @@ function workerCreator(service: SignInService, apiUrl: string, fetcher: typeof f
           description: site.description,
           ...(site.more && { more: true }),
         },
+        // The worker made the repository but couldn't finish: it names it, which is only ever the one asked for.
+        (answer) => {
+          const asked = `${site.owner.path}/${site.name}`;
+          if (answer.created?.toLowerCase() === asked.toLowerCase()) onCreated?.(answer.created);
+        },
       );
       if (!created.repo || !created.token) throw new SignInError("unavailable", "The sign-in service didn't answer.");
+      onCreated?.(created.repo.full_name);
       return {
         repo: created.repo,
         api: { apiUrl, token: created.token, fetch: fetcher },

@@ -61,7 +61,8 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(join(bundled, "registry"), join(out, "registry"), { recursive: true });
 
-for (const name of ["starter", "parish", "next"]) {
+// The company example is the setup page's full-stack site (/new-site/full-stack/).
+for (const name of ["starter", "parish", "next", "company"]) {
   const dir = join(bundled, name);
   const files = Object.fromEntries(
     filesIn(dir).map((file) => [relative(dir, file).split(sep).join("/"), encode(readFileSync(file))]),

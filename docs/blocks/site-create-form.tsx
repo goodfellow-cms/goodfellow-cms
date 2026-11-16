@@ -51,7 +51,7 @@ import {
 } from "./site-setup-choices";
 import { button, fetchJson, input, LockfileWarning, link, Note, Question, type Starter } from "./site-setup-ui";
 
-const STEP_LABELS: Record<SetupStep, string> = {
+export const STEP_LABELS: Record<SetupStep, string> = {
   repository: "Creating the repository",
   pages: "Turning on GitHub Pages",
   files: "Adding the site's files",
@@ -65,7 +65,7 @@ const STEP_LABELS: Record<SetupStep, string> = {
  */
 const CHOICES_KEY = "goodfellow:setup:choices";
 
-function decodeBase64(base64: string): Uint8Array {
+export function decodeBase64(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
@@ -98,14 +98,17 @@ async function siteFiles(
         ? { registries: { [GOODFELLOW_REGISTRY]: registryUrl.replace("%7Bname%7D", "{name}") }, fetchJson }
         : undefined,
   });
-  if (starter.lockfile) {
-    const lockfile = JSON.parse(starter.lockfile) as { name?: string; packages?: Record<string, { name?: string }> };
-    lockfile.name = sitePackageName(name);
-    const root = lockfile.packages?.[""];
-    if (root) root.name = sitePackageName(name);
-    files.set("package-lock.json", `${JSON.stringify(lockfile, null, 2)}\n`);
-  }
+  if (starter.lockfile) files.set("package-lock.json", namedLockfile(starter.lockfile, name));
   return files;
+}
+
+/** A starter's package-lock.json, made for a site named "my-site", with the new site's name in its place. */
+export function namedLockfile(text: string, name: string): string {
+  const lockfile = JSON.parse(text) as { name?: string; packages?: Record<string, { name?: string }> };
+  lockfile.name = sitePackageName(name);
+  const root = lockfile.packages?.[""];
+  if (root) root.name = sitePackageName(name);
+  return `${JSON.stringify(lockfile, null, 2)}\n`;
 }
 
 /** The token broker's repository's files: Goodfellow's released page, packed with the starters, and broker.json naming the site. */
@@ -132,7 +135,7 @@ async function brokerFiles(
 }
 
 /** One repository's files as the changes that write them: the content's are in its folder in the code's, `content-repository/`. */
-function fileChanges(files: SiteFiles, which: "code" | "content"): FileChange[] {
+export function fileChanges(files: SiteFiles, which: "code" | "content"): FileChange[] {
   const prefix = `${CONTENT_REPOSITORY_DIR}/`;
   return [...files].flatMap(([path, file]): FileChange[] => {
     if (path.startsWith(prefix) !== (which === "content")) return [];
@@ -147,7 +150,7 @@ function setupHost(git: GitHostName, githubSignIn: string, gitlabClientId: strin
     : gitlabSetup({ clientId: gitlabClientId || undefined });
 }
 
-function signInMessage(error: unknown): string {
+export function signInMessage(error: unknown): string {
   if (error instanceof SignInError) {
     if (error.problem === "redirect-failed") return "Signing in didn't finish. Try again.";
     if (error.problem === "unavailable" || error.problem === "wrong-address" || error.problem === "local-address") {
@@ -158,7 +161,7 @@ function signInMessage(error: unknown): string {
   return `Couldn't sign in: ${error instanceof Error ? error.message : String(error)}`;
 }
 
-function createMessage(error: unknown): string {
+export function createMessage(error: unknown): string {
   if (error instanceof SetupError) {
     if (error.problem === "name-taken") return "There's already a repository with that name. Choose another name.";
     if (error.problem === "name-invalid") {
@@ -180,7 +183,7 @@ export interface SiteCreateFormProps {
 }
 
 /** Problems a token gets around, where signing in by redirect isn't available. */
-const TOKEN_PROBLEMS = new Set(["unavailable", "wrong-address", "local-address"]);
+export const TOKEN_PROBLEMS = new Set(["unavailable", "wrong-address", "local-address"]);
 
 /**
  * The setup page's second step: the choices from the first, which its address
@@ -645,7 +648,7 @@ function CreateSite({
   );
 }
 
-function TokenForm({
+export function TokenForm({
   id,
   host,
   gitName,
@@ -780,7 +783,7 @@ function Unconnected({ left, repos }: { left: UnmadeConnection[]; repos: Created
   );
 }
 
-function RepoLink({ repo }: { repo: CreatedSiteRepository }) {
+export function RepoLink({ repo }: { repo: CreatedSiteRepository }) {
   return (
     <SiteLink className={link} href={repo.webUrl} target="_blank" rel="noopener noreferrer">
       {repo.repo}

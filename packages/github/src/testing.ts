@@ -11,6 +11,7 @@ import {
   fakeFileBytes,
   fakeFileFromBytes,
 } from "@goodfellow-cms/core/testing";
+import { pkcs1Pem } from "./app-keys.js";
 import { openSealedSecret } from "./deploy-keys.js";
 
 export interface FakeGitHubUser {
@@ -222,6 +223,8 @@ export interface FakeCreatedRepo {
   deployKeys: Array<{ title: string; key: string; read_only: boolean }>;
   /** Its Actions secrets, opened. */
   secrets: Map<string, string>;
+  /** Its workflows started through the API, in order. */
+  dispatched: Array<{ workflow: string; ref: string; inputs?: Record<string, string> }>;
   /** The key pair GitHub seals secrets with. */
   secretKey?: CryptoKeyPair;
   /** People's permission on it, by login, as `collaborators/{login}/permission` says; others have none. */
@@ -287,6 +290,8 @@ export function fakeGitHub(options: FakeGitHubOptions) {
   /** Every token that works: the test's own, and those apps' sign-ins make. */
   const principals = new Map<string, Principal>(Object.entries(tokens));
   const apps = options.apps ?? [];
+  /** Apps made from manifests whose codes haven't been turned into their details yet. */
+  const manifests = new Map<string, { app: FakeGitHubApp; pem: string; owner: string }>();
   const issued: FakeIssuedToken[] = [];
   /** OAuth codes waiting to be exchanged, and refresh tokens, by the app and person they're for. */
   const codes = new Map<string, { app: FakeGitHubApp; login: string }>();
@@ -469,6 +474,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       rulesets: [],
       deployKeys: [],
       secrets: new Map(),
+      dispatched: [],
       collaborators: new Map(Object.entries(repoOptions.collaborators ?? {})),
       categories: [],
       threads: [],
@@ -688,6 +694,7 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         rulesets: [],
         deployKeys: [],
         secrets: new Map(),
+        dispatched: [],
         categories: [],
         threads: [],
       });
@@ -805,6 +812,24 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         return json({ message: "Bad encrypted value" }, 422);
       }
       return new Response(null, { status: 201 });
+    }
+    const dispatch = rest.match(/^\/actions\/workflows\/([\w.-]+)\/dispatches$/);
+    if (dispatch && method === "POST") {
+      // As the site's own dispatch handler: a token runs workflows with Actions write, which `administration` gives.
+      const forbidden = principal.app
+        ? principal.permissions?.actions !== "write"
+        : !(principal.actionsWrite ?? principal.administration);
+      if (forbidden) return json({ message: "Resource not accessible by integration" }, 403);
+      const workflow = `.github/workflows/${dispatch[1]}`;
+      const text = repo.files().get(workflow);
+      if (text === undefined) return json({ message: "Not Found" }, 404);
+      // GitHub runs by hand only a workflow that says it may be.
+      if (!dispatchable(String(text))) {
+        return json({ message: "Workflow does not have 'workflow_dispatch' trigger" }, 422);
+      }
+      const body = (await request.json()) as { ref: string; inputs?: Record<string, string> };
+      site.dispatched.push({ workflow, ref: body.ref, ...(body.inputs && { inputs: body.inputs }) });
+      return new Response(null, { status: 204 });
     }
     if (rest === "/rulesets" && method === "POST") {
       if (site.private && !options.paidPlan) return json({ message: "Upgrade to GitHub Pro" }, 403);
@@ -1017,6 +1042,40 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     return Object.values(tokens).find((candidate) => same(candidate.login, login)) ?? { login };
   }
 
+  /**
+   * Simulates someone making an app on GitHub's "Create GitHub App" page from a manifest: the app, with a key of its
+   * own, and the code GitHub sends back to the manifest's `redirect_url`, which `app-manifests/{code}/conversions`
+   * turns into its id, slug, and key, once.
+   */
+  async function createApp(
+    manifest: { name: string; default_permissions?: Record<string, "read" | "write"> },
+    owner: string,
+  ): Promise<{ code: string; app: FakeGitHubApp }> {
+    const keys = (await crypto.subtle.generateKey(
+      { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+      true,
+      ["sign", "verify"],
+    )) as CryptoKeyPair;
+    const id = String(5000 + nextToken++);
+    const app: FakeGitHubApp = {
+      id,
+      slug: manifest.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, ""),
+      clientId: `Iv1.app${id}`,
+      clientSecret: `secret-${id}`,
+      publicKey: keys.publicKey,
+      permissions: { metadata: "read", ...manifest.default_permissions },
+      installations: [],
+    };
+    apps.push(app);
+    const pem = pkcs1Pem(new Uint8Array(await crypto.subtle.exportKey("pkcs8", keys.privateKey)));
+    const code = `manifest-code-${nextToken++}`;
+    manifests.set(code, { app, pem, owner });
+    return { code, app };
+  }
+
   /** Simulates someone signing in to an app on GitHub's page: the code GitHub sends back to the app's callback. */
   function authorize(login: string, clientId: string): string {
     const app = apps.find((candidate) => candidate.clientId === clientId);
@@ -1137,6 +1196,33 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       return new Response(null, { status: 204 });
     }
 
+    const conversion = path.match(/^\/app-manifests\/([^/]+)\/conversions$/);
+    if (conversion && request.method === "POST") {
+      const made = manifests.get(decodeURIComponent(conversion[1] ?? ""));
+      if (!made) return json({ message: "Not Found" }, 404);
+      manifests.delete(decodeURIComponent(conversion[1] ?? ""));
+      return json(
+        {
+          id: Number(made.app.id),
+          slug: made.app.slug,
+          client_id: made.app.clientId,
+          client_secret: made.app.clientSecret,
+          webhook_secret: null,
+          pem: made.pem,
+          owner: { login: made.owner },
+          permissions: made.app.permissions,
+        },
+        201,
+      );
+    }
+
+    if (path === "/installation/repositories" && request.method === "GET") {
+      const principal = principals.get(authorization.replace(/^Bearer /, ""));
+      if (!principal?.bot) return json({ message: "Bad credentials" }, 401);
+      const names = principal.repositories ?? [];
+      return json({ total_count: names.length, repositories: names.map((full_name) => ({ full_name })) });
+    }
+
     if (!/^Bearer ey/.test(authorization)) return undefined;
     const app = await appFromJwt(authorization.slice("Bearer ".length));
     if (!app) return json({ message: "A JSON web token could not be decoded" }, 401);
@@ -1146,7 +1232,13 @@ export function fakeGitHub(options: FakeGitHubOptions) {
       const fullName = decodeURIComponent(installed[1] ?? "");
       const installation = app.installations.find((candidate) => covers(candidate, fullName));
       return installation
-        ? json({ id: installation.id, account: { login: installation.account }, app_slug: app.slug })
+        ? json({
+            id: installation.id,
+            account: { login: installation.account },
+            app_slug: app.slug,
+            repository_selection: installation.repositories === "all" ? "all" : "selected",
+            permissions: app.permissions,
+          })
         : json({ message: "Not Found" }, 404);
     }
 
@@ -1158,7 +1250,12 @@ export function fakeGitHub(options: FakeGitHubOptions) {
         repositories?: string[];
         permissions?: Record<string, "read" | "write">;
       };
-      const repositories = (body.repositories ?? []).map((name) => `${installation.account}/${name}`);
+      // Without `repositories`, a token has every repository the installation has.
+      const repositories = body.repositories
+        ? body.repositories.map((name) => `${installation.account}/${name}`)
+        : installation.repositories === "all"
+          ? [options.repo, ...created.keys()].filter((name) => covers(installation, name))
+          : [...installation.repositories];
       if (repositories.some((repo) => !covers(installation, repo))) {
         return json({ message: "There is at least one repository that does not exist or is not accessible" }, 422);
       }
@@ -1757,6 +1854,9 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     commitAuthors,
     authorize,
     install,
+    createApp,
+    /** The GitHub Apps there are, those made from manifests too. */
+    apps,
     /** Repositories created through the API, or added with `addRepo()`, by `owner/name`. */
     created,
     addRepo,
@@ -1791,3 +1891,53 @@ export function fakeGitHub(options: FakeGitHubOptions) {
 }
 
 export type FakeGitHub = ReturnType<typeof fakeGitHub>;
+
+/**
+ * Whether a workflow's `on` says it may be started by hand, as GitHub reads it: `on: workflow_dispatch`, a list or
+ * map naming it, or a `workflow_dispatch:` key just under `on:`, never a word elsewhere or in a comment.
+ */
+/**
+ * The events an `on:` written on one line names: itself, a list's items, or a map's keys, at its own top level only,
+ * never a branch or path inside one (`{push: {branches: [workflow_dispatch]}}`).
+ */
+function topLevelEvents(value: string): string[] {
+  const unquote = (name: string) => name.trim().replace(/^["']|["']$/g, "");
+  const open = value[0];
+  if (open !== "[" && open !== "{") return [unquote(value)];
+  const events: string[] = [];
+  let depth = 0;
+  let part = "";
+  for (const char of value.slice(1)) {
+    if (char === "[" || char === "{") depth++;
+    if (char === "]" || char === "}") {
+      if (depth === 0) break;
+      depth--;
+    }
+    if (char === "," && depth === 0) {
+      events.push(part);
+      part = "";
+    } else {
+      part += char;
+    }
+  }
+  events.push(part);
+  // A map's keys are before their colons.
+  return events.map((item) => unquote(open === "{" ? (item.split(":")[0] ?? "") : item)).filter(Boolean);
+}
+
+function dispatchable(workflow: string): boolean {
+  const lines = workflow.split("\n").map((line) => line.replace(/(^|\s)#.*$/, "$1").trimEnd());
+  const at = lines.findIndex((line) => /^["']?on["']?\s*:/.test(line));
+  if (at < 0) return false;
+  const rest = (lines[at] ?? "").replace(/^["']?on["']?\s*:/, "").trim();
+  if (rest) return topLevelEvents(rest).includes("workflow_dispatch");
+  let indent: number | undefined;
+  for (const line of lines.slice(at + 1)) {
+    if (!line.trim()) continue;
+    const own = line.length - line.trimStart().length;
+    if (own === 0) break;
+    indent ??= own;
+    if (own === indent && /^\s*(-\s*)?["']?workflow_dispatch["']?\s*(:|$)/.test(line)) return true;
+  }
+  return false;
+}

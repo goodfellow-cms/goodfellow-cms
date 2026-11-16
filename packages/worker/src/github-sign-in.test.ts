@@ -273,6 +273,27 @@ describe("signing in with GitHub through the worker", () => {
     again?.signOut();
   });
 
+  it("tells the setup page which repository it made where the worker couldn't finish making it", async () => {
+    // GitHub won't give the new repository's token, however long the worker waits.
+    const site = setup({ newRepositoryLag: 100 });
+    const page = browser(site, "https://setup.example/new-site/");
+    await page.setupHost().startRedirect();
+    await page.signInOnGitHub("maria");
+    const account = await page.setupHost().restore();
+    const [mine] = (await account?.owners()) ?? [];
+    if (!mine || !account) throw new Error("Not signed in");
+    const made: string[] = [];
+    await expect(
+      account.createSite(
+        { owner: mine, name: "site", private: true, pages: false, files: [], message: "Create" },
+        undefined,
+        (repo) => made.push(repo),
+      ),
+    ).rejects.toThrow();
+    expect(site.fake.created.has("maria/site")).toBe(true);
+    expect(made).toEqual(["maria/site"]);
+  });
+
   it("creates and connects a site's private code and content repositories for the setup page", async () => {
     const site = setup();
     const page = browser(site, "https://setup.example/new-site/");

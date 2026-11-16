@@ -1,11 +1,16 @@
 import { classNameField, cx } from "@goodfellow-cms/react";
 import type { ComponentConfig } from "@puckeditor/core";
+import { AppReturnPage } from "./app-return";
+import { ServerSiteForm } from "./server-site-form";
 import { SiteCreateForm } from "./site-create-form";
 import { SiteSetupForm } from "./site-setup-form";
 
 export interface SiteSetupProps {
-  /** Which step of the setup page this is: choosing what kind of site, or signing in and creating it. */
-  step: "choose" | "create";
+  /**
+   * Which step of the setup page this is: choosing what kind of site, or signing in and creating it; or the setup page
+   * for full-stack sites, which is a page of its own, and the page GitHub sends people back to from its app pages.
+   */
+  step: "choose" | "create" | "full-stack" | "app-return";
   /** The sign-in service's address, for "Sign in with GitHub", or "" to sign in with a token. */
   githubSignIn: string;
   gitlabClientId: string;
@@ -26,6 +31,8 @@ export const SiteSetup: ComponentConfig<SiteSetupProps> = {
       options: [
         { label: "Choose what kind of site", value: "choose" },
         { label: "Sign in and create it", value: "create" },
+        { label: "A full-stack site, on a page of its own", value: "full-stack" },
+        { label: "Back from GitHub's app pages, for full-stack sites", value: "app-return" },
       ],
     },
     githubSignIn: {
@@ -41,7 +48,11 @@ export const SiteSetup: ComponentConfig<SiteSetupProps> = {
   defaultProps: { step: "choose", githubSignIn: "", gitlabClientId: "", className: "" },
   render: ({ step, githubSignIn, gitlabClientId, className }) => (
     <div className={cx("mx-auto w-full max-w-3xl", className)}>
-      {step === "create" ? (
+      {step === "app-return" ? (
+        <AppReturnPage />
+      ) : step === "full-stack" ? (
+        <ServerSiteForm githubSignIn={githubSignIn} />
+      ) : step === "create" ? (
         <SiteCreateForm githubSignIn={githubSignIn} gitlabClientId={gitlabClientId} />
       ) : (
         <SiteSetupForm />

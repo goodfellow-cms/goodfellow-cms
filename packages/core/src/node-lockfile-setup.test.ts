@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { githubUpdateJobs } from "./github-workflows.js";
 import { gitlabPagesPipelineJobs } from "./gitlab-publish.js";
 import {
@@ -95,6 +96,29 @@ describe("the lockfile's registry check", { timeout: NODE_TIMEOUT }, () => {
 
 describe("the starters' workflows", () => {
   const read = (path: string) => readFile(join(ROOT, path), "utf8");
+
+  it("write the lockfile in the company example, building and deploying with the one they published", async () => {
+    const deploy = await read("examples/company/.github/workflows/deploy.yml");
+    expect(deploy).toContain(githubLockfileJobs());
+    const jobs = parse(deploy).jobs as Record<
+      string,
+      {
+        needs?: string[];
+        if?: string;
+        steps: { uses?: string; with?: { ref?: string }; env?: Record<string, string> }[];
+      }
+    >;
+    const published = `\${{ needs.publish-lockfile.outputs.sha || github.sha }}`;
+    for (const job of ["build", "deploy"]) {
+      expect(jobs[job]?.needs).toContain("publish-lockfile");
+      const checkout = jobs[job]?.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+      expect(checkout?.with?.ref).toBe(published);
+    }
+    // Deploy checks that commit is main's newest before it checks it out.
+    expect(jobs.deploy?.steps[0]?.env?.DEPLOYING).toBe(published);
+    // Never after the lockfile job failed.
+    expect(jobs.build?.if).toContain("needs.lockfile.result == 'success'");
+  });
 
   it("write the lockfile as the setups planned for new sites do", async () => {
     for (const [site, cli] of [

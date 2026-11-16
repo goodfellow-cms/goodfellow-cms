@@ -245,8 +245,9 @@ export function gitlab(options: GitLabOptions): GitHost {
   function server({ token }: ServerGitOptions): ServerGit {
     const api: ApiOptions = {
       apiUrl,
-      token: async () => (typeof token === "string" ? token : token()),
-      canRefresh: false,
+      // A token that renews itself is asked for a new one where GitLab refuses it (`gitlabRequest()`'s retry).
+      token: async ({ refresh } = {}) => (typeof token === "string" ? token : token(refresh ? { refresh } : undefined)),
+      canRefresh: typeof token !== "string",
       fetch: fetcher,
     };
     let branch: Promise<string> | undefined;

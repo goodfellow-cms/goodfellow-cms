@@ -1,7 +1,8 @@
 "use client";
 
-/** The fewest characters a password may have, as lib/auth.ts says. */
-export const MIN_PASSWORD_LENGTH = 12;
+import { MIN_PASSWORD_LENGTH } from "@/lib/account-limits";
+
+export { MIN_PASSWORD_LENGTH };
 
 /** What's wrong with a new password and its second copy, or nothing. */
 export function passwordProblem(password: string, again: string): string | undefined {
