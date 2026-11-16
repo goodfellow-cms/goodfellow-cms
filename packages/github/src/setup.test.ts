@@ -5,7 +5,7 @@ import { fakeGitHub } from "./testing.js";
 
 const files = [
   { path: "package.json", content: "{}\n" },
-  { path: ".github/workflows/deploy.yml", content: "name: Deploy\n" },
+  { path: ".github/workflows/deploy.yml", content: "name: Deploy\non:\n  workflow_dispatch:\n" },
   { path: "public/media/logo.png", bytes: new Uint8Array([137, 80, 78, 71, 0, 255]) },
 ];
 
@@ -224,19 +224,29 @@ describe("githubSetup", () => {
   });
 
   it("saves secrets, starts workflows, and reads files of the repositories it created, and only those", async () => {
-    const { fake, host } = setup({ repo: "someone/existing", tokens: { t: { login: "someone" } } });
+    const { fake, host } = setup({ repo: "someone/existing", tokens: { t: { login: "someone", actionsWrite: true } } });
     const account = await host.signInWithToken("t");
     const owner = (await account.owners())[0];
     if (!owner) throw new Error("no owner");
-    await account.createSite({ owner, name: "site", private: true, pages: false, files, message: "Create" });
+    // With a workflow that runs only on its schedule, which can't be started by hand.
+    const scheduled = { path: ".github/workflows/scheduled.yml", content: "name: Scheduled\non:\n  schedule: []\n" };
+    await account.createSite({
+      owner,
+      name: "site",
+      private: true,
+      pages: false,
+      files: [...files, scheduled],
+      message: "Create",
+    });
     await account.saveSecrets?.("someone/site", { CLOUDFLARE_API_TOKEN: "cf-token", GOODFELLOW_APP_ID: "5001" });
     const code = fake.created.get("someone/site");
     expect(code?.secrets.get("CLOUDFLARE_API_TOKEN")).toBe("cf-token");
     expect(code?.secrets.get("GOODFELLOW_APP_ID")).toBe("5001");
     expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(true);
     expect(code?.dispatched).toEqual([{ workflow: ".github/workflows/deploy.yml", ref: "main" }]);
-    // A workflow it doesn't have.
+    // A workflow it doesn't have, or one that can't be started by hand.
     expect(await account.startWorkflow?.("someone/site", "setup-cloudflare.yml")).toBe(false);
+    expect(await account.startWorkflow?.("someone/site", "scheduled.yml")).toBe(false);
     expect(await account.readFile?.("someone/site", "package.json")).toBe("{}\n");
     expect(await account.readFile?.("someone/site", "wrangler.jsonc")).toBeUndefined();
     // Not one it created.
@@ -244,10 +254,27 @@ describe("githubSetup", () => {
     await expect(account.saveSecrets?.("someone/site", { "bad name": "b" })).rejects.toThrow(/isn't a secret/);
   });
 
+  it("says the same once GitHub stops taking the sign-in, which it answers with a 401", async () => {
+    const fake = fakeGitHub({ repo: "someone/existing", tokens: { t: { login: "someone", actionsWrite: true } } });
+    let expired = false;
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      expired
+        ? Response.json({ message: "Bad credentials" }, { status: 401 })
+        : fake.fetch(input, init)) as typeof fetch;
+    const account = await githubSetup({ fetch: fetcher }).signInWithToken("t");
+    const owner = (await account.owners())[0];
+    if (!owner) throw new Error("no owner");
+    await account.createSite({ owner, name: "site", private: true, pages: false, files, message: "Create" });
+    expired = true;
+    await expect(account.saveSecrets?.("someone/site", { A: "b" })).rejects.toMatchObject({ problem: "not-allowed" });
+    expect(await account.startWorkflow?.("someone/site", "deploy.yml")).toBe(false);
+  });
+
   it("says when the sign-in can't save secrets or start workflows", async () => {
     const { host } = setup({
       repo: "someone/existing",
-      tokens: { t: { login: "someone", secrets: false, actionsWrite: false } },
+      // A token without Actions write, which it has only where it says so (or has Administration).
+      tokens: { t: { login: "someone", secrets: false } },
     });
     const account = await host.signInWithToken("t");
     const owner = (await account.owners())[0];

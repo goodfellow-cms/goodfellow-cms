@@ -391,7 +391,7 @@ test("creates a full-stack site's code and content on a page of its own, with a 
 }) => {
   const github = fakeGitHub({
     repo: "someone/existing",
-    tokens: { "gh-token": { login: "someone", name: "Some One" } },
+    tokens: { "gh-token": { login: "someone", name: "Some One", actionsWrite: true } },
   });
   await routeToFake(page, "https://api.github.com", github.handle);
   // The static sites' page links to it, and it back.
@@ -469,6 +469,13 @@ test("creates a full-stack site's code and content on a page of its own, with a 
   expect(github.issued.filter((issued) => issued.app === app?.slug).every((issued) => issued.revoked)).toBe(true);
 
   // Cloudflare's token, pasted and saved as the code's secret.
+  // The template leaves out D1, which the site's database needs.
+  await expect(page.getByText("Account → D1 → Edit")).toBeVisible();
+  await page.getByPlaceholder("Paste the Cloudflare token here").fill("wrong-token");
+  await page.getByRole("button", { name: "Save it" }).click();
+  await expect(page.getByText("Saved in someone/acme's secrets.")).toBeVisible();
+  // A token saved by mistake can be replaced.
+  await page.getByRole("button", { name: "Replace it" }).click();
   await page.getByPlaceholder("Paste the Cloudflare token here").fill("cloudflare-token");
   await page.getByRole("button", { name: "Save it" }).click();
   await expect(page.getByText("Saved in someone/acme's secrets.")).toBeVisible();

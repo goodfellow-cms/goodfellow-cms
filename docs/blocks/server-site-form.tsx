@@ -411,6 +411,7 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
       keepUnfinished(answers.name, [code, content], false);
       setBegun(undefined);
       setCreated({
+        account,
         owner: chosenOwner,
         code: codeRepo,
         content: contentRepo,
@@ -452,7 +453,9 @@ export function ServerSiteForm({ githubSignIn }: ServerSiteFormProps) {
   }
 
   if (loading) return <p aria-live="polite">Loading…</p>;
-  if (created && account) return <Created created={created} account={account} withToken={withToken} />;
+  // With the account that made the repositories, even where another was signed in to meanwhile, since only it can
+  // save their secrets and start their workflows.
+  if (created) return <Created created={created} account={created.account} withToken={withToken} />;
 
   return (
     <div className="grid gap-8">
@@ -711,6 +714,8 @@ function RepoList({ repos }: { repos: string[] }) {
 
 /** Both repositories, made, with the setup code and the address the code's has. */
 interface CreatedSite {
+  /** The account that made them. */
+  account: SetupAccount;
   owner: SetupOwner;
   code: CreatedSiteRepository;
   content: CreatedSiteRepository;

@@ -815,10 +815,18 @@ export function fakeGitHub(options: FakeGitHubOptions) {
     }
     const dispatch = rest.match(/^\/actions\/workflows\/([\w.-]+)\/dispatches$/);
     if (dispatch && method === "POST") {
-      const forbidden = principal.app ? principal.permissions?.actions !== "write" : principal.actionsWrite === false;
+      // As the site's own dispatch handler: a token runs workflows with Actions write, which `administration` gives.
+      const forbidden = principal.app
+        ? principal.permissions?.actions !== "write"
+        : !(principal.actionsWrite ?? principal.administration);
       if (forbidden) return json({ message: "Resource not accessible by integration" }, 403);
       const workflow = `.github/workflows/${dispatch[1]}`;
-      if (!repo.files().has(workflow)) return json({ message: "Not Found" }, 404);
+      const text = repo.files().get(workflow);
+      if (text === undefined) return json({ message: "Not Found" }, 404);
+      // GitHub runs by hand only a workflow that says it may be.
+      if (!String(text).includes("workflow_dispatch")) {
+        return json({ message: "Workflow does not have 'workflow_dispatch' trigger" }, 422);
+      }
       const body = (await request.json()) as { ref: string; inputs?: Record<string, string> };
       site.dispatched.push({ workflow, ref: body.ref, ...(body.inputs && { inputs: body.inputs }) });
       return new Response(null, { status: 204 });

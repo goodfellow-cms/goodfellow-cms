@@ -126,15 +126,22 @@ async function retireSetupCode(adapter: AdminMaker["adapter"]): Promise<void> {
  */
 async function spendSetupClaim(adapter: AdminMaker["adapter"], claim: string): Promise<boolean> {
   const id = { field: "id", value: SETUP_DONE };
+  // An update that matches no row, where the command has retired the code since, can fail: the read says which.
+  let failed: { error: unknown } | undefined;
   await adapter
     .update({
       model: "verification",
       where: [id, { field: "value", value: claim }],
       update: { value: setupUsedBy(claim), updatedAt: new Date() },
     })
-    .catch(() => undefined);
+    .catch((error: unknown) => {
+      failed = { error };
+    });
   const row = (await adapter.findOne({ model: "verification", where: [id] })) as { value?: unknown } | null;
-  return row?.value === setupUsedBy(claim);
+  if (row?.value === setupUsedBy(claim)) return true;
+  // Still this request's claim, so nobody else retired the code: the update failed, and the caller lets it go.
+  if (failed && row?.value === claim) throw failed.error;
+  return false;
 }
 
 /** An address someone already has an account with. */

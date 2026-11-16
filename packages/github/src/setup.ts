@@ -259,19 +259,25 @@ function setupAccount(creator: Creator): SetupAccount {
           });
         }
       } catch (error) {
-        if (error instanceof GitApiError && [401, 403, 404].includes(error.status)) {
+        // GitHub's refusal, or a sign-in it no longer takes (`githubRequest()` makes a 401 a `SignInError`).
+        if ((error instanceof GitApiError && [403, 404].includes(error.status)) || error instanceof SignInError) {
           throw new SetupError("not-allowed", `This sign-in can't save ${repo}'s secrets.`);
         }
         throw error;
       }
     },
     async startWorkflow(repo, workflow) {
-      const response = await githubRequest(
-        createdApi(repo),
-        `/repos/${repoPath(repo)}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
-        { method: "POST", body: { ref: MAIN }, allow: [401, 403, 404, 422] },
-      );
-      return response.ok;
+      try {
+        const response = await githubRequest(
+          createdApi(repo),
+          `/repos/${repoPath(repo)}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
+          { method: "POST", body: { ref: MAIN }, allow: [403, 404, 422] },
+        );
+        return response.ok;
+      } catch (error) {
+        if (error instanceof SignInError) return false;
+        throw error;
+      }
     },
     async readFile(repo, path) {
       const response = await githubRequest(

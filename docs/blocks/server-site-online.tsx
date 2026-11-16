@@ -81,6 +81,7 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
   const [busy, setBusy] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const appRef = useRef(app);
+  const converting = useRef(false);
   appRef.current = app;
   const siteAddress = address || learned;
   const canSave = Boolean(account.saveSecrets);
@@ -94,8 +95,13 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
     setupUrl: returnUrl,
   });
 
-  /** Turns GitHub's code into the app, and saves its id and key as the code's secrets. */
+  /**
+   * Turns GitHub's code into the app, and saves its id and key as the code's secrets. One at a time: where the app
+   * was made again in another tab meanwhile, only the first to come back counts, so a later one failing can't undo it.
+   */
   async function made(codeFromGitHub: string) {
+    if (converting.current) return;
+    converting.current = true;
     setBusy(true);
     setAppProblem(undefined);
     try {
@@ -109,6 +115,7 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
       setApp({ stage: "start" });
       setAppProblem(problemOf(caught));
     } finally {
+      converting.current = false;
       setBusy(false);
     }
   }
@@ -257,11 +264,18 @@ export function PutOnline({ account, owner, code, content, setupCode, address, w
         <strong>Cloudflare.</strong>
         <p>
           On <Out href={CLOUDFLARE_TOKENS}>Cloudflare's API tokens page</Out>, create a token from the{" "}
-          <strong>Edit Cloudflare Workers</strong> template, for your account only (under Account Resources), and paste
-          it here. The page saves it in {code.repo}'s secrets, which give it to its workflows only, and forgets it.
+          <strong>Edit Cloudflare Workers</strong> template, add <strong>Account → D1 → Edit</strong> to its
+          permissions, since the template leaves out the site's database, keep it to your account only (under Account
+          Resources), and paste it here. The page saves it in {code.repo}'s secrets, which give it to its workflows
+          only, and forgets it.
         </p>
         {cloudflareSaved ? (
-          <p aria-live="polite">Saved in {code.repo}'s secrets.</p>
+          <p aria-live="polite">
+            Saved in {code.repo}'s secrets.{" "}
+            <button type="button" className={link} onClick={() => setCloudflareSaved(false)}>
+              Replace it
+            </button>
+          </p>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             <label className="sr-only" htmlFor={`${id}-cloudflare`}>

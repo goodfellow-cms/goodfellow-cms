@@ -306,6 +306,25 @@ describe("setUpFirstAdmin", () => {
     expect(site.admins()).toEqual(["olive@example.org"]);
   });
 
+  it("lets the code be used again when spending its claim fails, rather than take it for used", async () => {
+    const site = await freshSite();
+    const context = await site.auth.$context;
+    const update = context.adapter.update.bind(context.adapter);
+    let failing = true;
+    context.adapter.update = (async (query: Parameters<typeof update>[0]) => {
+      if (failing && query.model === "verification") {
+        failing = false;
+        throw new Error("D1 went away");
+      }
+      return update(query);
+    }) as typeof context.adapter.update;
+    await expect(site.setUp(OLIVE)).rejects.toThrow("D1 went away");
+    expect(site.admins()).toEqual([]);
+    expect(site.db.prepare(`select id from verification where id = ?`).all(SETUP_DONE)).toEqual([]);
+    await site.setUp(OLIVE);
+    expect(site.admins()).toEqual(["olive@example.org"]);
+  });
+
   it("checks what's sent, before the code", async () => {
     const site = await freshSite();
     expect(await statusOf(site.setUp({ ...OLIVE, code: "" }))).toBe(400);

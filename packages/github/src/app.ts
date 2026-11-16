@@ -305,12 +305,15 @@ const RENEW_MS = 10 * 60_000;
  * app, made again when it's nearly an hour old, each time checked as `publishingToken()` does. Requests that come
  * while one is being made wait for it.
  */
-export function publishingAppToken(options: PublishingAppOptions): () => Promise<string> {
+export function publishingAppToken(
+  options: PublishingAppOptions,
+): (request?: { refresh?: boolean }) => Promise<string> {
   const now = options.now ?? Date.now;
   let current: PublishingToken | undefined;
   let making: Promise<PublishingToken> | undefined;
-  return async () => {
-    if (current && current.expiresAt - now() > RENEW_MS) return current.token;
+  // `refresh`, where GitHub refused the token it was given, as when it's been revoked, makes another at once.
+  return async ({ refresh = false } = {}) => {
+    if (!refresh && current && current.expiresAt - now() > RENEW_MS) return current.token;
     making ??= publishingToken(options).finally(() => {
       making = undefined;
     });

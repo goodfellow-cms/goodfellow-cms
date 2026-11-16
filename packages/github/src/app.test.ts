@@ -169,10 +169,15 @@ describe("publishingAppToken", () => {
     expect(await token()).toBe(first);
     const given = () => github.issued.filter((issued) => issued.app === app.slug && issued.permissions.contents);
     expect(given()).toHaveLength(1);
+    // Where GitHub refuses the token it has, as once it's revoked, it makes another at once, and keeps that.
+    const refreshed = await token({ refresh: true });
+    expect(refreshed).not.toBe(first);
+    expect(given()).toHaveLength(2);
+    expect(await token()).toBe(refreshed);
     now += 55 * 60_000;
     const renewed = await token();
-    expect(renewed).not.toBe(first);
-    expect(given()).toHaveLength(2);
+    expect(renewed).not.toBe(refreshed);
+    expect(given()).toHaveLength(3);
     // Installed on more since: no new token.
     github.install(app.slug, "someone", ["someone/acme"]);
     now += 55 * 60_000;
