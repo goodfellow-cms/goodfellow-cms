@@ -253,6 +253,91 @@ describe("the broker's backend in the admin panel", () => {
     };
   }
 
+  it("makes a factory's call with the arguments its check gives back, the factory's and its method's", async () => {
+    const commit = "c".repeat(40);
+    const seen: unknown[][] = [];
+    const { remote, close } = await connect({
+      check: ({ path, args }) => {
+        seen.push(args);
+        return path === "filesAt.read" ? { args: [args[0], "content/menus.json"] } : undefined;
+      },
+    });
+    expect(await remote.filesAt(commit).read("content/site.json")).toBe(`${commit}:content/menus.json`);
+    expect(seen.at(-1)).toEqual([commit, "content/site.json"]);
+    close();
+  });
+
+  /** Posts a `filesAt()` call as a frame could, whatever its shape, and gives the answer. */
+  async function rawFilesAt(args: unknown[], then?: unknown, options: Parameters<typeof serveBackend>[2] = {}) {
+    const memory = memoryBackend();
+    const { port1, port2 } = new MessageChannel();
+    serveBackend(port1, memory.backend, options);
+    const answer = await new Promise<{ ok: boolean; value?: unknown }>((resolve) => {
+      port2.onmessage = (event) => {
+        const data = event.data as { type?: string; id?: number };
+        if (data.type === "answer" && data.id === 1) resolve(data as never);
+      };
+      port2.postMessage({
+        type: "call",
+        id: 1,
+        handle: 0,
+        path: ["filesAt"],
+        args,
+        ...(then !== undefined && { then }),
+      });
+    });
+    port1.close();
+    port2.close();
+    return answer;
+  }
+
+  const refused = {
+    ok: false,
+    error: expect.objectContaining({
+      name: "BrokerRefusedError",
+      fields: expect.objectContaining({ problem: "not-here" }),
+    }),
+  };
+
+  it("refuses a factory's call whose arguments aren't split as the factory takes them", async () => {
+    const commit = "c".repeat(40);
+    const checked: unknown[][] = [];
+    const check = ({ args }: { args: unknown[] }) => {
+      checked.push(args);
+      return undefined;
+    };
+    const calls: [unknown[], unknown][] = [
+      // The path moved into the factory's arguments, or the revision into the method's.
+      [
+        [commit, "content/site.json"],
+        ["read", []],
+      ],
+      [[], ["read", [commit, "content/site.json"]]],
+      // A method's arguments that aren't a list, or a method that isn't a name.
+      [[commit], ["read", "content/site.json"]],
+      [[commit], [["read"], ["content/site.json"]]],
+      [[commit], "read"],
+      [[commit], { read: ["content/site.json"] }],
+      [[commit], undefined],
+    ];
+    for (const [args, then] of calls) expect(await rawFilesAt(args, then, { check })).toMatchObject(refused);
+    expect(checked).toEqual([]);
+    // Made as checked, it works.
+    expect(await rawFilesAt([commit], ["read", ["content/site.json"]])).toMatchObject({
+      ok: true,
+      value: `${commit}:content/site.json`,
+    });
+  });
+
+  it("refuses a factory's call when its check gives back another number of arguments", async () => {
+    const commit = "c".repeat(40);
+    for (const args of [["content/menus.json"], [commit, "content/menus.json", "extra"]]) {
+      expect(await rawFilesAt([commit], ["read", ["content/site.json"]], { check: () => ({ args }) })).toMatchObject(
+        refused,
+      );
+    }
+  });
+
   it("reads, publishes, and keeps the classes of errors", async () => {
     const { remote, files, close } = await connect();
     expect(remote.user).toEqual({ login: "maria" });

@@ -234,12 +234,14 @@ interface Shape {
   returns?: Record<string, Shape>;
   /** Methods that return such an object at once, not a promise. */
   sync?: Record<string, Shape>;
+  /** For an object a `sync` method gives: how many arguments that method takes, all of which callers pass. */
+  arity?: number;
 }
 
 const STORE_METHODS = ["revision", "read", "readBytes", "list", "readFiles", "fileSizes", "write", "changedPaths"];
 /** What `filesAt()` gives: the reads every `RevisionFiles` has. */
 const FILES_METHODS = ["read", "readBytes", "list"];
-const FILES: Shape = { methods: FILES_METHODS };
+const FILES: Shape = { methods: FILES_METHODS, arity: 1 };
 const DRAFT: Shape = {
   name: "draft",
   data: ["name"],
@@ -495,11 +497,28 @@ export function serveBackend(port: BrokerPort, backend: GitBackend, options: Ser
     if (shape.sync?.[method]) {
       // A factory, such as `filesAt(revision)`, whose object's method is called at once.
       const inner = shape.sync[method];
-      const [then, thenArgs] = call.then ?? ["", []];
-      if (!inner.methods?.includes(then)) throw new BrokerRefusedError("not-here", "The broker doesn't offer that.");
-      await options.check?.({ path: `${name}.${then}`, args: [...args, ...thenArgs], target });
-      const made = (target[method] as (...a: unknown[]) => Record<string, unknown>).apply(target, args);
-      return (made[then] as (...a: unknown[]) => unknown).apply(made, thenArgs);
+      const [then, thenArgs] = Array.isArray(call.then) ? call.then : [];
+      // The factory gets exactly its own arguments, so the check sees each argument where the call is made with it.
+      if (
+        typeof then !== "string" ||
+        !Array.isArray(thenArgs) ||
+        !inner.methods?.includes(then) ||
+        args.length !== (inner.arity ?? 0)
+      ) {
+        throw new BrokerRefusedError("not-here", "The broker doesn't offer that.");
+      }
+      // Checked as one call, the factory's arguments then its method's, and made with what the check gives back.
+      const given = [...args, ...thenArgs];
+      const checked = await options.check?.({ path: `${name}.${then}`, args: [...given], target });
+      const all = checked?.args ?? given;
+      if (all.length !== given.length) {
+        throw new BrokerRefusedError("not-here", "The broker can't make that call as it was checked.");
+      }
+      const made = (target[method] as (...a: unknown[]) => Record<string, unknown>).apply(
+        target,
+        all.slice(0, args.length),
+      );
+      return (made[then] as (...a: unknown[]) => unknown).apply(made, all.slice(args.length));
     }
     const checked = await options.check?.({ path: name, args: [...args], target });
     const callArgs = checked?.args ?? args;
