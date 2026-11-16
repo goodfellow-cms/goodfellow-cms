@@ -12,6 +12,8 @@ import {
   type GitBackend,
   type GitUser,
   type HistoryOptions,
+  isCommitId,
+  isPlainPath,
   type OwnerAccess,
   type PluginTasks,
   type RepositoryVisibility,
@@ -98,9 +100,20 @@ function builds(status: CommitStatus): boolean {
   return !(status.url ?? "").startsWith(`${BITBUCKET_WEB}/`);
 }
 
-/** A path for Bitbucket's addresses: each part encoded, the slashes kept. */
+/**
+ * A path for Bitbucket's addresses: each part encoded, the slashes kept.
+ * `encodeURIComponent()` leaves `.` and `..` as they are, which would leave
+ * the folder, so a path that isn't plain is refused.
+ */
 export function encodePath(path: string): string {
+  if (!isPlainPath(path)) throw new GitApiError(400, "That isn't a file's path.");
   return path.split("/").map(encodeURIComponent).join("/");
+}
+
+/** A revision for Bitbucket's addresses, refused unless it's a commit's id, since a name could hold `/` or `..`. */
+function commitId(revision: string): string {
+  if (!isCommitId(revision)) throw new GitApiError(400, "That isn't a revision.");
+  return revision;
 }
 
 function listFrom(tree: Map<string, number>, dir: string): string[] {
@@ -377,6 +390,7 @@ export class BitbucketBackend implements GitBackend {
 
   /** Path → size for the editable files at a commit. Commits never change, so this is kept. */
   private tree(sha: string): Promise<Map<string, number>> {
+    commitId(sha);
     let tree = this.trees.get(sha);
     if (!tree) {
       tree = Promise.all(EDITABLE_FOLDERS.map((folder) => this.listFolder(sha, folder))).then(
@@ -548,7 +562,7 @@ export class BitbucketBackend implements GitBackend {
   }
 
   async readAt(path: string, revision: string): Promise<string | undefined> {
-    const response = await bitbucketRequest(this.api, this.path(`/src/${revision}/${encodePath(path)}`), {
+    const response = await bitbucketRequest(this.api, this.path(`/src/${commitId(revision)}/${encodePath(path)}`), {
       allow: [404],
     });
     return response.ok ? response.text() : undefined;
@@ -559,7 +573,7 @@ export class BitbucketBackend implements GitBackend {
     const query = new URLSearchParams({ topic: "false", pagelen: "500" });
     const diffs = await allPages<{ old?: { path: string } | null; new?: { path: string } | null }>(
       this.api,
-      this.path(`/diffstat/${to}..${from}?${query}`),
+      this.path(`/diffstat/${commitId(to)}..${commitId(from)}?${query}`),
     );
     const paths = diffs.flatMap((diff) => [diff.old?.path, diff.new?.path]);
     return [...new Set(paths.filter((path): path is string => Boolean(path)))];
@@ -599,7 +613,7 @@ export class BitbucketBackend implements GitBackend {
   }
 
   private statuses(revision: string): Promise<CommitStatus[]> {
-    return allPages<CommitStatus>(this.api, this.path(`/commit/${revision}/statuses?pagelen=100`), 3);
+    return allPages<CommitStatus>(this.api, this.path(`/commit/${commitId(revision)}/statuses?pagelen=100`), 3);
   }
 
   signOut(): void {

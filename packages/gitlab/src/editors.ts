@@ -35,6 +35,24 @@ const INVITATION = "invitation:";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME = /^[\w][\w.-]*$/;
 
+/**
+ * Where an editor's access is, from their id as the list gave it. The id
+ * comes from the admin panel, so one that isn't a member's number or an
+ * invitation's address is refused rather than put in the address,
+ * where `..` would reach the project itself.
+ */
+function editorPath(base: string, id: string): string {
+  if (id.startsWith(INVITATION)) {
+    const email = id.slice(INVITATION.length);
+    // Any address GitLab took, `admin@localhost` on GitLab of one's own too: one `@` keeps out `.` and `..`, and
+    // encoding keeps the rest in its part of the address.
+    if (email.includes("@")) return `${base}/invitations/${encodeURIComponent(email)}`;
+  } else if (id.startsWith(MEMBER) && /^\d+$/.test(id.slice(MEMBER.length))) {
+    return `${base}/members/${id.slice(MEMBER.length)}`;
+  }
+  throw new EditorsError("invalid", "That isn't one of the site's editors.");
+}
+
 function roleOf(level: number): EditorRole {
   if (level >= MAINTAINER) return "owner";
   return level >= DEVELOPER ? "editor" : "viewer";
@@ -147,17 +165,14 @@ export function gitlabEditors(api: ApiOptions, project: string, branch: string, 
     },
 
     async setRole(editor, role) {
-      const path = editor.id.startsWith(INVITATION)
-        ? `${base}/invitations/${encodeURIComponent(editor.id.slice(INVITATION.length))}`
-        : `${base}/members/${editor.id.slice(MEMBER.length)}`;
-      await gitlabRequest(api, path, { method: "PUT", body: { access_level: levelOf(role) } }).catch(notAllowed);
+      await gitlabRequest(api, editorPath(base, editor.id), {
+        method: "PUT",
+        body: { access_level: levelOf(role) },
+      }).catch(notAllowed);
     },
 
     async remove(editor) {
-      const path = editor.id.startsWith(INVITATION)
-        ? `${base}/invitations/${encodeURIComponent(editor.id.slice(INVITATION.length))}`
-        : `${base}/members/${editor.id.slice(MEMBER.length)}`;
-      await gitlabRequest(api, path, { method: "DELETE" }).catch(notAllowed);
+      await gitlabRequest(api, editorPath(base, editor.id), { method: "DELETE" }).catch(notAllowed);
     },
 
     async letEditorsPublish() {

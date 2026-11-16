@@ -80,6 +80,8 @@ export const STRINGS = {
     "An owner has limited what you can change on this site, and this publish changes things outside it: {paths}. Submit it for review instead.",
   refusedWorkflow: "The token broker never changes the site's workflows, which run with its secrets: {paths}.",
   refusedUnknown: "The token broker doesn't make this call for the admin panel: {paths}.",
+  refusedRead: "The token broker only reads files by their plain paths, at a published version: {paths}.",
+  refusedEditor: "That person isn't among the site's editors any more. Reload the Editors screen and try again.",
   declined: "You chose not to do this.",
   ownerTitle: "Owner token",
   ownerIntro:

@@ -59,6 +59,30 @@ describe("GitHub editors", () => {
     expect(owner.active).toBe(false);
   });
 
+  it("refuses ids that aren't an invitation's number or a login, rather than put them in the address", async () => {
+    const fake = fakeGitHub({ repo: "parish/site", tokens: TOKENS, accounts: ["anne"] });
+    const asked: string[] = [];
+    const fetch: typeof globalThis.fetch = (input, init) => {
+      asked.push(`${init?.method ?? "GET"} ${new URL(String(input instanceof Request ? input.url : input)).pathname}`);
+      return fake.fetch(input, init);
+    };
+    const backend = await github({ repo: "parish/site", fetch }).signInWithToken("sign-in", false);
+    await backend.ownerAccess?.applyToken("owner");
+    const editors = backend.editors;
+    if (!editors) throw new Error("No editors");
+    asked.length = 0;
+    for (const id of ["..", ".", "invitation:..", "invitation:1/../..", "invitation:", "a/b", "joseph/.."]) {
+      const editor = { id, login: "joseph", role: "editor" as const };
+      await expect(editors.remove(editor), id).rejects.toMatchObject({ problem: "invalid" });
+      await expect(editors.setRole(editor, "owner"), id).rejects.toMatchObject({ problem: "invalid" });
+    }
+    expect(asked.filter((request) => !request.startsWith("GET"))).toEqual([]);
+    expect(fake.collaborators.has("joseph")).toBe(true);
+    // Logins GitHub gives, Enterprise Managed Users' with their underscore too, still reach GitHub.
+    await editors.remove({ id: "octocat_acme", login: "octocat_acme", role: "editor" }).catch(() => undefined);
+    expect(asked).toContain("DELETE /repos/parish/site/collaborators/octocat_acme");
+  });
+
   it("explains invitations that can't be sent", async () => {
     const { editors, owner } = await signIn();
     await owner.applyToken("owner");

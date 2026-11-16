@@ -316,8 +316,17 @@ describe("publishing", () => {
   });
 
   it("reports deploys from the commit's pipeline", async () => {
-    const { backend } = await signedIn({ deployAfterChecks: 1 });
+    const { fake, backend } = await signedIn({ deployAfterChecks: 1 });
+    const revision0 = await backend.revision();
     expect(await backend.deployStatus("0".repeat(40))).toEqual({ state: "unknown" });
+    // Only a commit's id goes in the address, where `..` would reach another of the project's.
+    const asked = fake.requests.length;
+    expect(await backend.deployStatus("../../pipelines")).toEqual({ state: "unknown" });
+    expect(await backend.deployStatus("main")).toEqual({ state: "unknown" });
+    // Nor a path that isn't plain, which would reach another of GitLab's addresses with the token.
+    await expect(backend.readAt("..", revision0)).rejects.toMatchObject({ status: 400 });
+    await expect(backend.readAt("content/../../x", revision0)).rejects.toMatchObject({ status: 400 });
+    expect(fake.requests.length).toBe(asked);
     const { revision } = await backend.write([{ path: "content/site.json", content: "{}" }], {
       message: "Publish",
       expectedRevision: await backend.revision(),

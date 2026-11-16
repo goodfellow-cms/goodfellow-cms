@@ -116,6 +116,7 @@ export {
   type BrokerAddress,
   type BrokerAddressProblem,
   type BrokerChangeCheck,
+  type BrokerCheckResult,
   type BrokerConfirmKind,
   type BrokerPort,
   BrokerRefusedError,
@@ -802,8 +803,10 @@ export {
   type ContentStore,
   EDITABLE_FOLDERS,
   type FileChange,
+  isCommitId,
   isContentPath,
   isEditablePath,
+  isPlainPath,
   type WriteOptions,
   writeChanges,
 } from "./content/store.js";

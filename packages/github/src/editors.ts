@@ -35,6 +35,29 @@ const USERNAME = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 
 const INVITATION = "invitation:";
 
+/**
+ * Logins GitHub has given: letters, digits and hyphens, older ones' doubled
+ * hyphens included, and Enterprise Managed Users' `handle_shortcode`. Never
+ * `.`, `..`, or a slash, which would leave the address.
+ */
+const LOGIN = /^[\w-]{1,100}$/;
+
+/**
+ * Where an editor's access is, from their id as the list gave it. The id
+ * comes from the admin panel, so one that isn't an invitation's number or a
+ * login is refused rather than put in the address, where `..` would reach the
+ * repository itself.
+ */
+function editorPath(path: string, id: string): string {
+  if (id.startsWith(INVITATION)) {
+    const number = id.slice(INVITATION.length);
+    if (/^\d+$/.test(number)) return `${path}/invitations/${number}`;
+  } else if (LOGIN.test(id)) {
+    return `${path}/collaborators/${id}`;
+  }
+  throw new EditorsError("invalid", "That isn't one of the site's editors.");
+}
+
 function roleOf(permissions: Permissions | undefined): EditorRole {
   if (permissions?.admin) return "owner";
   return permissions?.maintain || permissions?.push ? "editor" : "viewer";
@@ -161,14 +184,15 @@ export function githubEditors(
     },
 
     async setRole(editor, role) {
+      const address = editorPath(path, editor.id);
       await change(async (api) => {
         if (editor.id.startsWith(INVITATION)) {
-          await githubRequest(api, `${path}/invitations/${editor.id.slice(INVITATION.length)}`, {
+          await githubRequest(api, address, {
             method: "PATCH",
             body: { permissions: role === "owner" ? "admin" : "write" },
           });
         } else {
-          await githubRequest(api, `${path}/collaborators/${encodeURIComponent(editor.id)}`, {
+          await githubRequest(api, address, {
             method: "PUT",
             body: { permission: role === "owner" ? "admin" : "push" },
           });
@@ -177,15 +201,8 @@ export function githubEditors(
     },
 
     async remove(editor) {
-      await change((api) =>
-        githubRequest(
-          api,
-          editor.id.startsWith(INVITATION)
-            ? `${path}/invitations/${editor.id.slice(INVITATION.length)}`
-            : `${path}/collaborators/${encodeURIComponent(editor.id)}`,
-          { method: "DELETE" },
-        ),
-      );
+      const address = editorPath(path, editor.id);
+      await change((api) => githubRequest(api, address, { method: "DELETE" }));
     },
   };
 }

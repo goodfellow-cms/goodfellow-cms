@@ -171,7 +171,8 @@ describe("what the broker asks before making a call", () => {
     expect(await ask("pages.disconnect", ["example.org"])).toEqual([
       { kind: "domain", change: "disconnect", domain: "example.org" },
     ]);
-    expect(await ask("editors.remove", [{ id: "1", login: "ann", role: "editor" }])).toEqual([
+    const editors = { list: async () => ({ editors: [{ id: "1", login: "ann", role: "editor" }], manage: "yes" }) };
+    expect(await ask("editors.remove", [{ id: "1", login: "ann", role: "editor" }], editors)).toEqual([
       { kind: "editors-remove", who: "ann" },
     ]);
     expect(await ask("tasks.run", [{ id: "r", plugin: "s3", task: "sign", input: "{}", key: "{}" }])).toEqual([
@@ -179,6 +180,39 @@ describe("what the broker asks before making a call", () => {
     ]);
     expect(await ask("updates.enable", [])).toEqual([{ kind: "updates-setup" }]);
     expect(await ask("draft.discard", [], { name: "spring" })).toEqual([{ kind: "discard-draft", name: "spring" }]);
+  });
+
+  it("names the editor the site's list gives the id, and hands the call that editor, never the admin panel's", async () => {
+    const ann = { id: "1", login: "ann", role: "editor" };
+    const editors = { list: async () => ({ editors: [ann, { id: "2", login: "bob", role: "owner" }], manage: "yes" }) };
+    for (const path of ["editors.remove", "editors.setRole"]) {
+      // The admin panel says "eve", but the backend would act on id 1, which is Ann.
+      const given = { id: "1", login: "eve", role: "viewer" };
+      const args: unknown[] = [given, "owner"];
+      const decision = await decide({ path, args, target: editors }, SITE);
+      expect(decision, path).toMatchObject({ action: "ask", questions: [{ who: "ann" }], args: [ann, "owner"] });
+      // Handed back in the decision, never written over what the call came with.
+      expect(args[0], path).toBe(given);
+      expect(
+        await decide({ path, args: [{ id: "..", login: "ann", role: "editor" }, "owner"], target: editors }, SITE),
+        path,
+      ).toEqual({ action: "refuse", paths: [path], reason: "editor" });
+      expect(await decide({ path, args: ["ann", "owner"], target: editors }, SITE), path).toMatchObject({
+        action: "refuse",
+      });
+      // A list that can't be read, or isn't one, names nobody: refused as the broker's own, never thrown.
+      for (const broken of [
+        { list: async () => Promise.reject(new Error("403")) },
+        { list: async () => ({}) },
+        { list: async () => ({ editors: [null] }) },
+      ]) {
+        expect(await decide({ path, args: [ann, "owner"], target: broken }, SITE), path).toEqual({
+          action: "refuse",
+          paths: [path],
+          reason: "editor",
+        });
+      }
+    }
   });
 
   it("asks before making a repository for comments or deleting one, but moderates in ways that can be undone", async () => {
@@ -190,8 +224,14 @@ describe("what the broker asks before making a call", () => {
       action: "ask",
       questions: [{ kind: "comments-delete" }],
     });
-    for (const path of ["comments.threads", "comments.hide", "comments.show", "comments.lock", "comments.find"]) {
-      expect(await decide({ path, args: [], target: {} }, SITE), path).toEqual({ action: "allow" });
+    for (const [path, args] of [
+      ["comments.threads", [{ repo: "example/comments" }]],
+      ["comments.hide", ["DC_1", "spam"]],
+      ["comments.show", ["DC_1"]],
+      ["comments.lock", ["D_1"]],
+      ["comments.find", ["example/comments"]],
+    ] as const) {
+      expect(await decide({ path, args: [...args], target: {} }, SITE), path).toEqual({ action: "allow" });
     }
   });
 
@@ -201,8 +241,90 @@ describe("what the broker asks before making a call", () => {
       paths: ["pages.somethingNew"],
       reason: "unknown",
     });
-    for (const path of ["read", "filesAt.read", "draft.store.list", "drafts.list", "updates.rebuild"]) {
-      expect(await decide({ path, args: [], target: {} }, SITE), path).toEqual({ action: "allow" });
+    const calls: Array<[string, unknown[]]> = [
+      ["read", ["content/site.json"]],
+      ["filesAt.read", ["0123abc", "content/site.json"]],
+      ["draft.store.list", ["content/pages"]],
+      ["drafts.list", []],
+      ["updates.rebuild", []],
+    ];
+    for (const [path, args] of calls) {
+      expect(await decide({ path, args, target: {} }, SITE), path).toEqual({ action: "allow" });
+    }
+  });
+
+  it("reads only plain paths, at commits, so a read can't reach another of the host's addresses", async () => {
+    const commit = "0123456789abcdef0123456789abcdef01234567";
+    const allowed: Array<[string, unknown[]]> = [
+      ["readAt", ["goodfellow.config.tsx", commit]],
+      ["readFiles", [["content/site.json", "content/menus.json"]]],
+      ["changedPaths", [commit, "abcdef0"]],
+      ["deployStatus", [commit]],
+      ["history", ["content", { page: 2 }]],
+      ["updates.code.readAt", ["package.json", commit]],
+      ["filesAt.list", [commit, "public/media"]],
+    ];
+    for (const [path, args] of allowed) {
+      expect(await decide({ path, args, target: {} }, SITE), path).toEqual({ action: "allow" });
+    }
+    const refused: Array<[string, unknown[]]> = [
+      ["read", ["../../../user"]],
+      ["readBytes", ["content/../../x"]],
+      ["list", ["content/."]],
+      ["readFiles", [["content/site.json", ".."]]],
+      ["readFiles", ["content/site.json"]],
+      ["fileSizes", ["/content"]],
+      ["history", ["content//pages"]],
+      ["readAt", ["package.json", "main"]],
+      ["readAt", ["package.json", "../../../pullrequests"]],
+      ["readAt", ["..", commit]],
+      ["changedPaths", [commit, `${commit}/../..`]],
+      ["deployStatus", ["../../pipelines"]],
+      ["filesAt.read", ["..", "content/site.json"]],
+      ["filesAt.readBytes", [commit, "public\\media"]],
+      ["draft.store.read", ["content/../.."]],
+      ["updates.code.read", ["../x"]],
+      ["updates.code.history", [".."]],
+    ];
+    for (const [path, args] of refused) {
+      expect(await decide({ path, args, target: {} }, SITE), `${path} ${JSON.stringify(args)}`).toEqual({
+        action: "refuse",
+        paths: [path],
+        reason: "read",
+      });
+    }
+  });
+});
+
+describe("what the calls it makes unasked take", () => {
+  const commit = "0123456789abcdef0123456789abcdef01234567";
+  it("takes domains, repositories and drafts' starting points only as they are", async () => {
+    const allowed: Array<[string, unknown[]]> = [
+      ["pages.status", ["www.example.org"]],
+      ["pages.records", ["example.org", {}]],
+      ["comments.find", ["example/site-comments"]],
+      ["drafts.create", ["20261024-abc123"]],
+      ["drafts.create", ["20261024-abc123", { from: commit }]],
+    ];
+    for (const [path, args] of allowed) {
+      expect(await decide({ path, args, target: {} }, SITE), path).toEqual({ action: "allow" });
+    }
+    const refused: Array<[string, unknown[]]> = [
+      ["pages.status", [".."]],
+      ["pages.status", ["Example.org/.."]],
+      ["pages.records", ["../../pages", {}]],
+      ["comments.find", ["example/.."]],
+      ["comments.find", ["../../user"]],
+      ["comments.find", ["example/site/extra"]],
+      ["drafts.create", ["20261024-abc123", { from: "main" }]],
+      ["drafts.create", ["20261024-abc123", { from: "../../x" }]],
+    ];
+    for (const [path, args] of refused) {
+      expect(await decide({ path, args, target: {} }, SITE), `${path} ${JSON.stringify(args)}`).toEqual({
+        action: "refuse",
+        paths: [path],
+        reason: "read",
+      });
     }
   });
 });

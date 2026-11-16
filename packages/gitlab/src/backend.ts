@@ -16,6 +16,8 @@ import {
   type GitBackend,
   type GitUser,
   type HistoryOptions,
+  isCommitId,
+  isPlainPath,
   LOCKFILE_JOB,
   type PagesDomains,
   type PluginTasks,
@@ -113,6 +115,16 @@ function listFrom(tree: Map<string, string>, dir: string): string[] {
  * returned. Saves are single commits; each changed file carries the commit it
  * was last changed in, so GitLab refuses to overwrite anyone else's edits.
  */
+/**
+ * A file's path as one part of GitLab's address. `encodeURIComponent()` keeps
+ * `.` and `..`, which would reach another of GitLab's addresses, so a path that
+ * isn't plain is refused.
+ */
+function filePart(path: string): string {
+  if (!isPlainPath(path)) throw new GitApiError(400, "That isn't a file's path.");
+  return encodeURIComponent(path);
+}
+
 export class GitLabBackend implements GitBackend {
   readonly user: GitUser;
   readonly pages: PagesDomains;
@@ -465,7 +477,7 @@ export class GitLabBackend implements GitBackend {
   private async lastCommitFor(path: string, ref: string): Promise<string> {
     const file = await gitlabJson<{ last_commit_id: string }>(
       this.api,
-      this.repo(`/files/${encodeURIComponent(path)}?ref=${ref}`),
+      this.repo(`/files/${filePart(path)}?${new URLSearchParams({ ref })}`),
     );
     return file.last_commit_id;
   }
@@ -588,7 +600,7 @@ export class GitLabBackend implements GitBackend {
   async readAt(path: string, revision: string): Promise<string | undefined> {
     const response = await gitlabRequest(
       this.api,
-      this.repo(`/files/${encodeURIComponent(path)}/raw?${new URLSearchParams({ ref: revision })}`),
+      this.repo(`/files/${filePart(path)}/raw?${new URLSearchParams({ ref: revision })}`),
       { allow: [404] },
     );
     return response.ok ? response.text() : undefined;
@@ -613,6 +625,8 @@ export class GitLabBackend implements GitBackend {
    * if it has pipelines, or if the host reported on the commit before.
    */
   async deployStatus(revision: string): Promise<DeployStatus> {
+    // Only a commit's id goes in the address, since a name could hold `/` or `..`.
+    if (!isCommitId(revision)) return { state: "unknown" };
     try {
       const all = await this.statuses(revision);
       const statuses = all.filter(builds);

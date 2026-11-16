@@ -15,6 +15,7 @@ import {
   GitApiError,
   type GitBackend,
   INSTALLED_PLUGINS_DIR,
+  isCommitId,
   isContentPath,
   isEditablePath,
   isSettingsPath,
@@ -173,7 +174,7 @@ function editableDir(value: unknown): string {
 }
 
 function revisionParam(value: unknown): string {
-  if (typeof value !== "string" || !/^[0-9a-f]{7,64}$/i.test(value)) throw new BadRequest("That isn't a revision.");
+  if (!isCommitId(value)) throw new BadRequest("That isn't a revision.");
   return value;
 }
 

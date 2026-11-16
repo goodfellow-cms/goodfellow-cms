@@ -21,9 +21,21 @@ import {
   type PluginManifest,
   serveBackend,
 } from "@goodfellow-cms/core";
-import { type BrokerQuestion, decide } from "./policy.js";
+import { type BrokerDecision, type BrokerQuestion, decide } from "./policy.js";
 import { adminRoute } from "./route.js";
 import { type StringKey, t } from "./strings.js";
+
+/** How each of the policy's refusals reaches the admin panel: its problem and its words, for every reason there is. */
+const REFUSALS: Record<
+  Extract<BrokerDecision, { action: "refuse" }>["reason"],
+  [BrokerRefusedError["problem"], StringKey]
+> = {
+  limits: ["limits", "refusedLimits"],
+  unknown: ["not-here", "refusedUnknown"],
+  editor: ["not-here", "refusedEditor"],
+  read: ["not-here", "refusedRead"],
+  workflow: ["workflow", "refusedWorkflow"],
+};
 
 /**
  * A site the broker signs in to: as its config's backend makes it
@@ -363,21 +375,20 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
         async check(call) {
           const decision = await decide(call, where.siteUrl, signedIn);
           if (decision.action === "refuse") {
-            const paths = decision.paths.join(", ");
-            throw decision.reason === "limits"
-              ? new BrokerRefusedError("limits", t("refusedLimits", { paths }))
-              : decision.reason === "unknown"
-                ? new BrokerRefusedError("not-here", t("refusedUnknown", { paths }))
-                : new BrokerRefusedError("workflow", t("refusedWorkflow", { paths }));
+            const [problem, key] = REFUSALS[decision.reason];
+            throw new BrokerRefusedError(problem, t(key, { paths: decision.paths.join(", ") }));
           }
           if (decision.action !== "ask") return;
           // A plugin's task, once allowed, runs again unasked while this page is open, as uploads to storage do.
           const questions = decision.questions.filter(
             (question) => question.kind !== "task" || !allowedTasks.has(taskKey(question)),
           );
-          if (questions.length === 0) return;
-          if (!(await confirm(questions))) throw new BrokerRefusedError("declined", t("declined"));
+          if (questions.length > 0 && !(await confirm(questions))) {
+            throw new BrokerRefusedError("declined", t("declined"));
+          }
           for (const question of questions) if (question.kind === "task") allowedTasks.add(taskKey(question));
+          // What was asked about, such as the editor the site's list gives, is what's done.
+          return decision.args ? { args: decision.args } : undefined;
         },
         extra: {
           signOut,
