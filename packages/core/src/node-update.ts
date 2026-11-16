@@ -117,6 +117,8 @@ export interface UpdateOptions {
   fetchJson?: FetchJson;
   /** Fetches the text of Goodfellow's registry's items. For tests; defaults to the network. */
   fetchText?: (url: string) => Promise<string>;
+  /** The first release whose registry has digests (`FIRST_DIGESTS_RELEASE`). For tests. */
+  digestsSince?: string;
   /** Checks Goodfellow's releases' provenance before an automatic update. Defaults to `verifiedSource()`. */
   verifyRelease?: ReleaseVerifier;
   now?: Date;
@@ -269,6 +271,13 @@ const runCommand: RunCommand = (command, args, cwd) =>
     child.on("error", (error) => done({ code: 1, output: `${output}${error.message}` }));
     child.on("close", (code) => done({ code: code ?? 1, output }));
   });
+
+/**
+ * The first release of Goodfellow whose registry has digests (`r/digests.json`): going back to an older one goes on
+ * without checking its blocks, and one of this or a newer release without them is refused, as an install that isn't
+ * what npm published.
+ */
+const FIRST_DIGESTS_RELEASE = "0.14.0";
 
 async function fetchTextFromNetwork(url: string): Promise<string> {
   const response = await fetch(url);
@@ -442,7 +451,10 @@ async function updateSite(
     return { state: "failed", from, ...(to && { to }), ...(rollback && { rollback }), ...result };
   };
 
-  /** The SHA-256 of each item fetched from Goodfellow's registry on the network, by name. */
+  /**
+   * The text of each item fetched from Goodfellow's registry on the network, by name: fetched once, so every block
+   * that needs an item, such as a component two blocks share, gets the same text, the one that's checked.
+   */
   const fetchedBlocks = new Map<string, string>();
 
   /**
@@ -468,15 +480,15 @@ async function updateSite(
     }
     const { digests } = installedRegistry;
     if (!digests) {
-      if (rollback) {
+      if (rollback && compareReleases(release, options.digestsSince ?? FIRST_DIGESTS_RELEASE) < 0) {
         log(`Goodfellow ${release}'s blocks can't be checked, since its registry has no digests.`);
         return true;
       }
       log(`Goodfellow ${release}'s blocks registry has no digests, so its blocks can't be checked.`);
       return false;
     }
-    for (const [name, digest] of fetchedBlocks) {
-      if (!Object.hasOwn(digests, name) || digests[name] !== digest) {
+    for (const [name, text] of fetchedBlocks) {
+      if (!Object.hasOwn(digests, name) || digests[name] !== (await hashText(text))) {
         log(`The block ${name} that was downloaded isn't the one Goodfellow ${release} released.`);
         return false;
       }
@@ -509,8 +521,11 @@ async function updateSite(
       // query, is refused.
       const name = /^([^/?#]+)\.json$/.exec(url.slice(prefix.length))?.[1];
       if (!name) throw new RegistryError({ code: "changed", url });
-      const text = await fetchText(url);
-      fetchedBlocks.set(name, await hashText(text));
+      let text = fetchedBlocks.get(name);
+      if (text === undefined) {
+        text = await fetchText(url);
+        fetchedBlocks.set(name, text);
+      }
       return JSON.parse(text);
     };
     const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;

@@ -412,21 +412,89 @@ describe("goodfellow update", () => {
       expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
     });
 
+    it("checks each item once, however many blocks share it", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      // Two blocks that both need the same component.
+      const second = "blocks/installed/shadcn-faq-2/block.tsx";
+      await writeFile(
+        join(root, "blocks/installed/installed.json"),
+        serializeContent({
+          version: 1,
+          blocks: Object.fromEntries(
+            await Promise.all(
+              ["shadcn-faq", "shadcn-faq-2"].map(async (name) => {
+                const entry = `blocks/installed/${name}/block.tsx`;
+                const record = { source: `@goodfellow/${name}`, title: "FAQ", category: "Sections", version: "1.0.0" };
+                return [name, { ...record, entry, files: { [entry]: await hashText("export default { v: 1 };\n") } }];
+              }),
+            ),
+          ),
+        }),
+      );
+      await mkdir(join(root, "blocks/installed/shadcn-faq-2"), { recursive: true });
+      await writeFile(join(root, second), "export default { v: 1 };\n");
+      const block = (name: string) =>
+        `${JSON.stringify({
+          ...JSON.parse(released),
+          name,
+          files: [{ path: `blocks/${name}/block.tsx`, type: "registry:block", content: "export default { v: 2 };\n" }],
+          registryDependencies: ["@goodfellow/accordion"],
+        })}\n`;
+      const accordion = (content: string) =>
+        `${JSON.stringify({
+          name: "accordion",
+          type: "registry:ui",
+          files: [{ path: "components/ui/accordion.tsx", type: "registry:ui", content }],
+        })}\n`;
+      const genuine = accordion("export const Accordion = 1;\n");
+      await installRegistry(
+        "0.4.2",
+        {
+          "shadcn-faq": await hashText(block("shadcn-faq")),
+          "shadcn-faq-2": await hashText(block("shadcn-faq-2")),
+          accordion: await hashText(genuine),
+        },
+        "admin",
+      );
+      // The first answer for the component isn't the release's; a second, if it were asked for, would be.
+      let asked = 0;
+      const fetchText = async (url: string) => {
+        const name = /\/r\/([^/]+)\.json$/.exec(url)?.[1] ?? "";
+        if (name !== "accordion") return block(name);
+        asked++;
+        return asked === 1 ? accordion("export const Accordion = 666;\n") : genuine;
+      };
+      const { ran, run } = commands();
+      const result = await update({ root, fetchJson, fetchText, run, blocks: true, log: () => {}, env: {} });
+      expect(result).toMatchObject({ state: "failed", step: "blocks" });
+      expect(asked).toBe(1);
+      expect(ran).not.toContain("npm run build");
+      await expect(readFile(join(root, "components/ui/accordion.tsx"), "utf8")).rejects.toThrow();
+    });
+
     it("goes back to a release from before digests with its blocks as they come, and says so", async () => {
       await site();
       await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
       await installRegistry("0.4.1", undefined);
       const lines: string[] = [];
-      const result = await update({
+      const back = {
         root,
         fetchJson,
-        run: commands().run,
         to: "0.4.1",
         blocks: true,
-        log: (line) => lines.push(line),
+        log: (line: string) => lines.push(line),
         env: {},
         fetchText: jsDelivr(released, "0.4.1"),
+      };
+      // A release from since registries had digests, installed without them, isn't what npm published.
+      expect(await update({ ...back, run: commands().run, digestsSince: "0.4.1" })).toMatchObject({
+        state: "failed",
+        step: "blocks",
       });
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+      lines.length = 0;
+      const result = await update({ ...back, run: commands().run });
       expect(result).toMatchObject({ state: "updated", to: "0.4.1", rollback: true });
       expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
       expect(lines.join("\n")).toContain("0.4.1's blocks can't be checked");

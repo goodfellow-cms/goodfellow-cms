@@ -155,6 +155,30 @@ describe("filling in an item's values", () => {
         `${comment}<a href="">Go</a>`,
       );
     }
+    // Only HTML's whitespace ends an unquoted value: U+00A0 doesn't, so this is still the handler.
+    expect(fill("<img src=x onerror=void(0);\u00a0x={path}>", { path: "alert(1)" })).toBe(
+      "<img src=x onerror=void(0);\u00a0x=>",
+    );
+    // A tag's name ends at a /, so <script/x> is a script.
+    expect(fill("<script/x>{path}</script>", { path: "alert(1)" })).toBe("<script/x></script>");
+    // A script's end tag inside a comment's <script> is still the script's text.
+    const escaped = "<script><!--<script>\n// </script>\n{path}\n</script>";
+    expect(fill(escaped, { path: "alert(1)" })).toBe(escaped.replace("{path}", ""));
+    expect(fill("<script><!-- x --></script><p>{path}</p>", { path: "it's" })).toBe(
+      "<script><!-- x --></script><p>it&#39;s</p>",
+    );
+    // A text area's and a title's content is text, where a value is escaped, and they end at their own end tag.
+    expect(fill('<textarea><!--</textarea><a href="{path}">-->', { path: "javascript:alert(1)" })).toBe(
+      '<textarea><!--</textarea><a href="">-->',
+    );
+    expect(fill("<title>{path}</title>", { path: "<b>&" })).toBe("<title>&lt;b&gt;&amp;</title>");
+    // A bogus comment ends at its first >, so what follows is markup again.
+    expect(fill('<!x <a title="> <a href={path}>Go</a>', { path: "javascript:alert(1)" })).toBe(
+      '<!x <a title="> <a href=>Go</a>',
+    );
+    expect(fill('<? x > <a href="{path}">', { path: "javascript:alert(1)" })).toBe('<? x > <a href="">');
+    // Straight after a value, an = starts another attribute's name, not this one's value.
+    expect(fill('<a href="/x" ="{path}">', { path: "x" })).toBe('<a href="/x" ="">');
     // A script ends only at its own end tag, not at one that only starts the same.
     expect(fill("<script>var a = '</scriptx>{path}';</script>", { path: "alert(1)" })).toBe(
       "<script>var a = '</scriptx>';</script>",

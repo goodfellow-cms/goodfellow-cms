@@ -9,6 +9,7 @@ import {
   useId,
 } from "react";
 import { prerender } from "react-dom/static";
+import { asciiLower, commentEnd, isHtmlSpace, RAW_TEXT, rawTextEnd, tagEnd } from "./html-scan.js";
 import { domId, ISLAND_TAG, identifierPrefix, SLOT_MARKER, SLOT_TAG, slotId } from "./island-shared.js";
 import { SiteProvider, useSite } from "./site-context.js";
 import type { SiteContextValue } from "./site-types.js";
@@ -228,50 +229,17 @@ export function island<T>(component: T, module: string, name: string): T {
 /** A template React wrote for an island's content: exactly this, as `island()` renders it. */
 const SLOT_TEMPLATE = /^<template data-gf-slot="([^"]+)">$/;
 
-/** Elements whose content is text, never markup, so a template's tag inside one isn't one. */
-const TEXT_ONLY = new Set([
-  "script",
-  "style",
-  "textarea",
-  "title",
-  "xmp",
-  "iframe",
-  "noembed",
-  "noframes",
-  "noscript",
-  "plaintext",
-]);
-
-/** Where a text-only element's end tag starts: `</name` followed by a space, `/` or `>`, or -1 for none. */
-function textEnd(lower: string, name: string, from: number): number {
-  for (let at = lower.indexOf(`</${name}`, from); at !== -1; at = lower.indexOf(`</${name}`, at + 1)) {
-    if (/[\s/>]/.test(lower[at + name.length + 2] ?? "")) return at;
-  }
-  return -1;
-}
-
-/** Where a comment starting at `start` ends: past `-->` or `--!>`, which a `>` straight after `<!--` or `<!---` is. */
-function commentEnd(html: string, start: number): number {
-  const ends = [html.indexOf("-->", start + 2), html.indexOf("--!>", start + 4)].filter((at) => at !== -1);
-  if (ends.length === 0) return -1;
-  const at = Math.min(...ends);
-  return at + (html.startsWith("--!>", at) ? 4 : 3);
-}
-
-/** A template's end tag, read at a position. */
-const TEMPLATE_END = /<\/template\s*>/iy;
-
 /**
  * Finds `<template data-gf-slot>` elements that aren't inside other templates, with their contents. The page holds
  * what the site's owners wrote as they wrote it (head and body code, Custom HTML used as written), so it's read as a
- * browser reads it, never by counting text that looks like a template: comments, the content of elements whose
- * content is text (`TEXT_ONLY`), and attributes' quoted values are passed over, and an end tag that closes nothing is
- * text. Each
- * character is read once, however the page is written: a comment, element or tag that never ends ends the reading.
+ * browser reads it (html-scan.ts), never by counting text that looks like a template: comments, bogus comments
+ * (`<!x>`, `<?x>`), the content of elements whose content is text (`RAW_TEXT`), and attributes' values, end tags'
+ * too, are passed over, and an end tag that closes nothing is text. Each character is read a bounded number of times,
+ * however the page is written: a comment, element or tag that never ends ends the reading.
  */
 function topLevelSlots(html: string) {
   const found: Array<{ id: string; start: number; end: number; inner: string }> = [];
-  const lower = html.toLowerCase();
+  const lower = asciiLower(html);
   let depth = 0;
   let open: { id: string; start: number; innerStart: number } | undefined;
   let i = html.indexOf("<");
@@ -282,47 +250,39 @@ function topLevelSlots(html: string) {
       i = html.indexOf("<", end);
       continue;
     }
-    if (html[i + 1] === "/") {
-      TEMPLATE_END.lastIndex = i;
-      const match = TEMPLATE_END.exec(html);
-      if (match && depth > 0) {
+    const closing = html[i + 1] === "/";
+    const nameStart = closing ? i + 2 : i + 1;
+    if (!/[a-z]/i.test(html[nameStart] ?? "")) {
+      // `<!x>`, `<?x>` and `</ x>` are comments to the first >; `</>` is nothing; any other `<` is text.
+      if (html[i + 1] === "!" || html[i + 1] === "?" || (closing && html[nameStart] !== ">")) {
+        const end = html.indexOf(">", i + 2);
+        if (end === -1) break;
+        i = html.indexOf("<", end + 1);
+      } else i = html.indexOf("<", i + 1);
+      continue;
+    }
+    // A tag: its name, then its attributes to the > that ends it.
+    let j = nameStart;
+    while (j < html.length && !isHtmlSpace(html[j]) && html[j] !== "/" && html[j] !== ">") j++;
+    const name = lower.slice(nameStart, j);
+    const close = tagEnd(html, j);
+    if (close === -1) break;
+    const end = close + 1;
+    if (closing) {
+      if (name === "template" && depth > 0) {
         depth--;
         if (depth === 0 && open) {
-          found.push({
-            id: open.id,
-            start: open.start,
-            end: i + match[0].length,
-            inner: html.slice(open.innerStart, i),
-          });
+          found.push({ id: open.id, start: open.start, end, inner: html.slice(open.innerStart, i) });
           open = undefined;
         }
       }
-      i = html.indexOf("<", i + 1);
+      i = html.indexOf("<", end);
       continue;
     }
-    if (!/[a-z]/i.test(html[i + 1] ?? "")) {
-      i = html.indexOf("<", i + 1);
-      continue;
-    }
-    // A start tag: its name, then its attributes to the > that ends it, passing over values quoted just after an `=`.
-    let j = i + 1;
-    while (j < html.length && !/[\s/>]/.test(html[j] ?? "")) j++;
-    const name = lower.slice(i + 1, j);
-    for (; j < html.length && html[j] !== ">"; j++) {
-      if (html[j] !== "=") continue;
-      let value = j + 1;
-      while (/\s/.test(html[value] ?? "")) value++;
-      const quote = html[value];
-      if (quote !== '"' && quote !== "'") continue;
-      const close = html.indexOf(quote, value + 1);
-      j = close === -1 ? html.length : close;
-    }
-    if (j >= html.length) break;
-    const end = j + 1;
-    if (TEXT_ONLY.has(name)) {
-      const close = textEnd(lower, name, end);
-      if (close === -1) break;
-      i = html.indexOf("<", close + 1);
+    if (RAW_TEXT.has(name)) {
+      const textEnd = rawTextEnd(lower, name, end);
+      if (textEnd === -1) break;
+      i = textEnd;
       continue;
     }
     if (name === "template") {

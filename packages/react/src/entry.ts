@@ -8,6 +8,7 @@ import {
   itemTitleIn,
 } from "@goodfellow-cms/core";
 import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
+import { asciiLower, isHtmlSpace, RAW_TEXT, rawTextEnd } from "./html-scan.js";
 import type { SiteContextValue } from "./site-types.js";
 
 /** `{title}`, `{event-date}`: a field's name in braces. */
@@ -46,9 +47,6 @@ const ADDRESS_ATTRIBUTES = new Set([
   "src",
   "xlink:href",
 ]);
-
-/** Elements whose content is never markup, so no escaping keeps a value in them from being code. */
-const RAW_TEXT = new Set(["script", "style", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext"]);
 
 /** The named references that spell what ends an address's scheme, as browsers read them in attributes. */
 const NAMED: Record<string, string> = {
@@ -109,7 +107,8 @@ function attributeValue(attribute: string, parts: ValuePart[]): string {
  * or style, it's left out.
  */
 function fillHtml(text: string, values: Values): string {
-  type State = "text" | "comment" | "tag" | "attribute" | "afterAttribute" | "beforeValue" | "value" | "raw";
+  type State = "text" | "comment" | "bogus" | "tag" | "before" | "attribute" | "after" | "beforeValue" | "value";
+  const lower = asciiLower(text);
   let state: State = "text";
   let out = "";
   let tag = "";
@@ -118,6 +117,8 @@ function fillHtml(text: string, values: Values): string {
   let quote = "";
   // The attribute value being read, put into `out` whole once it ends.
   let parts: ValuePart[] = [];
+  // Read through a function: `startValue()` sets it, which narrowing in the loop doesn't see.
+  const inValue = () => state === "value";
   const startValue = (opening: string) => {
     state = "value";
     quote = opening;
@@ -127,7 +128,22 @@ function fillHtml(text: string, values: Values): string {
     out += attributeValue(attribute, parts);
     parts = [];
   };
-  const afterTag = (): State => (RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text");
+  /** The text of a raw-text element, straight after its start tag: values escaped in a text area or title, else none. */
+  const rawText = () => {
+    const name = tag.toLowerCase();
+    const end = rawTextEnd(lower, name, i);
+    const content = text.slice(i, end === -1 ? text.length : end);
+    out += content.replace(PLACEHOLDER, (whole, key: string) => {
+      const value = values.get(key);
+      if (value === undefined) return whole;
+      return name === "textarea" || name === "title" ? escapeHtml(value) : "";
+    });
+    i = end === -1 ? text.length : end;
+  };
+  const endTag = () => {
+    state = "text";
+    if (!closing && RAW_TEXT.has(tag.toLowerCase())) rawText();
+  };
   const placeholder = new RegExp(PLACEHOLDER.source, "y");
   let i = 0;
   while (i < text.length) {
@@ -136,22 +152,24 @@ function fillHtml(text: string, values: Values): string {
     const value = match ? values.get(match[1] ?? "") : undefined;
     if (match && value !== undefined) {
       if (state === "beforeValue") startValue("");
-      // Just after a `<`, a value would name the tag, or start a comment.
-      if (state === "text" && !/<[!?]?$/.test(out)) out += escapeHtml(value);
-      else if (state === "comment") out += escapeHtml(value);
-      else if (state === "value") parts.push({ text: value, value: true });
+      // Just after a `<`, `<!`, `<?` or `</`, a value would name a tag, or start a comment.
+      const opensTag = (state === "text" || state === "bogus") && /<[!?/]?$/.test(out);
+      if (inValue()) parts.push({ text: value, value: true });
+      else if (!opensTag && (state === "text" || state === "comment" || state === "bogus")) out += escapeHtml(value);
       i += match[0].length;
       continue;
     }
     const char = text[i] ?? "";
     i++;
-    if (state === "value") {
-      if (quote ? char === quote : /\s/.test(char)) {
+    if (inValue()) {
+      if (quote ? char === quote : isHtmlSpace(char)) {
         endValue();
-        state = "afterAttribute";
+        state = "before";
       } else if (!quote && char === ">") {
         endValue();
-        state = afterTag();
+        out += char;
+        endTag();
+        continue;
       } else {
         const last = parts.at(-1);
         if (last && !last.value) last.text += char;
@@ -164,65 +182,71 @@ function fillHtml(text: string, values: Values): string {
     out += char;
     switch (state) {
       case "text":
-        if (char === "<" && text.startsWith("!--", i)) {
+        if (char !== "<") break;
+        if (text.startsWith("!--", i)) {
           out += "!--";
           i += 3;
           state = "comment";
-        } else if (char === "<" && /[a-zA-Z/]/.test(text[i] ?? "")) {
+        } else if (/[a-zA-Z]/.test(text[i] ?? "") || (text[i] === "/" && /[a-zA-Z]/.test(text[i + 1] ?? ""))) {
           closing = text[i] === "/";
+          if (closing) {
+            out += "/";
+            i++;
+          }
           tag = "";
           state = "tag";
+        } else if (text[i] === "!" || text[i] === "?" || (text[i] === "/" && text[i + 1] !== ">")) {
+          // `<!x>`, `<?x>` and `</ x>` are comments to the first >.
+          state = "bogus";
         }
         break;
       case "comment":
         // `-->` and `--!>` end a comment, as does a `>` straight after `<!--` or `<!---`, which ends in `-->` too.
         if (char === ">" && (out.endsWith("-->") || out.endsWith("--!>"))) state = "text";
         break;
-      case "tag":
-        if (char === ">") state = afterTag();
-        else if (/\s/.test(char)) state = "afterAttribute";
-        else if (char !== "/") tag += char;
+      case "bogus":
+        if (char === ">") state = "text";
         break;
-      case "afterAttribute":
-        if (char === ">") state = afterTag();
-        else if (char === "=") state = "beforeValue";
-        else if (!/[\s/]/.test(char)) {
+      case "tag":
+        // A tag's name ends at whitespace or a `/`, as `<script/x>` is a script.
+        if (char === ">") endTag();
+        else if (isHtmlSpace(char) || char === "/") state = "before";
+        else tag += char;
+        break;
+      case "before":
+        if (char === ">") endTag();
+        else if (!isHtmlSpace(char) && char !== "/") {
+          // Here, even an `=` starts an attribute's name.
           attribute = char;
           state = "attribute";
         }
         break;
       case "attribute":
-        if (char === ">") state = afterTag();
+        if (char === ">") endTag();
         else if (char === "=") state = "beforeValue";
-        else if (/[\s/]/.test(char)) state = "afterAttribute";
+        else if (isHtmlSpace(char) || char === "/") state = "after";
         else attribute += char;
         break;
+      case "after":
+        if (char === ">") endTag();
+        else if (char === "=") state = "beforeValue";
+        else if (!isHtmlSpace(char) && char !== "/") {
+          attribute = char;
+          state = "attribute";
+        }
+        break;
       case "beforeValue":
-        if (char === ">") state = afterTag();
+        if (char === ">") endTag();
         else if (char === '"' || char === "'") startValue(char);
-        else if (!/\s/.test(char)) {
+        else if (!isHtmlSpace(char)) {
           out = out.slice(0, -1);
           startValue("");
           parts.push({ text: char, value: false });
         }
         break;
-      case "raw": {
-        // Only an end tag of the same name, ended by a space, `/` or `>`, ends the text.
-        const after = text[i + tag.length + 1] ?? "";
-        if (
-          char === "<" &&
-          text.slice(i, i + tag.length + 1).toLowerCase() === `/${tag.toLowerCase()}` &&
-          /[\s/>]/.test(after)
-        ) {
-          closing = true;
-          state = "tag";
-          tag = "";
-        }
-        break;
-      }
     }
   }
-  if (state === "value") endValue();
+  if (inValue()) endValue();
   return out;
 }
 

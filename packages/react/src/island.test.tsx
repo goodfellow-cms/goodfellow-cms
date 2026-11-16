@@ -249,8 +249,22 @@ describe("fillSlots", () => {
       "<!-- a --!>",
       "<!-->",
       "<!--->",
+      // A script's end tag inside a comment's <script> is still the script's text.
+      "<script><!--<script>\n// </script>\n// <template>\n</script>",
+      // End tags' attributes, bogus comments, and an = in an unquoted value.
+      `</div title="<template>">`,
+      "<!x <template>>",
+      "<?x <template>?>",
+      `<p title=x=">`,
+      // A letter whose lowercase is longer, which mustn't move what comes after it.
+      "<p>İ</p>",
     ]) {
       expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
+    }
+    // Straight before the template, where a tag read too far would take its start tag.
+    for (const code of [`<p title=x=">`, `</div title="><template>">`]) {
+      const before = `<gf-island>${slot("a.0")}</gf-island>${code}<template data-gf-slot="a.0"><b>Passed</b></template>`;
+      expect(fillSlots(before), code).toBe(`${filled}${code}`);
     }
     // Everything after <plaintext> is text.
     const plain = `<plaintext><gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">x</template>`;
@@ -269,6 +283,8 @@ describe("fillSlots", () => {
       "<a".repeat(100_000),
       "<!--".repeat(100_000),
       `<a "${"'".repeat(100_000)}`,
+      // Comments that each end, read each once.
+      "<!-- x -->".repeat(50_000),
     ]) {
       const started = performance.now();
       expect(fillSlots(`${island}${rest}`)).toBe(`${filled}${rest}`);

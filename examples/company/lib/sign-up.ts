@@ -93,15 +93,18 @@ async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): P
   if (!slot) return;
   let link: string;
   try {
-    link = await passwordLink(siteAuth, siteEnv, user.id, { hours: VERIFY_HOURS, next: signUp.next });
+    // The name goes with the link: an account takes the name of the sign-up whose link is the one that works, and a
+    // sign-up past the account's share, which sends nothing, changes nothing.
+    link = await passwordLink(siteAuth, siteEnv, user.id, {
+      hours: VERIFY_HOURS,
+      next: signUp.next,
+      ...(existing && { name: signUp.name }),
+    });
   } catch {
     // No link was made, such as while another of the account's is being sent or used: nothing counts against its share.
     await releaseEmailSlot(adapter, slot);
     return;
   }
-  // The name goes with the link: an account takes the name of the sign-up whose link is the one that works, and a
-  // sign-up past the account's share, which sends nothing, changes nothing.
-  if (existing) await internalAdapter.updateUser(user.id, { name: signUp.name });
   try {
     await sendEmail(
       siteEnv,
