@@ -25,9 +25,15 @@ export type SealKind = string;
 
 export interface Sealer {
   seal(kind: SealKind, value: unknown, lifetimeMs: number): Promise<string>;
-  /** The value, or `undefined` if it isn't one this worker sealed for `kind`, or it has expired. */
-  open<T>(kind: SealKind, sealed: unknown): Promise<T | undefined>;
+  /**
+   * The value, or `undefined` if it isn't one this worker sealed for `kind`, or it has expired, or is longer than
+   * `maxLength` (`MAX_SEALED_LENGTH` by default, made for values that travel in an address).
+   */
+  open<T>(kind: SealKind, sealed: unknown, options?: { maxLength?: number }): Promise<T | undefined>;
 }
+
+/** The longest sealed value `open()` takes unless it's told otherwise: one that fits in an address. */
+export const MAX_SEALED_LENGTH = 16_384;
 
 const IV_BYTES = 12;
 
@@ -56,8 +62,9 @@ export async function createSealer(key: string, now: () => number = Date.now): P
       return base64UrlEncode(out);
     },
 
-    async open<T>(kind: SealKind, sealed: unknown): Promise<T | undefined> {
-      if (typeof sealed !== "string" || sealed.length > 16_384 || !/^[\w-]+$/.test(sealed)) return undefined;
+    async open<T>(kind: SealKind, sealed: unknown, options: { maxLength?: number } = {}): Promise<T | undefined> {
+      const maxLength = options.maxLength ?? MAX_SEALED_LENGTH;
+      if (typeof sealed !== "string" || sealed.length > maxLength || !/^[\w-]+$/.test(sealed)) return undefined;
       try {
         const bytes = base64UrlDecode(sealed);
         const plain = await crypto.subtle.decrypt(

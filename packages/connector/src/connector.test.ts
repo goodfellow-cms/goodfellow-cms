@@ -38,7 +38,15 @@ function starterFiles(): Record<string, string> {
 const key = await testKeyPair();
 const description = describeSite({ blocks });
 
-function setup(options: { installed?: boolean; screenshots?: Screenshotter; push?: boolean } = {}) {
+function setup(
+  options: {
+    installed?: boolean;
+    screenshots?: Screenshotter;
+    push?: boolean;
+    /** The projects GitLab lists for the person, where the test gives more than the fake's one. */
+    gitlabProjects?: string[];
+  } = {},
+) {
   const app: FakeGitHubApp = {
     id: "301",
     slug: "goodfellow-for-claude",
@@ -98,6 +106,11 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
       throw new TypeError("fetch failed");
     }
     if (host === "api.github.com" || host === "github.com") return github.fetch(request);
+    if (host === "gitlab.example" && options.gitlabProjects && pathname === "/api/v4/projects") {
+      return Response.json(
+        options.gitlabProjects.map((project) => ({ path_with_namespace: project, default_branch: "main" })),
+      );
+    }
     if (host === "gitlab.example") return gitlab.fetch(request);
     if (host === "api.bitbucket.org" || host === "bitbucket.org") return bitbucket.fetch(request);
     if (request.url === `${SITE}/goodfellow-site.json`) return Response.json(description);
@@ -247,6 +260,7 @@ function setup(options: { installed?: boolean; screenshots?: Screenshotter; push
   }
 
   return {
+    app,
     github,
     gitlab,
     bitbucket,
@@ -369,6 +383,42 @@ describe("connecting with GitHub", () => {
     const body = (await tokens.json()) as Record<string, unknown>;
     expect(body).toMatchObject({ token_type: "Bearer", expires_in: 3600 });
     expect(JSON.stringify(body)).not.toContain(own[0]?.token ?? "none");
+  });
+
+  it("lists a hundred sites with long names, and connects one of them", async () => {
+    const context = setup();
+    const names = Array.from({ length: 99 }, (_, i) => `parish/${"a-rather-long-repository-name-".repeat(2)}${i}`);
+    for (const name of names) context.github.addRepo(name, { files: { "package.json": "{}\n" } });
+    const installation = context.app.installations[0];
+    if (installation && Array.isArray(installation.repositories)) installation.repositories.push(...names);
+    const clientId = await context.register();
+    const { page } = await context.signInWithGitHub(clientId);
+    const picker = page.match(/name="picker" value="([^"]+)"/)?.[1] ?? "";
+    // Longer than a sealed value that travels in an address may be.
+    expect(picker.length).toBeGreaterThan(16_384);
+    expect(page.match(/name="site"/g)).toHaveLength(100);
+    const allowed = await context.allow(page, [names[0] ?? ""]);
+    expect(allowed.status).toBe(303);
+    expect(new URL(allowed.headers.get("location") ?? "").searchParams.get("code")).toBeTruthy();
+  });
+
+  it("lists as many sites as its form can hold, and says when there were more", async () => {
+    // A hundred GitLab projects with the longest paths GitLab allows in subgroups.
+    const projects = Array.from(
+      { length: 100 },
+      (_, i) => `parish/${"subgroup-".repeat(28)}${String(i).padStart(3, "0")}`,
+    );
+    const context = setup({ gitlabProjects: ["parish/site", ...projects] });
+    const clientId = await context.register();
+    const started = await context.startAuthorize(clientId);
+    const authorize = new URL((await context.visit(started.link("gitlab"))).headers.get("location") ?? "");
+    const page = await (await context.visit(context.gitlab.authorize(authorize.toString()))).text();
+    const listed = page.match(/name="site"/g)?.length ?? 0;
+    expect(listed).toBeGreaterThan(1);
+    expect(listed).toBeLessThan(100);
+    expect(page).toContain(`These are the first ${listed} of your 100 sites`);
+    const allowed = await context.allow(page, ["parish/site"]);
+    expect(allowed.status).toBe(303);
   });
 
   it("refuses a code used twice, and ends the connection it made", async () => {
