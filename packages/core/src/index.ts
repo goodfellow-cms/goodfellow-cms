@@ -136,6 +136,7 @@ export {
 export {
   BROKER_FILES_LIST,
   BROKER_SITE_DIR,
+  type BrokerDigests,
   type BrokerFetch,
   type BrokerHost,
   type BrokerPlan,

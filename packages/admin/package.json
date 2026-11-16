@@ -87,6 +87,7 @@
   },
   "devDependencies": {
     "@goodfellow-cms/blocks": "workspace:*",
+    "@goodfellow-cms/broker": "workspace:*",
     "@puckeditor/core": "0.24.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

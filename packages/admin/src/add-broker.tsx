@@ -16,6 +16,7 @@ import {
 } from "@goodfellow-cms/core";
 import { useMemo, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
+import { BROKER_DIGESTS } from "./broker-digests.js";
 import { REGISTRY_VERSION } from "./registry-version.js";
 import { type StringKey, useStrings } from "./strings.js";
 import { Button, ErrorMessage, TextField } from "./ui.js";
@@ -104,11 +105,11 @@ export function AddBroker({ setup, onAdded }: { setup: () => SetupHost; onAdded:
       const owner = owners.find((candidate) => candidate.path === siteOwner(site.backend?.options)) ?? owners[0];
       if (!owner) throw { message: "security.add.error.owner" };
       if (!(await account.isAvailable(owner, name.trim()))) throw { message: "security.add.error.taken" };
-      const release = await fetchBrokerRelease(brokerReleaseUrl(REGISTRY_VERSION), (url) => fetch(url)).catch(
-        (caught: unknown) => {
-          throw { message: "security.add.error.release", error: caught };
-        },
-      );
+      const release = await fetchBrokerRelease(brokerReleaseUrl(REGISTRY_VERSION), (url) => fetch(url), {
+        digests: BROKER_DIGESTS,
+      }).catch((caught: unknown) => {
+        throw { message: "security.add.error.release", error: caught };
+      });
       const brokerHost = PLACE_HOSTS[place];
       const files = planBroker({
         release,

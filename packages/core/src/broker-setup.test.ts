@@ -70,6 +70,31 @@ describe("fetchBrokerRelease", () => {
     expect(new TextDecoder().decode(files.get("assets/a.js"))).toBe("file https://cdn.example/site/assets/a.js");
   });
 
+  it("checks every file against the digests the admin panel was built with", async () => {
+    const files = ["index.html", "assets/a.js"];
+    const hex = async (text: string) =>
+      [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))]
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+    const base = "https://cdn.example/site/";
+    const digests = Object.fromEntries(
+      await Promise.all(files.map(async (path) => [path, await hex(`file ${base}${path}`)] as const)),
+    );
+    const read = await fetchBrokerRelease(base, serve({ files }), { digests });
+    expect([...read.keys()].sort()).toEqual([...files].sort());
+    // A file that isn't the released one, a file it doesn't know, or one missing, and nothing's copied.
+    const changed = { ...digests, "assets/a.js": await hex("something else") };
+    await expect(fetchBrokerRelease(base, serve({ files }), { digests: changed })).rejects.toThrow(
+      /as it was released/,
+    );
+    await expect(
+      fetchBrokerRelease(base, serve({ files: [...files, "assets/extra.js"] }), { digests }),
+    ).rejects.toThrow(/as they were released/);
+    await expect(fetchBrokerRelease(base, serve({ files: ["index.html"] }), { digests })).rejects.toThrow(
+      /as they were released/,
+    );
+  });
+
   it("refuses a list that reaches outside the release", async () => {
     await expect(fetchBrokerRelease("https://cdn.example/site/", serve({ files: ["../secret"] }))).rejects.toThrow();
     await expect(fetchBrokerRelease("https://cdn.example/site/", serve({ files: "index.html" }))).rejects.toThrow();

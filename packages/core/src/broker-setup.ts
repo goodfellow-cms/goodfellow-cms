@@ -34,11 +34,21 @@ export type BrokerFetch = (url: string) => Promise<{
 /** A release's files, by their path in its `site/` folder. */
 export type BrokerRelease = Map<string, Uint8Array>;
 
+/** A release's files' SHA-256, in hex, by their path, as the broker's build writes them in `files.json`. */
+export type BrokerDigests = Record<string, string>;
+
 /**
  * Reads a release of the broker's page: its `files.json`, then each file it
- * lists. `base` is `brokerReleaseUrl()`, or the built page elsewhere.
+ * lists. `base` is `brokerReleaseUrl()`, or the built page elsewhere. With
+ * `digests`, the release must have exactly those files, each with that SHA-256,
+ * since the page will hold every editor's sign-in: the admin panel's build keeps
+ * them from the broker built with it, so whatever the address answers is checked.
  */
-export async function fetchBrokerRelease(base: string, fetcher: BrokerFetch): Promise<BrokerRelease> {
+export async function fetchBrokerRelease(
+  base: string,
+  fetcher: BrokerFetch,
+  options: { digests?: BrokerDigests } = {},
+): Promise<BrokerRelease> {
   const root = base.endsWith("/") ? base : `${base}/`;
   const listed = await fetcher(`${root}${BROKER_FILES_LIST}`);
   if (!listed.ok) throw new Error(`The token broker's files couldn't be read from ${root} (${listed.status}).`);
@@ -46,15 +56,32 @@ export async function fetchBrokerRelease(base: string, fetcher: BrokerFetch): Pr
   if (!Array.isArray(files) || !files.every((file) => typeof file === "string" && isReleasePath(file))) {
     throw new Error(`${root}${BROKER_FILES_LIST} doesn't list the token broker's files.`);
   }
+  const { digests } = options;
+  if (digests) {
+    const known = Object.keys(digests).sort();
+    const listedFiles = [...files].sort();
+    if (known.length !== listedFiles.length || known.some((path, index) => path !== listedFiles[index])) {
+      throw new Error(`${root}${BROKER_FILES_LIST} doesn't list the token broker's files as they were released.`);
+    }
+  }
   const release: BrokerRelease = new Map();
   await Promise.all(
     files.map(async (path: string) => {
       const response = await fetcher(`${root}${path}`);
       if (!response.ok) throw new Error(`${root}${path} couldn't be read (${response.status}).`);
-      release.set(path, new Uint8Array(await response.arrayBuffer()));
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (digests && (await sha256Hex(bytes)) !== digests[path]) {
+        throw new Error(`${root}${path} isn't the token broker's file as it was released.`);
+      }
+      release.set(path, bytes);
     }),
   );
   return release;
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>));
+  return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** A path inside the release's folder, never outside it. */
