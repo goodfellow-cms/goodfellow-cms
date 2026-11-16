@@ -1,8 +1,9 @@
 // Brings this copy of the sign-in service up to date with the newest release of Goodfellow, whose
 // create-goodfellow package carries it on npm (templates/sign-in/). The update workflow runs it each
 // week; Cloudflare deploys the change once it's pushed. It keeps your Worker's name, takes only a
-// release that's been out a day, as Goodfellow's site updates do, never goes back to an older one,
-// and takes it only where npm's provenance says Goodfellow's own release workflow built it.
+// release that's been out a day, as Goodfellow's site updates do, never past npm's latest tag or a
+// deprecated one, never goes back to an older one, and takes it only where npm's provenance says
+// Goodfellow's own release workflow built it.
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,12 +29,15 @@ function compare(a, b) {
 }
 
 /**
- * The release to take, from npm's publish times: the highest version that's been out a day, never one lower than
- * `current`, the release this copy has, where it knows it. `undefined` where there's none to take.
+ * The release to take, from npm's publish times: the highest version that's been out a day, no higher than the
+ * `latest` tag where npm names one, and not deprecated, so a release Goodfellow takes back is never taken; never one
+ * lower than `current`, the release this copy has, where it knows it. `undefined` where there's none to take.
  */
-export function chooseRelease(time, current, now = Date.now()) {
+export function chooseRelease(time, current, now = Date.now(), { latest, deprecated = [] } = {}) {
+  const takenBack = new Set(deprecated);
   const old = Object.entries(time ?? {})
-    .filter(([version, at]) => parts(version) && now - Date.parse(at) > DAY)
+    .filter(([version, at]) => parts(version) && now - Date.parse(at) > DAY && !takenBack.has(version))
+    .filter(([version]) => !parts(latest) || compare(version, latest) <= 0)
     .map(([version]) => version)
     .sort(compare);
   const highest = old.at(-1);
@@ -79,8 +83,17 @@ function main() {
     });
   const here = new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
   const own = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
-  const info = JSON.parse(npm(["view", "create-goodfellow", "time", "--json"]));
-  const release = chooseRelease(info, own.goodfellowRelease);
+  // npm's record of the package: when each release was published, its tags, and which are deprecated.
+  const info = JSON.parse(
+    execFileSync("curl", ["-fsSL", "https://registry.npmjs.org/create-goodfellow"], { encoding: "utf8" }),
+  );
+  const deprecated = Object.entries(info.versions ?? {})
+    .filter(([, manifest]) => manifest?.deprecated)
+    .map(([version]) => version);
+  const release = chooseRelease(info.time, own.goodfellowRelease, Date.now(), {
+    latest: info["dist-tags"]?.latest,
+    deprecated,
+  });
   if (!release) throw new Error("npm lists no release of create-goodfellow old enough to use.");
   if (release === own.goodfellowRelease) {
     console.log(`Already up to date with Goodfellow ${release}.`);

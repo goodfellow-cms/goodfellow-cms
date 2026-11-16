@@ -109,7 +109,9 @@ export function gitlab(options: GitLabOptions): GitHost {
     // access token at once (the backend reads several folders together) share one renewal.
     // So do tabs: each keeps its tokens in memory, so one that renews reads the stored sign-in first, and again where
     // GitLab refuses its refresh token, in case another tab has renewed it, and tabs take turns where the browser can
-    // say so (Web Locks).
+    // say so (Web Locks). Only a remembered sign-in is shared this way, in localStorage: one kept for the session is
+    // each tab's own (sessionStorage), so a tab copied from another signs in again once the other renews. Handing
+    // tokens between tabs some other way (BroadcastChannel) would hand them to every page at the admin panel's origin.
     let renewing: Promise<string> | undefined;
     /** The tokens another tab saved for this same sign-in since this one last had them. */
     const savedNewer = (current: OAuthTokens): OAuthTokens | undefined => {

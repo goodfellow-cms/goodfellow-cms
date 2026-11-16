@@ -50,7 +50,12 @@ describe("the Deploy to Cloudflare copy", () => {
 
 describe("the Deploy to Cloudflare copy's update", async () => {
   const update = (await import(new URL("../../worker/deploy/update.mjs", import.meta.url).href)) as {
-    chooseRelease(time: Record<string, string>, current: string | undefined, now?: number): string | undefined;
+    chooseRelease(
+      time: Record<string, string>,
+      current: string | undefined,
+      now?: number,
+      tags?: { latest?: string; deprecated?: string[] },
+    ): string | undefined;
     provenanceProblem(answer: unknown, integrity: string): string | undefined;
   };
   const now = Date.parse("2026-11-16T12:00:00Z");
@@ -71,6 +76,17 @@ describe("the Deploy to Cloudflare copy's update", async () => {
     // A copy that's further on stays where it is.
     expect(update.chooseRelease(time, "0.13.1", now)).toBe("0.13.1");
     expect(update.chooseRelease({ "1.0.0": days(0.1) }, undefined, now)).toBeUndefined();
+  });
+
+  it("takes nothing past npm's latest tag, nor a deprecated release", () => {
+    const time = { "0.13.0": days(5), "0.14.0": days(3), "0.14.1": days(2) };
+    // 0.14.0 was broken: latest went back to 0.13.0, and 0.14.0 was deprecated.
+    expect(update.chooseRelease(time, undefined, now, { latest: "0.13.0" })).toBe("0.13.0");
+    expect(update.chooseRelease(time, "0.13.0", now, { latest: "0.13.0", deprecated: ["0.14.0"] })).toBe("0.13.0");
+    // Once the fix is latest it's taken, never the deprecated release before it.
+    expect(update.chooseRelease(time, "0.13.0", now, { latest: "0.14.1", deprecated: ["0.14.0"] })).toBe("0.14.1");
+    const fixless = { "0.13.0": days(5), "0.14.0": days(3) };
+    expect(update.chooseRelease(fixless, undefined, now, { deprecated: ["0.14.0"] })).toBe("0.13.0");
   });
 
   it("takes a release only where its provenance names Goodfellow's release workflow and the packed file", () => {

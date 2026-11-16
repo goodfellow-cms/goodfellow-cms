@@ -90,7 +90,6 @@ import {
 } from "./content.js";
 import { type ConnectorContext, type OpenedSite, openSite } from "./site.js";
 
-/** What Claude is told about working with Goodfellow sites. */
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -108,6 +107,7 @@ export function mergeSettings(current: unknown, changes: unknown): unknown {
   return merged;
 }
 
+/** What Claude is told about working with Goodfellow sites. */
 export const INSTRUCTIONS = `These tools edit websites built with Goodfellow, for people who aren't developers.
 
 - Start with get_site, which lists the site's pages, collections, and blocks.
