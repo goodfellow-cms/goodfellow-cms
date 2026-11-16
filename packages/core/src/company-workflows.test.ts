@@ -1,7 +1,16 @@
 // The company example's workflows' scripts, which sites copy, run with bash against a stand-in for wrangler, as
 // GitHub's runners run them (`bash -e`, with pipefail).
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -493,6 +502,8 @@ describe("the company example's deploy job's check of what the build handed over
       ],
       ["another wrangler.jsonc", (config) => (config.userConfigPath = "/tmp/wrangler.jsonc")],
       ["a key no build writes", (config) => (config.unsafe = { bindings: [{ name: "X", type: "x" }] })],
+      ["a setting left out", (config) => delete config.keep_vars],
+      ["bindings left out", (config) => delete config.kv_namespaces],
     ];
     for (const [what, change] of changes) {
       const { status, out } = checked(change);
@@ -514,6 +525,15 @@ describe("the company example's deploy job's check of what the build handed over
     });
     expect(linked.status).toBe(1);
     expect(linked.out).toContain("is a link");
+    // The folders themselves too, which every path in them would otherwise be inside as text.
+    for (const folder of ["dist", ".wrangler"]) {
+      const moved = checked((_config, root) => {
+        renameSync(join(root, folder), join(root, `${folder}-elsewhere`));
+        symlinkSync(join(root, `${folder}-elsewhere`), join(root, folder));
+      });
+      expect(moved.status, folder).toBe(1);
+      expect(moved.out, folder).toContain(`${folder} is a link`);
+    }
   });
 
   it("runs in the deploy job before anything reads the build's files, with none of the job's secrets", () => {

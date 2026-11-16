@@ -108,6 +108,59 @@ describe("filling in an item's values", () => {
     );
   });
 
+  it("judges an address by all of it, and keeps values out of tag names and past a comment's end", () => {
+    const parts: Collection = {
+      ...news,
+      settings: collectionFileSchema.parse({
+        version: 1,
+        name: "News",
+        entryName: "Story",
+        fields: [
+          { name: "title", label: "Title", type: "text" },
+          { name: "base", label: "Base", type: "text" },
+          { name: "path", label: "Path", type: "text" },
+        ],
+      }),
+    };
+    const fill = (html: string, fields: Record<string, string>) =>
+      applyEntry({ root: { props: {} }, content: [{ type: "Html", props: { id: "x", html } }] }, config, parts, {
+        collection: "news",
+        slug: "a",
+        file: "content/collections/news/a.json",
+        path: "/news/a",
+        content: { version: 1, fields: { title: "T", ...fields } },
+      }).content[0]?.props.html;
+    // Two values, or a value and the owners' text, can spell a scheme neither does alone.
+    expect(fill('<a href="{base}{path}">Go</a>', { base: "java", path: "script:alert(1)" })).toBe('<a href="">Go</a>');
+    expect(fill("<a href={base}{path}>Go</a>", { base: "java", path: "script:alert(1)" })).toBe("<a href=>Go</a>");
+    expect(fill('<a href="{base}script:alert(1)">Go</a>', { base: "java" })).toBe('<a href="script:alert(1)">Go</a>');
+    expect(fill('<a href="{base}&#58;alert(1)">Go</a>', { base: "javascript" })).toBe('<a href="&#58;alert(1)">Go</a>');
+    expect(fill('<a href="{base}&colon;alert(1)">Go</a>', { base: "javascript" })).toBe(
+      '<a href="&colon;alert(1)">Go</a>',
+    );
+    // Safe ones, and values after the owners' own scheme, go in as before.
+    expect(fill('<a href="{base}{path}">Go</a>', { base: "https://example.org", path: "/a b" })).toBe(
+      '<a href="https://example.org/a&#32;b">Go</a>',
+    );
+    expect(fill('<a href="webcal://example.org/{path}.ics">Add</a>', { path: "events" })).toBe(
+      '<a href="webcal://example.org/events.ics">Add</a>',
+    );
+    // Straight after a `<`, a value would be the tag's name, or start a comment.
+    expect(fill("<p>1<{path}></p>", { path: "img src=x onerror=alert(1)" })).toBe("<p>1<></p>");
+    expect(fill("<p><!{path}</p>", { path: "--" })).toBe("<p><!</p>");
+    expect(fill("<p>{path} < 2</p>", { path: "1" })).toBe("<p>1 < 2</p>");
+    // A comment ends at --!>, and at a > straight after <!-- or <!---, so what follows is markup again.
+    for (const comment of ["<!-- x --!>", "<!-->", "<!--->"]) {
+      expect(fill(`${comment}<a href="{path}">Go</a>`, { path: "javascript:alert(1)" })).toBe(
+        `${comment}<a href="">Go</a>`,
+      );
+    }
+    // A script ends only at its own end tag, not at one that only starts the same.
+    expect(fill("<script>var a = '</scriptx>{path}';</script>", { path: "alert(1)" })).toBe(
+      "<script>var a = '</scriptx>';</script>",
+    );
+  });
+
   it("escapes them in rich text inside lists and objects too", () => {
     const filled = applyEntry(
       {

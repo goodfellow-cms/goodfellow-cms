@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { findBuildCause } from "./build-problems.js";
 import { CONTENT_REPOSITORY_DIR, INSTALLED_RECORD_FILE, SITE_FILE, UPDATES_FILE } from "./content/paths.js";
@@ -276,25 +277,27 @@ async function fetchTextFromNetwork(url: string): Promise<string> {
 }
 
 /**
- * The release of Goodfellow's registry the site's packages installed (a dependency of `@goodfellow-cms/admin`) and
- * the SHA-256 of each of its items, or `undefined` where it isn't installed or is from before releases had them.
+ * The release of Goodfellow's registry the site's packages installed, found as `@goodfellow-cms/admin`, which depends
+ * on it, finds it, and the SHA-256 of each of its items: `undefined` digests where that release has none, as releases
+ * from before they were written don't. Throws where it can't be found or read.
  */
-async function installedRegistryDigests(
-  root: string,
-): Promise<{ version: string; digests: RegistryDigests } | undefined> {
-  for (const folder of [
-    join(root, "node_modules/@goodfellow-cms/registry"),
-    join(root, "node_modules/@goodfellow-cms/admin/node_modules/@goodfellow-cms/registry"),
-  ]) {
-    try {
-      const { version } = JSON.parse(await readFile(join(folder, "package.json"), "utf8")) as { version: string };
-      const digests = JSON.parse(await readFile(join(folder, "r", REGISTRY_DIGESTS_FILE), "utf8")) as RegistryDigests;
-      return { version, digests };
-    } catch {
-      // Not installed here, or from before releases had digests.
-    }
+async function installedRegistryDigests(root: string): Promise<{ version: string; digests?: RegistryDigests }> {
+  const admin = createRequire(join(root, "package.json")).resolve("@goodfellow-cms/admin/package.json");
+  const manifest = createRequire(admin).resolve("@goodfellow-cms/registry/package.json");
+  const { version } = JSON.parse(await readFile(manifest, "utf8")) as { version: unknown };
+  if (typeof version !== "string") throw new Error(`${manifest} has no version.`);
+  let text: string;
+  try {
+    text = await readFile(join(dirname(manifest), "r", REGISTRY_DIGESTS_FILE), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version };
+    throw error;
   }
-  return undefined;
+  const digests = JSON.parse(text) as unknown;
+  if (typeof digests !== "object" || digests === null || Array.isArray(digests)) {
+    throw new Error(`The registry's ${REGISTRY_DIGESTS_FILE} isn't a list of digests.`);
+  }
+  return { version, digests: digests as RegistryDigests };
 }
 
 async function fetchJsonFromNetwork(url: string): Promise<unknown> {
@@ -445,15 +448,17 @@ async function updateSite(
   /**
    * Whether the blocks fetched from Goodfellow's registry are what `release` built, by the digests of the registry
    * npm installed, which is checked against npm's own record of the release: a block's files are the site's code, and
-   * the address that served them could have answered with anything. A release from before registries had digests
-   * can't be checked, which it says.
+   * the address that served them could have answered with anything. Only going back to a release from before
+   * registries had digests goes on without them, which it says: every newer release has them.
    */
   async function blocksAsReleased(release: string): Promise<boolean> {
     if (fetchedBlocks.size === 0) return true;
-    const installedRegistry = await installedRegistryDigests(root);
-    if (!installedRegistry) {
-      log(`Goodfellow ${release}'s blocks can't be checked, since its registry has no digests.`);
-      return true;
+    let installedRegistry: Awaited<ReturnType<typeof installedRegistryDigests>>;
+    try {
+      installedRegistry = await installedRegistryDigests(root);
+    } catch (error) {
+      log(`The blocks registry npm installed can't be read: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     }
     if (installedRegistry.version !== release) {
       log(
@@ -461,8 +466,17 @@ async function updateSite(
       );
       return false;
     }
+    const { digests } = installedRegistry;
+    if (!digests) {
+      if (rollback) {
+        log(`Goodfellow ${release}'s blocks can't be checked, since its registry has no digests.`);
+        return true;
+      }
+      log(`Goodfellow ${release}'s blocks registry has no digests, so its blocks can't be checked.`);
+      return false;
+    }
     for (const [name, digest] of fetchedBlocks) {
-      if (installedRegistry.digests[name] !== digest) {
+      if (!Object.hasOwn(digests, name) || digests[name] !== digest) {
         log(`The block ${name} that was downloaded isn't the one Goodfellow ${release} released.`);
         return false;
       }
@@ -490,9 +504,13 @@ async function updateSite(
     // Goodfellow's own release is fetched as text, so what came can be checked against the release npm installs.
     const prefix = options.registry ? undefined : goodfellowRegistryUrl(release).replace("{name}.json", "");
     const fetchItem: FetchJson = async (url) => {
-      if (!prefix || !url.startsWith(prefix) || !url.endsWith(".json")) return fetchJson(url);
+      if (!prefix || !url.startsWith(prefix)) return fetchJson(url);
+      // Only an item's own address, which the release's digests can check: anything else there, such as one with a
+      // query, is refused.
+      const name = /^([^/?#]+)\.json$/.exec(url.slice(prefix.length))?.[1];
+      if (!name) throw new RegistryError({ code: "changed", url });
       const text = await fetchText(url);
-      fetchedBlocks.set(url.slice(prefix.length, -".json".length), await hashText(text));
+      fetchedBlocks.set(name, await hashText(text));
       return JSON.parse(text);
     };
     const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;

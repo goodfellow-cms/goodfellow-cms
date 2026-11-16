@@ -50,12 +50,63 @@ const ADDRESS_ATTRIBUTES = new Set([
 /** Elements whose content is never markup, so no escaping keeps a value in them from being code. */
 const RAW_TEXT = new Set(["script", "style", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext"]);
 
+/** The named references that spell what ends an address's scheme, as browsers read them in attributes. */
+const NAMED: Record<string, string> = {
+  colon: ":",
+  sol: "/",
+  quest: "?",
+  num: "#",
+  amp: "&",
+  Tab: "\t",
+  NewLine: "\n",
+};
+
+/**
+ * Owners' text in an attribute's value as a browser reads it, as far as an address's scheme goes: numeric references,
+ * and the named ones that spell what ends a scheme. Others stay as they're written, which reads as no scheme at all
+ * only where it really is one, so the check is stricter, never looser.
+ */
+function decodeAttribute(text: string): string {
+  return text.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));?/gi, (whole, hex: string, decimal: string, name: string) => {
+    if (name !== undefined) return NAMED[name] ?? whole;
+    const code = hex !== undefined ? Number.parseInt(hex, 16) : Number(decimal);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "\ufffd";
+  });
+}
+
+/** One attribute value's parts: the owners' text as written, and an item's values as they are. */
+type ValuePart = { text: string; value: boolean };
+
+/**
+ * An attribute's value with the item's values in it: none in an `on…` handler or `srcdoc`, and, in an address that's
+ * followed or loaded, none where they help spell its scheme and the address they make, whole, could run script.
+ */
+function attributeValue(attribute: string, parts: ValuePart[]): string {
+  const name = attribute.toLowerCase();
+  const owners = () => parts.map((part) => (part.value ? "" : part.text)).join("");
+  if (!parts.some((part) => part.value)) return owners();
+  if (name.startsWith("on") || name === "srcdoc") return owners();
+  if (ADDRESS_ATTRIBUTES.has(name)) {
+    let address = "";
+    let firstValue = -1;
+    for (const part of parts) {
+      if (part.value && part.text !== "" && firstValue === -1) firstValue = address.length;
+      address += part.value ? part.text : decodeAttribute(part.text);
+    }
+    // The scheme is settled by the first character that ends it; a value before then helps spell it.
+    const settled = address.search(/[:/?#]/);
+    const spells = firstValue !== -1 && (settled === -1 || firstValue <= settled);
+    if (spells && (!isSafeUrl(address) || isScriptUrl(address))) return owners();
+  }
+  return parts.map((part) => (part.value ? escapeAttribute(part.text) : part.text)).join("");
+}
+
 /**
  * HTML a block shows as it is, such as Custom HTML's, with an item's values put in where its placeholders are, each
- * by where it sits in the owners' HTML: escaped between tags and in attributes' values, and an address at the start
- * of one that's followed or loaded only where it's a safe one. Where no escaping would keep a value from being
- * markup or script, in a tag outside an attribute's value, an `on…` handler, `srcdoc`, or a script or style, it's
- * left out.
+ * by where it sits in the owners' HTML: escaped between tags and in attributes' values, and in an address that's
+ * followed or loaded only where the whole address is a safe one. Where no escaping would keep a value from being
+ * markup or script, in a tag outside an attribute's value, just after a `<`, an `on…` handler, `srcdoc`, or a script
+ * or style, it's left out.
  */
 function fillHtml(text: string, values: Values): string {
   type State = "text" | "comment" | "tag" | "attribute" | "afterAttribute" | "beforeValue" | "value" | "raw";
@@ -65,8 +116,18 @@ function fillHtml(text: string, values: Values): string {
   let closing = false;
   let attribute = "";
   let quote = "";
-  // Whether the attribute's value so far is only spaces, for an address at its start.
-  let atStart = true;
+  // The attribute value being read, put into `out` whole once it ends.
+  let parts: ValuePart[] = [];
+  const startValue = (opening: string) => {
+    state = "value";
+    quote = opening;
+    parts = [];
+  };
+  const endValue = () => {
+    out += attributeValue(attribute, parts);
+    parts = [];
+  };
+  const afterTag = (): State => (RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text");
   const placeholder = new RegExp(PLACEHOLDER.source, "y");
   let i = 0;
   while (i < text.length) {
@@ -74,27 +135,33 @@ function fillHtml(text: string, values: Values): string {
     const match = placeholder.exec(text);
     const value = match ? values.get(match[1] ?? "") : undefined;
     if (match && value !== undefined) {
-      if (state === "beforeValue") {
-        state = "value";
-        quote = "";
-        atStart = true;
-      }
-      if (state === "text" || state === "comment") out += escapeHtml(value);
-      else if (state === "value") {
-        const name = attribute.toLowerCase();
-        const unsafe =
-          name.startsWith("on") ||
-          name === "srcdoc" ||
-          (ADDRESS_ATTRIBUTES.has(name) && atStart && (!isSafeUrl(value) || isScriptUrl(value)));
-        if (!unsafe) out += escapeAttribute(value);
-        if (value.trim() !== "") atStart = false;
-      }
+      if (state === "beforeValue") startValue("");
+      // Just after a `<`, a value would name the tag, or start a comment.
+      if (state === "text" && !/<[!?]?$/.test(out)) out += escapeHtml(value);
+      else if (state === "comment") out += escapeHtml(value);
+      else if (state === "value") parts.push({ text: value, value: true });
       i += match[0].length;
       continue;
     }
     const char = text[i] ?? "";
-    out += char;
     i++;
+    if (state === "value") {
+      if (quote ? char === quote : /\s/.test(char)) {
+        endValue();
+        state = "afterAttribute";
+      } else if (!quote && char === ">") {
+        endValue();
+        state = afterTag();
+      } else {
+        const last = parts.at(-1);
+        if (last && !last.value) last.text += char;
+        else parts.push({ text: char, value: false });
+        continue;
+      }
+      out += char;
+      continue;
+    }
+    out += char;
     switch (state) {
       case "text":
         if (char === "<" && text.startsWith("!--", i)) {
@@ -108,15 +175,16 @@ function fillHtml(text: string, values: Values): string {
         }
         break;
       case "comment":
-        if (char === ">" && out.endsWith("-->")) state = "text";
+        // `-->` and `--!>` end a comment, as does a `>` straight after `<!--` or `<!---`, which ends in `-->` too.
+        if (char === ">" && (out.endsWith("-->") || out.endsWith("--!>"))) state = "text";
         break;
       case "tag":
-        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        if (char === ">") state = afterTag();
         else if (/\s/.test(char)) state = "afterAttribute";
         else if (char !== "/") tag += char;
         break;
       case "afterAttribute":
-        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        if (char === ">") state = afterTag();
         else if (char === "=") state = "beforeValue";
         else if (!/[\s/]/.test(char)) {
           attribute = char;
@@ -124,37 +192,37 @@ function fillHtml(text: string, values: Values): string {
         }
         break;
       case "attribute":
-        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
+        if (char === ">") state = afterTag();
         else if (char === "=") state = "beforeValue";
         else if (/[\s/]/.test(char)) state = "afterAttribute";
         else attribute += char;
         break;
       case "beforeValue":
-        if (char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
-        else if (char === '"' || char === "'") {
-          quote = char;
-          atStart = true;
-          state = "value";
-        } else if (!/\s/.test(char)) {
-          quote = "";
-          atStart = false;
-          state = "value";
+        if (char === ">") state = afterTag();
+        else if (char === '"' || char === "'") startValue(char);
+        else if (!/\s/.test(char)) {
+          out = out.slice(0, -1);
+          startValue("");
+          parts.push({ text: char, value: false });
         }
         break;
-      case "value":
-        if (quote ? char === quote : /\s/.test(char)) state = "afterAttribute";
-        else if (!quote && char === ">") state = RAW_TEXT.has(tag.toLowerCase()) && !closing ? "raw" : "text";
-        else if (!/\s/.test(char)) atStart = false;
-        break;
-      case "raw":
-        if (char === "<" && text.slice(i, i + tag.length + 1).toLowerCase() === `/${tag.toLowerCase()}`) {
+      case "raw": {
+        // Only an end tag of the same name, ended by a space, `/` or `>`, ends the text.
+        const after = text[i + tag.length + 1] ?? "";
+        if (
+          char === "<" &&
+          text.slice(i, i + tag.length + 1).toLowerCase() === `/${tag.toLowerCase()}` &&
+          /[\s/>]/.test(after)
+        ) {
           closing = true;
           state = "tag";
           tag = "";
         }
         break;
+      }
     }
   }
+  if (state === "value") endValue();
   return out;
 }
 

@@ -87,7 +87,11 @@ function buildProblems(root: string): string[] {
   const redirect = join(root, ".wrangler/deploy/config.json");
   if (!existsSync(dist) || !existsSync(redirect)) return ["The build's files aren't there."];
 
-  // Links could lead anywhere on this computer.
+  // Links could lead anywhere on this computer, the folders themselves too.
+  for (const folder of [dist, join(root, ".wrangler")]) {
+    if (lstatSync(folder).isSymbolicLink()) problems.push(`${relative(root, folder)} is a link.`);
+  }
+  if (problems.length > 0) return problems;
   const walk = (folder: string) => {
     for (const entry of readdirSync(folder, { withFileTypes: true })) {
       const path = join(folder, entry.name);
@@ -146,6 +150,10 @@ function buildProblems(root: string): string[] {
       return empty(value) || WRITTEN[key]?.(value) === true;
     })();
     if (!ok) problems.push(`The build's config has ${key} as wrangler.jsonc doesn't.`);
+  }
+  // A setting the build left out would be taken away from the Worker, such as keep_vars, its variables.
+  for (const key of Object.keys(trusted)) {
+    if (key !== "$schema" && !(key in built)) problems.push(`The build's config leaves out wrangler.jsonc's ${key}.`);
   }
   return problems;
 }

@@ -185,7 +185,8 @@ export const REGISTRY_DIGESTS_FILE = "digests.json";
 /**
  * A `FetchJson` that takes the items of `template`, a release of Goodfellow's registry, only where the text fetched
  * has the SHA-256 `digests` gives its name, hashed as it came, before it's read, so the code a block writes into a
- * site is always what that release built, whatever the address answers. Other addresses are fetched with `fetchJson`.
+ * site is always what that release built, whatever the address answers. Any other address in the release's folder is
+ * refused; addresses outside it are fetched with `fetchJson`.
  */
 export function checkedFetchJson(
   template: string,
@@ -196,8 +197,9 @@ export function checkedFetchJson(
   const prefix = prefixOf(template);
   const suffix = template.slice(template.indexOf("{name}") + "{name}".length);
   return async (url) => {
-    if (!url.startsWith(prefix) || !url.endsWith(suffix)) return fetchJson(url);
-    const name = url.slice(prefix.length, url.length - suffix.length);
+    if (!url.startsWith(prefix)) return fetchJson(url);
+    // Anything else in the release's folder, such as an item's address with a query, is refused, never fetched as is.
+    const name = url.endsWith(suffix) ? url.slice(prefix.length, url.length - suffix.length) : "";
     const expected = Object.hasOwn(digests, name) ? digests[name] : undefined;
     if (!expected) throw new RegistryError({ code: "changed", url });
     const text = await fetchText(url);
@@ -271,7 +273,8 @@ export async function availableBlocks(registries: RegistrySources, fetchJson: Fe
         let data: unknown;
         try {
           data = await fetchJson(url);
-        } catch {
+        } catch (error) {
+          if (error instanceof RegistryError) throw error;
           throw new RegistryError({ code: "unreachable", url });
         }
         const parsed = registryIndexSchema.safeParse(data);

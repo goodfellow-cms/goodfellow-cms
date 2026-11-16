@@ -310,19 +310,37 @@ describe("goodfellow update", () => {
       files: [{ path: "blocks/shadcn-faq/block.tsx", type: "registry:block", content: "export default { v: 2 };\n" }],
       meta: { goodfellow: { category: "Sections", version: "1.1.0" } },
     })}\n`;
-    /** jsDelivr, answering `text` for the block, and how often it was asked. */
-    const jsDelivr = (text: string) => async (url: string) => {
-      if (!/^https:\/\/cdn\.jsdelivr\.net\/npm\/@goodfellow-cms\/registry@0\.4\.2\/r\/shadcn-faq\.json$/.test(url)) {
-        throw new Error(`404 ${url}`);
-      }
-      return text;
-    };
-    /** The registry release npm installed, as a dependency of the admin panel, with its blocks' digests. */
-    const installRegistry = async (version: string, digests: Record<string, string>) => {
-      const folder = join(root, "node_modules/@goodfellow-cms/registry");
+    /** jsDelivr, answering `text` for the block of `release`. */
+    const jsDelivr =
+      (text: string, release = "0.4.2") =>
+      async (url: string) => {
+        if (url !== `https://cdn.jsdelivr.net/npm/@goodfellow-cms/registry@${release}/r/shadcn-faq.json`) {
+          throw new Error(`404 ${url}`);
+        }
+        return text;
+      };
+    /**
+     * The registry release npm installed, as a dependency of the admin panel, beside it or in the admin panel's own
+     * folder, with its blocks' digests, none, or a file that isn't digests.
+     */
+    const installRegistry = async (
+      version: string,
+      digests: Record<string, string> | string | undefined,
+      where: "beside" | "admin" = "beside",
+    ) => {
+      const admin = join(root, "node_modules/@goodfellow-cms/admin");
+      await mkdir(admin, { recursive: true });
+      await writeFile(join(admin, "package.json"), JSON.stringify({ name: "@goodfellow-cms/admin", version }));
+      const folder = join(where === "admin" ? admin : root, "node_modules/@goodfellow-cms/registry");
+      await rm(folder, { recursive: true, force: true });
       await mkdir(join(folder, "r"), { recursive: true });
       await writeFile(join(folder, "package.json"), JSON.stringify({ name: "@goodfellow-cms/registry", version }));
-      await writeFile(join(folder, "r/digests.json"), JSON.stringify(digests));
+      if (digests !== undefined) {
+        await writeFile(
+          join(folder, "r/digests.json"),
+          typeof digests === "string" ? digests : JSON.stringify(digests),
+        );
+      }
     };
 
     it("takes blocks only as the release npm installed says they were built", async () => {
@@ -347,6 +365,71 @@ describe("goodfellow update", () => {
         from: "0.4.2",
       });
       expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("finds the registry as the admin panel does, and refuses blocks it can't check", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      const options = { root, fetchJson, blocks: true, log: () => {}, env: {}, fetchText: jsDelivr(released) };
+      const refused = async () => {
+        const { ran, run } = commands();
+        expect(await update({ ...options, run })).toMatchObject({ state: "failed", step: "blocks" });
+        expect(ran).not.toContain("npm run build");
+        expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+      };
+      // Without the admin panel, or its registry, nothing says what the release built.
+      await refused();
+      // A release that has digests but whose file is missing or isn't digests.
+      await installRegistry("0.4.2", undefined, "admin");
+      await refused();
+      await installRegistry("0.4.2", "[]", "admin");
+      await refused();
+      // The admin panel's own copy is the release's, whatever another copy beside it says.
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) }, "admin");
+      await installRegistry("0.4.0", { "shadcn-faq": "something else" }, "beside");
+      expect(await update({ ...options, run: commands().run })).toEqual({ state: "up-to-date", from: "0.4.2" });
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("refuses anything at the release's address but an item's own", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      const asking = JSON.parse(released) as Record<string, unknown>;
+      asking.registryDependencies = ["https://cdn.jsdelivr.net/npm/@goodfellow-cms/registry@0.4.2/r/accordion.json?x"];
+      const text = `${JSON.stringify(asking)}\n`;
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(text) }, "admin");
+      const result = await update({
+        root,
+        fetchJson: async (url) =>
+          url.includes("accordion") ? { name: "accordion", type: "registry:ui" } : fetchJson(url),
+        fetchText: jsDelivr(text),
+        run: commands().run,
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "failed", step: "blocks" });
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+    });
+
+    it("goes back to a release from before digests with its blocks as they come, and says so", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      await installRegistry("0.4.1", undefined);
+      const lines: string[] = [];
+      const result = await update({
+        root,
+        fetchJson,
+        run: commands().run,
+        to: "0.4.1",
+        blocks: true,
+        log: (line) => lines.push(line),
+        env: {},
+        fetchText: jsDelivr(released, "0.4.1"),
+      });
+      expect(result).toMatchObject({ state: "updated", to: "0.4.1", rollback: true });
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+      expect(lines.join("\n")).toContain("0.4.1's blocks can't be checked");
     });
 
     it("checks the blocks of a release it installs against it before building, and puts everything back", async () => {

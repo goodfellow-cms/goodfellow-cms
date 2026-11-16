@@ -234,9 +234,27 @@ describe("fillSlots", () => {
       "<!-- <template> -->",
       `<meta name="x" content="a > <template>">`,
       "</template>",
+      // Every element whose content is text, which ends only at its own end tag.
+      "<xmp><template></xmp>",
+      "<noscript><template></noscript>",
+      "<iframe><template></iframe>",
+      "<noembed><template></noembed>",
+      "<noframes><template></noframes>",
+      "<textarea></template></textarea>",
+      `<script>var t = "</scriptx><template>";</script>`,
+      // A quote opens a value only just after an =; elsewhere it's part of the name or value.
+      `<p title=it"s>`,
+      `<p a"b>`,
+      // Comments end at --!>, and at a > straight after <!-- or <!---.
+      "<!-- a --!>",
+      "<!-->",
+      "<!--->",
     ]) {
       expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
     }
+    // Everything after <plaintext> is text.
+    const plain = `<plaintext><gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">x</template>`;
+    expect(fillSlots(plain)).toBe(plain);
   });
 
   it("reads any page in one pass, however its tags are written", () => {

@@ -178,14 +178,19 @@ describe("signing up", () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
       expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max);
+      // A sign-up past the account's share, which sends nothing, doesn't change its name either.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }, "198.51.100.99"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.name).toBe("Rita");
       // A sign-up that made no link, as while another of the account's is being sent or used, uses none of its share.
       await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.50"));
       await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1), SENT);
       const paul = (await context.internalAdapter.findUserByEmail("paul@example.org"))?.user.id ?? "";
       const holder = await lockLinks(context.adapter, paul);
-      await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.51"));
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "paul@example.org" }, "192.0.2.51"));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1);
+      expect((await context.internalAdapter.findUserByEmail("paul@example.org"))?.user.name).toBe("Paul");
       await unlockLinks(context.adapter, paul, holder ?? "");
       for (let index = 1; index < VERIFY_ACCOUNT_LIMIT.max; index++) {
         await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, `192.0.2.${60 + index}`));

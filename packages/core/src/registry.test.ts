@@ -341,8 +341,16 @@ describe("checkedFetchJson", () => {
     await expect(fetch("https://registry.example/r/unreleased.json")).rejects.toMatchObject({
       problem: { code: "changed" },
     });
+    // So is anything else in the release's folder, such as an item with a query or a fragment.
+    for (const other of [`${url}?x=1`, `${url}#x`, "https://registry.example/r/sub/accordion.json"]) {
+      await expect(fetch(other)).rejects.toMatchObject({ problem: { code: "changed", url: other } });
+    }
     // Refused before anything is fetched.
     expect(fetched).toEqual([]);
+    // The list of blocks is checked too, and says so when it's changed.
+    const index = "https://registry.example/r/registry.json";
+    const relisted = await checked({ [index]: text(index).replace("shadcn-faq", "shadcn-faq-2") });
+    expect(await problem(availableBlocks(registries, relisted.fetch))).toEqual({ code: "changed", url: index });
   });
 });
 

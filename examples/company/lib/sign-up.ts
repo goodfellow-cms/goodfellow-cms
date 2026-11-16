@@ -60,8 +60,8 @@ export function signUpFrom(body: unknown): SignUp {
 
 /**
  * Sends the address a link to choose a password: for a new reader's account, which this makes, or one a reader made
- * before and never chose a password for, which takes the name just typed, since anyone can sign up with any address
- * and the account's name should be its owner's, not whoever asked first. An address that already has an account with
+ * before and never chose a password for, which takes the name typed with the link it's sent, since anyone can sign up
+ * with any address and the account's name should be its owner's, not whoever asked first. An address that already has an account with
  * a password, or an editor's, is sent nothing. Each account is sent at most `VERIFY_ACCOUNT_LIMIT`'s emails, however
  * many ask.
  */
@@ -71,8 +71,8 @@ async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): P
   type Account = { id: string; emailVerified: boolean; role?: string | null };
   let user = (await internalAdapter.findUserByEmail(signUp.email))?.user as Account | undefined;
   if (user && (user.emailVerified || !isMemberRole(user.role))) return;
-  if (user) await internalAdapter.updateUser(user.id, { name: signUp.name });
-  else {
+  const existing = user !== undefined;
+  if (!user) {
     try {
       user = (await internalAdapter.createUser(
         { email: signUp.email, name: signUp.name, emailVerified: false, role: MEMBER_ROLE },
@@ -99,6 +99,9 @@ async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): P
     await releaseEmailSlot(adapter, slot);
     return;
   }
+  // The name goes with the link: an account takes the name of the sign-up whose link is the one that works, and a
+  // sign-up past the account's share, which sends nothing, changes nothing.
+  if (existing) await internalAdapter.updateUser(user.id, { name: signUp.name });
   try {
     await sendEmail(
       siteEnv,
