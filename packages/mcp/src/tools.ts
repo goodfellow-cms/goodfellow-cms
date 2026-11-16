@@ -91,6 +91,23 @@ import {
 import { type ConnectorContext, type OpenedSite, openSite } from "./site.js";
 
 /** What Claude is told about working with Goodfellow sites. */
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * `changes` laid over `current`: objects key by key, at every depth, so a theme's one color given changes only that
+ * color; `null` takes a setting out; anything else, lists included, replaces what was there.
+ */
+export function mergeSettings(current: unknown, changes: unknown): unknown {
+  if (!isPlainObject(current) || !isPlainObject(changes)) return changes;
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === null) delete merged[key];
+    else merged[key] = mergeSettings(current[key], value);
+  }
+  return merged;
+}
+
 export const INSTRUCTIONS = `These tools edit websites built with Goodfellow, for people who aren't developers.
 
 - Start with get_site, which lists the site's pages, collections, and blocks.
@@ -1073,7 +1090,7 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
 
   tool(
     "update_settings",
-    "Changes some of the site's settings, in a draft. Settings not given stay as they are. The site's address is changed on the admin panel's Domain screen instead.",
+    "Changes some of the site's settings, in a draft. Settings not given stay as they are, at any depth: to change one color, give only that, such as { theme: { colors: { primary: \"#1d4ed8\" } } }, and the rest of the theme stays; the same goes for the contact details. A list is replaced whole, and null takes a setting out. The site's address is changed on the admin panel's Domain screen instead.",
     { site: siteArg, settings: z.record(z.string(), z.unknown()), draft: draftArg },
     async ({ site: given, settings: changes, draft: name }) => {
       const site = await open(given);
@@ -1091,7 +1108,8 @@ export function registerTools(server: McpServer, context: ConnectorContext): voi
           `Claude can change the site's ${CLAUDE_SETTINGS_WORDS}. ${refused.join(", ")} ${refused.length === 1 ? "is" : "are"} changed in the admin panel's Site Settings by one of the site's owners.`,
         );
       }
-      const result = siteSettingsSchema.safeParse({ ...current, ...changes, version: current.version });
+      const merged = mergeSettings(current, changes) as Record<string, unknown>;
+      const result = siteSettingsSchema.safeParse({ ...merged, version: current.version });
       if (!result.success) {
         throw new ToolError(
           `Those settings don't fit: ${result.error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}.`,

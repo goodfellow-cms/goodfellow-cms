@@ -465,6 +465,32 @@ describe("changing a site", () => {
     expect((await call("get_menus", { draft })).json().main).toEqual([{ label: "Home", href: "/" }]);
   });
 
+  it("changes only the part of the theme and contact details it's given", async () => {
+    const files = starterFiles();
+    const site = JSON.parse(files["content/site.json"] ?? "{}");
+    files["content/site.json"] = JSON.stringify({
+      ...site,
+      contact: { email: "office@example.org", phone: "555-0100" },
+      theme: { ...site.theme, darkMode: true, darkColors: { primary: "#93c5fd" }, radius: "0.75rem" },
+    });
+    const { call, fake } = await connect({ files });
+    const changed = await call("update_settings", {
+      settings: { theme: { colors: { primary: "#1d4ed8" } }, contact: { phone: "555-0199", email: null } },
+    });
+    expect(changed.isError, changed.text).toBe(false);
+    const { draft } = changed.json();
+    const saved = JSON.parse(String(fake.repo.files(`goodfellow-draft-${draft}`).get("content/site.json") ?? "{}"));
+    expect(saved.theme.colors.primary).toBe("#1d4ed8");
+    // The rest of the colors, and the rest of the theme, stay as they were.
+    for (const [name, value] of Object.entries(site.theme.colors as Record<string, string>)) {
+      if (name !== "primary") expect(saved.theme.colors[name]).toBe(value);
+    }
+    expect(saved.theme).toMatchObject({ darkMode: true, darkColors: { primary: "#93c5fd" }, radius: "0.75rem" });
+    expect(saved.theme.fonts).toEqual(site.theme.fonts);
+    // A part given changes, and null takes one out.
+    expect(saved.contact).toEqual({ phone: "555-0199" });
+  });
+
   it("keeps the site's own fonts, which only owners add, whatever theme Claude gives", async () => {
     const files = starterFiles();
     const custom = [{ family: "Mine", files: [{ src: "/media/fonts/mine-400.woff2", weight: 400 }] }];
