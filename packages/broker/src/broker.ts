@@ -5,7 +5,7 @@
  * (`serveBackend()`). It asks the editor, in its own part of the page, before
  * publishing anything the admin panel's frame shouldn't decide alone.
  */
-import { aiServer, PROVIDERS, type ProviderId, type ServerKeys } from "@goodfellow-cms/ai";
+import { PROVIDERS, type ProviderId, type ServerKeys } from "@goodfellow-cms/ai";
 import {
   adminOrigin,
   BROKER_CONNECT_MESSAGE,
@@ -21,6 +21,7 @@ import {
   type PluginManifest,
   serveBackend,
 } from "@goodfellow-cms/core";
+import { brokerAi } from "./ai.js";
 import { type BrokerDecision, type BrokerQuestion, decide } from "./policy.js";
 import { adminRoute } from "./route.js";
 import { type StringKey, t } from "./strings.js";
@@ -424,7 +425,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
       headers: request.headers,
       ...(request.body && request.method !== "GET" && { body: request.body }),
     });
-    const response = await aiServer(loadKeys()).forward(forwarded, service, rest.join("/"));
+    const response = await brokerAi(loadKeys()).forward(forwarded, service, rest.join("/"));
     const body = await response.arrayBuffer();
     const answer: BrokerServiceAnswer = {
       type: "ai",

@@ -105,13 +105,22 @@ function problem(status: number, message: string): Response {
   return Response.json({ error: { message } }, { status, headers: { "cache-control": "no-store" } });
 }
 
+export interface AiServerOptions {
+  fetch?: typeof fetch;
+  /**
+   * Whether requests are sent from a browser, as the token broker's are: Anthropic's API answers a browser only
+   * when the request says so (`anthropic-dangerous-direct-browser-access`), which a server needn't.
+   */
+  browser?: boolean;
+}
+
 /**
  * Sends the AI assistant's requests on to AI services with a full-stack site's
  * own keys, so editors don't need keys of their own and never see the site's.
  * Give it to `goodfellowApi({ ai })` from `@goodfellow-cms/next/server`, or
  * `appApi({ ai })` from `@goodfellow-cms/core/node`. Services without a key are left out.
  */
-export function aiServer(keys: ServerKeys, options: { fetch?: typeof fetch } = {}) {
+export function aiServer(keys: ServerKeys, options: AiServerOptions = {}) {
   const send = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
   const configured = Object.entries(keys).flatMap(([service, value]) =>
     value && (typeof value === "string" || value.baseUrl || value.key) ? [[service as ProviderId, value] as const] : [],
@@ -162,6 +171,7 @@ export function aiServer(keys: ServerKeys, options: { fetch?: typeof fetch } = {
       .map((beta) => beta.trim())
       .filter((beta) => ANTHROPIC_BETAS.has(beta));
     if (service === "anthropic" && betas.length > 0) headers.set("anthropic-beta", betas.join(","));
+    if (service === "anthropic" && options.browser) headers.set("anthropic-dangerous-direct-browser-access", "true");
     if (key) {
       if (service === "anthropic") headers.set("x-api-key", key);
       else headers.set("authorization", `Bearer ${key}`);
