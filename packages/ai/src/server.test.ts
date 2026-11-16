@@ -58,6 +58,22 @@ describe("aiServer", () => {
     expect(sent?.headers.get("x-goodfellow-request")).toBeNull();
   });
 
+  it("tells Anthropic the request comes from a browser only where it does, as the token broker's do", async () => {
+    const header = "anthropic-dangerous-direct-browser-access";
+    const sent = async (options: { browser?: boolean }) => {
+      const fake = fakeAi({ answer: () => answer, keys: ["sk-ant-site"], models: [] });
+      const server = aiServer({ anthropic: "sk-ant-site" }, { fetch: fake.fetch, ...options });
+      const browser = ((input: RequestInfo | URL, init?: RequestInit) =>
+        server.forward(new Request(input, init), "anthropic", "v1/messages")) as typeof fetch;
+      await runRequest({ provider: "anthropic", model: "claude-opus-5-5", server: SERVER }, request, {
+        fetch: browser,
+      });
+      return fake.requests[0]?.headers.get(header);
+    };
+    expect(await sent({ browser: true })).toBe("true");
+    expect(await sent({})).toBeNull();
+  });
+
   it("asks OpenAI-compatible services with the site's key, and lists their models", async () => {
     const { fake, browser } = siteServer({ openai: "sk-site" });
     const settings = { provider: "openai" as const, model: "gpt-5", server: SERVER };

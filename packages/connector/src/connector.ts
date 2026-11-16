@@ -20,7 +20,13 @@
 import type { GitBackend } from "@goodfellow-cms/core";
 import { createGoodfellowServer, type Screenshotter, ToolError } from "@goodfellow-cms/mcp";
 import { type App, type GitHubConfig, GitHubError } from "@goodfellow-cms/worker/github";
-import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "@goodfellow-cms/worker/seal";
+import {
+  base64UrlEncode,
+  challengeFor,
+  createSealer,
+  MAX_SEALED_LENGTH,
+  type Sealer,
+} from "@goodfellow-cms/worker/seal";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import * as bb from "./bitbucket.js";
 import { ClientError, findClient, redirectMatches, registerClient } from "./clients.js";
@@ -71,6 +77,11 @@ export interface ExecutionContextLike {
 }
 
 const REQUEST_LIFETIME = 30 * 60_000;
+/**
+ * The longest the "Which sites?" form's sealed list may be: it travels in the form's body, not an address, so it may
+ * be longer than the sealer's usual limit, but no longer than a hundred sites with long names need.
+ */
+export const MAX_PICKER_LENGTH = 65_536;
 const CODE_LIFETIME = 2 * 60_000;
 const ACCESS_LIFETIME = 3_600_000;
 const REFRESH_LIFETIME = 30 * 24 * 3_600_000;
@@ -307,15 +318,27 @@ export function createConnector(options: ConnectorOptions = {}) {
     }
 
     async function pickSites(data: RequestData, connection: Connection, tokens?: HostTokens): Promise<Response> {
-      const picker = await (await sealer()).seal(
-        "picker",
-        { request: data, connection, ...(tokens && { tokens }) } satisfies PickerData,
-        REQUEST_LIFETIME,
-      );
+      // The list goes in the form's body, sealed: where it's too long even for that, it's cut short, and the page
+      // says so.
+      const seal = await sealer();
+      const all = connection.sites.length;
+      let listed = connection;
+      let picker = "";
+      for (;;) {
+        picker = await seal.seal(
+          "picker",
+          { request: data, connection: listed, ...(tokens && { tokens }) } satisfies PickerData,
+          REQUEST_LIFETIME,
+        );
+        if (picker.length <= MAX_PICKER_LENGTH || listed.sites.length <= 1) break;
+        const keep = Math.floor(listed.sites.length * 0.9);
+        listed = { ...listed, sites: listed.sites.slice(0, keep) } as Connection;
+      }
       return sitesPage({
         client: data.clientName,
         redirectUri: data.redirectUri,
-        sites: connection.sites.map((site) => site.repo),
+        sites: listed.sites.map((site) => site.repo),
+        ...(listed.sites.length < all && { of: all }),
         picker,
         formAction: formActionFor(data.redirectUri),
       });
@@ -405,7 +428,9 @@ export function createConnector(options: ConnectorOptions = {}) {
 
     async function confirm(): Promise<Response> {
       const body = await form().catch(() => new URLSearchParams());
-      const picker = await (await sealer()).open<PickerData>("picker", body.get("picker"));
+      const picker = await (await sealer()).open<PickerData>("picker", body.get("picker"), {
+        maxLength: MAX_PICKER_LENGTH,
+      });
       if (!picker || cookies(request).get(COOKIE) !== picker.request.nonce) return expired();
       const chosen = new Set(body.getAll("site"));
       const { connection, request: data } = picker;
@@ -425,6 +450,15 @@ export function createConnector(options: ConnectorOptions = {}) {
         } satisfies CodeData,
         CODE_LIFETIME,
       );
+      // The code, and the tokens made from it, carry the sites chosen, and are opened only up to a sealed value's
+      // usual length, so sites that won't fit are refused here rather than once Claude has the code.
+      if (code.length > MAX_SEALED_LENGTH) {
+        return page(
+          "Too many sites",
+          `<p>Those sites' names are too long to keep together in one connection. Go back and choose fewer.</p>`,
+          { status: 400 },
+        );
+      }
       const target = new URL(data.redirectUri);
       target.searchParams.set("code", code);
       if (data.state) target.searchParams.set("state", data.state);

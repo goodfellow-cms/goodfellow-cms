@@ -107,20 +107,56 @@ export function gitlab(options: GitLabOptions): GitHost {
     let credentials = initial;
     // GitLab gives a new refresh token each time and refuses the old one, so requests that need a new
     // access token at once (the backend reads several folders together) share one renewal.
+    // So do tabs: each keeps its tokens in memory, so one that renews reads the stored sign-in first, and again where
+    // GitLab refuses its refresh token, in case another tab has renewed it, and tabs take turns where the browser can
+    // say so (Web Locks). Only a remembered sign-in is shared this way, in localStorage: one kept for the session is
+    // each tab's own (sessionStorage), so a tab copied from another signs in again once the other renews. Handing
+    // tokens between tabs some other way (BroadcastChannel) would hand them to every page at the admin panel's origin.
     let renewing: Promise<string> | undefined;
+    /** The tokens another tab saved for this same sign-in since this one last had them. */
+    const savedNewer = (current: OAuthTokens): OAuthTokens | undefined => {
+      try {
+        const stored = JSON.parse(storage.load() ?? "null") as Credentials | null;
+        return stored?.type === "oauth" && stored.verifier === current.verifier && stored.refresh !== current.refresh
+          ? stored
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+      const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
+      return locks
+        ? (locks.request(`goodfellow:gitlab:renew:${webUrl}:${options.project}`, work) as Promise<T>)
+        : work();
+    };
     const renew = (current: OAuthTokens) =>
-      (renewing ??= (async () => {
-        const response = await requestTokens({
-          client_id: options.clientId ?? "",
-          refresh_token: current.refresh,
-          grant_type: "refresh_token",
-          redirect_uri: redirectUri(location().href()),
-          code_verifier: current.verifier,
-        });
-        credentials = toTokens(response, current.verifier);
+      (renewing ??= inTurn(async () => {
+        const newer = savedNewer(current);
+        if (newer) {
+          credentials = newer;
+          if (newer.expiresAt - 60_000 >= Date.now() && newer.access !== current.access) return newer.access;
+        }
+        const using = newer ?? current;
+        let response: TokenResponse;
+        try {
+          response = await requestTokens({
+            client_id: options.clientId ?? "",
+            refresh_token: using.refresh,
+            grant_type: "refresh_token",
+            redirect_uri: redirectUri(location().href()),
+            code_verifier: using.verifier,
+          });
+        } catch (error) {
+          const renewedElsewhere = error instanceof SignInError ? savedNewer(using) : undefined;
+          if (!renewedElsewhere) throw error;
+          credentials = renewedElsewhere;
+          return renewedElsewhere.access;
+        }
+        credentials = toTokens(response, using.verifier);
         storage.save(JSON.stringify(credentials), remember);
         return credentials.access;
-      })().finally(() => {
+      }).finally(() => {
         renewing = undefined;
       }));
     const token: ApiOptions["token"] = async ({ refresh, stale } = {}) => {
@@ -159,6 +195,9 @@ export function gitlab(options: GitLabOptions): GitHost {
         `The GitLab account ${user.username} can see ${options.project} but can't publish to it.`,
       );
     }
+    // Another tab may have renewed this sign-in while the checks above ran: keep its newer tokens, since GitLab has
+    // ended the refresh token this one started with.
+    if (credentials.type === "oauth") credentials = savedNewer(credentials) ?? credentials;
     storage.save(JSON.stringify(credentials), remember);
     return new GitLabBackend({
       api,

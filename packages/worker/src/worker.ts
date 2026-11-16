@@ -23,9 +23,13 @@
  *
  * The site setup page signs in the same way, with `/github/setup/*` creating
  * the repository. Creating it needs the person's own token, so the setup
- * page's session keeps it, sealed, until the repository exists (both, for a
- * site whose content has a repository of its own) or half an hour has passed,
- * whichever is first; then it's revoked.
+ * page's session keeps it, sealed. It's revoked once the repository exists
+ * (both, for a site whose content has a repository of its own). The worker
+ * refuses the session after half an hour, so the token can't be used after
+ * that, but it stores nothing, so it can't revoke a token whose setup was left
+ * unfinished: that one stays good at GitHub until GitHub's own expiry (eight
+ * hours where the app's user tokens expire), only inside a session nobody can
+ * open any more.
  */
 
 import { pkcs8Key } from "@goodfellow-cms/github/app";
@@ -372,6 +376,7 @@ const PAGE_MESSAGES: Partial<Record<SignInProblem, string>> = {
   "local-address":
     "Signing in with GitHub works only on the published site. Sign in with an access token here instead.",
   invalid: "Signing in took too long. Go back and try again.",
+  cancelled: "Signing in was cancelled. Go back to the admin panel and try again.",
   "bad-request": "This sign-in link isn't complete. Go back and try again.",
   unavailable: "Signing in with GitHub isn't working right now. Go back and sign in with an access token instead.",
 };
@@ -465,6 +470,9 @@ const MAX_DESCRIPTION_BYTES = 1_000_000;
  */
 export const MAX_REMEMBERED = 1_000;
 
+/** How long a worker remembers that the app isn't installed on a repository. */
+export const MISSED_INSTALLATION_MS = 60_000;
+
 /** Sets `key` in `map`, forgetting the entry set longest ago where it holds `MAX_REMEMBERED` already. */
 export function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
   map.delete(key);
@@ -481,7 +489,9 @@ export function createWorker(options: WorkerOptions = {}) {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const log = options.log ?? ((line: string) => console.error(line));
   const sealers = new Map<string, Promise<Sealer>>();
-  const installations = new Map<string, { id: number | undefined; at: number }>();
+  // `turn` counts lookups as they start, so one that ends after a later one began never replaces what that one found.
+  const installations = new Map<string, { id: number | undefined; at: number; turn: number }>();
+  let lookups = 0;
   // Sites' addresses as the last check found them, so checks anyone can ask for don't each cost GitHub requests.
   const checkedAddresses = new Map<string, { addresses: SiteAddress[]; at: number }>();
 
@@ -563,19 +573,33 @@ export function createWorker(options: WorkerOptions = {}) {
       });
     }
 
-    /** The app's installation on a repository, or `undefined` if it isn't installed there. Remembered for five minutes. */
-    async function installationFor(app: App, repo: string): Promise<number | undefined> {
+    /**
+     * The app's installation on a repository, or `undefined` if it isn't installed there. Remembered for five
+     * minutes, and where it isn't installed, for a minute (`MISSED_INSTALLATION_MS`): anyone can ask about any
+     * repository, and each lookup is a request signed as the app, sharing the hourly limit that every site's tokens
+     * are made within. `fresh` asks GitHub whatever is remembered, as where the app has just been installed.
+     */
+    async function installationFor(app: App, repo: string, fresh = false): Promise<number | undefined> {
       const key = `${app.id}:${repo.toLowerCase()}`;
       const cached = installations.get(key);
-      if (cached && cached.id !== undefined && now() - cached.at < 5 * 60_000) return cached.id;
+      const lifetime = cached?.id === undefined ? MISSED_INSTALLATION_MS : 5 * 60_000;
+      if (!fresh && cached && now() - cached.at < lifetime) return cached.id;
+      const turn = ++lookups;
+      const keep = (id: number | undefined) => {
+        const latest = installations.get(key);
+        if (!latest || latest.turn < turn) remember(installations, key, { id, at: now(), turn });
+      };
       try {
         const { id } = await githubJson<{ id: number }>(config, `/repos/${repoPath(repo)}/installation`, {
           auth: { bearer: await jwtFor(app) },
         });
-        remember(installations, key, { id, at: now() });
+        keep(id);
         return id;
       } catch (error) {
-        if (error instanceof GitHubError && error.status === 404) return undefined;
+        if (error instanceof GitHubError && error.status === 404) {
+          keep(undefined);
+          return undefined;
+        }
         throw error;
       }
     }
@@ -587,15 +611,19 @@ export function createWorker(options: WorkerOptions = {}) {
      * the person is told to install the app rather than that signing in isn't
      * working.
      */
-    async function withInstallation<T>(app: App, repo: string, make: (installation: number) => Promise<T>): Promise<T> {
-      const installation = await installationFor(app, repo);
+    async function withInstallation<T>(
+      app: App,
+      repo: string,
+      make: (installation: number) => Promise<T>,
+      fresh = false,
+    ): Promise<T> {
+      const installation = await installationFor(app, repo, fresh);
       if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
       try {
         return await make(installation);
       } catch (error) {
         if (!(error instanceof GitHubError && (error.status === 404 || error.status === 422))) throw error;
-        installations.delete(`${app.id}:${repo.toLowerCase()}`);
-        const current = await installationFor(app, repo);
+        const current = await installationFor(app, repo, true);
         if (current === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
         if (current === installation) throw error;
         return make(current);
@@ -698,6 +726,7 @@ export function createWorker(options: WorkerOptions = {}) {
       repo: string,
       origin: string | undefined,
       path?: string,
+      fresh = false,
     ): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
@@ -712,15 +741,20 @@ export function createWorker(options: WorkerOptions = {}) {
       const key = repo.toLowerCase();
       const checked = checkedAddresses.get(key);
       if (checked && now() - checked.at < ADDRESS_CHECK_MS) {
-        const installation = await installationFor(app, repo);
+        const installation = await installationFor(app, repo, fresh);
         if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
         return verdict(checked.addresses, installation);
       }
       const jwt = await jwtFor(app);
-      const { installation, reader } = await withInstallation(app, repo, async (installation) => ({
-        installation,
-        reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
-      }));
+      const { installation, reader } = await withInstallation(
+        app,
+        repo,
+        async (installation) => ({
+          installation,
+          reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
+        }),
+        fresh,
+      );
       let addresses: SiteAddress[];
       try {
         addresses = await siteAddresses(repo, reader.token);
@@ -1096,17 +1130,13 @@ export function createWorker(options: WorkerOptions = {}) {
           });
         }
         const origin = new URL(state.return).origin;
-        if (state.install && state.repo) {
-          // Coming back from installing: only now can the site's settings say where it may go back to.
-          try {
-            await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname);
-          } catch (error) {
-            // The return address isn't known to be the site's, so the answer is a page here, never a redirect.
-            if (error instanceof Problem) return page(error.problem, error.status);
-            throw error;
-          }
+        // Coming back from installing, the return address isn't known to be the site's until it's looked up afresh
+        // below, so whatever goes wrong before then is a page here, never a redirect.
+        const installing = Boolean(state.install && state.repo);
+        if (!code) {
+          if (installing) return page("cancelled");
+          return backTo(state, { goodfellow_sign_in_error: "cancelled" });
         }
-        if (!code) return backTo(state, { goodfellow_sign_in_error: "cancelled" });
         if (state.purpose === "setup") {
           const grant: SetupGrantData = {
             purpose: "setup",
@@ -1119,8 +1149,22 @@ export function createWorker(options: WorkerOptions = {}) {
           return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
         }
         let tokens: UserTokens | undefined;
+        // Whether the return address is known to be the site's, so a problem may be said there.
+        let checked = !installing;
         try {
           tokens = await userTokens(config, app, { code, redirectUri: `${url.origin}/github/callback` }, now());
+          if (installing && state.repo) {
+            // Only now can the site's settings say where it may go back to. Looked up only once GitHub has taken the
+            // code, which works once, so a replayed link can't make the app ask GitHub again and again.
+            try {
+              await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname, true);
+            } catch (error) {
+              if (!(error instanceof Problem)) throw error;
+              await revokeUserToken(config, app, tokens.access).catch(() => {});
+              return page(error.problem, error.status);
+            }
+            checked = true;
+          }
           const user = await signedInUser(tokens.access);
           if (state.repo) await checkAccess(state.purpose, state.repo, tokens.access);
           const grant: GrantData = {
@@ -1136,11 +1180,13 @@ export function createWorker(options: WorkerOptions = {}) {
           return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
         } catch (error) {
           if (tokens) await revokeUserToken(config, app, tokens.access).catch(() => {});
-          if (error instanceof Problem) return backTo(state, { goodfellow_sign_in_error: error.problem });
-          if (error instanceof GitHubError && error.status === 401) {
-            return backTo(state, { goodfellow_sign_in_error: "invalid" });
-          }
-          return backTo(state, { goodfellow_sign_in_error: "unavailable" });
+          const problem: SignInProblem =
+            error instanceof Problem
+              ? error.problem
+              : error instanceof GitHubError && error.status === 401
+                ? "invalid"
+                : "unavailable";
+          return checked ? backTo(state, { goodfellow_sign_in_error: problem }) : page(problem);
         }
       }
 
@@ -1202,7 +1248,7 @@ export function createWorker(options: WorkerOptions = {}) {
       return json({ problem: "unavailable", ...created }, 502);
     }
 
-    /** The setup page's requests, made with the person's own token, which its session keeps for half an hour. */
+    /** The setup page's requests, made with the person's own token, which its session holds for half an hour. */
     async function setupRoute(path: string, body: Record<string, unknown>): Promise<Response> {
       checkSetupOrigin(requestOrigin);
       const session = await openSession(body, "setup");
@@ -1300,7 +1346,7 @@ export function createWorker(options: WorkerOptions = {}) {
           }
           const issued = await newRepositoryToken(await jwtFor(app), installation.id, repo.full_name);
           const editApp = apps.edit;
-          const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
+          const editInstalled = editApp ? (await installationFor(editApp, repo.full_name, true)) !== undefined : true;
           return json({
             session: renewed,
             repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },

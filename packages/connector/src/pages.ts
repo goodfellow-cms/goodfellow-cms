@@ -78,6 +78,8 @@ export function sitesPage(options: {
   client: string;
   redirectUri: string;
   sites: string[];
+  /** How many sites there are, where the list is only the first of them. */
+  of?: number;
   picker: string;
   formAction: string;
 }): Response {
@@ -92,7 +94,7 @@ export function sitesPage(options: {
     `<p>Choose the sites <strong>${escapeHtml(options.client)}</strong> may work on. You can connect again later to change them.</p>
 <form method="post" action="/connect/confirm">
 <input type="hidden" name="picker" value="${escapeHtml(options.picker)}">
-${boxes}
+${options.of ? `<p class="note">These are the first ${options.sites.length} of your ${options.of} sites, which are all this page can list. To connect another, ask an owner to install Goodfellow for Claude on fewer repositories, or connect with an account that can edit fewer.</p>\n` : ""}${boxes}
 <p><button type="submit">Allow ${escapeHtml(redirectHost(options.redirectUri))}</button></p>
 </form>
 <p class="note">You'll go back to <strong>${escapeHtml(redirectHost(options.redirectUri))}</strong>.</p>`,

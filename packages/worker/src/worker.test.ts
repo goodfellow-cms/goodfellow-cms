@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { challengeFor } from "./seal.js";
 import { base64, editKey, SITE, setup } from "./test-setup.js";
-import { CODE_PERMISSIONS, isLocalAddress, NEW_REPOSITORY_WAITS, PERMISSIONS } from "./worker.js";
+import {
+  CODE_PERMISSIONS,
+  isLocalAddress,
+  MISSED_INSTALLATION_MS,
+  NEW_REPOSITORY_WAITS,
+  PERMISSIONS,
+} from "./worker.js";
 
 describe("signing in", () => {
   it("gives the admin panel a token for the site's repository only, with only what editors need", async () => {
@@ -160,6 +166,21 @@ describe("signing in", () => {
     expect(await (await noAddress.call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({
       problem: "no-address",
     });
+  });
+
+  it("asks GitHub about a repository the app isn't on at most once a minute, which anyone can ask about", async () => {
+    const { call, fake, tick } = setup({ installed: false });
+    const lookups = () =>
+      fake.requests.filter((request) => request.url.endsWith("/repos/parish/site/installation")).length;
+    for (let i = 0; i < 5; i++) {
+      expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toMatchObject({
+        problem: "not-installed",
+      });
+    }
+    expect(lookups()).toBe(1);
+    tick(MISSED_INSTALLATION_MS);
+    await call("/github/check?repo=parish/site", { origin: SITE });
+    expect(lookups()).toBe(2);
   });
 
   it("says the app isn't installed as soon as it's uninstalled, though it remembers installations", async () => {
@@ -436,6 +457,10 @@ describe("owners' sign-ins", () => {
 describe("installing while signing in", () => {
   it("sends the person to GitHub's install page, and checks where to come back to once Goodfellow can read the site", async () => {
     const { fake, call, post } = setup({ installed: false });
+    // The admin panel asked first, so the worker remembers the app wasn't installed; coming back asks again.
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toMatchObject({
+      problem: "not-installed",
+    });
     const verifier = "v".repeat(43);
     const query = new URLSearchParams({
       purpose: "edit",
@@ -457,6 +482,70 @@ describe("installing while signing in", () => {
     const signedIn = await post("/github/session", { grant, verifier });
     expect(signedIn.status).toBe(200);
     expect(((await signedIn.json()) as { user: { login: string } }).user.login).toBe("olivia");
+  });
+
+  it("asks GitHub about the installation again only once GitHub has taken the sign-in's code, and never goes back before", async () => {
+    const { fake, call } = setup({ installed: false });
+    const lookups = () =>
+      fake.requests.filter((request) => request.url.endsWith("/repos/parish/site/installation")).length;
+    const query = new URLSearchParams({
+      repo: "parish/site",
+      return: `${SITE}/admin/`,
+      challenge: await challengeFor("v".repeat(43)),
+      install: "1",
+    });
+    const state =
+      new URL((await call(`/github/start?${query}`)).headers.get("location") ?? "").searchParams.get("state") ?? "";
+    const before = lookups();
+    // A link replayed with no code, or one GitHub doesn't take: a page here, and nothing asked of GitHub's app.
+    for (const params of [{ state }, { state, code: "not-a-code" }] as Record<string, string>[]) {
+      const back = await call(`/github/callback?${new URLSearchParams(params)}`);
+      expect(back.headers.get("location")).toBeNull();
+      expect(back.headers.get("content-type")).toMatch(/text\/html/);
+    }
+    expect(lookups()).toBe(before);
+    // With a real one, it's looked up afresh, and the person goes back signed in.
+    const { code } = fake.install("goodfellow-cms", "olivia", ["parish/site"]);
+    const back = await call(`/github/callback?${new URLSearchParams({ code, state })}`);
+    expect(lookups()).toBe(before + 1);
+    expect(new URL(back.headers.get("location") ?? "").searchParams.get("goodfellow_sign_in")).toBeTruthy();
+  });
+
+  it("keeps an installation it found over an older lookup's answer that it wasn't installed", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held = false;
+    const { fake, call } = setup({
+      installed: false,
+      // The admin panel's first check asks GitHub, which answers only once Goodfellow has been installed meanwhile.
+      answer: async (_method, url) => {
+        if (held || !url.endsWith("/repos/parish/site/installation")) return undefined;
+        held = true;
+        await gate;
+        return Response.json({ message: "Not Found" }, { status: 404 });
+      },
+    });
+    const first = call("/github/check?repo=parish/site", { origin: SITE });
+    await vi.waitFor(() => expect(held).toBe(true));
+    const query = new URLSearchParams({
+      repo: "parish/site",
+      return: `${SITE}/admin/`,
+      challenge: await challengeFor("v".repeat(43)),
+      install: "1",
+    });
+    const state =
+      new URL((await call(`/github/start?${query}`)).headers.get("location") ?? "").searchParams.get("state") ?? "";
+    const { code } = fake.install("goodfellow-cms", "olivia", ["parish/site"]);
+    const back = await call(`/github/callback?${new URLSearchParams({ code, state })}`);
+    expect(new URL(back.headers.get("location") ?? "").searchParams.get("goodfellow_sign_in")).toBeTruthy();
+    release();
+    await first;
+    // The older answer came last, but what's remembered is the installation the newer lookup found.
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).not.toMatchObject({
+      problem: "not-installed",
+    });
   });
 
   it("never goes back to an address the site's settings don't give, nor without the site chosen", async () => {
@@ -652,6 +741,23 @@ describe("setting up a site in two repositories", () => {
     );
     return ((await signedIn.json()) as { session: string }).session;
   }
+
+  it("asks GitHub again whether editors' app is on a repository it has just created", async () => {
+    const context = setup();
+    const session = await setupSession(context);
+    // Asked about before the repository existed, which the worker remembers for a minute.
+    await context.call("/github/check?repo=maria/new-site", { origin: SITE });
+    context.apps.edit.installations.push({ id: 31, account: "maria", repositories: "all" });
+    const created = (await (
+      await context.post(
+        "/github/setup/repository",
+        { session, owner: "maria", name: "new-site", private: false },
+        "https://setup.example",
+      )
+    ).json()) as { repo: { full_name: string }; editInstallUrl?: string };
+    expect(created.repo.full_name).toBe("maria/new-site");
+    expect(created.editInstallUrl).toBeUndefined();
+  });
 
   it("says a name is free only where GitHub says there's no such repository, never where it refuses to say", async () => {
     for (const [status, available] of [
