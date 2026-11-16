@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const read = (file: string) => readFileSync(new URL(`../../worker/deploy/${file}`, import.meta.url), "utf8");
-/** npm's attestations for a release, kept as the registry gave them. */
+/**
+ * npm's attestations for a release, kept with only their SLSA provenance, which is all `provenanceProblem()`
+ * reads. npm's publish attestation, signed with its registry key, is what `npm audit signatures` checks first.
+ */
 // biome-ignore lint/suspicious/noExplicitAny: the registry's answer, which the test changes to try what's refused
 const fixture = (name: string): any =>
   JSON.parse(readFileSync(new URL(`../test/fixtures/${name}`, import.meta.url), "utf8"));
