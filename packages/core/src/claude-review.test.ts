@@ -121,6 +121,11 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "HEAD:a.txt", "--", ":(literal).git//config"],
       ["diff", "HEAD:a.txt", "--", `${repo}/.git/config`],
       ["diff", "HEAD:a.txt", "--", ".git"],
+      // Pathspec magic that names a path on disk outside the checkout.
+      ["diff", "HEAD:a.txt", "--", ":(top)/etc/hostname"],
+      ["diff", "HEAD:a.txt", "--", ":(top,literal)/etc/hostname"],
+      ["diff", "HEAD:a.txt", "--", ":/:/etc/hostname"],
+      ["diff", "HEAD:a.txt", "--", ":(top)../outside"],
       // Git's own options first, which only the action's own git uses, would skip every check.
       ["--no-pager", "diff", "--output=x", "HEAD"],
       ["-c", "core.fsmonitor=x", "diff"],
@@ -139,6 +144,9 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "--text", "HEAD~1", "HEAD"],
       ["log", "-L/two/,+1:a.txt", "-1"],
       ["diff", "HEAD~1", "HEAD", "--", "not.git"],
+      ["diff", "HEAD~1", "HEAD", "--", ":(top)a.txt"],
+      ["diff", "HEAD~1", "HEAD", "--", ":/a.txt"],
+      ["diff", "HEAD~1", "HEAD", "--", ":!b.txt"],
     ]) {
       const result = review(...args);
       expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
