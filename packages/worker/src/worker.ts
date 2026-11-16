@@ -450,6 +450,9 @@ const MAX_DESCRIPTION_BYTES = 1_000_000;
  */
 export const MAX_REMEMBERED = 1_000;
 
+/** How long a worker remembers that the app isn't installed on a repository. */
+export const MISSED_INSTALLATION_MS = 60_000;
+
 /** Sets `key` in `map`, forgetting the entry set longest ago where it holds `MAX_REMEMBERED` already. */
 export function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
   map.delete(key);
@@ -548,11 +551,17 @@ export function createWorker(options: WorkerOptions = {}) {
       });
     }
 
-    /** The app's installation on a repository, or `undefined` if it isn't installed there. Remembered for five minutes. */
-    async function installationFor(app: App, repo: string): Promise<number | undefined> {
+    /**
+     * The app's installation on a repository, or `undefined` if it isn't installed there. Remembered for five
+     * minutes, and where it isn't installed, for a minute (`MISSED_INSTALLATION_MS`): anyone can ask about any
+     * repository, and each lookup is a request signed as the app, sharing the hourly limit that every site's tokens
+     * are made within. `fresh` asks GitHub whatever is remembered, as where the app has just been installed.
+     */
+    async function installationFor(app: App, repo: string, fresh = false): Promise<number | undefined> {
       const key = `${app.id}:${repo.toLowerCase()}`;
       const cached = installations.get(key);
-      if (cached && cached.id !== undefined && now() - cached.at < 5 * 60_000) return cached.id;
+      const lifetime = cached?.id === undefined ? MISSED_INSTALLATION_MS : 5 * 60_000;
+      if (!fresh && cached && now() - cached.at < lifetime) return cached.id;
       try {
         const { id } = await githubJson<{ id: number }>(config, `/repos/${repoPath(repo)}/installation`, {
           auth: { bearer: await jwtFor(app) },
@@ -560,7 +569,10 @@ export function createWorker(options: WorkerOptions = {}) {
         remember(installations, key, { id, at: now() });
         return id;
       } catch (error) {
-        if (error instanceof GitHubError && error.status === 404) return undefined;
+        if (error instanceof GitHubError && error.status === 404) {
+          remember(installations, key, { id: undefined, at: now() });
+          return undefined;
+        }
         throw error;
       }
     }
@@ -572,15 +584,19 @@ export function createWorker(options: WorkerOptions = {}) {
      * the person is told to install the app rather than that signing in isn't
      * working.
      */
-    async function withInstallation<T>(app: App, repo: string, make: (installation: number) => Promise<T>): Promise<T> {
-      const installation = await installationFor(app, repo);
+    async function withInstallation<T>(
+      app: App,
+      repo: string,
+      make: (installation: number) => Promise<T>,
+      fresh = false,
+    ): Promise<T> {
+      const installation = await installationFor(app, repo, fresh);
       if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
       try {
         return await make(installation);
       } catch (error) {
         if (!(error instanceof GitHubError && (error.status === 404 || error.status === 422))) throw error;
-        installations.delete(`${app.id}:${repo.toLowerCase()}`);
-        const current = await installationFor(app, repo);
+        const current = await installationFor(app, repo, true);
         if (current === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
         if (current === installation) throw error;
         return make(current);
@@ -683,6 +699,7 @@ export function createWorker(options: WorkerOptions = {}) {
       repo: string,
       origin: string | undefined,
       path?: string,
+      fresh = false,
     ): Promise<number> {
       if (!origin || !originOf(origin) || isLocalAddress(origin)) throw new Problem("local-address", 403);
       const app = appFor(purpose);
@@ -697,15 +714,20 @@ export function createWorker(options: WorkerOptions = {}) {
       const key = repo.toLowerCase();
       const checked = checkedAddresses.get(key);
       if (checked && now() - checked.at < ADDRESS_CHECK_MS) {
-        const installation = await installationFor(app, repo);
+        const installation = await installationFor(app, repo, fresh);
         if (installation === undefined) throw new Problem("not-installed", 409, { installUrl: installUrl(app) });
         return verdict(checked.addresses, installation);
       }
       const jwt = await jwtFor(app);
-      const { installation, reader } = await withInstallation(app, repo, async (installation) => ({
-        installation,
-        reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
-      }));
+      const { installation, reader } = await withInstallation(
+        app,
+        repo,
+        async (installation) => ({
+          installation,
+          reader: await installationToken(config, jwt, installation, repo, { contents: "read", metadata: "read" }),
+        }),
+        fresh,
+      );
       let addresses: SiteAddress[];
       try {
         addresses = await siteAddresses(repo, reader.token);
@@ -1084,7 +1106,7 @@ export function createWorker(options: WorkerOptions = {}) {
         if (state.install && state.repo) {
           // Coming back from installing: only now can the site's settings say where it may go back to.
           try {
-            await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname);
+            await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname, true);
           } catch (error) {
             // The return address isn't known to be the site's, so the answer is a page here, never a redirect.
             if (error instanceof Problem) return page(error.problem, error.status);
@@ -1279,7 +1301,7 @@ export function createWorker(options: WorkerOptions = {}) {
           }
           const issued = await newRepositoryToken(await jwtFor(app), installation.id, repo.full_name);
           const editApp = apps.edit;
-          const editInstalled = editApp ? (await installationFor(editApp, repo.full_name)) !== undefined : true;
+          const editInstalled = editApp ? (await installationFor(editApp, repo.full_name, true)) !== undefined : true;
           return json({
             session: renewed,
             repo: { full_name: repo.full_name, html_url: repo.html_url, default_branch: repo.default_branch },

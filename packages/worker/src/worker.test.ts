@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { challengeFor } from "./seal.js";
 import { base64, editKey, SITE, setup } from "./test-setup.js";
-import { CODE_PERMISSIONS, isLocalAddress, NEW_REPOSITORY_WAITS, PERMISSIONS } from "./worker.js";
+import {
+  CODE_PERMISSIONS,
+  isLocalAddress,
+  MISSED_INSTALLATION_MS,
+  NEW_REPOSITORY_WAITS,
+  PERMISSIONS,
+} from "./worker.js";
 
 describe("signing in", () => {
   it("gives the admin panel a token for the site's repository only, with only what editors need", async () => {
@@ -160,6 +166,21 @@ describe("signing in", () => {
     expect(await (await noAddress.call("/github/check?repo=parish/site", { origin: SITE })).json()).toEqual({
       problem: "no-address",
     });
+  });
+
+  it("asks GitHub about a repository the app isn't on at most once a minute, which anyone can ask about", async () => {
+    const { call, fake, tick } = setup({ installed: false });
+    const lookups = () =>
+      fake.requests.filter((request) => request.url.endsWith("/repos/parish/site/installation")).length;
+    for (let i = 0; i < 5; i++) {
+      expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toMatchObject({
+        problem: "not-installed",
+      });
+    }
+    expect(lookups()).toBe(1);
+    tick(MISSED_INSTALLATION_MS);
+    await call("/github/check?repo=parish/site", { origin: SITE });
+    expect(lookups()).toBe(2);
   });
 
   it("says the app isn't installed as soon as it's uninstalled, though it remembers installations", async () => {
@@ -436,6 +457,10 @@ describe("owners' sign-ins", () => {
 describe("installing while signing in", () => {
   it("sends the person to GitHub's install page, and checks where to come back to once Goodfellow can read the site", async () => {
     const { fake, call, post } = setup({ installed: false });
+    // The admin panel asked first, so the worker remembers the app wasn't installed; coming back asks again.
+    expect(await (await call("/github/check?repo=parish/site", { origin: SITE })).json()).toMatchObject({
+      problem: "not-installed",
+    });
     const verifier = "v".repeat(43);
     const query = new URLSearchParams({
       purpose: "edit",
@@ -652,6 +677,23 @@ describe("setting up a site in two repositories", () => {
     );
     return ((await signedIn.json()) as { session: string }).session;
   }
+
+  it("asks GitHub again whether editors' app is on a repository it has just created", async () => {
+    const context = setup();
+    const session = await setupSession(context);
+    // Asked about before the repository existed, which the worker remembers for a minute.
+    await context.call("/github/check?repo=maria/new-site", { origin: SITE });
+    context.apps.edit.installations.push({ id: 31, account: "maria", repositories: "all" });
+    const created = (await (
+      await context.post(
+        "/github/setup/repository",
+        { session, owner: "maria", name: "new-site", private: false },
+        "https://setup.example",
+      )
+    ).json()) as { repo: { full_name: string }; editInstallUrl?: string };
+    expect(created.repo.full_name).toBe("maria/new-site");
+    expect(created.editInstallUrl).toBeUndefined();
+  });
 
   it("keeps the person's token until the last repository is created", async () => {
     const context = setup();
