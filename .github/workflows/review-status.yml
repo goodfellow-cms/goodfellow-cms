@@ -156,13 +156,11 @@ jobs:
                 | "\((.body | capture("Outside diff range[^(\\n]*\\((?<n>[0-9]+)\\)")? | .n) // "0") \(.html_url)"' |
                 awk 'NR == 1 || $1 > most { most = $1; line = $0 } END { print line }')
               read -r count review <<<"${outside:-0 $link}"
-              if [ "$count" -eq 1 ]; then
-                printf '%s\n' failure "CodeRabbit raised 1 finding outside the diff in this commit: see its review" \
-                  "$review"
-                return
-              elif [ "$count" -gt 1 ]; then
-                printf '%s\n' failure "CodeRabbit raised $count findings outside the diff in this commit: see its review" \
-                  "$review"
+              if [ "$count" -gt 0 ]; then
+                local findings=findings
+                [ "$count" -eq 1 ] && findings=finding
+                printf '%s\n' failure \
+                  "CodeRabbit raised $count $findings outside the diff in this commit: see its review" "$review"
                 return
               fi
               threads_result CodeRabbit "$number" coderabbitai \

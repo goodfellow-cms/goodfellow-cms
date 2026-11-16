@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 const workflow = join(import.meta.dirname, "../../../.github/workflows/review-status.yml");
@@ -43,15 +43,24 @@ elif [ -n "$filter" ]; then jq -r "$filter" "$file"
 else cat "$file"; fi
 `;
 
-let dir: string;
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+const dirs: string[] = [];
+afterEach(() => {
+  for (const made of dirs.splice(0)) rmSync(made, { recursive: true, force: true });
+});
+// Not skipped without jq, so CI can't lose it unnoticed: say what's missing instead.
+beforeAll(() => {
+  if (process.platform !== "win32" && spawnSync("jq", ["--version"]).status !== 0) {
+    throw new Error("These tests run the workflow's script, which needs jq on PATH: install jq.");
+  }
+});
 
 /** The fixture's file name for an address, as the stand-in reads it. */
 const fixture = (address: string) => `${address.replace(/[/?&=]/g, "_")}.json`;
 
 /** Runs the workflow's script for one open pull request whose CodeRabbit check passed, with CodeRabbit's reviews. */
 function run(reviews: unknown[], threads: unknown[] = []) {
-  dir = mkdtempSync(join(tmpdir(), "review-status-"));
+  const dir = mkdtempSync(join(tmpdir(), "review-status-"));
+  dirs.push(dir);
   const bin = join(dir, "bin");
   const fixtures = join(dir, "fixtures");
   mkdirSync(bin);
