@@ -95,6 +95,24 @@ jobs:
           check-latest: true
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # jq, which GitHub's runners have and Playwright's image doesn't, for review-status.test.ts, which runs the
+      # Review status workflow's script as those runners do: a release, checked against the hash it's published with.
+      - name: Install jq
+        env:
+          JQ_URL: https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
+          JQ_SHA256: 5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          node -e '
+            const [url, file] = process.argv.slice(1);
+            fetch(url).then(async (answer) => {
+              if (!answer.ok) throw new Error(`jq: ${answer.status}`);
+              require("node:fs").writeFileSync(file, Buffer.from(await answer.arrayBuffer()));
+            });
+          ' "$JQ_URL" "$RUNNER_TEMP/bin/jq"
+          echo "$JQ_SHA256  $RUNNER_TEMP/bin/jq" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bin/jq"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
