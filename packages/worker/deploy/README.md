@@ -16,7 +16,7 @@ To change your sites' addresses later, open `/setup` again: it asks for a token 
 
 ## Updates
 
-Each week, this repository's **Update** workflow takes the newest release of Goodfellow, a day after it's out, and pushes it, and Cloudflare deploys it. It never goes back to an older release, and takes one only where npm's signature and provenance show Goodfellow's own release workflow built it. You can also run it from the **Actions** tab. GitHub turns off scheduled workflows in public repositories that have had no activity for 60 days, and says so on the Actions tab: turn it on again there.
+Each week, this repository's **Update** workflow takes the newest release of Goodfellow, a day after it's out, and pushes it, and Cloudflare deploys it. It never goes back to an older release, and takes one only where npm's signature and provenance show Goodfellow's own release workflow built it, checking the provenance's Sigstore signature itself. You can also run it from the **Actions** tab. GitHub turns off scheduled workflows in public repositories that have had no activity for 60 days, and says so on the Actions tab: turn it on again there.
 
 ## More
 

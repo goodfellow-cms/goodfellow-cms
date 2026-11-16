@@ -2,9 +2,10 @@
 // create-goodfellow package carries it on npm (templates/sign-in/). The update workflow runs it each
 // week; Cloudflare deploys the change once it's pushed. It keeps your Worker's name, takes only a
 // release that's been out a day, as Goodfellow's site updates do, never past npm's latest tag or a
-// deprecated one, never goes back to an older one, and takes it only where npm's provenance says
-// Goodfellow's own release workflow built it.
+// deprecated one, never goes back to an older one, and takes it only where npm's provenance, whose
+// Sigstore signature it checks, says Goodfellow's own release workflow built it.
 import { execFileSync } from "node:child_process";
+import { verify, X509Certificate } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,37 @@ const DAY = 24 * 60 * 60 * 1000;
 export const RELEASE_REPOSITORY = "https://github.com/goodfellow-cms/goodfellow-cms";
 export const RELEASE_WORKFLOW = ".github/workflows/release.yml";
 const SLSA_PROVENANCE = "https://slsa.dev/provenance/v1";
+/**
+ * Sigstore's certificate authority (Fulcio), which signs the certificates of GitHub's workflows: its intermediate and
+ * root, from Sigstore's trusted root (`trusted_root.json`), valid until 2031.
+ */
+export const FULCIO_CHAIN = `-----BEGIN CERTIFICATE-----
+MIICGjCCAaGgAwIBAgIUALnViVfnU0brJasmRkHrn/UnfaQwCgYIKoZIzj0EAwMw
+KjEVMBMGA1UEChMMc2lnc3RvcmUuZGV2MREwDwYDVQQDEwhzaWdzdG9yZTAeFw0y
+MjA0MTMyMDA2MTVaFw0zMTEwMDUxMzU2NThaMDcxFTATBgNVBAoTDHNpZ3N0b3Jl
+LmRldjEeMBwGA1UEAxMVc2lnc3RvcmUtaW50ZXJtZWRpYXRlMHYwEAYHKoZIzj0C
+AQYFK4EEACIDYgAE8RVS/ysH+NOvuDZyPIZtilgUF9NlarYpAd9HP1vBBH1U5CV7
+7LSS7s0ZiH4nE7Hv7ptS6LvvR/STk798LVgMzLlJ4HeIfF3tHSaexLcYpSASr1kS
+0N/RgBJz/9jWCiXno3sweTAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0lBAwwCgYIKwYB
+BQUHAwMwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU39Ppz1YkEZb5qNjp
+KFWixi4YZD8wHwYDVR0jBBgwFoAUWMAeX5FFpWapesyQoZMi0CrFxfowCgYIKoZI
+zj0EAwMDZwAwZAIwPCsQK4DYiZYDPIaDi5HFKnfxXx6ASSVmERfsynYBiX2X6SJR
+nZU84/9DZdnFvvxmAjBOt6QpBlc4J/0DxvkTCqpclvziL6BCCPnjdlIB3Pu3BxsP
+mygUY7Ii2zbdCdliiow=
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIB9zCCAXygAwIBAgIUALZNAPFdxHPwjeDloDwyYChAO/4wCgYIKoZIzj0EAwMw
+KjEVMBMGA1UEChMMc2lnc3RvcmUuZGV2MREwDwYDVQQDEwhzaWdzdG9yZTAeFw0y
+MTEwMDcxMzU2NTlaFw0zMTEwMDUxMzU2NThaMCoxFTATBgNVBAoTDHNpZ3N0b3Jl
+LmRldjERMA8GA1UEAxMIc2lnc3RvcmUwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAT7
+XeFT4rb3PQGwS4IajtLk3/OlnpgangaBclYpsYBr5i+4ynB07ceb3LP0OIOZdxex
+X69c5iVuyJRQ+Hz05yi+UF3uBWAlHpiS5sh0+H2GHE7SXrk1EC5m1Tr19L9gg92j
+YzBhMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBRY
+wB5fkUWlZql6zJChkyLQKsXF+jAfBgNVHSMEGDAWgBRYwB5fkUWlZql6zJChkyLQ
+KsXF+jAKBggqhkjOPQQDAwNpADBmAjEAj1nHeXZp+13NWBNa+EDsDP8G1WWg1tCM
+WP/WHPqpaVo0jhsweNFZgSs0eE7wYI4qAjEA2WB9ot98sIkoF3vZYdd3/VtWB5b9
+TNMea7Ix/stJ5TfcLLeABLE4BNJOsQ4vnBHJ
+-----END CERTIFICATE-----`;
 
 /** A release's version as numbers, or `undefined` for anything but `x.y.z`. */
 function parts(version) {
@@ -60,13 +92,58 @@ export function recordRelease(packageJson, release) {
 }
 
 /**
+ * Why a Sigstore bundle wasn't signed by Goodfellow's release workflow, or `undefined` where it was: its DSSE
+ * signature verifies with the bundle's certificate, which names the workflow and was issued through `chain`.
+ * The certificate's validity, ten minutes around the signing, isn't checked, since only the transparency log says
+ * when that was; the statement it signs names the packed file's digest, so an old one can't vouch for a new file.
+ */
+export function bundleProblem(bundle, chain = FULCIO_CHAIN) {
+  try {
+    const leaf = new X509Certificate(Buffer.from(bundle?.verificationMaterial?.certificate?.rawBytes ?? "", "base64"));
+    const workflow = `URI:${RELEASE_REPOSITORY}/${RELEASE_WORKFLOW}@`;
+    if (!(leaf.subjectAltName ?? "").split(", ").some((name) => name.startsWith(workflow))) {
+      return "its provenance wasn't signed by Goodfellow's release workflow";
+    }
+    // Up the chain, each certificate issued and signed by the next, ending at the root, which signs itself.
+    const authorities = (chain.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? []).map(
+      (pem) => new X509Certificate(pem),
+    );
+    let current = leaf;
+    for (const authority of authorities) {
+      if (!current.checkIssued(authority) || !current.verify(authority.publicKey)) {
+        return "its provenance's certificate isn't Sigstore's";
+      }
+      current = authority;
+    }
+    if (authorities.length === 0 || !current.checkIssued(current) || !current.verify(current.publicKey)) {
+      return "its provenance's certificate isn't Sigstore's";
+    }
+    const envelope = bundle.dsseEnvelope;
+    const payload = Buffer.from(envelope.payload, "base64");
+    // DSSE's pre-authentication encoding, which is what's signed.
+    const signed = Buffer.concat([
+      Buffer.from(`DSSEv1 ${Buffer.byteLength(envelope.payloadType)} ${envelope.payloadType} ${payload.length} `),
+      payload,
+    ]);
+    const signature = Buffer.from(envelope.signatures?.[0]?.sig ?? "", "base64");
+    if (!verify("sha256", signed, leaf.publicKey, signature)) return "its provenance's signature doesn't verify";
+    return undefined;
+  } catch {
+    return "its provenance's signature can't be checked";
+  }
+}
+
+/**
  * Why the release's provenance doesn't show Goodfellow's release workflow built the packed file, or `undefined`
  * where it does: `answer` is npm's attestations for the release, and `integrity` the packed file's (`sha512-…`).
- * Its signature is checked by `npm audit signatures`; this checks what it says.
+ * The statement's signature and certificate are checked here (`bundleProblem()`) before anything it says is read,
+ * since it's fetched apart from what `npm audit signatures` checks.
  */
-export function provenanceProblem(answer, integrity) {
+export function provenanceProblem(answer, integrity, chain = FULCIO_CHAIN) {
   for (const attestation of answer?.attestations ?? []) {
     if (attestation?.predicateType !== SLSA_PROVENANCE) continue;
+    const unsigned = bundleProblem(attestation.bundle, chain);
+    if (unsigned) return unsigned;
     let statement;
     try {
       statement = JSON.parse(Buffer.from(attestation.bundle?.dsseEnvelope?.payload ?? "", "base64").toString("utf8"));

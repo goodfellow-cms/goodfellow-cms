@@ -1,10 +1,13 @@
 // The copy of the sign-in worker Cloudflare's Deploy to Cloudflare button deploys (`packages/worker/deploy/`),
 // which this package's build carries as `templates/sign-in/`, for copies to update themselves from.
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const read = (file: string) => readFileSync(new URL(`../../worker/deploy/${file}`, import.meta.url), "utf8");
+/** npm's attestations for a release, kept as the registry gave them. */
+// biome-ignore lint/suspicious/noExplicitAny: the registry's answer, which the test changes to try what's refused
+const fixture = (name: string): any =>
+  JSON.parse(readFileSync(new URL(`../test/fixtures/${name}`, import.meta.url), "utf8"));
 
 describe("the Deploy to Cloudflare copy", () => {
   const wrangler = JSON.parse(read("wrangler.json")) as Record<string, unknown>;
@@ -56,7 +59,8 @@ describe("the Deploy to Cloudflare copy's update", async () => {
       now?: number,
       tags?: { latest?: string; deprecated?: string[] },
     ): string | undefined;
-    provenanceProblem(answer: unknown, integrity: string): string | undefined;
+    provenanceProblem(answer: unknown, integrity: string, chain?: string): string | undefined;
+    FULCIO_CHAIN: string;
     recordRelease(packageJson: string, release: string): string;
   };
   const now = Date.parse("2026-11-16T12:00:00Z");
@@ -93,43 +97,29 @@ describe("the Deploy to Cloudflare copy's update", async () => {
     expect(update.chooseRelease(fixless, undefined, now, { deprecated: ["0.14.0"] })).toBe("0.13.0");
   });
 
-  it("takes a release only where its provenance names Goodfellow's release workflow and the packed file", () => {
-    const file = Buffer.from("the packed release");
-    const digest = createHash("sha512").update(file).digest();
-    const integrity = `sha512-${digest.toString("base64")}`;
-    const answer = (workflow: { repository: string; path: string }, sha512 = digest.toString("hex")) => ({
-      attestations: [
-        { predicateType: "https://github.com/npm/attestation/tree/main/specs/publish/v0.1", bundle: {} },
-        {
-          predicateType: "https://slsa.dev/provenance/v1",
-          bundle: {
-            dsseEnvelope: {
-              payload: Buffer.from(
-                JSON.stringify({
-                  predicateType: "https://slsa.dev/provenance/v1",
-                  subject: [{ name: "pkg:npm/create-goodfellow@0.13.0", digest: { sha512 } }],
-                  predicate: {
-                    buildDefinition: { externalParameters: { workflow: { ...workflow, ref: "refs/heads/master" } } },
-                  },
-                }),
-              ).toString("base64"),
-            },
-          },
-        },
-      ],
-    });
-    const ours = {
-      repository: "https://github.com/goodfellow-cms/goodfellow-cms",
-      path: ".github/workflows/release.yml",
-    };
-    expect(update.provenanceProblem(answer(ours), integrity)).toBeUndefined();
-    expect(
-      update.provenanceProblem(answer({ ...ours, repository: "https://github.com/someone/fork" }), integrity),
-    ).toMatch(/built by https:\/\/github.com\/someone\/fork/);
-    expect(update.provenanceProblem(answer({ ...ours, path: ".github/workflows/other.yml" }), integrity)).toMatch(
-      /other.yml/,
+  it("takes a release only where its signed provenance names Goodfellow's release workflow and the packed file", () => {
+    // npm's attestations for create-goodfellow 0.13.0, as its registry gave them, and that release's packed file.
+    const ours = fixture("create-goodfellow-0.13.0-attestations.json");
+    const integrity = "sha512-qXapZ02b3Jd3mXG4MdGvhX5y+92LPp+KOEDuJ+pbych8zSz/RiFoJ5h9BRt5r5p9utNIToDV54mAkUOlLe01uw==";
+    expect(update.provenanceProblem(ours, integrity)).toBeUndefined();
+    expect(update.provenanceProblem(ours, `sha512-${Buffer.alloc(64).toString("base64")}`)).toBe(
+      "its provenance is for another file",
     );
-    expect(update.provenanceProblem(answer(ours, "00"), integrity)).toBe("its provenance is for another file");
+    // What it says is read only once its signature verifies: a statement changed after signing is refused.
+    const changed = structuredClone(ours);
+    const envelope = changed.attestations[0].bundle.dsseEnvelope;
+    const statement = JSON.parse(Buffer.from(envelope.payload, "base64").toString("utf8"));
+    statement.subject[0].digest.sha512 = "00";
+    envelope.payload = Buffer.from(JSON.stringify(statement)).toString("base64");
+    expect(update.provenanceProblem(changed, integrity)).toBe("its provenance's signature doesn't verify");
+    // Signed by Sigstore, but for another repository's workflow.
+    expect(update.provenanceProblem(fixture("sigstore-tuf-5.0.0-attestations.json"), integrity)).toBe(
+      "its provenance wasn't signed by Goodfellow's release workflow",
+    );
+    // A certificate that doesn't lead up to Sigstore's own authority.
+    const root = update.FULCIO_CHAIN.slice(update.FULCIO_CHAIN.lastIndexOf("-----BEGIN"));
+    expect(update.provenanceProblem(ours, integrity, root)).toBe("its provenance's certificate isn't Sigstore's");
+    expect(update.provenanceProblem(ours, integrity, "")).toBe("its provenance's certificate isn't Sigstore's");
     expect(update.provenanceProblem({ attestations: [] }, integrity)).toBe("it has no provenance");
     expect(update.provenanceProblem(undefined, integrity)).toBe("it has no provenance");
   });
