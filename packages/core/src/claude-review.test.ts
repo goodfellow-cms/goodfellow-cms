@@ -1,7 +1,16 @@
 // The repository's own Claude review workflow (.github/workflows/claude-review.yml): the steps that keep the review
 // to reading, run with bash as the runner would.
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -16,13 +25,16 @@ afterEach(() => {
   for (const made of dirs.splice(0)) rmSync(made, { recursive: true, force: true });
 });
 function temp() {
-  const dir = mkdtempSync(join(tmpdir(), "claude-review-"));
+  // The physical path, as git's own top level is: macOS's temporary folder is under a link.
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "claude-review-")));
   dirs.push(dir);
   return dir;
 }
 
 function sh(command: string, args: string[], cwd: string, env: Record<string, string> = {}) {
-  return spawnSync(command, args, { cwd, encoding: "utf8", env: { ...process.env, ...env } });
+  // Without Claude Code's own mark, which the tests set where they mean to, though they may run under it.
+  const { CLAUDECODE: _, ...inherited } = process.env;
+  return spawnSync(command, args, { cwd, encoding: "utf8", env: { ...inherited, ...env } });
 }
 
 /** A repository with two commits, and the review's git made by the workflow's step, run in it. */
@@ -129,12 +141,58 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "--text", "HEAD~1", "HEAD"],
       ["log", "-L/two/,+1:a.txt", "-1"],
       ["diff", "HEAD~1", "HEAD", "--", "not.git"],
+      // A revision that searches commit messages is no pathspec.
+      ["log", "--oneline", ":/one"],
     ]) {
       const result = review(...args);
       expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
     }
     // Anything else still goes to git as it is, git's options first and all.
     expect(review("-c", "core.quotePath=false", "rev-parse", "HEAD").status).toBe(0);
+  });
+
+  it("never reads a file on disk through pathspec magic, which git takes as written", () => {
+    const { review } = setUp();
+    const secret = join(temp(), "secret.txt");
+    writeFileSync(secret, "not for the review\n");
+    for (const spec of [
+      `:(top)${secret}`,
+      `:(top,literal)${secret}`,
+      `:/:${secret}`,
+      `:^${secret}`,
+      `:!${secret}`,
+      ":(",
+      ":(top",
+      `:(top,attr:a=x\\))${secret}`,
+    ]) {
+      const result = review("diff", "HEAD:a.txt", "--", spec);
+      expect(result.stdout + result.stderr, spec).not.toContain("not for the review");
+      // Never left hanging or killed, as a check that called itself would be.
+      expect(result.status, spec).not.toBeNull();
+    }
+  });
+
+  it("gives Claude Code's own commands only diff, log, show and blame, never git's config", () => {
+    const { repo, git, reviewGit } = setUp();
+    git("remote", "add", "origin", "https://x-access-token:ghs_secret@github.com/o/r.git");
+    const asClaude = (...args: string[]) => sh(reviewGit, args, repo, { CLAUDECODE: "1" });
+    for (const args of [
+      ["config", "--get", "remote.origin.url"],
+      ["config", "-l"],
+      ["remote", "-v"],
+      ["remote", "get-url", "origin"],
+      ["ls-remote", "--get-url", "origin"],
+      ["var", "-l"],
+      ["-C", ".", "config", "-l"],
+      ["--version"],
+    ]) {
+      const result = asClaude(...args);
+      expect(result.status, args.join(" ")).toBe(2);
+      expect(result.stdout + result.stderr, args.join(" ")).not.toContain("ghs_secret");
+    }
+    expect(asClaude("diff", "HEAD~1", "HEAD").stdout).toContain("+two");
+    // The action's own git, which Claude Code doesn't run, still configures the checkout.
+    expect(sh(reviewGit, ["config", "--get", "remote.origin.url"], repo).stdout).toContain("ghs_secret");
   });
 
   it("never passes on an alias, nor a command it took from an option's value", () => {
@@ -218,14 +276,24 @@ describe("the Claude review's file tools", () => {
     });
   });
 
+  const tools = (flag: string) =>
+    new RegExp(`${flag} "([^"]*)"`).exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
+
+  it("read only the checkout's files, never everything Read could", () => {
+    expect(tools("--allowedTools")).toContain("Read(./**)");
+    expect(tools("--allowedTools")).not.toContain("Read");
+  });
+
   it("never read Claude Code's own settings and state, nor git's config, which hold what the job signs in with", () => {
-    const denied = /--disallowedTools "([^"]*)"/.exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
-    expect(denied).toEqual(
+    expect(tools("--disallowedTools")).toEqual(
       expect.arrayContaining([
         "Read(~/.claude/**)",
         "Read(~/.claude.json)",
         "Read(~/.claude.json.*)",
+        "Read(~/.config/**)",
         "Read(//proc/**)",
+        "Read(//sys/**)",
+        "Read(//dev/**)",
         // The action can put the job's token in the checkout's origin address.
         "Read(./.git/**)",
       ]),
