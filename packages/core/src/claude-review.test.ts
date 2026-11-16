@@ -126,6 +126,9 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
       ["diff", "HEAD:a.txt", "--", ":(top,literal)/etc/hostname"],
       ["diff", "HEAD:a.txt", "--", ":/:/etc/hostname"],
       ["diff", "HEAD:a.txt", "--", ":(top)../outside"],
+      // Magic that never closes is refused rather than read.
+      ["diff", "HEAD:a.txt", "--", ":("],
+      ["diff", "HEAD:a.txt", "--", ":(top"],
       // Git's own options first, which only the action's own git uses, would skip every check.
       ["--no-pager", "diff", "--output=x", "HEAD"],
       ["-c", "core.fsmonitor=x", "diff"],
