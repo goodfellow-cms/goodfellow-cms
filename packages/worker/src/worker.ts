@@ -23,9 +23,13 @@
  *
  * The site setup page signs in the same way, with `/github/setup/*` creating
  * the repository. Creating it needs the person's own token, so the setup
- * page's session keeps it, sealed, until the repository exists (both, for a
- * site whose content has a repository of its own) or half an hour has passed,
- * whichever is first; then it's revoked.
+ * page's session keeps it, sealed. It's revoked once the repository exists
+ * (both, for a site whose content has a repository of its own). The worker
+ * refuses the session after half an hour, so the token can't be used after
+ * that, but it stores nothing, so it can't revoke a token whose setup was left
+ * unfinished: that one stays good at GitHub until GitHub's own expiry (eight
+ * hours where the app's user tokens expire), only inside a session nobody can
+ * open any more.
  */
 
 import githubAppJwt from "universal-github-app-jwt";
@@ -1203,7 +1207,7 @@ export function createWorker(options: WorkerOptions = {}) {
       return json({ problem: "unavailable" }, 502);
     }
 
-    /** The setup page's requests, made with the person's own token, which its session keeps for half an hour. */
+    /** The setup page's requests, made with the person's own token, which its session holds for half an hour. */
     async function setupRoute(path: string, body: Record<string, unknown>): Promise<Response> {
       checkSetupOrigin(requestOrigin);
       const session = await openSession(body, "setup");
