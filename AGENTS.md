@@ -1,510 +1,2750 @@
 # AGENTS.md
 
-Guidance for anyone, human or coding agent, changing this repository. Read [README.md](README.md) first for what Goodfellow is.
+Guidance for anyone, human or coding agent, changing this repository. Read [README.md](README.md) first for what
+Goodfellow is.
 
 The repo is in early development. When you add a tool or script, update this file in the same change.
 
 ## Architecture rules
 
-These hold across the whole codebase. A change that breaks one needs an explicit decision from the maintainer, not a workaround.
+These hold across the whole codebase. A change that breaks one needs an explicit decision from the maintainer, not a
+workaround.
 
-1. **No server at runtime.** A deployed site is static files only. The admin panel calls the GitHub or GitLab API directly from the browser. Server-side code is out of scope, apart from the sign-in worker (`@goodfellow-cms/worker`, see Sign-in worker), the Claude connector (`@goodfellow-cms/connector`, see Claude connector) and full-stack Next.js sites' API (see Full-stack Next.js sites), and sites must keep working without them: signing in with a token always works, and a full-stack site is something a developer chooses, never a default. The AI assistant (`@goodfellow-cms/ai`) calls AI services straight from the editor's browser, with each editor's own key, except where a full-stack site's server provides one, or a token broker sends them on with keys it keeps (see Token broker). Next.js sites are exported as static files too, unless they're full-stack. The one exception is the development-only local backend in `goodfellow dev` and `next dev`, which must never ship in a build.
-2. **GitHub, GitLab, and Bitbucket are equal.** Every backend feature goes through the `GitBackend` interface in `@goodfellow-cms/core` and must be implemented for `@goodfellow-cms/github`, `@goodfellow-cms/gitlab`, and `@goodfellow-cms/bitbucket` in the same change. If one host cannot support a feature, the interface must expose that as a capability flag and the admin panel must handle its absence. Nothing outside the backend packages may call a git host API or branch on the host name; a full-stack site's server reaches the host through `GitHost.server()`.
-3. **`@goodfellow-cms/core` has no React and no DOM.** It must run in Node and the browser. Type-only imports from `@puckeditor/core` are fine. The one exception is `@goodfellow-cms/core/node` (`src/node*.ts`, checked with `tsconfig.node.json`): reading sites from disk, the local file store, and the development API, for Node only. `@goodfellow-cms/core/server` (`src/server*.ts`, checked with `tsconfig.server.json`, which has the DOM's Web types and no Node's) is full-stack sites' API, for any server runtime, Cloudflare Workers included: it uses Web `Request` and `Response` and never Node, which `server.test.ts` checks by following everything it imports, so what needs Node reaches it as options from `core/node`.
-4. **The editor is built with the site's config; the admin panel's page isn't.** `@goodfellow-cms/admin` exports components, not a prebuilt app, so the editor always includes the site's own blocks: the site and the editor's frames (`/admin/editor/`) import the same `goodfellow.config.tsx`. The `/admin` page itself, which signs in and publishes, never loads the config or any block's code; it gets `adminSite()`, made where the config is loaded (see The editor's sandbox).
-5. **Blocks are configured in code; content is edited in the admin panel.** Block definitions live in code. Everything an admin can change lives under `content/` or `public/media/`, including collection schemas and templates, and must be editable without a developer or a rebuild of the editor. The one exception is adding and removing blocks from block registries, which writes their code into the site and takes effect when the site rebuilds (see Component libraries).
-6. **Site data is separate from layout.** Menus, logo, contact details, and similar site-wide data live in `content/site.json` and `content/menus.json`. Header and footer blocks read that data rather than storing their own copies, so a design change never loses links.
-7. **No library-specific code in shared packages.** `@goodfellow-cms/blocks` must work with Tailwind alone. Blocks built with a component library come from block registries (see Component libraries).
-8. **No code loaded at runtime from outside the build.** Third-party code runs in the admin panel with the editor's git token, so it is only ever included at build time. Adding a registry block commits its code to the site's repository; it runs only once the site has been rebuilt with it.
+1. **No server at runtime.** A deployed site is static files only. The admin panel calls the GitHub or GitLab API
+   directly from the browser. Server-side code is out of scope, apart from the sign-in worker (`@goodfellow-cms/worker`,
+   see Sign-in worker), the Claude connector (`@goodfellow-cms/connector`, see Claude connector) and full-stack Next.js
+   sites' API (see Full-stack Next.js sites), and sites must keep working without them: signing in with a token always
+   works, and a full-stack site is something a developer chooses, never a default. The AI assistant
+   (`@goodfellow-cms/ai`) calls AI services straight from the editor's browser, with each editor's own key, except where
+   a full-stack site's server provides one, or a token broker sends them on with keys it keeps (see Token broker).
+   Next.js sites are exported as static files too, unless they're full-stack. The one exception is the development-only
+   local backend in `goodfellow dev` and `next dev`, which must never ship in a build.
+2. **GitHub, GitLab, and Bitbucket are equal.** Every backend feature goes through the `GitBackend` interface in
+   `@goodfellow-cms/core` and must be implemented for `@goodfellow-cms/github`, `@goodfellow-cms/gitlab`, and
+   `@goodfellow-cms/bitbucket` in the same change. If one host cannot support a feature, the interface must expose that
+   as a capability flag and the admin panel must handle its absence. Nothing outside the backend packages may call a git
+   host API or branch on the host name; a full-stack site's server reaches the host through `GitHost.server()`.
+3. **`@goodfellow-cms/core` has no React and no DOM.** It must run in Node and the browser. Type-only imports from
+   `@puckeditor/core` are fine. The one exception is `@goodfellow-cms/core/node` (`src/node*.ts`, checked with
+   `tsconfig.node.json`): reading sites from disk, the local file store, and the development API, for Node only.
+   `@goodfellow-cms/core/server` (`src/server*.ts`, checked with `tsconfig.server.json`, which has the DOM's Web types
+   and no Node's) is full-stack sites' API, for any server runtime, Cloudflare Workers included: it uses Web `Request`
+   and `Response` and never Node, which `server.test.ts` checks by following everything it imports, so what needs Node
+   reaches it as options from `core/node`.
+4. **The editor is built with the site's config; the admin panel's page isn't.** `@goodfellow-cms/admin` exports
+   components, not a prebuilt app, so the editor always includes the site's own blocks: the site and the editor's frames
+   (`/admin/editor/`) import the same `goodfellow.config.tsx`. The `/admin` page itself, which signs in and publishes,
+   never loads the config or any block's code; it gets `adminSite()`, made where the config is loaded (see The editor's
+   sandbox).
+5. **Blocks are configured in code; content is edited in the admin panel.** Block definitions live in code. Everything
+   an admin can change lives under `content/` or `public/media/`, including collection schemas and templates, and must
+   be editable without a developer or a rebuild of the editor. The one exception is adding and removing blocks from
+   block registries, which writes their code into the site and takes effect when the site rebuilds (see Component
+   libraries).
+6. **Site data is separate from layout.** Menus, logo, contact details, and similar site-wide data live in
+   `content/site.json` and `content/menus.json`. Header and footer blocks read that data rather than storing their own
+   copies, so a design change never loses links.
+7. **No library-specific code in shared packages.** `@goodfellow-cms/blocks` must work with Tailwind alone. Blocks built
+   with a component library come from block registries (see Component libraries).
+8. **No code loaded at runtime from outside the build.** Third-party code runs in the admin panel with the editor's git
+   token, so it is only ever included at build time. Adding a registry block commits its code to the site's repository;
+   it runs only once the site has been rebuilt with it.
 
 ## Content files
 
 Content files are the product's data format; treat changes to them like API changes.
 
-- **One file per page or entry.** `content/pages/about.json` serves `/about`; `content/pages/index.json` serves `/`. Never bundle several pages into one file.
-- **Stable output.** Write JSON with 2-space indentation, a trailing newline, and a stable key order, so diffs stay small and readable. Use the shared serializer in `@goodfellow-cms/core`; never call `JSON.stringify` on content directly.
-- **Versioned.** Every content file has a `version` field. A change to the shape of stored data needs a migration in `packages/core/migrations` and a test that migrates a file from the previous version.
-- **Formatting is owned by the serializer.** Biome doesn't format `content/**/*.json`, or any Markdown file, since changesets' front matter and the docs' items are written as they are. A test checks that the starter's and the examples' content files are in canonical form, so after editing them by hand, re-save them with `serializeContent`.
-- **Atomic saves.** A save that touches several files is a single commit. Every write passes the commit the editor started from, so that saving over someone else's change fails and triggers the merge flow instead of silently overwriting.
+- **One file per page or entry.** `content/pages/about.json` serves `/about`; `content/pages/index.json` serves `/`.
+  Never bundle several pages into one file.
+- **Stable output.** Write JSON with 2-space indentation, a trailing newline, and a stable key order, so diffs stay
+  small and readable. Use the shared serializer in `@goodfellow-cms/core`; never call `JSON.stringify` on content
+  directly.
+- **Versioned.** Every content file has a `version` field. A change to the shape of stored data needs a migration in
+  `packages/core/migrations` and a test that migrates a file from the previous version.
+- **Formatting is owned by the serializer.** Biome doesn't format `content/**/*.json`, or any Markdown file, since
+  changesets' front matter and the docs' items are written as they are. A test checks that the starter's and the
+  examples' content files are in canonical form, so after editing them by hand, re-save them with `serializeContent`.
+- **Atomic saves.** A save that touches several files is a single commit. Every write passes the commit the editor
+  started from, so that saving over someone else's change fails and triggers the merge flow instead of silently
+  overwriting.
 
 ## Collections
 
-- **Files:** a collection is a folder, `content/collections/<id>/`, holding `_collection.json` (its name, item name, fields, optional address pattern such as `/videos/{slug}`, optional sort order, and Puck template) and one `<slug>.json` per entry with the entry's `fields`. Every collection has a text field named `title`.
-- **Stable names:** like block props, a collection's folder name and its fields' `name`s are what content refers to. The admin panel never renames them, and a field's type can't change once published.
-- **No stale values:** removing a field or a choice removes it from every entry in the same save (`collectionSettingsChanges()`), because the loader rejects values that don't match their field.
-- **Addresses:** `allPages()` lists pages and entries' pages together. Use it wherever addresses are served or checked, so an entry can never take a page's address or the other way round.
-- **Templates:** `{name}` placeholders in any text prop are filled in by `applyEntry()`, escaped in rich text and in fields a block shows as HTML (`metadata: { html: true }`, `isHtmlField()`, which the registry's `custom-html` marks). Blocks that need the entry itself read `useSite().entry` and `useSite().collection`, or Puck's `metadata` in `resolveFields` and `resolveData`. Wrap blocks that only make sense in templates in `templateOnly()`, which leaves them out of the page, header, and footer editors.
-- **Rich text from entries** is rendered through a hidden `richtext` field that `resolveData` fills in, so it's cleaned like any other rich text (see Puck's Rich text). Never render an entry's HTML directly.
-- **Markdown items:** a collection with `markdown: { body }` stores items as `<slug>.md`, the body field as the Markdown and the other fields as YAML front matter (`parseMarkdownEntry()` and `serializeMarkdownEntry()`; the admin panel writes them through `entryFileChange()`, and `collectionSettingsChanges()` converts every item when the setting changes). The loaded body is Markdown, not HTML. Entry field renders it with `markdownParts()` rather than Puck's rich text, which would drop tables, heading ids, and highlighted code; `markdownToHtml()` is safe by construction (HTML is escaped, and only `isSafeUrl()` addresses are kept), so its output is the one entry HTML rendered directly. The formatted editor's HTML goes back to Markdown with `editedMarkdown()`, which keeps the original when only its spelling would change, and Markdown that `canFormatMarkdown()` rejects is edited as Markdown only.
-- **More field types:** `yesno` (`true`, or nothing: `isEmptyValue(false)`), `item` (an item's name, or names with `multiple`, of the `collection` it names; `linkedItems()`), `images` (addresses, `imagesOf()`), `file` (an address) and `group` (rows of `GROUP_FIELD_TYPES` fields, at most `MAX_GROUP_FIELDS`, `groupRows()`). `entryFileChange()` stores values through `cleanEntryValues()`, which drops `false`, empty lists and rows, and a group's values for fields it no longer has. `formatFieldValue()` gives items' titles with its `itemTitle` (`itemTitleIn()`), which `placeholderValues()` and `applyEntry()` get from their `collections`.
-- **Links to items** name items, never addresses, so they're followed by `item-links.ts` in core, not `mapSiteLinks()`: `linkedItem()` finds the item a name means, or its translation where the site is shown in one language; `moveEntryChanges()` renames links with `changeItemLinks()`; deleting an item takes it out of links (`itemLinkRemovalChanges()`, `itemsLinkingTo()`, and the connector's `delete_item`); `collectionsLinkingTo()` keeps a collection from being deleted; `checkSite()` reports `missing-item` (`missingItemLinks()`). A field's `collection`, like its type, can't change once published. Collection list and loop follow them with `linkedFrom` (`ListingSite.entry`), which has no pages of its own, and filter by a `yesno` field with `filterField` alone.
+- **Files:** a collection is a folder, `content/collections/<id>/`, holding `_collection.json` (its name, item name,
+  fields, optional address pattern such as `/videos/{slug}`, optional sort order, and Puck template) and one
+  `<slug>.json` per entry with the entry's `fields`. Every collection has a text field named `title`.
+- **Stable names:** like block props, a collection's folder name and its fields' `name`s are what content refers to. The
+  admin panel never renames them, and a field's type can't change once published.
+- **No stale values:** removing a field or a choice removes it from every entry in the same save
+  (`collectionSettingsChanges()`), because the loader rejects values that don't match their field.
+- **Addresses:** `allPages()` lists pages and entries' pages together. Use it wherever addresses are served or checked,
+  so an entry can never take a page's address or the other way round.
+- **Templates:** `{name}` placeholders in any text prop are filled in by `applyEntry()`, escaped in rich text and in
+  fields a block shows as HTML (`metadata: { html: true }`, `isHtmlField()`, which the registry's `custom-html` marks).
+  Blocks that need the entry itself read `useSite().entry` and `useSite().collection`, or Puck's `metadata` in
+  `resolveFields` and `resolveData`. Wrap blocks that only make sense in templates in `templateOnly()`, which leaves
+  them out of the page, header, and footer editors.
+- **Rich text from entries** is rendered through a hidden `richtext` field that `resolveData` fills in, so it's cleaned
+  like any other rich text (see Puck's Rich text). Never render an entry's HTML directly.
+- **Markdown items:** a collection with `markdown: { body }` stores items as `<slug>.md`, the body field as the Markdown
+  and the other fields as YAML front matter (`parseMarkdownEntry()` and `serializeMarkdownEntry()`; the admin panel
+  writes them through `entryFileChange()`, and `collectionSettingsChanges()` converts every item when the setting
+  changes). The loaded body is Markdown, not HTML. Entry field renders it with `markdownParts()` rather than Puck's rich
+  text, which would drop tables, heading ids, and highlighted code; `markdownToHtml()` is safe by construction (HTML is
+  escaped, and only `isSafeUrl()` addresses are kept), so its output is the one entry HTML rendered directly. The
+  formatted editor's HTML goes back to Markdown with `editedMarkdown()`, which keeps the original when only its spelling
+  would change, and Markdown that `canFormatMarkdown()` rejects is edited as Markdown only.
+- **More field types:** `yesno` (`true`, or nothing: `isEmptyValue(false)`), `item` (an item's name, or names with
+  `multiple`, of the `collection` it names; `linkedItems()`), `images` (addresses, `imagesOf()`), `file` (an address)
+  and `group` (rows of `GROUP_FIELD_TYPES` fields, at most `MAX_GROUP_FIELDS`, `groupRows()`). `entryFileChange()`
+  stores values through `cleanEntryValues()`, which drops `false`, empty lists and rows, and a group's values for fields
+  it no longer has. `formatFieldValue()` gives items' titles with its `itemTitle` (`itemTitleIn()`), which
+  `placeholderValues()` and `applyEntry()` get from their `collections`.
+- **Links to items** name items, never addresses, so they're followed by `item-links.ts` in core, not `mapSiteLinks()`:
+  `linkedItem()` finds the item a name means, or its translation where the site is shown in one language;
+  `moveEntryChanges()` renames links with `changeItemLinks()`; deleting an item takes it out of links
+  (`itemLinkRemovalChanges()`, `itemsLinkingTo()`, and the connector's `delete_item`); `collectionsLinkingTo()` keeps a
+  collection from being deleted; `checkSite()` reports `missing-item` (`missingItemLinks()`). A field's `collection`,
+  like its type, can't change once published. Collection list and loop follow them with `linkedFrom`
+  (`ListingSite.entry`), which has no pages of its own, and filter by a `yesno` field with `filterField` alone.
 
 ## Collections from other systems
 
-- **Sources:** a collection's items can come from a `CollectionSource` (core's `content/collection-sources.ts`: `items()`, giving `SourcedItem`s, an item's file without its `version`, and optional `changed(since)`, `SourceChanges`), such as the site's database, while its `_collection.json` (fields, template, address) stays a file the admin panel designs. The config's `collections` names each source's module and its options (`CollectionSourceConfig`, never imported, since the config loads in the browser, which makes its options public, so never secrets), and `describeSite()` puts only the module's name in `goodfellow-site.json` (`SiteDescription.collections`). A module's default export makes the source from the options (`defineCollectionSource()`, `CollectionSourceModule`), and `collectionSources(config.collections, modules)` makes them all, throwing a `CollectionSourceError` for a collection without its module or a module for no collection (`checkSourceModules()`, which makes none, so Next.js's `goodfellowPages()` checks as it starts and makes the sources only once the site is read, where a source that throws fails only that; `goodfellowApi()` says a missing module through its `onError` as it starts and goes on, and makes each collection's alone, with `collectionSource()`, so one that's missing or throws fails only its own items, never signing in, publishing, or another's items).
-- **Read in as entries:** `withSourcedCollections(content, sources, onProblem)` replaces each sourced collection's entries with the source's items, checked as files are (`parseEntryFile()`, languages, addresses `allPages()` already has, names given twice), with only the values of the collection's own fields, so a row's other columns never reach pages or the content API, leaving out and reporting the rest (a value JSON can't hold too), so one bad row never stops the site, and asking every source at once, each on its own (`readSources()`, which wraps each call, so one that throws before returning a promise fails only itself, and takes an answer that isn't a list as a failure, a `CollectionSourceError`): one that fails shows the items it last gave in this process (`lastRead`), with a problem, and one never read fails the site once the others have been asked; entries are marked `Collection.sourced` and have a `file` of `sourcedItemFile()` (`source:<id>/<slug>`, `isSourcedItem()`). Use it on the site as loaded with `loadSiteContent(files, { sourced })` (`LoadOptions`), or both at once with `loadSourcedContent(files, sources)`, which reads sourced collections' `_collection.json` but not their item files, since the source's items replace them, before `shownContent()`, wherever pages, feeds, calendars, the content API, or checks are made: `goodfellow build` (which closes its sources once done, `closeSources()`, since a database pool would keep it running) and `goodfellow dev`, its feeds and calendars too (`loadSourcedSite()` in the CLI's `site.ts`, modules loaded through Vite, sources made once for the same module with `keptCollectionSources()`, which keeps only the latest options' source for each collection of each site (by its folder) and closes the one it replaces (`CollectionSource.close()`), never giving a closed one out again, and `sourcedIds()` for what reads only the files), `goodfellow-next finish` (`exportedSite()`, over `loadedSite()`, the site loaded once a process, so a source's warnings come once, and `loadCollectionSources()` in `@goodfellow-cms/next`'s `plugins.ts`, with `loadSiteModule()` for the site's own files and Node's `import()` for a package's export (`loadSourceModule()`, through a file in `node_modules/.goodfellow/`, since a bundle of a package's name alone reads none of the site's files and would be made again on every request), reading the config whatever its text says, and each source's items once a process, so every step shows the same, a read that fails being asked again; the build record reads the sourced site before `shownContent()`, for its schedules, and steps that read only the files use `loadSiteFiles()`, leaving out `sourcedCollectionIds()`' item files, as `goodfellow dev`'s redirects and `goodfellowPages()`' `language()` fallback do), `goodfellow due` and `goodfellow-next due` (`DueOptions.load`, given `dueSite()` from the CLI's `due.ts` and `@goodfellow-cms/next/export`, which load the config whatever its text says, since it can name its collections in any way JavaScript allows, leave out only the sources they can't read, with a warning, through `loadReadableSources()`, since the hourly check may not have their secrets, and close the sources once read), the admin panel's Version history (`contentWithVersion()`'s `sourced`) and Site history, `next dev`'s feeds and calendars (`DevApiOptions.load`, a `SiteLoader`, which `sendBuildFile()` takes too, with `readCollectionSources()`, read again each time, whose config and modules `loadKeptSiteModule()` gives again without bundling them while no file bundled into them has changed (requests that arrive together sharing one bundle), and while their code is the same, keeping one for each module, the latest, so `keptCollectionSources()` makes each once and an edited source's old one can go), and Next.js's pages (`goodfellowPages(config, { sources })`, `loadSite(root, sources)`, the modules the site's code imports). `loadSourceModules()` and `siteModulePath()` in `@goodfellow-cms/core/node` (`node-collection-sources.ts`) load the config's sources' modules for the CLI and `@goodfellow-cms/next`, which pass only how a module is loaded. `sourceChanges()` turns sources' `changed()` into the pages to render again (for a site's own route to pass to `revalidatePath()`, through `goodfellowPages()`' own `sourceChanges(since)`, which asks the sources its pages read, as the docs' full-stack page shows, since only the site knows where it keeps each source's `next`), for collections the site has settings for (each source asked on its own, one that fails or answers in another shape named in `failed` and keeping its place, and the places only of the sources there are now), each changed item's address in each language too, for items removed or moved to another language.
-- **The admin panel never writes them:** `appApi()`'s `collections/<id>/items` (`AppApiOptions.sources`, `goodfellowApi({ sources })`) gives the source's items to anyone signed in, as `sourcedItemsFor()` checks them against the collection's settings as published (only its fields' values, groups' rows too, and only items a file could hold), or, to owners asking with `POST`, against the settings they send, which may not be published yet, which `appServer().sourcedItems()` reads as `Account.sourcedItems`: an owner's admin panel asks each source with its collection's settings as the copy of the site being loaded or checked has them (a draft's, or a publish's), so a draft's new collection and a publish's new field are read as they'd be published, and anyone else's asks as published, since the server refuses their changes to those settings anyway (`askedWithSettings()`, a `SourcesFor` that `readShown()` and `checkPublish()` call with the site they read); `AdminProvider` keeps them in `LoadState.shown` (the site as visitors see it), which the items list and the template editor's address read, and `checkPublish()` checks with (`site.sources`); each source is read on its own (`readSources()` in core), so one that can't be read leaves the others' items shown and the rest of the site to edit (`LoadState.unreadSources`, the ids of those that couldn't, never for a `SignInError`; `unreadCollections` in the admin context adds every sourced collection where there are no sources): its items tab says so with **Try again** (`entries.sourceUnread`), and `checkPublish()` reads again only what a publish could change or what couldn't be read as the site loaded (a collection whose `_collection.json` it changes, for the site as it is now and as the publish leaves it, at once; one unread at load, once), checking every other sourced collection with the items read as the site loaded (`itemsAsSources()`): while a source can't be read, a publish that changes its collection's `_collection.json` waits for it (`PublishChecks.unread`, `checks.unreadSources`), and any other is checked without its items, leaving alone links that could go to them (`withoutUnreadLinks()` and `mayBeUnreadPage()` in core, which the Claude connector uses too); `AdminProvider` loads the files without sourced collections' item files too; a new address pattern moves the shown items' pages too, and leaves alone links to other sourced pages under them (`collectionSettingsChanges()`'s `shown`, `relinkSite()`'s `pages`), while the settings screen refuses one that gives a sourced item another page's address, or that it can't move because the source couldn't be read (`collectionSettings.sourceUnread`), and `checkPublish()` names items shown now that a publish would leave out, whether the site's checks refuse them or the server leaves them out (`PublishChecks.leftOut`, `checks.leftOutItems`); moving a page or an item leaves links to sourced pages under it alone too, and links to any address an unread collection's items could have (`movePageChanges()`'s `pages`, a `Staying` list or test for `relinkSite()`, `stayingPaths()`), and the address checks count sourced items' addresses as taken (`allPages(shown ?? content)`) and refuse any address an unread collection's items could have, unless its pattern is only the item's name (`takesAnyAddress()`, `/{slug}`, which would refuse almost every page; the page wins over an item there) (`useMayBeItem()`, `address.mayBeItem`), which the editor can publish anyway, since only the other system changes them; the editor's frames get `content`, so blocks in the editor don't show sourced items yet, while `content` stays the files every change helper writes, since relinking or removing fields would otherwise write sourced items to files. `useCollectionSource()` says a collection is sourced, from the description: its items tab lists them read-only (`SourcedEntries`), the item editor says where they're changed, and its settings say where they come from. Sites without a server show none (`entries.sourcedElsewhere`), and their publish checks leave alone links that could go to those collections' pages and item fields naming their items (`checkPublish()`'s `sourced`, `matchesAddressPattern()`), since only their builds read the items, while the settings screen refuses a new address pattern there (`collectionSettings.sourceElsewhere`), which would leave links at the old one.
-- **The Claude connector** has no sources, since it doesn't run the site's code: its tools read through `withoutSourcedItems()` (`content.ts` in `@goodfellow-cms/mcp`), so a sourced collection's item files are never read, relinked, or written, `get_collection` names where its items come from (`itemsFrom`), `save_item` and `delete_item` refuse it, new and moved pages and new items can't take an address its items could have (`refuseSourcedAddress()`), `move_page` leaves links to such addresses as they are, and `publish`'s checks load the site with `sourced` and leave alone links that could go to its items (`withoutUnreadLinks()`), as a static site's admin panel does.
+- **Sources:** a collection's items can come from a `CollectionSource` (core's `content/collection-sources.ts`:
+  `items()`, giving `SourcedItem`s, an item's file without its `version`, and optional `changed(since)`,
+  `SourceChanges`), such as the site's database, while its `_collection.json` (fields, template, address) stays a file
+  the admin panel designs. The config's `collections` names each source's module and its options
+  (`CollectionSourceConfig`, never imported, since the config loads in the browser, which makes its options public, so
+  never secrets), and `describeSite()` puts only the module's name in `goodfellow-site.json`
+  (`SiteDescription.collections`). A module's default export makes the source from the options
+  (`defineCollectionSource()`, `CollectionSourceModule`), and `collectionSources(config.collections, modules)` makes
+  them all, throwing a `CollectionSourceError` for a collection without its module or a module for no collection
+  (`checkSourceModules()`, which makes none, so Next.js's `goodfellowPages()` checks as it starts and makes the sources
+  only once the site is read, where a source that throws fails only that; `goodfellowApi()` says a missing module
+  through its `onError` as it starts and goes on, and makes each collection's alone, with `collectionSource()`, so one
+  that's missing or throws fails only its own items, never signing in, publishing, or another's items).
+- **Read in as entries:** `withSourcedCollections(content, sources, onProblem)` replaces each sourced collection's
+  entries with the source's items, checked as files are (`parseEntryFile()`, languages, addresses `allPages()` already
+  has, names given twice), with only the values of the collection's own fields, so a row's other columns never reach
+  pages or the content API, leaving out and reporting the rest (a value JSON can't hold too), so one bad row never stops
+  the site, and asking every source at once, each on its own (`readSources()`, which wraps each call, so one that throws
+  before returning a promise fails only itself, and takes an answer that isn't a list as a failure, a
+  `CollectionSourceError`): one that fails shows the items it last gave in this process (`lastRead`), with a problem,
+  and one never read fails the site once the others have been asked; entries are marked `Collection.sourced` and have a
+  `file` of `sourcedItemFile()` (`source:<id>/<slug>`, `isSourcedItem()`). Use it on the site as loaded with
+  `loadSiteContent(files, { sourced })` (`LoadOptions`), or both at once with `loadSourcedContent(files, sources)`,
+  which reads sourced collections' `_collection.json` but not their item files, since the source's items replace them,
+  before `shownContent()`, wherever pages, feeds, calendars, the content API, or checks are made: `goodfellow build`
+  (which closes its sources once done, `closeSources()`, since a database pool would keep it running) and
+  `goodfellow dev`, its feeds and calendars too (`loadSourcedSite()` in the CLI's `site.ts`, modules loaded through
+  Vite, sources made once for the same module with `keptCollectionSources()`, which keeps only the latest options'
+  source for each collection of each site (by its folder) and closes the one it replaces (`CollectionSource.close()`),
+  never giving a closed one out again, and `sourcedIds()` for what reads only the files), `goodfellow-next finish`
+  (`exportedSite()`, over `loadedSite()`, the site loaded once a process, so a source's warnings come once, and
+  `loadCollectionSources()` in `@goodfellow-cms/next`'s `plugins.ts`, with `loadSiteModule()` for the site's own files
+  and Node's `import()` for a package's export (`loadSourceModule()`, through a file in `node_modules/.goodfellow/`,
+  since a bundle of a package's name alone reads none of the site's files and would be made again on every request),
+  reading the config whatever its text says, and each source's items once a process, so every step shows the same, a
+  read that fails being asked again; the build record reads the sourced site before `shownContent()`, for its schedules,
+  and steps that read only the files use `loadSiteFiles()`, leaving out `sourcedCollectionIds()`' item files, as
+  `goodfellow dev`'s redirects and `goodfellowPages()`' `language()` fallback do), `goodfellow due` and
+  `goodfellow-next due` (`DueOptions.load`, given `dueSite()` from the CLI's `due.ts` and `@goodfellow-cms/next/export`,
+  which load the config whatever its text says, since it can name its collections in any way JavaScript allows, leave
+  out only the sources they can't read, with a warning, through `loadReadableSources()`, since the hourly check may not
+  have their secrets, and close the sources once read), the admin panel's Version history (`contentWithVersion()`'s
+  `sourced`) and Site history, `next dev`'s feeds and calendars (`DevApiOptions.load`, a `SiteLoader`, which
+  `sendBuildFile()` takes too, with `readCollectionSources()`, read again each time, whose config and modules
+  `loadKeptSiteModule()` gives again without bundling them while no file bundled into them has changed (requests that
+  arrive together sharing one bundle), and while their code is the same, keeping one for each module, the latest, so
+  `keptCollectionSources()` makes each once and an edited source's old one can go), and Next.js's pages
+  (`goodfellowPages(config, { sources })`, `loadSite(root, sources)`, the modules the site's code imports).
+  `loadSourceModules()` and `siteModulePath()` in `@goodfellow-cms/core/node` (`node-collection-sources.ts`) load the
+  config's sources' modules for the CLI and `@goodfellow-cms/next`, which pass only how a module is loaded.
+  `sourceChanges()` turns sources' `changed()` into the pages to render again (for a site's own route to pass to
+  `revalidatePath()`, through `goodfellowPages()`' own `sourceChanges(since)`, which asks the sources its pages read, as
+  the docs' full-stack page shows, since only the site knows where it keeps each source's `next`), for collections the
+  site has settings for (each source asked on its own, one that fails or answers in another shape named in `failed` and
+  keeping its place, and the places only of the sources there are now), each changed item's address in each language
+  too, for items removed or moved to another language.
+- **The admin panel never writes them:** `appApi()`'s `collections/<id>/items` (`AppApiOptions.sources`,
+  `goodfellowApi({ sources })`) gives the source's items to anyone signed in, as `sourcedItemsFor()` checks them against
+  the collection's settings as published (only its fields' values, groups' rows too, and only items a file could hold),
+  or, to owners asking with `POST`, against the settings they send, which may not be published yet, which
+  `appServer().sourcedItems()` reads as `Account.sourcedItems`: an owner's admin panel asks each source with its
+  collection's settings as the copy of the site being loaded or checked has them (a draft's, or a publish's), so a
+  draft's new collection and a publish's new field are read as they'd be published, and anyone else's asks as published,
+  since the server refuses their changes to those settings anyway (`askedWithSettings()`, a `SourcesFor` that
+  `readShown()` and `checkPublish()` call with the site they read); `AdminProvider` keeps them in `LoadState.shown` (the
+  site as visitors see it), which the items list and the template editor's address read, and `checkPublish()` checks
+  with (`site.sources`); each source is read on its own (`readSources()` in core), so one that can't be read leaves the
+  others' items shown and the rest of the site to edit (`LoadState.unreadSources`, the ids of those that couldn't, never
+  for a `SignInError`; `unreadCollections` in the admin context adds every sourced collection where there are no
+  sources): its items tab says so with **Try again** (`entries.sourceUnread`), and `checkPublish()` reads again only
+  what a publish could change or what couldn't be read as the site loaded (a collection whose `_collection.json` it
+  changes, for the site as it is now and as the publish leaves it, at once; one unread at load, once), checking every
+  other sourced collection with the items read as the site loaded (`itemsAsSources()`): while a source can't be read, a
+  publish that changes its collection's `_collection.json` waits for it (`PublishChecks.unread`,
+  `checks.unreadSources`), and any other is checked without its items, leaving alone links that could go to them
+  (`withoutUnreadLinks()` and `mayBeUnreadPage()` in core, which the Claude connector uses too); `AdminProvider` loads
+  the files without sourced collections' item files too; a new address pattern moves the shown items' pages too, and
+  leaves alone links to other sourced pages under them (`collectionSettingsChanges()`'s `shown`, `relinkSite()`'s
+  `pages`), while the settings screen refuses one that gives a sourced item another page's address, or that it can't
+  move because the source couldn't be read (`collectionSettings.sourceUnread`), and `checkPublish()` names items shown
+  now that a publish would leave out, whether the site's checks refuse them or the server leaves them out
+  (`PublishChecks.leftOut`, `checks.leftOutItems`); moving a page or an item leaves links to sourced pages under it
+  alone too, and links to any address an unread collection's items could have (`movePageChanges()`'s `pages`, a
+  `Staying` list or test for `relinkSite()`, `stayingPaths()`), and the address checks count sourced items' addresses as
+  taken (`allPages(shown ?? content)`) and refuse any address an unread collection's items could have, unless its
+  pattern is only the item's name (`takesAnyAddress()`, `/{slug}`, which would refuse almost every page; the page wins
+  over an item there) (`useMayBeItem()`, `address.mayBeItem`), which the editor can publish anyway, since only the other
+  system changes them; the editor's frames get `content`, so blocks in the editor don't show sourced items yet, while
+  `content` stays the files every change helper writes, since relinking or removing fields would otherwise write sourced
+  items to files. `useCollectionSource()` says a collection is sourced, from the description: its items tab lists them
+  read-only (`SourcedEntries`), the item editor says where they're changed, and its settings say where they come from.
+  Sites without a server show none (`entries.sourcedElsewhere`), and their publish checks leave alone links that could
+  go to those collections' pages and item fields naming their items (`checkPublish()`'s `sourced`,
+  `matchesAddressPattern()`), since only their builds read the items, while the settings screen refuses a new address
+  pattern there (`collectionSettings.sourceElsewhere`), which would leave links at the old one.
+- **The Claude connector** has no sources, since it doesn't run the site's code: its tools read through
+  `withoutSourcedItems()` (`content.ts` in `@goodfellow-cms/mcp`), so a sourced collection's item files are never read,
+  relinked, or written, `get_collection` names where its items come from (`itemsFrom`), `save_item` and `delete_item`
+  refuse it, new and moved pages and new items can't take an address its items could have (`refuseSourcedAddress()`),
+  `move_page` leaves links to such addresses as they are, and `publish`'s checks load the site with `sourced` and leave
+  alone links that could go to its items (`withoutUnreadLinks()`), as a static site's admin panel does.
 
 ## Synced blocks
 
-- **Files:** a synced block is `content/synced-blocks/<name>.json` (`SYNCED_BLOCKS_DIR`, `syncedBlockFile()`, content kind `synced-block`, `syncedBlockFileSchema`: `title` and Puck `data`), with `<name>.<code>.json` a language's own version, loaded into `SiteContent.syncedBlocks` (`SyncedBlock`). Its name, like a block's prop, is what content refers to: the admin panel never renames it, only its title.
-- **Placing:** the built-in `SyncedBlock` block (`SYNCED_BLOCK`, its `block` prop `SYNCED_BLOCK_PROP`, a text field in the description so tools write names, which `resolveFields` turns into a choice from `metadata.syncedBlocks`) places one on pages, templates, headers, and footers. It renders nothing and has no Style (`createPuckConfig()` leaves it unwrapped): `expandSyncedBlocks()` (core's `content/synced-blocks.ts`) puts its blocks in its place, ids prefixed with the placement's, in the page's language, before `applyEntry()`, in `preparePage()`, `prepareLayout()`, `blockWithPages()` and the item editor's preview, so everything after sees ordinary blocks; the content API and apps never see one. A synced block can't place another (`createPuckConfig(config, "synced")` and `describedConfig(…, "synced")` leave the block out, `checkPuckData()` refuses it, expansion drops it).
-- **Checks and links:** `syncedBlockProblems()` gives `missing-synced-block` (a name the site lacks, or none) and `nested-synced-block` errors in `checkSite()`; `mapSiteLinks()` visits synced blocks, so their links are checked and relinked; `blockUses()` counts them (`BlockUse` `synced-block`); `syncedBlockUses()` lists where one is placed, and deleting one is refused while it's used. Limits put them under `layout` (`layoutFileLanguage()`).
-- **The admin panel:** the Synced blocks screen and editor (`synced-blocks-screen.tsx`, `#/synced-blocks`, `syncedBlockEditorHref()`, `PuckEditor`'s `synced` kind), **Save as synced block** and **Detach** in the page editors' header (`SyncedBlockButtons`, the latter an `EditorChange` `detach`, `withBlocksInPlace()`), and the canvas drawing each placement read-only with **Edit synced block** (`withSyncedBlockDrawing()` in `frame/synced-block.tsx`). Version history covers them (`VersionSubject` `synced`).
-- **Elsewhere:** the Claude connector's `list_synced_blocks`, `get_synced_block`, and `save_synced_block`; WordPress imports synced patterns pages place as synced blocks (`WordPressSite.syncedPatterns`, the `synced` `Part`, `PageBlocksOptions.synced`), and exports them as `wp_block` items placed with `<!-- wp:block {"ref":…} /-->`.
+- **Files:** a synced block is `content/synced-blocks/<name>.json` (`SYNCED_BLOCKS_DIR`, `syncedBlockFile()`, content
+  kind `synced-block`, `syncedBlockFileSchema`: `title` and Puck `data`), with `<name>.<code>.json` a language's own
+  version, loaded into `SiteContent.syncedBlocks` (`SyncedBlock`). Its name, like a block's prop, is what content refers
+  to: the admin panel never renames it, only its title.
+- **Placing:** the built-in `SyncedBlock` block (`SYNCED_BLOCK`, its `block` prop `SYNCED_BLOCK_PROP`, a text field in
+  the description so tools write names, which `resolveFields` turns into a choice from `metadata.syncedBlocks`) places
+  one on pages, templates, headers, and footers. It renders nothing and has no Style (`createPuckConfig()` leaves it
+  unwrapped): `expandSyncedBlocks()` (core's `content/synced-blocks.ts`) puts its blocks in its place, ids prefixed with
+  the placement's, in the page's language, before `applyEntry()`, in `preparePage()`, `prepareLayout()`,
+  `blockWithPages()` and the item editor's preview, so everything after sees ordinary blocks; the content API and apps
+  never see one. A synced block can't place another (`createPuckConfig(config, "synced")` and
+  `describedConfig(…, "synced")` leave the block out, `checkPuckData()` refuses it, expansion drops it).
+- **Checks and links:** `syncedBlockProblems()` gives `missing-synced-block` (a name the site lacks, or none) and
+  `nested-synced-block` errors in `checkSite()`; `mapSiteLinks()` visits synced blocks, so their links are checked and
+  relinked; `blockUses()` counts them (`BlockUse` `synced-block`); `syncedBlockUses()` lists where one is placed, and
+  deleting one is refused while it's used. Limits put them under `layout` (`layoutFileLanguage()`).
+- **The admin panel:** the Synced blocks screen and editor (`synced-blocks-screen.tsx`, `#/synced-blocks`,
+  `syncedBlockEditorHref()`, `PuckEditor`'s `synced` kind), **Save as synced block** and **Detach** in the page editors'
+  header (`SyncedBlockButtons`, the latter an `EditorChange` `detach`, `withBlocksInPlace()`), and the canvas drawing
+  each placement read-only with **Edit synced block** (`withSyncedBlockDrawing()` in `frame/synced-block.tsx`). Version
+  history covers them (`VersionSubject` `synced`).
+- **Elsewhere:** the Claude connector's `list_synced_blocks`, `get_synced_block`, and `save_synced_block`; WordPress
+  imports synced patterns pages place as synced blocks (`WordPressSite.syncedPatterns`, the `synced` `Part`,
+  `PageBlocksOptions.synced`), and exports them as `wp_block` items placed with `<!-- wp:block {"ref":…} /-->`.
 
 ## Calendars
 
-- **Events** are a field type, `event` (`EventValue` in `@goodfellow-cms/core`'s `calendar.ts`): `start` and `end` as the site's wall-clock times (`YYYY-MM-DDTHH:MM`, or `YYYY-MM-DD` all day) in `content/site.json`'s `timeZone`, and an optional `repeat`. Do date arithmetic on wall-clock values as if they were UTC (`wallClock()`), so a weekly 9:00 stays at 9:00 across daylight saving changes; only `zonedInstant()` and `zonedTime()` turn them into instants. `occurrences()` expands repeats, skipped dates, and `until` with ical.js (Mozilla's iCalendar library), from the same `RRULE` that `repeatRule()` writes into calendar files, so the site and other calendars agree; `shownOccurrence()` is the next one, which Entry field, placeholders, and Collection list show. "Today" is `todayIn(settings.timeZone)`, and pages are rebuilt overnight when what they show by it changes (see Nightly builds).
-- **Calendar collections** name their event field in `_collection.json`'s `calendar` (with optional `place` and `summary`). `calendarFiles()` (`content/calendars.ts`) writes each as `/calendars/<id>.ics` and each event as `/calendars/<id>/<slug>.ics` (`calendarFile()` in `ics.ts`, written with ical.js, with a `VTIMEZONE` it works out from `Intl`, using yearly rules where the zone's changes follow them, since ical.js can't describe a zone from its name). `goodfellow build` writes them, `goodfellow-next finish` writes them into a Next.js export, and the dev API serves them (`sendBuildFile()`, which serves feeds too), which `goodfellow dev` uses directly and `withGoodfellow()` rewrites `/calendars/*.ics` to in `next dev`. Links to them carry `download`, so `SiteLink` never treats them as pages.
-- **Month pages:** a Calendar block set to a month at a time gives its page a page for each month around today's, through `withPages()` (see Showing collections); `useSite().view.month` says which.
-- **Other calendars:** a Calendar block's `feed` is read in `resolveData` only where pages are built (`typeof document === "undefined"`), never in the editor, since most calendars don't allow browsers' requests and their events aren't content. Builds run on CI's and developers' computers, so it, and anything else a build reads from an address editors give (the registry's `feed-list`), is read with `readRemoteText()` (core's `hosts.ts`): `https://` only, never `isPrivateHost()`'s addresses, each redirect checked the same way, and no more than its limit read. `readCalendar()` reads feeds with ical.js, which follows their repeats, `EXDATE`, `RDATE`, `RECURRENCE-ID`, and `DURATION`; it adds a `VTIMEZONE` from `Intl` for zones a feed names but doesn't describe, leaves out cancellations, and moves times into the site's zone. ical.js moves a yearly February 29 to March 1 in other years, so `repeatRule()` and `keepLeapDay()` spell such rules out (`BYMONTH=2;BYMONTHDAY=29`). A feed that can't be read leaves the page without it, with a warning.
-- **The admin panel** edits events with `EventField` (`event-field.tsx`), which the AI assistant fills in through the `event` hint (`AiFieldHint`): `start` and `end`, checked with `eventValueProblem()`, while `toValues()` keeps the event's `repeat`, or the whole event where the new times don't fit it. New collections can start from `newCollectionSettings({ kind: "events" })`, which also sets the site's time zone to the computer's if it has none.
+- **Events** are a field type, `event` (`EventValue` in `@goodfellow-cms/core`'s `calendar.ts`): `start` and `end` as
+  the site's wall-clock times (`YYYY-MM-DDTHH:MM`, or `YYYY-MM-DD` all day) in `content/site.json`'s `timeZone`, and an
+  optional `repeat`. Do date arithmetic on wall-clock values as if they were UTC (`wallClock()`), so a weekly 9:00 stays
+  at 9:00 across daylight saving changes; only `zonedInstant()` and `zonedTime()` turn them into instants.
+  `occurrences()` expands repeats, skipped dates, and `until` with ical.js (Mozilla's iCalendar library), from the same
+  `RRULE` that `repeatRule()` writes into calendar files, so the site and other calendars agree; `shownOccurrence()` is
+  the next one, which Entry field, placeholders, and Collection list show. "Today" is `todayIn(settings.timeZone)`, and
+  pages are rebuilt overnight when what they show by it changes (see Nightly builds).
+- **Calendar collections** name their event field in `_collection.json`'s `calendar` (with optional `place` and
+  `summary`). `calendarFiles()` (`content/calendars.ts`) writes each as `/calendars/<id>.ics` and each event as
+  `/calendars/<id>/<slug>.ics` (`calendarFile()` in `ics.ts`, written with ical.js, with a `VTIMEZONE` it works out from
+  `Intl`, using yearly rules where the zone's changes follow them, since ical.js can't describe a zone from its name).
+  `goodfellow build` writes them, `goodfellow-next finish` writes them into a Next.js export, and the dev API serves
+  them (`sendBuildFile()`, which serves feeds too), which `goodfellow dev` uses directly and `withGoodfellow()` rewrites
+  `/calendars/*.ics` to in `next dev`. Links to them carry `download`, so `SiteLink` never treats them as pages.
+- **Month pages:** a Calendar block set to a month at a time gives its page a page for each month around today's,
+  through `withPages()` (see Showing collections); `useSite().view.month` says which.
+- **Other calendars:** a Calendar block's `feed` is read in `resolveData` only where pages are built
+  (`typeof document === "undefined"`), never in the editor, since most calendars don't allow browsers' requests and
+  their events aren't content. Builds run on CI's and developers' computers, so it, and anything else a build reads from
+  an address editors give (the registry's `feed-list`), is read with `readRemoteText()` (core's `hosts.ts`): `https://`
+  only, never `isPrivateHost()`'s addresses, each redirect checked the same way, and no more than its limit read.
+  `readCalendar()` reads feeds with ical.js, which follows their repeats, `EXDATE`, `RDATE`, `RECURRENCE-ID`, and
+  `DURATION`; it adds a `VTIMEZONE` from `Intl` for zones a feed names but doesn't describe, leaves out cancellations,
+  and moves times into the site's zone. ical.js moves a yearly February 29 to March 1 in other years, so `repeatRule()`
+  and `keepLeapDay()` spell such rules out (`BYMONTH=2;BYMONTHDAY=29`). A feed that can't be read leaves the page
+  without it, with a warning.
+- **The admin panel** edits events with `EventField` (`event-field.tsx`), which the AI assistant fills in through the
+  `event` hint (`AiFieldHint`): `start` and `end`, checked with `eventValueProblem()`, while `toValues()` keeps the
+  event's `repeat`, or the whole event where the new times don't fit it. New collections can start from
+  `newCollectionSettings({ kind: "events" })`, which also sets the site's time zone to the computer's if it has none.
 
 ## Showing collections
 
-- **Pages blocks add:** `withPages(block, pages)` in `@goodfellow-cms/core` (`content/site-pages.ts`) lets a block give the page it's on pages of its own: each `PageVariant` is a `suffix` after the page's address, a `title` added to the page's, and what it shows (`month`, `page`, `choice`). `sitePages(content, today, config.blocks)` finds the first block on each page that adds any, in the order it's shown, and adds its pages, never taking an address `allPages()` has; each gets `Page.view` (`PageView`: the block's id, the page it's on, and what it shows), which preparation passes to `useSite().view`, and the page it's on gets one too, without the rest. A block links to its pages only when `view.block` is its own id, so a second block on the page shows its first page, unlinked; the editor and the Settings and Version history previews give the page the build's view with `pageView()`, so they show the same, and a block that would have pages but doesn't says why in the editor (`pagesNotice()`). Builds, `goodfellow dev`, and Next.js's routes use `sitePages()`; addresses are still checked with `allPages()`. Added pages (`isAddedPage()`) aren't in the site's search, and keep their own canonical address.
-- **Lists:** Collection list and Collection loop share `listing.tsx` in `@goodfellow-cms/blocks`: `selectedEntries()` filters and orders, `listingPages()` is their `withPages()` function (later pages as `page/2`, a page for each choice as `<field>/<choice slug>` from `choiceSlug()` of the choice's value, with their own later pages), and `currentListing()` gives what a page shows. Stored props can predate a setting, so every function there fills in `listingDefaults` first.
-- **Tags:** the `tags` field type holds a list of its `options`' values (`choicesOf()`, `hasChoice()`, `isChoiceField()` cover it and `select`). Removing a choice removes it from every entry's tags (`collectionSettingsChanges()`). The entry editor saves tags in the collection's order. The AI assistant fills them in through the `choices` hint.
-- **Repeating blocks:** `repeatsForEntries(block, { design, items, entries })` in `@goodfellow-cms/react` (`entry.ts`) makes a block repeat its `design` slot once for each entry `entries()` picks: `preparePage()` (`expandEntryLoops()`) puts a copy of the block for each entry in its `items` slot, with `item` (a `LoopItem`) set, the entry's values filled in by `applyEntry()`'s rules and ids of their own, before `resolveData` runs. It happens only where pages are rendered, never in the editor, so copies are never saved. The Image block shows a placeholder such as `{photo}` as a box, since the editor shows the design unfilled.
+- **Pages blocks add:** `withPages(block, pages)` in `@goodfellow-cms/core` (`content/site-pages.ts`) lets a block give
+  the page it's on pages of its own: each `PageVariant` is a `suffix` after the page's address, a `title` added to the
+  page's, and what it shows (`month`, `page`, `choice`). `sitePages(content, today, config.blocks)` finds the first
+  block on each page that adds any, in the order it's shown, and adds its pages, never taking an address `allPages()`
+  has; each gets `Page.view` (`PageView`: the block's id, the page it's on, and what it shows), which preparation passes
+  to `useSite().view`, and the page it's on gets one too, without the rest. A block links to its pages only when
+  `view.block` is its own id, so a second block on the page shows its first page, unlinked; the editor and the Settings
+  and Version history previews give the page the build's view with `pageView()`, so they show the same, and a block that
+  would have pages but doesn't says why in the editor (`pagesNotice()`). Builds, `goodfellow dev`, and Next.js's routes
+  use `sitePages()`; addresses are still checked with `allPages()`. Added pages (`isAddedPage()`) aren't in the site's
+  search, and keep their own canonical address.
+- **Lists:** Collection list and Collection loop share `listing.tsx` in `@goodfellow-cms/blocks`: `selectedEntries()`
+  filters and orders, `listingPages()` is their `withPages()` function (later pages as `page/2`, a page for each choice
+  as `<field>/<choice slug>` from `choiceSlug()` of the choice's value, with their own later pages), and
+  `currentListing()` gives what a page shows. Stored props can predate a setting, so every function there fills in
+  `listingDefaults` first.
+- **Tags:** the `tags` field type holds a list of its `options`' values (`choicesOf()`, `hasChoice()`, `isChoiceField()`
+  cover it and `select`). Removing a choice removes it from every entry's tags (`collectionSettingsChanges()`). The
+  entry editor saves tags in the collection's order. The AI assistant fills them in through the `choices` hint.
+- **Repeating blocks:** `repeatsForEntries(block, { design, items, entries })` in `@goodfellow-cms/react` (`entry.ts`)
+  makes a block repeat its `design` slot once for each entry `entries()` picks: `preparePage()` (`expandEntryLoops()`)
+  puts a copy of the block for each entry in its `items` slot, with `item` (a `LoopItem`) set, the entry's values filled
+  in by `applyEntry()`'s rules and ids of their own, before `resolveData` runs. It happens only where pages are
+  rendered, never in the editor, so copies are never saved. The Image block shows a placeholder such as `{photo}` as a
+  box, since the editor shows the design unfilled.
 
 ## Scheduled publishing
 
-- **Files:** page and entry files have optional `showFrom` and `hideAfter` beside `version` (`scheduleShape` in `content/schemas.ts`), wall-clock times `YYYY-MM-DDTHH:MM` in the site's `timeZone` (UTC without one); Markdown items have them in front matter, where fields' lowercase names can't clash with them. `pageFileChange()` and `entryFileChange()` take the schedule as a required argument, so every caller decides: pass the file's own (`page.content`, `entry.content`) to keep it, since leaving it out shows the page at once.
-- **Not published yet:** page and entry files may have `notPublished: true` beside `version` (`scheduleShape`; camel case, so no field's name can clash with it in Markdown items' front matter), which `FileDetails` carries through every save, `isOnSite()` and `shownContent()` treat as hidden, and `scheduledChanges()` leaves out. New pages, duplicates, and translations of pages and items start with it (`pages-screen.tsx`, `translations.tsx`); `published()` takes it out, which the page and item editors' Publish does (`PuckEditor`'s `toChanges(data, { draft })`, never Add to draft), as does the Pages screen's **Publish** (`PublishPageButton`). `ScheduleStatus` says **Not published yet**, and the Pages screen offers, no View for it. The connector, and imports don't set it, since the connector's changes go live only when a draft is published.
-- **Applied by builds:** `shownContent(content, now)` (`content/schedule.ts`) is the site as visitors see it: without pages and entries their schedules don't show, and without menus' links to them. `goodfellow build`, `goodfellow dev`, the dev API's calendar files and Next.js's `loadSite()`, export helpers, and redirects use it; the admin panel, the Claude connector, and the content checks use the site as loaded, so links to scheduled pages aren't errors. Times become instants only through `scheduleInstant()` (`zonedInstant()`).
-- **Rebuilds:** a backend's `scheduledBuilds` (`ScheduledBuilds` in core's `scheduled-builds.ts`) says when changes go live (`timing()`: `exact`, `hourly`, `nightly`, or `none`, from the site's setup files). GitLab is `exact`: `sync()` keeps a pipeline schedule for each upcoming time (`gitlabScheduledBuilds()`, described with `SCHEDULED_BUILD_DESCRIPTION`, in UTC, with `GOODFELLOW_SCHEDULED_CHANGE` set, which the starters' `.gitlab-ci.yml` reads to skip the nightly update; a schedule that couldn't get it is deleted; GitLab's crons have no year, so one `sync()` couldn't remove builds the site again a year later), which the admin panel calls once the site loads and whenever the upcoming times change, with the times it listed last as `known` (`stopsScheduledBuild()`), so a build still to come is stopped only where that editor saw it scheduled, never one someone else scheduled after they loaded the site; Developers need merge permission on the main branch for it, which `letEditorsPublish()` gives. Bitbucket is `exact` too, where `bitbucket-pipelines.yml` has the `scheduled` pipeline that only calls Vercel's deploy hook: `bitbucketScheduledBuilds()` keeps a Pipelines schedule for each upcoming time, which can't carry variables or names, so it's a seven-field cron with the year pinned (`bitbucketCronAt()`, read back with `bitbucketCronInstant()`) that runs once, and `sync()` removes past ones; it uses the owner token where there is one, and throws `ScheduledBuildsError` (`not-allowed`) where the sign-in can't add schedules. GitHub is `hourly` where the site has the starters' `.github/workflows/scheduled.yml`, which runs `goodfellow due` (`scheduleDue()` and `reportDue()` in `@goodfellow-cms/core/node`, `dueChanges()` since the workflow's last successful run) each hour and dispatches `deploy.yml` only when something came due, so `deploy.yml`'s runs stay the nightly ones the Updates screen reads. `separateSetupFiles()` writes a `scheduled.yml` for content repositories on GitHub Pages too. Sites Cloudflare Pages builds keep the same timing: their `scheduled.yml` dispatches their `deploy.yml`, and GitLab's schedules run their `update` job, both of which ask Cloudflare to rebuild through the project's deploy hook (`CLOUDFLARE_DEPLOY_HOOK`).
-- **The admin panel:** `schedule.tsx` has `ScheduleFields` (the Pages screen's Schedule dialog, and the item editor's `_schedule` root prop, which no field can be named), `ScheduleStatus` in lists, and `ComingUp` (`upcomingChanges()`) at the top of the Pages screen. Scheduling on a site without a time zone gives it the computer's (`scheduleSettingsChanges()`). Where the backend's `repositoryVisibility()` says the repository is public or internal, it warns that scheduled content can be read there early.
+- **Files:** page and entry files have optional `showFrom` and `hideAfter` beside `version` (`scheduleShape` in
+  `content/schemas.ts`), wall-clock times `YYYY-MM-DDTHH:MM` in the site's `timeZone` (UTC without one); Markdown items
+  have them in front matter, where fields' lowercase names can't clash with them. `pageFileChange()` and
+  `entryFileChange()` take the schedule as a required argument, so every caller decides: pass the file's own
+  (`page.content`, `entry.content`) to keep it, since leaving it out shows the page at once.
+- **Not published yet:** page and entry files may have `notPublished: true` beside `version` (`scheduleShape`; camel
+  case, so no field's name can clash with it in Markdown items' front matter), which `FileDetails` carries through every
+  save, `isOnSite()` and `shownContent()` treat as hidden, and `scheduledChanges()` leaves out. New pages, duplicates,
+  and translations of pages and items start with it (`pages-screen.tsx`, `translations.tsx`); `published()` takes it
+  out, which the page and item editors' Publish does (`PuckEditor`'s `toChanges(data, { draft })`, never Add to draft),
+  as does the Pages screen's **Publish** (`PublishPageButton`). `ScheduleStatus` says **Not published yet**, and the
+  Pages screen offers, no View for it. The connector, and imports don't set it, since the connector's changes go live
+  only when a draft is published.
+- **Applied by builds:** `shownContent(content, now)` (`content/schedule.ts`) is the site as visitors see it: without
+  pages and entries their schedules don't show, and without menus' links to them. `goodfellow build`, `goodfellow dev`,
+  the dev API's calendar files and Next.js's `loadSite()`, export helpers, and redirects use it; the admin panel, the
+  Claude connector, and the content checks use the site as loaded, so links to scheduled pages aren't errors. Times
+  become instants only through `scheduleInstant()` (`zonedInstant()`).
+- **Rebuilds:** a backend's `scheduledBuilds` (`ScheduledBuilds` in core's `scheduled-builds.ts`) says when changes go
+  live (`timing()`: `exact`, `hourly`, `nightly`, or `none`, from the site's setup files). GitLab is `exact`: `sync()`
+  keeps a pipeline schedule for each upcoming time (`gitlabScheduledBuilds()`, described with
+  `SCHEDULED_BUILD_DESCRIPTION`, in UTC, with `GOODFELLOW_SCHEDULED_CHANGE` set, which the starters' `.gitlab-ci.yml`
+  reads to skip the nightly update; a schedule that couldn't get it is deleted; GitLab's crons have no year, so one
+  `sync()` couldn't remove builds the site again a year later), which the admin panel calls once the site loads and
+  whenever the upcoming times change, with the times it listed last as `known` (`stopsScheduledBuild()`), so a build
+  still to come is stopped only where that editor saw it scheduled, never one someone else scheduled after they loaded
+  the site; Developers need merge permission on the main branch for it, which `letEditorsPublish()` gives. Bitbucket is
+  `exact` too, where `bitbucket-pipelines.yml` has the `scheduled` pipeline that only calls Vercel's deploy hook:
+  `bitbucketScheduledBuilds()` keeps a Pipelines schedule for each upcoming time, which can't carry variables or names,
+  so it's a seven-field cron with the year pinned (`bitbucketCronAt()`, read back with `bitbucketCronInstant()`) that
+  runs once, and `sync()` removes past ones; it uses the owner token where there is one, and throws
+  `ScheduledBuildsError` (`not-allowed`) where the sign-in can't add schedules. GitHub is `hourly` where the site has
+  the starters' `.github/workflows/scheduled.yml`, which runs `goodfellow due` (`scheduleDue()` and `reportDue()` in
+  `@goodfellow-cms/core/node`, `dueChanges()` since the workflow's last successful run) each hour and dispatches
+  `deploy.yml` only when something came due, so `deploy.yml`'s runs stay the nightly ones the Updates screen reads.
+  `separateSetupFiles()` writes a `scheduled.yml` for content repositories on GitHub Pages too. Sites Cloudflare Pages
+  builds keep the same timing: their `scheduled.yml` dispatches their `deploy.yml`, and GitLab's schedules run their
+  `update` job, both of which ask Cloudflare to rebuild through the project's deploy hook (`CLOUDFLARE_DEPLOY_HOOK`).
+- **The admin panel:** `schedule.tsx` has `ScheduleFields` (the Pages screen's Schedule dialog, and the item editor's
+  `_schedule` root prop, which no field can be named), `ScheduleStatus` in lists, and `ComingUp` (`upcomingChanges()`)
+  at the top of the Pages screen. Scheduling on a site without a time zone gives it the computer's
+  (`scheduleSettingsChanges()`). Where the backend's `repositoryVisibility()` says the repository is public or internal,
+  it warns that scheduled content can be read there early.
 
 ## Nightly builds
 
-- **The build record:** `goodfellow build` and `goodfellow-next finish` write `goodfellow-build.json` (`BUILD_RECORD_PATH`, `BuildRecord` in core's `build-record.ts`, `writeBuildRecord()` in `node-build-record.ts`): the commit (`builtFrom()`, from git, or the host's variables where there's no git folder), the content repository's where it's in the folder, the Goodfellow release, and `currentUntil`, the earliest of the dates rendering reported and the next scheduled change (`currentUntil()`).
-- **Dates:** whatever shows something by today's date says when it would show something else with `changesOn(date)` (`YYYY-MM-DD` in the site's time zone; too early only builds sooner). `shownOccurrence()`, `isUpcoming()` and `monthsAround()` do it themselves; the Calendar block reports a month's tomorrow (it marks today), a list's events ending and coming within it, and another calendar's tomorrow; lists report dates passing out of "Today and later". Blocks of a site's own that read `todayIn()` should do the same. Dates are kept on `globalThis` (`nextDateChange()`, `resetDateChanges()`, `onDateChange()`), since a build can load core more than once; `next build` renders in several processes, so `withGoodfellow()` names a folder (`BUILD_DATES_ENV`, `.next/goodfellow-dates/`) where each writes its earliest (`reportDatesTo()`), which `goodfellow-next finish` reads (`reportedDate()`).
-- **The check:** `goodfellow nightly` (`nightlyCheck()` and `reportNightly()` in `@goodfellow-cms/core/node`'s `node-nightly.ts`) reads the live site's record from the Site address and says `build` when it can't be read, the commit differs, `currentUntil` has passed, or an update is available, and `update` when `chooseUpdate()` would install one (or site files are behind), with `NightlyMode` (`GOODFELLOW_NIGHTLY`, `NIGHTLY_VARIABLE`: `changed`, `always`, `off`); it writes them to `GITHUB_OUTPUT` or `--output`. `goodfellow due` is also due the first check after `currentUntil` (`DueResult.dated`). The starters' `deploy.yml` (and `githubUpdateJobs({ nightly })`, `nightlyBuildCondition()` for Cloudflare's) runs it in a `check` job whose condition reads `vars.GOODFELLOW_NIGHTLY`, gating `update` and `build`; their `.gitlab-ci.yml` runs it in the pages job on the nightly schedule and, when nothing changed, publishes the last pages job's artifacts again (downloaded with the job token), since a pages job must publish. Setup files of content repositories and Vercel sites still build every night. Updates can't change a site's GitHub workflows (the job's token can't write `.github/workflows/`), so older sites keep their setup until a developer copies the starter's.
-- **The admin panel:** a backend's `updates.nightly` (`NightlyBuilds`: `supported()` from the setup files, `get()`, `set()`) keeps the setting (GitHub: the repository variable, with the owners' app's Variables permission, a `LATER_PERMISSIONS` one; GitLab: the nightly schedule's `active` and its variable), and `updates.rebuild()` builds without updating (GitHub: dispatching the workflow with no `update`; GitLab: a pipeline with `GOODFELLOW_REBUILD`). The Updates screen shows both, and follows a rebuild with `useAdmin().followBuild()`.
+- **The build record:** `goodfellow build` and `goodfellow-next finish` write `goodfellow-build.json`
+  (`BUILD_RECORD_PATH`, `BuildRecord` in core's `build-record.ts`, `writeBuildRecord()` in `node-build-record.ts`): the
+  commit (`builtFrom()`, from git, or the host's variables where there's no git folder), the content repository's where
+  it's in the folder, the Goodfellow release, and `currentUntil`, the earliest of the dates rendering reported and the
+  next scheduled change (`currentUntil()`).
+- **Dates:** whatever shows something by today's date says when it would show something else with `changesOn(date)`
+  (`YYYY-MM-DD` in the site's time zone; too early only builds sooner). `shownOccurrence()`, `isUpcoming()` and
+  `monthsAround()` do it themselves; the Calendar block reports a month's tomorrow (it marks today), a list's events
+  ending and coming within it, and another calendar's tomorrow; lists report dates passing out of "Today and later".
+  Blocks of a site's own that read `todayIn()` should do the same. Dates are kept on `globalThis` (`nextDateChange()`,
+  `resetDateChanges()`, `onDateChange()`), since a build can load core more than once; `next build` renders in several
+  processes, so `withGoodfellow()` names a folder (`BUILD_DATES_ENV`, `.next/goodfellow-dates/`) where each writes its
+  earliest (`reportDatesTo()`), which `goodfellow-next finish` reads (`reportedDate()`).
+- **The check:** `goodfellow nightly` (`nightlyCheck()` and `reportNightly()` in `@goodfellow-cms/core/node`'s
+  `node-nightly.ts`) reads the live site's record from the Site address and says `build` when it can't be read, the
+  commit differs, `currentUntil` has passed, or an update is available, and `update` when `chooseUpdate()` would install
+  one (or site files are behind), with `NightlyMode` (`GOODFELLOW_NIGHTLY`, `NIGHTLY_VARIABLE`: `changed`, `always`,
+  `off`); it writes them to `GITHUB_OUTPUT` or `--output`. `goodfellow due` is also due the first check after
+  `currentUntil` (`DueResult.dated`). The starters' `deploy.yml` (and `githubUpdateJobs({ nightly })`,
+  `nightlyBuildCondition()` for Cloudflare's) runs it in a `check` job whose condition reads `vars.GOODFELLOW_NIGHTLY`,
+  gating `update` and `build`; their `.gitlab-ci.yml` runs it in the pages job on the nightly schedule and, when nothing
+  changed, publishes the last pages job's artifacts again (downloaded with the job token), since a pages job must
+  publish. Setup files of content repositories and Vercel sites still build every night. Updates can't change a site's
+  GitHub workflows (the job's token can't write `.github/workflows/`), so older sites keep their setup until a developer
+  copies the starter's.
+- **The admin panel:** a backend's `updates.nightly` (`NightlyBuilds`: `supported()` from the setup files, `get()`,
+  `set()`) keeps the setting (GitHub: the repository variable, with the owners' app's Variables permission, a
+  `LATER_PERMISSIONS` one; GitLab: the nightly schedule's `active` and its variable), and `updates.rebuild()` builds
+  without updating (GitHub: dispatching the workflow with no `update`; GitLab: a pipeline with `GOODFELLOW_REBUILD`).
+  The Updates screen shows both, and follows a rebuild with `useAdmin().followBuild()`.
 
 ## Several languages
 
-- **Where a page's language is:** the main language's pages are at the site's address; each other language's (`content/site.json`'s `languages`, with `translations` of the site's `title`, `description`, and `titleTemplate`) are under its code, `languagePrefix()` (`/es`), so `pathLanguage()` and `pageLanguage()` read a page's language from its address. Items say theirs (`inLanguage`, `entryLanguage()`), and their pages are under their language's code (`entryPathIn()`, `languagePattern()`, or a collection's `languagePaths`); use those, never `entryAddress()` with a collection's `path`, wherever items' addresses are worked out. Item names stay unique within a collection whatever their language. `content/languages.ts` in core has it all, with no React.
-- **Translations:** a page's `translationOf` is the address of the main language's page it translates, and an item's the name of the item; `translatedFrom` is `translationHash()` of that page's data or item's fields when it was translated, so `translationState()` says `missing`, `current`, or `outdated`. `pageTranslations()` and `entryTranslations()` group them; `checkSite()` warns about a translation of something not in the main language (`bad-translation`), and about pages and items in the main language with no translation into a language (`missing-translation`) or one that's out of date (`outdated-translation`), which `publishProblems()` shows only when the publish brings them, as it does every warning, so they don't come back on every publish; a missing `translationOf` target is a missing link, since `mapSiteLinks()` visits it. Moves keep them linked (`movePageChanges()` relinks pages' `translationOf`; `moveEntryChanges()` renames items'), and deleting a page or item unlinks its translations (`unlinkTranslations()` in the admin panel). `FileDetails` (`fileDetailsOf()`) carries them through `pageFileChange()` and `entryFileChange()` with the schedule, so callers that change a schedule use `withSchedule()`.
-- **The site in a language:** `contentInLanguage(content, code)` (`contentForPage()` for a page) gives localized settings (`localizedSettings()`: its `language`, and the main one as `mainLanguage`, never stored; read the main language with `mainLanguage()`), that language's menus (`content/menus.json`'s `languages`, falling back to the main language's by name, `menusIn()`), its header and footer (`content/layout/header.es.json`, `layoutIn()`), and only its items. `preparePage()` and `blockWithPages()` use it, so blocks, feeds (`/es/feeds/…`), calendar files (`/es/calendars/…`) and structured data see one language; it takes the site as loaded and returns a site already shown in a language as it is. `languageLinks()` and `pageAlternates()` need the site as loaded, with every language's items.
-- **Rendering:** `useSite().languages` (`LanguageLink`s) feeds the Language switch block (`language-switch.tsx`), and `useSite().home` the site name's link. `pageHead()` gives a page's head in its language with `hreflang` `alternates` (with `x-default`, only with the Site address, never for pages blocks add), and `sitemapPages()` lists them for both renderers' sitemaps. Next.js's layout can't know the page, so on a site in several languages `goodfellowPages()`'s `Layout` prepares the header and footer in each language, each given a `languageMap()` (every page's translations, read with `languageLinksAt()` from `content/language-map.ts`, which has no imports), and `ByLanguage` picks one in the browser from the address, giving it the address through `CurrentPathProvider` (`useCurrentPath()`); the Language switch then renders `LayoutLanguageList` (`language-switch-client.tsx`, a build entry of its own, as is `language-switch-view.tsx`, which it shares with the server's markup, or tsdown would put both in one chunk without the directive). `PageLanguage` sets `<html lang>` after navigation, and `goodfellow-next finish` writes it into exported pages (`writePageLanguages()`) before indexing. Pagefind keeps an index for each `<html lang>`, so search finds only the page's language; the Search block starts Pagefind again when the language changes (`loadPagefind()`).
-- **The admin panel** has languages of its own, which are each editor's, not the site's (see Admin panel's Languages). Site Settings' Languages tab (`languages-tab.tsx`) adds languages, which can't be renamed once published or removed while anything is in them; the Menus tab (`MenusTab`) gives a language menus of its own; the Pages screen and collections' lists show translations (`translations.tsx`: **Translate into**, which copies the page or item, **Mark as up to date**); the editor shows a page or item in its language (`PuckEditor`'s `language`), with a language menu in its header, like the Header & Footer editor's, that opens its translations or makes one (`PageEditorTranslations`, `EntryEditorTranslations`, sharing `TranslationMenu`); the Header & Footer editor picks a language (`layoutEditorHref(part, language)`), making or removing that language's own file; and the AI panel's **Translate into** (`AiTask` `translate`, `translationSchema()`) translates a page's blocks and settings, or an item's fields. The Claude connector's `get_site` lists the languages, and `save_item`, `get_menus`, and `save_menu` take one.
+- **Where a page's language is:** the main language's pages are at the site's address; each other language's
+  (`content/site.json`'s `languages`, with `translations` of the site's `title`, `description`, and `titleTemplate`) are
+  under its code, `languagePrefix()` (`/es`), so `pathLanguage()` and `pageLanguage()` read a page's language from its
+  address. Items say theirs (`inLanguage`, `entryLanguage()`), and their pages are under their language's code
+  (`entryPathIn()`, `languagePattern()`, or a collection's `languagePaths`); use those, never `entryAddress()` with a
+  collection's `path`, wherever items' addresses are worked out. Item names stay unique within a collection whatever
+  their language. `content/languages.ts` in core has it all, with no React.
+- **Translations:** a page's `translationOf` is the address of the main language's page it translates, and an item's the
+  name of the item; `translatedFrom` is `translationHash()` of that page's data or item's fields when it was translated,
+  so `translationState()` says `missing`, `current`, or `outdated`. `pageTranslations()` and `entryTranslations()` group
+  them; `checkSite()` warns about a translation of something not in the main language (`bad-translation`), and about
+  pages and items in the main language with no translation into a language (`missing-translation`) or one that's out of
+  date (`outdated-translation`), which `publishProblems()` shows only when the publish brings them, as it does every
+  warning, so they don't come back on every publish; a missing `translationOf` target is a missing link, since
+  `mapSiteLinks()` visits it. Moves keep them linked (`movePageChanges()` relinks pages' `translationOf`;
+  `moveEntryChanges()` renames items'), and deleting a page or item unlinks its translations (`unlinkTranslations()` in
+  the admin panel). `FileDetails` (`fileDetailsOf()`) carries them through `pageFileChange()` and `entryFileChange()`
+  with the schedule, so callers that change a schedule use `withSchedule()`.
+- **The site in a language:** `contentInLanguage(content, code)` (`contentForPage()` for a page) gives localized
+  settings (`localizedSettings()`: its `language`, and the main one as `mainLanguage`, never stored; read the main
+  language with `mainLanguage()`), that language's menus (`content/menus.json`'s `languages`, falling back to the main
+  language's by name, `menusIn()`), its header and footer (`content/layout/header.es.json`, `layoutIn()`), and only its
+  items. `preparePage()` and `blockWithPages()` use it, so blocks, feeds (`/es/feeds/…`), calendar files
+  (`/es/calendars/…`) and structured data see one language; it takes the site as loaded and returns a site already shown
+  in a language as it is. `languageLinks()` and `pageAlternates()` need the site as loaded, with every language's items.
+- **Rendering:** `useSite().languages` (`LanguageLink`s) feeds the Language switch block (`language-switch.tsx`), and
+  `useSite().home` the site name's link. `pageHead()` gives a page's head in its language with `hreflang` `alternates`
+  (with `x-default`, only with the Site address, never for pages blocks add), and `sitemapPages()` lists them for both
+  renderers' sitemaps. Next.js's layout can't know the page, so on a site in several languages `goodfellowPages()`'s
+  `Layout` prepares the header and footer in each language, each given a `languageMap()` (every page's translations,
+  read with `languageLinksAt()` from `content/language-map.ts`, which has no imports), and `ByLanguage` picks one in the
+  browser from the address, giving it the address through `CurrentPathProvider` (`useCurrentPath()`); the Language
+  switch then renders `LayoutLanguageList` (`language-switch-client.tsx`, a build entry of its own, as is
+  `language-switch-view.tsx`, which it shares with the server's markup, or tsdown would put both in one chunk without
+  the directive). `PageLanguage` sets `<html lang>` after navigation, and `goodfellow-next finish` writes it into
+  exported pages (`writePageLanguages()`) before indexing. Pagefind keeps an index for each `<html lang>`, so search
+  finds only the page's language; the Search block starts Pagefind again when the language changes (`loadPagefind()`).
+- **The admin panel** has languages of its own, which are each editor's, not the site's (see Admin panel's Languages).
+  Site Settings' Languages tab (`languages-tab.tsx`) adds languages, which can't be renamed once published or removed
+  while anything is in them; the Menus tab (`MenusTab`) gives a language menus of its own; the Pages screen and
+  collections' lists show translations (`translations.tsx`: **Translate into**, which copies the page or item, **Mark as
+  up to date**); the editor shows a page or item in its language (`PuckEditor`'s `language`), with a language menu in
+  its header, like the Header & Footer editor's, that opens its translations or makes one (`PageEditorTranslations`,
+  `EntryEditorTranslations`, sharing `TranslationMenu`); the Header & Footer editor picks a language
+  (`layoutEditorHref(part, language)`), making or removing that language's own file; and the AI panel's **Translate
+  into** (`AiTask` `translate`, `translationSchema()`) translates a page's blocks and settings, or an item's fields. The
+  Claude connector's `get_site` lists the languages, and `save_item`, `get_menus`, and `save_menu` take one.
 - **No version bump:** every field the languages added is optional, so content files without them read as before.
 
 ## Search engines and feeds
 
-- **Page settings:** pages' and templates' root props include `noIndex` (the "Search engines" radio in `pageRootFields`), `noFollow`, `noSnippet`, and `card` (`auto`, `large`, `small`), which the editor shows chosen where a page leaves them out (`shownSettings()` in `frame/page-settings.ts`, whose `keep()` takes the defaults out again), and on "Page not found", which is never in search results or the site's search, as set and read-only (`noIndex` and `noSearch`, whatever its file says). `getPageHead()` turns them into the head's `noIndex`, `noFollow`, `noSnippet`, and `card` (`summary_large_image` where there's a picture, unless `small`), and `robotsContent()` into the robots meta both renderers write (in the order Next.js's metadata writes them): `noindex` for a page hidden from search engines, as for "Page not found", and otherwise `max-image-preview:large` after the page's own asks, so every page has one. Both renderers' sitemaps leave out every page whose head says `noIndex`. `noSearch` ("The site's search") is separate: `PageContent` leaves `data-pagefind-body` off a page whose root says so, as it does for "Page not found" and pages blocks add, so neither renderer's index has it; an item's page takes it from its collection's template.
-- **Link previews:** `pageHead()` adds what needs the site: the picture's description (`socialImageAlt`, from `content/media.json`) and, on a dated item's page (not a calendar's), `type: "article"` with `publishedTime`, as structured data does; `getPageHead()` gives `siteName` and `locale`. `goodfellow build` writes them as `og:` tags with the picture's size from `RenderOptions.media`, and `twitter:card`; Next.js's `pageMetadata()` gives them as `openGraph` and `twitter`, with `media` from `renderOptions()`.
-- **AI training:** `content/site.json`'s `noAiTraining` (Site Settings' General tab) asks `AI_TRAINING_CRAWLERS` to stay out in `robots.txt` (`robotsRules()`, `robotsTxt()` in core's `head.ts`, which `goodfellow build` writes and Next.js's `robots()` gives), leaving search engines' crawlers and assistants' page fetchers alone.
-- **How addresses end:** every full address of a page the site gives (canonical links, `og:url`, the sitemap, `hreflang`, structured data, feeds, calendar files, redirect pages' targets, forms' thank-you pages, Share buttons) goes through `pageUrl()` (`pageAddressPath()`), which ends it with `/` unless `settings.trailingSlash` is `false`, since builds write pages as folders that most hosts serve there; files and `/` keep theirs. `trailingSlash` is never stored (`siteSettingsFileChange()` strips it): `fileSystemSource()` with an `env` sets it from `GOODFELLOW_TRAILING_SLASH` (`TRAILING_SLASH_VARIABLE`, `trailingSlashFrom()`, `withTrailingSlash()`), which `goodfellow build` and `goodfellow dev` fill in from the config's `trailingSlash` (`withConfiguredTrailingSlash()`), `withGoodfellow()` passes from Next.js's `trailingSlash` in its `env` (which `loadSite()` reads by name, so Next.js inlines it), and `goodfellow-next finish` reads from `.next/required-server-files.json` (`exportTrailingSlash()`). Links to the site's own pages within pages end the same way, so following one needs no redirect: `SiteLink` writes its `href` with `pageLink()`, `preparePage()`'s rich text and prepared HTML go through `pageLinksInHtml()` (`<a>` elements' `href`s only, so code shown as text stays as written), and the consent notice's policy link too; `pageLink()` changes only what `linkTarget()` calls a page, keeping `?…` and `#…`. They're in `content/page-address.ts`, which imports nothing but the reserved paths, since `SiteLink` runs in visitors' browsers. The page and template editors lay out the page's settings with `PageFields` (`frame/page-fields.tsx`, Puck's `fields` override when no block is selected, which is given the fields Puck drew): `noFollow` and `noSnippet` in a Puck `FieldGroup` that starts closed, then `image`, `card` and, on pages, `SharePreview` (`share-preview.tsx`) in another, which shows `getPageHead()`'s title, description, and image as link previews would, and the Style setting last; fields of a site's own root stay where Puck puts them.
-- **Entry details:** collections don't name their date, summary, or image fields, so `entryDetails()` (`content/entry-details.ts`) finds them by type: the date field the collection sorts by, or its first (`dateField()`); a calendar's summary or the first `textarea`, else the start of the first `richtext` (or Markdown body), at most `SUMMARY_LENGTH`; and the first image. Feeds and structured data both use it.
-- **Structured data:** `structuredData(content, page, today)` (`content/structured-data.ts`) gives schema.org things: `WebSite` and `Organization` on the home page, an `Event` on a calendar item's page (its `shownOccurrence()`, written with `zonedIso()`), an `Article` on a dated item's page, both with the page's `inLanguage`, and nothing on other pages, pages blocks add, pages hidden from search engines, members-only pages (whose items' summaries a teaser would publish), or any page without the Site address (`describesPage()`). Blocks add their own with `withStructuredData()` in `@goodfellow-cms/react`, which `preparePage()` collects where `describesPage()` allows, and `withBlocksData()` joins every `FAQPage` (the Questions and answers block's, `faq-data.ts`) into one. `preparePage()` writes it with `structuredDataScript()` (which escapes `<`) into `PreparedPage.structuredData`, and `PageContent` puts it at the end of `<main>` in both renderers, so pages' HTML stays the same in Next.js.
-- **Sites in a subfolder:** search engines read `robots.txt` only at a domain's root, so `goodfellow build` and `goodfellow-next finish` say where (`rootRobotsUrl()`, `buildNotes()`) for a Site address with a path, and the docs' Search engines page says how to name the sitemap there.
-- **Feeds:** `feedFiles()` (`content/feeds.ts`) writes RSS 2.0 and Atom feeds, `/feeds/<id>.rss` and `.atom` (`feedPath()`, `FEEDS_DIR`), for each collection with pages and a date field that isn't a calendar (`feedCollections()`), newest first, at most `FEED_LENGTH`, and only with the Site address. `goodfellow build` writes them, `goodfellow-next finish` writes them into the export (`writeFeedFiles()`, and into `public/feeds/` with `--server`), and the dev API serves them (`sendBuildFile()`), which `withGoodfellow()` rewrites `/feeds/*` to in `next dev`. Pages link to each RSS feed (`feedLinks()`: a `<link rel="alternate">` in `goodfellow build`, `alternates.types` in Next.js's metadata).
+- **Page settings:** pages' and templates' root props include `noIndex` (the "Search engines" radio in
+  `pageRootFields`), `noFollow`, `noSnippet`, and `card` (`auto`, `large`, `small`), which the editor shows chosen where
+  a page leaves them out (`shownSettings()` in `frame/page-settings.ts`, whose `keep()` takes the defaults out again),
+  and on "Page not found", which is never in search results or the site's search, as set and read-only (`noIndex` and
+  `noSearch`, whatever its file says). `getPageHead()` turns them into the head's `noIndex`, `noFollow`, `noSnippet`,
+  and `card` (`summary_large_image` where there's a picture, unless `small`), and `robotsContent()` into the robots meta
+  both renderers write (in the order Next.js's metadata writes them): `noindex` for a page hidden from search engines,
+  as for "Page not found", and otherwise `max-image-preview:large` after the page's own asks, so every page has one.
+  Both renderers' sitemaps leave out every page whose head says `noIndex`. `noSearch` ("The site's search") is separate:
+  `PageContent` leaves `data-pagefind-body` off a page whose root says so, as it does for "Page not found" and pages
+  blocks add, so neither renderer's index has it; an item's page takes it from its collection's template.
+- **Link previews:** `pageHead()` adds what needs the site: the picture's description (`socialImageAlt`, from
+  `content/media.json`) and, on a dated item's page (not a calendar's), `type: "article"` with `publishedTime`, as
+  structured data does; `getPageHead()` gives `siteName` and `locale`. `goodfellow build` writes them as `og:` tags with
+  the picture's size from `RenderOptions.media`, and `twitter:card`; Next.js's `pageMetadata()` gives them as
+  `openGraph` and `twitter`, with `media` from `renderOptions()`.
+- **AI training:** `content/site.json`'s `noAiTraining` (Site Settings' General tab) asks `AI_TRAINING_CRAWLERS` to stay
+  out in `robots.txt` (`robotsRules()`, `robotsTxt()` in core's `head.ts`, which `goodfellow build` writes and Next.js's
+  `robots()` gives), leaving search engines' crawlers and assistants' page fetchers alone.
+- **How addresses end:** every full address of a page the site gives (canonical links, `og:url`, the sitemap,
+  `hreflang`, structured data, feeds, calendar files, redirect pages' targets, forms' thank-you pages, Share buttons)
+  goes through `pageUrl()` (`pageAddressPath()`), which ends it with `/` unless `settings.trailingSlash` is `false`,
+  since builds write pages as folders that most hosts serve there; files and `/` keep theirs. `trailingSlash` is never
+  stored (`siteSettingsFileChange()` strips it): `fileSystemSource()` with an `env` sets it from
+  `GOODFELLOW_TRAILING_SLASH` (`TRAILING_SLASH_VARIABLE`, `trailingSlashFrom()`, `withTrailingSlash()`), which
+  `goodfellow build` and `goodfellow dev` fill in from the config's `trailingSlash` (`withConfiguredTrailingSlash()`),
+  `withGoodfellow()` passes from Next.js's `trailingSlash` in its `env` (which `loadSite()` reads by name, so Next.js
+  inlines it), and `goodfellow-next finish` reads from `.next/required-server-files.json` (`exportTrailingSlash()`).
+  Links to the site's own pages within pages end the same way, so following one needs no redirect: `SiteLink` writes its
+  `href` with `pageLink()`, `preparePage()`'s rich text and prepared HTML go through `pageLinksInHtml()` (`<a>`
+  elements' `href`s only, so code shown as text stays as written), and the consent notice's policy link too;
+  `pageLink()` changes only what `linkTarget()` calls a page, keeping `?…` and `#…`. They're in
+  `content/page-address.ts`, which imports nothing but the reserved paths, since `SiteLink` runs in visitors' browsers.
+  The page and template editors lay out the page's settings with `PageFields` (`frame/page-fields.tsx`, Puck's `fields`
+  override when no block is selected, which is given the fields Puck drew): `noFollow` and `noSnippet` in a Puck
+  `FieldGroup` that starts closed, then `image`, `card` and, on pages, `SharePreview` (`share-preview.tsx`) in another,
+  which shows `getPageHead()`'s title, description, and image as link previews would, and the Style setting last; fields
+  of a site's own root stay where Puck puts them.
+- **Entry details:** collections don't name their date, summary, or image fields, so `entryDetails()`
+  (`content/entry-details.ts`) finds them by type: the date field the collection sorts by, or its first (`dateField()`);
+  a calendar's summary or the first `textarea`, else the start of the first `richtext` (or Markdown body), at most
+  `SUMMARY_LENGTH`; and the first image. Feeds and structured data both use it.
+- **Structured data:** `structuredData(content, page, today)` (`content/structured-data.ts`) gives schema.org things:
+  `WebSite` and `Organization` on the home page, an `Event` on a calendar item's page (its `shownOccurrence()`, written
+  with `zonedIso()`), an `Article` on a dated item's page, both with the page's `inLanguage`, and nothing on other
+  pages, pages blocks add, pages hidden from search engines, members-only pages (whose items' summaries a teaser would
+  publish), or any page without the Site address (`describesPage()`). Blocks add their own with `withStructuredData()`
+  in `@goodfellow-cms/react`, which `preparePage()` collects where `describesPage()` allows, and `withBlocksData()`
+  joins every `FAQPage` (the Questions and answers block's, `faq-data.ts`) into one. `preparePage()` writes it with
+  `structuredDataScript()` (which escapes `<`) into `PreparedPage.structuredData`, and `PageContent` puts it at the end
+  of `<main>` in both renderers, so pages' HTML stays the same in Next.js.
+- **Sites in a subfolder:** search engines read `robots.txt` only at a domain's root, so `goodfellow build` and
+  `goodfellow-next finish` say where (`rootRobotsUrl()`, `buildNotes()`) for a Site address with a path, and the docs'
+  Search engines page says how to name the sitemap there.
+- **Feeds:** `feedFiles()` (`content/feeds.ts`) writes RSS 2.0 and Atom feeds, `/feeds/<id>.rss` and `.atom`
+  (`feedPath()`, `FEEDS_DIR`), for each collection with pages and a date field that isn't a calendar
+  (`feedCollections()`), newest first, at most `FEED_LENGTH`, and only with the Site address. `goodfellow build` writes
+  them, `goodfellow-next finish` writes them into the export (`writeFeedFiles()`, and into `public/feeds/` with
+  `--server`), and the dev API serves them (`sendBuildFile()`), which `withGoodfellow()` rewrites `/feeds/*` to in
+  `next dev`. Pages link to each RSS feed (`feedLinks()`: a `<link rel="alternate">` in `goodfellow build`,
+  `alternates.types` in Next.js's metadata).
 
 ## Forms
 
-- **No server:** the Form block (`form.tsx` in `@goodfellow-cms/blocks`) is a plain HTML form that posts to the form service in `content/site.json`'s `forms`. `formTarget()` in `@goodfellow-cms/core` (`forms.ts`) gives the service's address, its hidden fields (Web3Forms' `access_key`, `subject`, `from_name`, and `redirect`; Formspree's and others' `_subject` and `_next`) and its honeypot (`botcheck` or `_gotcha`), or a `FormProblem` the admin panel and the editor explain; a form with a problem isn't shown on the site. `formRedirect()` makes the thank-you page's full address from the Site address, as services need. Formspree sets its thank-you page in its own settings, on paid plans, so it gets no `_next`.
-- **Answers' names** are their questions' wording (`answerNames()`), with the first email address as `email`, which services reply to, and never a name a service reads itself. Each of "Any of several choices" is its own answer, since services show repeated names differently.
-- **Rendered on the server only:** published pages are always rendered on the server, so a Form rendered in the browser is the admin panel's (the editor, or the Settings and Version history previews, which share its address): it has no `action` and doesn't send. Web3Forms' hCaptcha script (`WEB3FORMS_SCRIPT`, when `forms.captcha` is on) is added only where `typeof document === "undefined"`, so it never runs where it could reach the editor's sign-in.
-- **Newsletters:** the Newsletter signup block (`newsletter.tsx`, `newsletter-data.ts`) is a plain form like the Form block's, posting only to the newsletter service's own address, read from its embed code or address by `newsletterTarget()` (Mailchimp's `list-manage.com` with its honeypot, Buttondown's `embed-subscribe`, Kit's `app.kit.com/forms/<id>/subscriptions`), to any other service's `https://` form read from its HTML by `htmlSignupForm()` (its email and first name boxes, hidden fields, and a `tabindex="-1"` honeypot, counting the questions it leaves out as `leftOut`, which the editor mentions), or to the site's form service through `formTarget()`. Forms that are only a script or a frame go in the registry's Custom HTML block, which the docs say. Its native version sends only the site's form service itself, as the Form block does, and opens the website's page for the others, which answer with pages for browsers.
-- **Google Forms:** `googleFormUrl()` reads a form's embed code or address into its embedded address, with the embed code's height; the block shows it in a sandboxed iframe. `forms.gle` links can't be followed from a browser, so they're refused with an explanation.
+- **No server:** the Form block (`form.tsx` in `@goodfellow-cms/blocks`) is a plain HTML form that posts to the form
+  service in `content/site.json`'s `forms`. `formTarget()` in `@goodfellow-cms/core` (`forms.ts`) gives the service's
+  address, its hidden fields (Web3Forms' `access_key`, `subject`, `from_name`, and `redirect`; Formspree's and others'
+  `_subject` and `_next`) and its honeypot (`botcheck` or `_gotcha`), or a `FormProblem` the admin panel and the editor
+  explain; a form with a problem isn't shown on the site. `formRedirect()` makes the thank-you page's full address from
+  the Site address, as services need. Formspree sets its thank-you page in its own settings, on paid plans, so it gets
+  no `_next`.
+- **Answers' names** are their questions' wording (`answerNames()`), with the first email address as `email`, which
+  services reply to, and never a name a service reads itself. Each of "Any of several choices" is its own answer, since
+  services show repeated names differently.
+- **Rendered on the server only:** published pages are always rendered on the server, so a Form rendered in the browser
+  is the admin panel's (the editor, or the Settings and Version history previews, which share its address): it has no
+  `action` and doesn't send. Web3Forms' hCaptcha script (`WEB3FORMS_SCRIPT`, when `forms.captcha` is on) is added only
+  where `typeof document === "undefined"`, so it never runs where it could reach the editor's sign-in.
+- **Newsletters:** the Newsletter signup block (`newsletter.tsx`, `newsletter-data.ts`) is a plain form like the Form
+  block's, posting only to the newsletter service's own address, read from its embed code or address by
+  `newsletterTarget()` (Mailchimp's `list-manage.com` with its honeypot, Buttondown's `embed-subscribe`, Kit's
+  `app.kit.com/forms/<id>/subscriptions`), to any other service's `https://` form read from its HTML by
+  `htmlSignupForm()` (its email and first name boxes, hidden fields, and a `tabindex="-1"` honeypot, counting the
+  questions it leaves out as `leftOut`, which the editor mentions), or to the site's form service through
+  `formTarget()`. Forms that are only a script or a frame go in the registry's Custom HTML block, which the docs say.
+  Its native version sends only the site's form service itself, as the Form block does, and opens the website's page for
+  the others, which answer with pages for browsers.
+- **Google Forms:** `googleFormUrl()` reads a form's embed code or address into its embedded address, with the embed
+  code's height; the block shows it in a sandboxed iframe. `forms.gle` links can't be followed from a browser, so
+  they're refused with an explanation.
 
 ## Visitors' consent
 
-- **The setting:** `content/site.json`'s `consent` (`consentSchema`, its words defaulting to `CONSENT_DEFAULTS`, which `siteSettingsSchema` puts in the main language's words where `consentDefaults()` has some (English and Spanish), each language's own in `translations.<code>.consent`, which `localizedSettings()` lays over the main language's after `consentInLanguage()` puts the ones left as they come in that language's words) makes pages ask before loading other sites' content; without it nothing changes, and pages' HTML stays as it was. `consent.policy` is a link the checks and moves follow (`mapSiteLinks()`). Visitors allow each of `CONSENT_KINDS` on its own: `content` (other sites' frames and scripts, always asked about), and `statistics` and `marketing` where `consent.code.head` or `.body` (`CODE_PURPOSES`) says the site's code is for them; `needed` code isn't held (`heldCode()`). `consentKinds()` gives what a site asks about (with its visit counts, see Visit counts), and `consent.days` (`CONSENT_DAYS`, at most `MAX_CONSENT_DAYS`) how long an answer lasts.
-- **Holding back:** where pages are built (`typeof document === "undefined"`), `ConsentFrame` (`consent-shared.tsx` in `@goodfellow-cms/react`, made for each entry like `SiteLink`) renders another site's frame with its `src` as `CONSENT_SRC_ATTRIBUTE`, keeping its props' order, and a placeholder over its positioned parent (or `box`, which is drawn wherever the frame is, the editor included, and takes the block's Style as `boxClassName`, since it's the block's outermost element); `ConsentScript` does the same for a script (Web3Forms' hCaptcha). The Video block's players, the Social post block's posts (`Embed`), Google forms and the registry's `map` use them, the registry's `comments` holds Giscus's script the same way, and the registry's `custom-html` used as written holds what loads anything in a template of its own (its whole HTML one element's, so React never looks inside it); blocks that show another site's frame should too. `HeadCode` and `BodyCode` with `held` put the code in `<template>`s (`CONSENT_CODE_ATTRIBUTE`), keeping the head's `meta`, `style`, and links to the site's own files (`isHeldHeadElement()` with the Site address, `headElementHtml()`), and leave out code that would end its template early (`endsHeldTemplate()`, which the custom-html block makes safe instead and Site Settings refuses to publish while the site asks). The editor and previews render in the browser, so they show everything.
-- **Asking:** `ConsentNotice` comes after the footer in `PageFooter`, so both renderers show it once a page in its language, `hidden` until `consentScript()` (core's `consent.ts`, no imports), which both renderers add at the end of the body, shows it, with the kinds it asks about (`CONSENT_KINDS_ATTRIBUTE`) and its days (`CONSENT_DAYS_ATTRIBUTE`) on it, and, for more than one kind, Choose and a box for each (`CONSENT_CHOICES_ATTRIBUTE`). What's held back carries its kind (`CONSENT_KIND_ATTRIBUTE`, `content` where it doesn't say), and a placeholder's button allows only `content` (`CONSENT_ACCEPT_ATTRIBUTE="content"`). The script keeps the answer in `localStorage` (`CONSENT_STORAGE_KEY`, a `ConsentAnswer`: the kinds allowed, the kinds asked about, and when; anything else, or one older than the notice's days, is asked again, as is one that wasn't asked about a kind the notice now asks about), loads what was held back of each kind the visitor allows (writing scripts again so they run), watches the page for what Next.js's navigations add, and opens the notice from links to `#consent`, giving its first button the keyboard's focus. It finds the notice by `CONSENT_NOTICE_ATTRIBUTE`, never its id, since rich text keeps ids; the notice is named by its message (`CONSENT_MESSAGE_ID`). No React runs for it. It never moves or removes the page's elements, since Next.js's React may hydrate before or after it runs: players get their `src` in place, placeholders are hidden, held elements are `suppressHydrationWarning`, other sites' scripts and the head's code go at the end of the head, and the body's code in one element after its template, marked `CONSENT_DONE_ATTRIBUTE`, so it's added once.
+- **The setting:** `content/site.json`'s `consent` (`consentSchema`, its words defaulting to `CONSENT_DEFAULTS`, which
+  `siteSettingsSchema` puts in the main language's words where `consentDefaults()` has some (English and Spanish), each
+  language's own in `translations.<code>.consent`, which `localizedSettings()` lays over the main language's after
+  `consentInLanguage()` puts the ones left as they come in that language's words) makes pages ask before loading other
+  sites' content; without it nothing changes, and pages' HTML stays as it was. `consent.policy` is a link the checks and
+  moves follow (`mapSiteLinks()`). Visitors allow each of `CONSENT_KINDS` on its own: `content` (other sites' frames and
+  scripts, always asked about), and `statistics` and `marketing` where `consent.code.head` or `.body` (`CODE_PURPOSES`)
+  says the site's code is for them; `needed` code isn't held (`heldCode()`). `consentKinds()` gives what a site asks
+  about (with its visit counts, see Visit counts), and `consent.days` (`CONSENT_DAYS`, at most `MAX_CONSENT_DAYS`) how
+  long an answer lasts.
+- **Holding back:** where pages are built (`typeof document === "undefined"`), `ConsentFrame` (`consent-shared.tsx` in
+  `@goodfellow-cms/react`, made for each entry like `SiteLink`) renders another site's frame with its `src` as
+  `CONSENT_SRC_ATTRIBUTE`, keeping its props' order, and a placeholder over its positioned parent (or `box`, which is
+  drawn wherever the frame is, the editor included, and takes the block's Style as `boxClassName`, since it's the
+  block's outermost element); `ConsentScript` does the same for a script (Web3Forms' hCaptcha). The Video block's
+  players, the Social post block's posts (`Embed`), Google forms and the registry's `map` use them, the registry's
+  `comments` holds Giscus's script the same way, and the registry's `custom-html` used as written holds what loads
+  anything in a template of its own (its whole HTML one element's, so React never looks inside it); blocks that show
+  another site's frame should too. `HeadCode` and `BodyCode` with `held` put the code in `<template>`s
+  (`CONSENT_CODE_ATTRIBUTE`), keeping the head's `meta`, `style`, and links to the site's own files
+  (`isHeldHeadElement()` with the Site address, `headElementHtml()`), and leave out code that would end its template
+  early (`endsHeldTemplate()`, which the custom-html block makes safe instead and Site Settings refuses to publish while
+  the site asks). The editor and previews render in the browser, so they show everything.
+- **Asking:** `ConsentNotice` comes after the footer in `PageFooter`, so both renderers show it once a page in its
+  language, `hidden` until `consentScript()` (core's `consent.ts`, no imports), which both renderers add at the end of
+  the body, shows it, with the kinds it asks about (`CONSENT_KINDS_ATTRIBUTE`) and its days (`CONSENT_DAYS_ATTRIBUTE`)
+  on it, and, for more than one kind, Choose and a box for each (`CONSENT_CHOICES_ATTRIBUTE`). What's held back carries
+  its kind (`CONSENT_KIND_ATTRIBUTE`, `content` where it doesn't say), and a placeholder's button allows only `content`
+  (`CONSENT_ACCEPT_ATTRIBUTE="content"`). The script keeps the answer in `localStorage` (`CONSENT_STORAGE_KEY`, a
+  `ConsentAnswer`: the kinds allowed, the kinds asked about, and when; anything else, or one older than the notice's
+  days, is asked again, as is one that wasn't asked about a kind the notice now asks about), loads what was held back of
+  each kind the visitor allows (writing scripts again so they run), watches the page for what Next.js's navigations add,
+  and opens the notice from links to `#consent`, giving its first button the keyboard's focus. It finds the notice by
+  `CONSENT_NOTICE_ATTRIBUTE`, never its id, since rich text keeps ids; the notice is named by its message
+  (`CONSENT_MESSAGE_ID`). No React runs for it. It never moves or removes the page's elements, since Next.js's React may
+  hydrate before or after it runs: players get their `src` in place, placeholders are hidden, held elements are
+  `suppressHydrationWarning`, other sites' scripts and the head's code go at the end of the head, and the body's code in
+  one element after its template, marked `CONSENT_DONE_ATTRIBUTE`, so it's added once.
 
 ## Comments
 
-- **Where they're kept:** visitors' comments are GitHub Discussions in a public repository of their own, kept apart from the site's, which Giscus shows on pages (the registry's `comments` block), or Disqus's, or Garrul's, which the owner runs as a Cloudflare Worker of their own. `content/site.json`'s `comments` (`SiteCommentsPlace` in core's `comments.ts`: a `CommentsPlace`, `repo`, `repoId`, `category`, `categoryId`, checked with `COMMENTS_REPO` and `COMMENTS_ID`, since the block writes them into Giscus's attributes, a `DisqusPlace`, `disqus`, a shortname checked with `DISQUS_SHORTNAME`, or a `GarrulPlace`, `garrul`, the Worker's origin as `garrulAddress()` gives it; `isDisqus()` and `isGarrul()` tell them apart) says where, which the block reads where it isn't given Giscus's, Disqus's, or Garrul's code (Garrul's only where Site Settings names the same address, `commentsPlace()`, since its script comes from wherever its address says and any editor can change a block) (`disqusShortname()` reads Disqus's code, its addresses, or the shortname; `garrulAddress()` Garrul's code's `data-api` or script, or its address, `https://` only but for this computer).
-- **Setting up and moderating:** a backend's optional `comments` (`SiteComments`) makes that repository (`create()`, beside the site's, in its organization or the person's account, with Discussions on), or checks one (`find()`: public, Discussions turned on where it may), finds its Announcements category, which only Giscus and owners can start discussions in, and lists (`threads()`, those changed most recently first), hides (`HIDE_REASONS`), shows, deletes, locks, and unlocks pages' comments. Only GitHub has it (`githubComments()` in `@goodfellow-cms/github`'s `comments.ts`: REST for repositories, GraphQL for discussions); GitLab and Bitbucket sites, full-stack sites, and the local backend don't, and the screen says how it's done on GitHub. Problems are `CommentsError`s, with a `link` where GitHub has a page to fix them. Giscus's app can't be installed for anyone, so the screen links to its install page for the repository's account (`CommentsRepository.installUrl`).
-- **Its token:** the sign-in worker's tokens reach only the site's repository, so `comments.access` (`CommentsAccess`) takes a classic token with `public_repo` (`commentsTokenLink()`), in memory only and forgotten on sign-out, as `ownerAccess` is; through a token broker it's asked for in the broker's own dialog (`requestToken`, `askCommentsToken()`). The broker asks before `comments.create` and `comments.remove` and makes the rest unasked, since they can be undone.
-- **Disqus** works on every site and in the development servers, but not in demos: the Comments screen publishes its shortname and links to Disqus's own moderation (`disqusModerationUrl()`), since Disqus's API needs a secret key. The block shows `#disqus_thread` with `DisqusFrame` (`disqus-frame.tsx`, which loads `disqusEmbedUrl()` with the page's address as Disqus's identifier, and calls `DISQUS.reset()` after Next.js's navigations), or, on a site that asks visitors first, holds `disqusLoader()`'s script, which does the same, in a template. Garrul works the same way, linking to its own queue (`garrulModerationUrl()`), since it has no moderation API: `GarrulFrame` (`garrul-frame.tsx`) renders `#garrul` with `data-api`, `data-slug` (`garrulSlug()` of the page's path, in the letters Garrul's threads' names may have), `data-title`, `data-url`, `data-lang`, and `data-theme`, and adds `garrulEmbedUrl()`'s script, which runs again each time it's added, so Next.js's navigations add it again for the new element; held, it's the same script in a template.
-- **The admin panel:** Site Settings' Comments screen (`comments-screen.tsx`) sets them up, publishing `comments` with `siteSettingsFileChange()`, shows the install link, stops them, and moderates. The block's note in the editor links there (`AdminPlace` `comments-settings`). The fake keeps Discussions (`FakeCreatedRepo.categories` and `threads`, `addDiscussion()`), and `comments.spec.ts` goes through it all on the GitHub site.
+- **Where they're kept:** visitors' comments are GitHub Discussions in a public repository of their own, kept apart from
+  the site's, which Giscus shows on pages (the registry's `comments` block), or Disqus's, or Garrul's, which the owner
+  runs as a Cloudflare Worker of their own. `content/site.json`'s `comments` (`SiteCommentsPlace` in core's
+  `comments.ts`: a `CommentsPlace`, `repo`, `repoId`, `category`, `categoryId`, checked with `COMMENTS_REPO` and
+  `COMMENTS_ID`, since the block writes them into Giscus's attributes, a `DisqusPlace`, `disqus`, a shortname checked
+  with `DISQUS_SHORTNAME`, or a `GarrulPlace`, `garrul`, the Worker's origin as `garrulAddress()` gives it; `isDisqus()`
+  and `isGarrul()` tell them apart) says where, which the block reads where it isn't given Giscus's, Disqus's, or
+  Garrul's code (Garrul's only where Site Settings names the same address, `commentsPlace()`, since its script comes
+  from wherever its address says and any editor can change a block) (`disqusShortname()` reads Disqus's code, its
+  addresses, or the shortname; `garrulAddress()` Garrul's code's `data-api` or script, or its address, `https://` only
+  but for this computer).
+- **Setting up and moderating:** a backend's optional `comments` (`SiteComments`) makes that repository (`create()`,
+  beside the site's, in its organization or the person's account, with Discussions on), or checks one (`find()`: public,
+  Discussions turned on where it may), finds its Announcements category, which only Giscus and owners can start
+  discussions in, and lists (`threads()`, those changed most recently first), hides (`HIDE_REASONS`), shows, deletes,
+  locks, and unlocks pages' comments. Only GitHub has it (`githubComments()` in `@goodfellow-cms/github`'s
+  `comments.ts`: REST for repositories, GraphQL for discussions); GitLab and Bitbucket sites, full-stack sites, and the
+  local backend don't, and the screen says how it's done on GitHub. Problems are `CommentsError`s, with a `link` where
+  GitHub has a page to fix them. Giscus's app can't be installed for anyone, so the screen links to its install page for
+  the repository's account (`CommentsRepository.installUrl`).
+- **Its token:** the sign-in worker's tokens reach only the site's repository, so `comments.access` (`CommentsAccess`)
+  takes a classic token with `public_repo` (`commentsTokenLink()`), in memory only and forgotten on sign-out, as
+  `ownerAccess` is; through a token broker it's asked for in the broker's own dialog (`requestToken`,
+  `askCommentsToken()`). The broker asks before `comments.create` and `comments.remove` and makes the rest unasked,
+  since they can be undone.
+- **Disqus** works on every site and in the development servers, but not in demos: the Comments screen publishes its
+  shortname and links to Disqus's own moderation (`disqusModerationUrl()`), since Disqus's API needs a secret key. The
+  block shows `#disqus_thread` with `DisqusFrame` (`disqus-frame.tsx`, which loads `disqusEmbedUrl()` with the page's
+  address as Disqus's identifier, and calls `DISQUS.reset()` after Next.js's navigations), or, on a site that asks
+  visitors first, holds `disqusLoader()`'s script, which does the same, in a template. Garrul works the same way,
+  linking to its own queue (`garrulModerationUrl()`), since it has no moderation API: `GarrulFrame` (`garrul-frame.tsx`)
+  renders `#garrul` with `data-api`, `data-slug` (`garrulSlug()` of the page's path, in the letters Garrul's threads'
+  names may have), `data-title`, `data-url`, `data-lang`, and `data-theme`, and adds `garrulEmbedUrl()`'s script, which
+  runs again each time it's added, so Next.js's navigations add it again for the new element; held, it's the same script
+  in a template.
+- **The admin panel:** Site Settings' Comments screen (`comments-screen.tsx`) sets them up, publishing `comments` with
+  `siteSettingsFileChange()`, shows the install link, stops them, and moderates. The block's note in the editor links
+  there (`AdminPlace` `comments-settings`). The fake keeps Discussions (`FakeCreatedRepo.categories` and `threads`,
+  `addDiscussion()`), and `comments.spec.ts` goes through it all on the GitHub site.
 
 ## Visit counts
 
-- **The setting:** `content/site.json`'s `stats` (`StatsSettings` in core's `stats.ts`: Plausible's `domain` and `script`, Umami's `website` and `script`, or GoatCounter's `endpoint` and optional `script`, each with `purpose`, `STATS_PURPOSES`) names a service that counts visits without cookies. Its addresses are `statsAddress()`'s: `https://` only, never `isPrivateHost()`'s, and `statsElements()` writes nothing for settings it can't use. Site Settings' Visit counts screen (`stats-screen.tsx`) reads what the owner pastes with `readStatsCode()` (the service's `<script>`, read without a DOM, or its domain, website id, or code; Plausible's site scripts, `pa-….js`, name the site themselves, so the screen asks for the domain), publishes it with `siteSettingsFileChange()`, and links to the service's dashboard in a new tab (`statsDashboard()`), since the counts stay there. The Claude connector's `update_settings` can't change it (`CLAUDE_SETTINGS`).
-- **On pages:** `StatsCode` (`custom-code.tsx` in `@goodfellow-cms/react`) puts `statsElements()`' `async` scripts in the head, in `goodfellow build`'s pages (not on "Page not found", `neverIndexed()`) and in Next.js's layout (whose not-found page is outside it), never in the admin panel, its previews, `next dev` (where `NODE_ENV` is `development`) or `goodfellow dev` (`PageAssets.development`). Plausible and Umami count Next.js's navigations themselves; GoatCounter's are counted by `GoatCounterNavigation` (`components.tsx` in `@goodfellow-cms/next`).
-- **Consent:** on a site that asks visitors (see Visitors' consent), the script is held in a `head` template of kind `statistics` (`heldStats()`), and `consentKinds(consent, stats)` adds `statistics` to the notice, unless `purpose` is `needed`, which the owner chooses for services their visitors' rules don't ask agreement to.
+- **The setting:** `content/site.json`'s `stats` (`StatsSettings` in core's `stats.ts`: Plausible's `domain` and
+  `script`, Umami's `website` and `script`, or GoatCounter's `endpoint` and optional `script`, each with `purpose`,
+  `STATS_PURPOSES`) names a service that counts visits without cookies. Its addresses are `statsAddress()`'s: `https://`
+  only, never `isPrivateHost()`'s, and `statsElements()` writes nothing for settings it can't use. Site Settings' Visit
+  counts screen (`stats-screen.tsx`) reads what the owner pastes with `readStatsCode()` (the service's `<script>`, read
+  without a DOM, or its domain, website id, or code; Plausible's site scripts, `pa-….js`, name the site themselves, so
+  the screen asks for the domain), publishes it with `siteSettingsFileChange()`, and links to the service's dashboard in
+  a new tab (`statsDashboard()`), since the counts stay there. The Claude connector's `update_settings` can't change it
+  (`CLAUDE_SETTINGS`).
+- **On pages:** `StatsCode` (`custom-code.tsx` in `@goodfellow-cms/react`) puts `statsElements()`' `async` scripts in
+  the head, in `goodfellow build`'s pages (not on "Page not found", `neverIndexed()`) and in Next.js's layout (whose
+  not-found page is outside it), never in the admin panel, its previews, `next dev` (where `NODE_ENV` is `development`)
+  or `goodfellow dev` (`PageAssets.development`). Plausible and Umami count Next.js's navigations themselves;
+  GoatCounter's are counted by `GoatCounterNavigation` (`components.tsx` in `@goodfellow-cms/next`).
+- **Consent:** on a site that asks visitors (see Visitors' consent), the script is held in a `head` template of kind
+  `statistics` (`heldStats()`), and `consentKinds(consent, stats)` adds `statistics` to the notice, unless `purpose` is
+  `needed`, which the owner chooses for services their visitors' rules don't ask agreement to.
 
 ## Content API
 
-- **What it is:** builds write the site's content as static JSON at `/api/` (`CONTENT_API_DIR`), for apps and other sites, with no server: `contentApiFiles()` in `@goodfellow-cms/core/content-api` (`src/content-api.ts`, an entry of its own since it reads HTML with htmlparser2, with `content-api/files.ts` and `content-api/rich-text.ts`) writes them from what `prepareContentApi()` in `@goodfellow-cms/react/server` (`content-api.ts`) gives: the site as `shownContent()` gives it, each of `sitePages()`' pages as `preparePage()` leaves it, and each language's header and footer from `prepareLayout()`, all without the base path, so both renderers write the same files. `contentApi()` does both, or nothing where the config's `api` is `false`.
-- **Files:** `manifest.json` (`ApiManifest`, `CONTENT_API_MANIFEST`) lists every other file, relative to it, with `hashText()` of its text, the blocks the pages, headers, and footers use, the content versions (`SiteDescription.content`), `base`, `redirects` (`ApiRedirect`s, as `redirectFrom()` and `redirectTarget()` spell them, leaving out old addresses pages have, since pages win), and `media` (each media library file's hash by address, from `readMediaHashes()` in `@goodfellow-cms/core/node`, which both builds pass, so apps download a replaced file again; optional, so version 1 apps ignore it); `pages/<address>.json` (`apiPageFile()`) is a page's `head` (`pageHead()` without the favicon), `entry`, `view`, prepared `data` (blocks' props with their `defaultProps` filled in, so apps get every prop), `richText`, `credits`, and `languages` (its `LanguageLink`s); each language has `site.json` (settings, menus, `pageLinks()`), `collections.json` (settings without the template, and items' fields with rich text sanitized and Markdown bodies as `markdownToHtml()`), `header.json` and `footer.json`, other languages under `languagePrefix()`'s folder. Like content files, their shape is an interface for apps: change it only with the manifest's `version`.
-- **Rich text:** the description's fields say where it is (`richtext`, in `slot`s, `array`s, and `object`s), and Markdown a block prepared (`isMarkdownParts()`, the Entry field block's `markdown`) is read too; rich text is `cleanRichText()`ed in `data`, as pages show it, and given as `RichTextBlock`s (`richTextNodes()`, `markdownPartsNodes()`) in `richText`, by block id and prop path.
-- **Builds:** `goodfellow build` writes it through the server entry's `api`, before redirects' pages, and returns `BuildResult.apiPages`; `goodfellow-next finish` writes it with `writeContentApi()` (into `public/api/` with `--server`), loading the config in Node with `loadSiteConfig()`. `output.test.ts` checks that the Next.js starter's export has the same files as the starter's build. The dev servers don't serve it.
+- **What it is:** builds write the site's content as static JSON at `/api/` (`CONTENT_API_DIR`), for apps and other
+  sites, with no server: `contentApiFiles()` in `@goodfellow-cms/core/content-api` (`src/content-api.ts`, an entry of
+  its own since it reads HTML with htmlparser2, with `content-api/files.ts` and `content-api/rich-text.ts`) writes them
+  from what `prepareContentApi()` in `@goodfellow-cms/react/server` (`content-api.ts`) gives: the site as
+  `shownContent()` gives it, each of `sitePages()`' pages as `preparePage()` leaves it, and each language's header and
+  footer from `prepareLayout()`, all without the base path, so both renderers write the same files. `contentApi()` does
+  both, or nothing where the config's `api` is `false`.
+- **Files:** `manifest.json` (`ApiManifest`, `CONTENT_API_MANIFEST`) lists every other file, relative to it, with
+  `hashText()` of its text, the blocks the pages, headers, and footers use, the content versions
+  (`SiteDescription.content`), `base`, `redirects` (`ApiRedirect`s, as `redirectFrom()` and `redirectTarget()` spell
+  them, leaving out old addresses pages have, since pages win), and `media` (each media library file's hash by address,
+  from `readMediaHashes()` in `@goodfellow-cms/core/node`, which both builds pass, so apps download a replaced file
+  again; optional, so version 1 apps ignore it); `pages/<address>.json` (`apiPageFile()`) is a page's `head`
+  (`pageHead()` without the favicon), `entry`, `view`, prepared `data` (blocks' props with their `defaultProps` filled
+  in, so apps get every prop), `richText`, `credits`, and `languages` (its `LanguageLink`s); each language has
+  `site.json` (settings, menus, `pageLinks()`), `collections.json` (settings without the template, and items' fields
+  with rich text sanitized and Markdown bodies as `markdownToHtml()`), `header.json` and `footer.json`, other languages
+  under `languagePrefix()`'s folder. Like content files, their shape is an interface for apps: change it only with the
+  manifest's `version`.
+- **Rich text:** the description's fields say where it is (`richtext`, in `slot`s, `array`s, and `object`s), and
+  Markdown a block prepared (`isMarkdownParts()`, the Entry field block's `markdown`) is read too; rich text is
+  `cleanRichText()`ed in `data`, as pages show it, and given as `RichTextBlock`s (`richTextNodes()`,
+  `markdownPartsNodes()`) in `richText`, by block id and prop path.
+- **Builds:** `goodfellow build` writes it through the server entry's `api`, before redirects' pages, and returns
+  `BuildResult.apiPages`; `goodfellow-next finish` writes it with `writeContentApi()` (into `public/api/` with
+  `--server`), loading the config in Node with `loadSiteConfig()`. `output.test.ts` checks that the Next.js starter's
+  export has the same files as the starter's build. The dev servers don't serve it.
 
 ## Apps
 
-- **What it is:** `@goodfellow-cms/expo` (`packages/expo`) shows a site natively in an Expo app from its content API, with no server. `syncSite()` (`sync.ts`, no React Native, so it's tested in Node) reads the manifest, downloads the files whose hash changed into a `ContentStorage` (`fileStorage()` from `@goodfellow-cms/expo/file-system`, expo-file-system's documents; `memoryStorage()`), removes what the site no longer has, and keeps the pictures kept files show (`mediaAddresses()`, images only, since videos and sound would fill the phone), downloading one again when the manifest's `media` hash for it changes (once the kept manifest has hashes too). It keeps its old copy offline, where the site has no API (`no-api`), and where `readsContent()` says the site's content versions are newer than the app's core reads (`newer-content`). Hermes has no Web Crypto, so sync trusts the manifest's hashes, comparing them with the kept manifest's. `keep` chooses the pages kept ahead; `loadPage()` downloads the rest when they're opened.
-- **Rendering:** `<GoodfellowSite>` (`site.tsx`) keeps the copy up to date on start and on `AppState` `active`; `<GoodfellowPage>` (`page.tsx`) draws a page with its header and footer and its photo credits; `<GoodfellowApp>` (`app.tsx`) is both with a history and Android's back button. Blocks read `useNativeSite()` (`NativeSite`: settings, menus, `nativeCollections()` with each item's rich text, the page's item, view, and `languages` from the page file, `richText(block, prop)`, `open()`, `media()`, anchors, language, and color scheme). Site links (`isPageAddress()`) open in the app, others with `Linking` (only `https?:`, `mailto:`, `tel:` and `webcal:`; a redirect elsewhere only `https?:`), with the manifest's base taken only where it's a path (`basePath()`); old addresses follow the manifest's redirects (`redirectFor()`, which `findPage()` uses too, so deep links to them open the page). The kit (`kit.tsx`, `web.tsx`) is what native blocks are made of: `SiteText`, `NativeLink`, `NativeImage`, `RichText` (the content API's `RichTextBlock`s, never HTML), `Blocks`/`useBlocks()` (a slot's blocks by the app's blocks, `MissingBlock` for others, or the app's `fallback`), `Columns` (by `BREAKPOINTS`), `Disclosure`, `SiteButton`, `OnColor` (text colors on a colored band, since React Native doesn't inherit them), blocks' Style (`classStyle()` in `classes.ts`: their `className` read with twrnc while the app runs, since content brings classes no build has seen, with the site's theme, breakpoints' (`max-` ones too, so blocks hidden on phones are hidden in apps on them) and `dark:` classes picked by `appliedClasses()` (`applied-classes.ts`, with no React Native, so it's tested in Node), and twrnc's warnings about the rest kept quiet; `useBlocks()` draws each block in a box with its `view` styles and gives `SiteText` in it the `text` ones, which blocks in its slots inherit, unless the block is marked `stylesItself()` and applies `useBlockStyle()` itself, as Button does), `MediaPlayer` (the phone's player in a WebView with scripts off, from the site's address) and `WebFrame` (another site's page, links elsewhere opening in the browser). `nativeTheme()` (`theme.ts`) gives the site's colors, light or dark as the site's dark mode allows.
-- **Native blocks:** every built-in block has a `.native.tsx` beside its web file in `@goodfellow-cms/blocks`, exported as `nativeBlocks` from `@goodfellow-cms/blocks/native` (`src/native.ts`, an entry of its own), with `@goodfellow-cms/expo` and React Native optional peers. They import the web files' prop types only, and share what they show through modules with no React (`listing-data.ts`, `calendar-data.ts`, `video-data.ts`, `form-data.ts`, `docs-data.ts`, `links.ts`, `code-data.ts`, which reads Shiki's colors from the Code block's HTML, and core's `tableCells()`), so a native block never brings Puck or the web renderer into an app; keep logic there, not in either file. The content API fills in blocks' `defaultProps`, so native blocks get every prop. `native.test.tsx` draws the starter's pages from its content API through react-native-web (the package's `vitest.config.ts` aliases `react-native`, and `test/webview.tsx` stands in for the WebView), and checks every block in `blocks` has a native version.
-- **Blocks for apps from shadcn:** `goodfellow blocks add --native <app>` (and `goodfellow-next`) runs shadcn-tamagui-codemod (`npxCodemod`, at `CODEMOD_VERSION`; a `CodemodRunner` in tests, which never run it) on copies of the item's own code in the app's `goodfellow-blocks/<name>/` and of the site's `@/` modules it uses that the app lacks, writes `block.tsx` with `componentNativeBlockSource()` and the app's index with `nativeBlocksIndex()`, and turns the codemod's report into `native` notes. It writes into the app's folder, never the site's, since the converted code imports Tamagui, which sites don't have.
+- **What it is:** `@goodfellow-cms/expo` (`packages/expo`) shows a site natively in an Expo app from its content API,
+  with no server. `syncSite()` (`sync.ts`, no React Native, so it's tested in Node) reads the manifest, downloads the
+  files whose hash changed into a `ContentStorage` (`fileStorage()` from `@goodfellow-cms/expo/file-system`,
+  expo-file-system's documents; `memoryStorage()`), removes what the site no longer has, and keeps the pictures kept
+  files show (`mediaAddresses()`, images only, since videos and sound would fill the phone), downloading one again when
+  the manifest's `media` hash for it changes (once the kept manifest has hashes too). It keeps its old copy offline,
+  where the site has no API (`no-api`), and where `readsContent()` says the site's content versions are newer than the
+  app's core reads (`newer-content`). Hermes has no Web Crypto, so sync trusts the manifest's hashes, comparing them
+  with the kept manifest's. `keep` chooses the pages kept ahead; `loadPage()` downloads the rest when they're opened.
+- **Rendering:** `<GoodfellowSite>` (`site.tsx`) keeps the copy up to date on start and on `AppState` `active`;
+  `<GoodfellowPage>` (`page.tsx`) draws a page with its header and footer and its photo credits; `<GoodfellowApp>`
+  (`app.tsx`) is both with a history and Android's back button. Blocks read `useNativeSite()` (`NativeSite`: settings,
+  menus, `nativeCollections()` with each item's rich text, the page's item, view, and `languages` from the page file,
+  `richText(block, prop)`, `open()`, `media()`, anchors, language, and color scheme). Site links (`isPageAddress()`)
+  open in the app, others with `Linking` (only `https?:`, `mailto:`, `tel:` and `webcal:`; a redirect elsewhere only
+  `https?:`), with the manifest's base taken only where it's a path (`basePath()`); old addresses follow the manifest's
+  redirects (`redirectFor()`, which `findPage()` uses too, so deep links to them open the page). The kit (`kit.tsx`,
+  `web.tsx`) is what native blocks are made of: `SiteText`, `NativeLink`, `NativeImage`, `RichText` (the content API's
+  `RichTextBlock`s, never HTML), `Blocks`/`useBlocks()` (a slot's blocks by the app's blocks, `MissingBlock` for others,
+  or the app's `fallback`), `Columns` (by `BREAKPOINTS`), `Disclosure`, `SiteButton`, `OnColor` (text colors on a
+  colored band, since React Native doesn't inherit them), blocks' Style (`classStyle()` in `classes.ts`: their
+  `className` read with twrnc while the app runs, since content brings classes no build has seen, with the site's theme,
+  breakpoints' (`max-` ones too, so blocks hidden on phones are hidden in apps on them) and `dark:` classes picked by
+  `appliedClasses()` (`applied-classes.ts`, with no React Native, so it's tested in Node), and twrnc's warnings about
+  the rest kept quiet; `useBlocks()` draws each block in a box with its `view` styles and gives `SiteText` in it the
+  `text` ones, which blocks in its slots inherit, unless the block is marked `stylesItself()` and applies
+  `useBlockStyle()` itself, as Button does), `MediaPlayer` (the phone's player in a WebView with scripts off, from the
+  site's address) and `WebFrame` (another site's page, links elsewhere opening in the browser). `nativeTheme()`
+  (`theme.ts`) gives the site's colors, light or dark as the site's dark mode allows.
+- **Native blocks:** every built-in block has a `.native.tsx` beside its web file in `@goodfellow-cms/blocks`, exported
+  as `nativeBlocks` from `@goodfellow-cms/blocks/native` (`src/native.ts`, an entry of its own), with
+  `@goodfellow-cms/expo` and React Native optional peers. They import the web files' prop types only, and share what
+  they show through modules with no React (`listing-data.ts`, `calendar-data.ts`, `video-data.ts`, `form-data.ts`,
+  `docs-data.ts`, `links.ts`, `code-data.ts`, which reads Shiki's colors from the Code block's HTML, and core's
+  `tableCells()`), so a native block never brings Puck or the web renderer into an app; keep logic there, not in either
+  file. The content API fills in blocks' `defaultProps`, so native blocks get every prop. `native.test.tsx` draws the
+  starter's pages from its content API through react-native-web (the package's `vitest.config.ts` aliases
+  `react-native`, and `test/webview.tsx` stands in for the WebView), and checks every block in `blocks` has a native
+  version.
+- **Blocks for apps from shadcn:** `goodfellow blocks add --native <app>` (and `goodfellow-next`) runs
+  shadcn-tamagui-codemod (`npxCodemod`, at `CODEMOD_VERSION`; a `CodemodRunner` in tests, which never run it) on copies
+  of the item's own code in the app's `goodfellow-blocks/<name>/` and of the site's `@/` modules it uses that the app
+  lacks, writes `block.tsx` with `componentNativeBlockSource()` and the app's index with `nativeBlocksIndex()`, and
+  turns the codemod's report into `native` notes. It writes into the app's folder, never the site's, since the converted
+  code imports Tamagui, which sites don't have.
 
 ## Redirects
 
-- **Files:** `content/redirects.json` (`redirectsFileSchema` in `@goodfellow-cms/core`'s `content/redirects.ts`) lists `from` and `to`. `redirectFrom()` spells old addresses one way (a path without a trailing slash, from a full address too) and refuses ones static files can't serve (`?`, the home page, `isReservedRedirect()`); `redirectTarget()` takes addresses on the site and `https://` ones only; `redirectProblems()` checks a list, which the loader and the admin panel both use.
-- **No server:** builds write a page at each old address (`redirectFiles()` and `redirectPage()`: `location.replace()`, so Back skips it, an instant `<meta http-equiv="refresh">` for browsers without JavaScript, and `<link rel="canonical">`, which search engines treat as a permanent redirect, with the file's `message`, or `REDIRECT_MESSAGE`, linking to the target), since static hosts can't send redirects. `goodfellow build` writes them with the base path, `goodfellow-next finish` writes them into a Next.js export (`writeRedirectFiles()`, with the export's `basePath` from `.next/routes-manifest.json`), `goodfellow dev` serves the same page, and the Next.js page route calls `redirect()` in `next dev`. Pages, and files already in the output, always win over redirects.
-- **Cloudflare Pages** sends them itself from `_redirects` (`cloudflareRedirects()`, `CLOUDFLARE_REDIRECTS_PATH`), which `goodfellow build` and `goodfellow-next finish` (`writeRedirectFiles()`) write beside the redirect pages, unless the site has its own. Cloudflare follows a redirect even where the site has a file, so it lists only the redirects a build wrote a page for (`redirectFiles()` gives each `RedirectFile` its `from` and `to`), two lines each (without and with the trailing slash), and past `CLOUDFLARE_REDIRECTS_LIMIT` lines the build says how many are left to their pages. `/_redirects` is reserved, so no redirect can come from it.
-- **Vercel** sends them itself, leaving out redirects from addresses pages and collections' items have (`allPages()`), so pages win there too; pages that blocks add aren't known before the build, so a redirect from one of those would win on Vercel. The starter's and examples' `vercel.ts` (in place of `vercel.json`) reads `content/redirects.json` when Vercel builds. It uses only Node's own modules, since Vercel may read it before installing packages, so it works addresses out itself; keep it in step with `pageFileToPath()` and `entryPathIn()`, items' languages included. The Next.js starter has no `vercel.ts`: `withGoodfellow()` adds the redirects to `next build`'s (`siteRedirects()`, loading the config to find sourced collections only where the site has redirects), which Vercel's Next.js builder sends even for a static export.
-- **The admin panel** edits them on Site Settings' Redirects tab (`redirects-editor.tsx`), and the move dialog adds one from a page's old address with `movedPageRedirects()`, pointing redirects to the old address at the new one.
+- **Files:** `content/redirects.json` (`redirectsFileSchema` in `@goodfellow-cms/core`'s `content/redirects.ts`) lists
+  `from` and `to`. `redirectFrom()` spells old addresses one way (a path without a trailing slash, from a full address
+  too) and refuses ones static files can't serve (`?`, the home page, `isReservedRedirect()`); `redirectTarget()` takes
+  addresses on the site and `https://` ones only; `redirectProblems()` checks a list, which the loader and the admin
+  panel both use.
+- **No server:** builds write a page at each old address (`redirectFiles()` and `redirectPage()`: `location.replace()`,
+  so Back skips it, an instant `<meta http-equiv="refresh">` for browsers without JavaScript, and
+  `<link rel="canonical">`, which search engines treat as a permanent redirect, with the file's `message`, or
+  `REDIRECT_MESSAGE`, linking to the target), since static hosts can't send redirects. `goodfellow build` writes them
+  with the base path, `goodfellow-next finish` writes them into a Next.js export (`writeRedirectFiles()`, with the
+  export's `basePath` from `.next/routes-manifest.json`), `goodfellow dev` serves the same page, and the Next.js page
+  route calls `redirect()` in `next dev`. Pages, and files already in the output, always win over redirects.
+- **Cloudflare Pages** sends them itself from `_redirects` (`cloudflareRedirects()`, `CLOUDFLARE_REDIRECTS_PATH`), which
+  `goodfellow build` and `goodfellow-next finish` (`writeRedirectFiles()`) write beside the redirect pages, unless the
+  site has its own. Cloudflare follows a redirect even where the site has a file, so it lists only the redirects a build
+  wrote a page for (`redirectFiles()` gives each `RedirectFile` its `from` and `to`), two lines each (without and with
+  the trailing slash), and past `CLOUDFLARE_REDIRECTS_LIMIT` lines the build says how many are left to their pages.
+  `/_redirects` is reserved, so no redirect can come from it.
+- **Vercel** sends them itself, leaving out redirects from addresses pages and collections' items have (`allPages()`),
+  so pages win there too; pages that blocks add aren't known before the build, so a redirect from one of those would win
+  on Vercel. The starter's and examples' `vercel.ts` (in place of `vercel.json`) reads `content/redirects.json` when
+  Vercel builds. It uses only Node's own modules, since Vercel may read it before installing packages, so it works
+  addresses out itself; keep it in step with `pageFileToPath()` and `entryPathIn()`, items' languages included. The
+  Next.js starter has no `vercel.ts`: `withGoodfellow()` adds the redirects to `next build`'s (`siteRedirects()`,
+  loading the config to find sourced collections only where the site has redirects), which Vercel's Next.js builder
+  sends even for a static export.
+- **The admin panel** edits them on Site Settings' Redirects tab (`redirects-editor.tsx`), and the move dialog adds one
+  from a page's old address with `movedPageRedirects()`, pointing redirects to the old address at the new one.
 
 ## Moving from WordPress
 
-- **Split:** `@goodfellow-cms/core/wordpress` (`src/wordpress.ts`, an entry of its own so its HTML parser, htmlparser2, is loaded only where sites are imported or exported) reads a WordPress site into one model (`WordPressSite` in `wordpress/model.ts`): from an export file with `readWordPressExport()` (`export-file.ts`), or from its address with `fetchWordPressSite()` (`rest.ts`), through WordPress's REST API, which allows browsers' requests but shows menus only to people signed in, and content only as it's shown. `planWordPressImport(site, content, options)` (`import.ts`) works out the file changes and the media to copy with no disk or network access, so the admin panel and the command line import the same way. `htmlBlocks()` (`paste.ts`) is the same conversion for HTML pasted into an editor plugin: `itemParts()` (block markup by its blocks, other HTML as shown, with no shortcodes expanded) and `partBlocks()` without Sections, with `BlockWriter`'s `prefix` giving each paste ids of its own. Core has no DOM, so HTML and XML are read with htmlparser2's documents (`html.ts`), never `DOMParser`.
-- **Blocks:** `parseBlocks()` (`blocks.ts`) reads saved block comments with a parser of its own, since WordPress's is GPL-licensed. `itemParts()` (`convert.ts`) turns content into `Part`s: block by block where it has block comments, element by element otherwise (classic content after `autoParagraphs()` and `expandShortcodes()`, and the API's shown HTML, by WordPress's class names), noting what it simplifies (`ConversionNote`). Pages' parts become built-in blocks (`pageBlocks()` in `page-blocks.ts`, `IMPORT_BLOCKS`, with rich text written by `richTextHtml()` with only what the Text block's rich text keeps), and WordPress's blocks that have built-in blocks of their own (`WORDPRESS_BLOCKS`: Separator, Pullquote, Preformatted, Verse, Details, Table, File, Audio, Media and text, Gallery, Page list, social posts' embeds as `Embed`, files WordPress shows PDFs of as `Document`, and covers' overlay, height, and focal point on Sections) become those where the site has them (`PageBlocksOptions.blocks`), and otherwise what the blocks above would show, as before they existed; posts' become Markdown (`partsMarkdown()` in `markdown.ts`), since a collection of Markdown items keeps their pictures, tables, and code.
-- **Addresses:** pages keep theirs (or `unreservedPagePath()`'s, where theirs is reserved); posts are a `posts` collection whose address pattern is their old one where a pattern can say it, and `/news/{slug}` (or the first of `LIST_NAMES` no other collection uses) otherwise. Every link goes through the plan's `link()`, so links to imported pages get their new addresses, uploads become media, and anything else stays on the old site, listed in `notes`. Old addresses that changed, and category and tag archives, become redirects. Copied images' alt text in WordPress's media library becomes their descriptions in `content/media.json` (see Media's Descriptions), which exports write back as `_wp_attachment_image_alt`.
-- **Media:** a plan lists `media` to copy, once per file whatever size of it content used (`mediaKey()`), and only what content uses. Callers download it, then plan again with `copied`, so content links to files that couldn't be copied where they are. The admin panel (`import-screen.tsx`, Site Settings' Import / Export tab) copies only from sites that allow browsers' requests, through `prepareUpload()`; `importWordPress()` in `@goodfellow-cms/core/node` (`node-wordpress.ts`, used by `goodfellow import wordpress`, `goodfellow-next import wordpress`, and `create-goodfellow --wordpress`) copies every file it may, downloading with `readRemoteBytes()` (`hosts.ts`: `readRemoteText()`'s rules, apart from the host it read the site from by its address, which the person chose; attachments' addresses must be `http(s)`), removes JPEGs' Exif details with `withoutJpegDetails()`, and leaves out SVGs, which only the admin panel can make safe, and files over `MAX_UPLOAD_BYTES`. `goodfellow dev` optimizes htmlparser2 at startup, or Vite would reload the admin panel the first time the import screen loads it.
-- **Words:** what the import writes into content (the collection's and its fields' names, "All posts") comes from `WordPressImportNames`, which the admin panel fills from its string table; notes are data, which the admin panel and `formatWordPressImport()` put in words.
-- **Exporting:** `wordPressExport(content, { mediaFiles })` (`export.ts`) writes the site as loaded as a WordPress export file (WXR 1.2), with no disk or network access, and `WordPressExportNote`s for what it leaves out. Pages keep their addresses as a tree of pages ("home" for the home page, never "Page not found"); collections with an address pattern become posts, each a category, with tags from their choice fields; schedules become `future` or `draft`; menus become `nav_menu_item`s; and the media library becomes attachments at the Site address, which WordPress's importer downloads. Blocks become WordPress's core blocks (`puckBlocks()`, the blocks made for WordPress's own as theirs, with `gutenberg.ts` writing each as the block editor saves it, so WordPress opens them as blocks: `wpBlock()` escapes attributes as WordPress does, and `htmlBlocks()` turns rich text and Markdown's HTML into paragraphs, lists, quotes, tables, and the rest); blocks with nothing like them in WordPress (`LEFT_OUT`) are dropped with a note, and blocks of the site's own export what's in their slots. The admin panel downloads it on the same tab (`ExportSection`), and `exportWordPress()` in `@goodfellow-cms/core/node` writes it for `goodfellow export wordpress` and `goodfellow-next export wordpress`, with `formatWordPressExport()`. A test imports an export again, so both directions agree.
-- **Tests** use `sampleWordPressExport()` and `fakeWordPress()` from `@goodfellow-cms/core/testing`, a made-up parish's site as an export file and as WordPress's API answers it, which `wordpress.spec.ts` routes the browser's requests to.
+- **Split:** `@goodfellow-cms/core/wordpress` (`src/wordpress.ts`, an entry of its own so its HTML parser, htmlparser2,
+  is loaded only where sites are imported or exported) reads a WordPress site into one model (`WordPressSite` in
+  `wordpress/model.ts`): from an export file with `readWordPressExport()` (`export-file.ts`), or from its address with
+  `fetchWordPressSite()` (`rest.ts`), through WordPress's REST API, which allows browsers' requests but shows menus only
+  to people signed in, and content only as it's shown. `planWordPressImport(site, content, options)` (`import.ts`) works
+  out the file changes and the media to copy with no disk or network access, so the admin panel and the command line
+  import the same way. `htmlBlocks()` (`paste.ts`) is the same conversion for HTML pasted into an editor plugin:
+  `itemParts()` (block markup by its blocks, other HTML as shown, with no shortcodes expanded) and `partBlocks()`
+  without Sections, with `BlockWriter`'s `prefix` giving each paste ids of its own. Core has no DOM, so HTML and XML are
+  read with htmlparser2's documents (`html.ts`), never `DOMParser`.
+- **Blocks:** `parseBlocks()` (`blocks.ts`) reads saved block comments with a parser of its own, since WordPress's is
+  GPL-licensed. `itemParts()` (`convert.ts`) turns content into `Part`s: block by block where it has block comments,
+  element by element otherwise (classic content after `autoParagraphs()` and `expandShortcodes()`, and the API's shown
+  HTML, by WordPress's class names), noting what it simplifies (`ConversionNote`). Pages' parts become built-in blocks
+  (`pageBlocks()` in `page-blocks.ts`, `IMPORT_BLOCKS`, with rich text written by `richTextHtml()` with only what the
+  Text block's rich text keeps), and WordPress's blocks that have built-in blocks of their own (`WORDPRESS_BLOCKS`:
+  Separator, Pullquote, Preformatted, Verse, Details, Table, File, Audio, Media and text, Gallery, Page list, social
+  posts' embeds as `Embed`, files WordPress shows PDFs of as `Document`, and covers' overlay, height, and focal point on
+  Sections) become those where the site has them (`PageBlocksOptions.blocks`), and otherwise what the blocks above would
+  show, as before they existed; posts' become Markdown (`partsMarkdown()` in `markdown.ts`), since a collection of
+  Markdown items keeps their pictures, tables, and code.
+- **Addresses:** pages keep theirs (or `unreservedPagePath()`'s, where theirs is reserved); posts are a `posts`
+  collection whose address pattern is their old one where a pattern can say it, and `/news/{slug}` (or the first of
+  `LIST_NAMES` no other collection uses) otherwise. Every link goes through the plan's `link()`, so links to imported
+  pages get their new addresses, uploads become media, and anything else stays on the old site, listed in `notes`. Old
+  addresses that changed, and category and tag archives, become redirects. Copied images' alt text in WordPress's media
+  library becomes their descriptions in `content/media.json` (see Media's Descriptions), which exports write back as
+  `_wp_attachment_image_alt`.
+- **Media:** a plan lists `media` to copy, once per file whatever size of it content used (`mediaKey()`), and only what
+  content uses. Callers download it, then plan again with `copied`, so content links to files that couldn't be copied
+  where they are. The admin panel (`import-screen.tsx`, Site Settings' Import / Export tab) copies only from sites that
+  allow browsers' requests, through `prepareUpload()`; `importWordPress()` in `@goodfellow-cms/core/node`
+  (`node-wordpress.ts`, used by `goodfellow import wordpress`, `goodfellow-next import wordpress`, and
+  `create-goodfellow --wordpress`) copies every file it may, downloading with `readRemoteBytes()` (`hosts.ts`:
+  `readRemoteText()`'s rules, apart from the host it read the site from by its address, which the person chose;
+  attachments' addresses must be `http(s)`), removes JPEGs' Exif details with `withoutJpegDetails()`, and leaves out
+  SVGs, which only the admin panel can make safe, and files over `MAX_UPLOAD_BYTES`. `goodfellow dev` optimizes
+  htmlparser2 at startup, or Vite would reload the admin panel the first time the import screen loads it.
+- **Words:** what the import writes into content (the collection's and its fields' names, "All posts") comes from
+  `WordPressImportNames`, which the admin panel fills from its string table; notes are data, which the admin panel and
+  `formatWordPressImport()` put in words.
+- **Exporting:** `wordPressExport(content, { mediaFiles })` (`export.ts`) writes the site as loaded as a WordPress
+  export file (WXR 1.2), with no disk or network access, and `WordPressExportNote`s for what it leaves out. Pages keep
+  their addresses as a tree of pages ("home" for the home page, never "Page not found"); collections with an address
+  pattern become posts, each a category, with tags from their choice fields; schedules become `future` or `draft`; menus
+  become `nav_menu_item`s; and the media library becomes attachments at the Site address, which WordPress's importer
+  downloads. Blocks become WordPress's core blocks (`puckBlocks()`, the blocks made for WordPress's own as theirs, with
+  `gutenberg.ts` writing each as the block editor saves it, so WordPress opens them as blocks: `wpBlock()` escapes
+  attributes as WordPress does, and `htmlBlocks()` turns rich text and Markdown's HTML into paragraphs, lists, quotes,
+  tables, and the rest); blocks with nothing like them in WordPress (`LEFT_OUT`) are dropped with a note, and blocks of
+  the site's own export what's in their slots. The admin panel downloads it on the same tab (`ExportSection`), and
+  `exportWordPress()` in `@goodfellow-cms/core/node` writes it for `goodfellow export wordpress` and
+  `goodfellow-next export wordpress`, with `formatWordPressExport()`. A test imports an export again, so both directions
+  agree.
+- **Tests** use `sampleWordPressExport()` and `fakeWordPress()` from `@goodfellow-cms/core/testing`, a made-up parish's
+  site as an export file and as WordPress's API answers it, which `wordpress.spec.ts` routes the browser's requests to.
 
 ## Importing Markdown folders
 
-- **Planning:** `planMarkdownImport(files, read, content, options)` (core's `markdown-import.ts`, exported from `@goodfellow-cms/core/wordpress`, since it shares its conversion) plans bringing a folder of Markdown files in with no disk or network access, as the WordPress import does: `files` is every file by its path in the folder, `read` a Markdown file's text. `markdownFolders()` lists the folders with Markdown in them, the top's suggested as pages and every other folder as a collection, which `options.folders` changes; a collection folder's own `index.md` or `_index.md` is its list page.
-- **Pages** are the Markdown as HTML (marked, without `markdownToHtml()`'s escaping, since `itemParts()` with `rendered` keeps only what it knows and leaves scripts out), turned into built-in blocks with `pageBlocks()`, at `about.md` → `/about` (`index`, `_index`, and `readme` being their folder's), `permalink`, `url`, or `slug` winning, with `unreservedPagePath()` (core's `content/paths.ts`, which the WordPress import uses too) giving an address `isReservedPagePath()` refuses one a page can have; the top's index replaces `/` only with `replaceHome`, and addresses the site has are left out (`taken`) without `replacePages`. **Items** keep their Markdown (`rewriteMarkdown()` changes links' and pictures' addresses outside code, making links that go nowhere their words), with front matter the import knows (`KNOWN`) as fields, and the rest left out (`fields` note) unless `keepFields`.
-- **Links and media:** every link goes to a file's new address, an old address's (`permalink`, or where the file was), or a page the site has, or becomes its words (`missing-links`), so publishing never stops at a broken link; pictures beside the files (or under `static/`, `public/`, `assets/`) are copied once each (`MarkdownMediaCopy`), and callers read them, then plan again with `copied`, as the WordPress import does. Changed addresses, `aliases`, and `redirect_from` become redirects, never from folders starting with `_`.
-- **Where:** the Import / Export tab's `MarkdownImportSection` (`markdown-import.tsx`) reads a folder chosen with `webkitdirectory` (copying the `FileList` before clearing the box, which empties it), prepares media with `prepareUpload()`, and publishes into a draft where drafts come too (`drafts`); `importMarkdown()` and `formatMarkdownImport()` in `@goodfellow-cms/core/node` (`node-wordpress.ts`) do it on disk for `goodfellow import markdown` and `goodfellow-next import markdown` (`markdownFolderChoices()` reads `--pages` and `--collection`), leaving out SVGs and files over `MAX_UPLOAD_BYTES`.
+- **Planning:** `planMarkdownImport(files, read, content, options)` (core's `markdown-import.ts`, exported from
+  `@goodfellow-cms/core/wordpress`, since it shares its conversion) plans bringing a folder of Markdown files in with no
+  disk or network access, as the WordPress import does: `files` is every file by its path in the folder, `read` a
+  Markdown file's text. `markdownFolders()` lists the folders with Markdown in them, the top's suggested as pages and
+  every other folder as a collection, which `options.folders` changes; a collection folder's own `index.md` or
+  `_index.md` is its list page.
+- **Pages** are the Markdown as HTML (marked, without `markdownToHtml()`'s escaping, since `itemParts()` with `rendered`
+  keeps only what it knows and leaves scripts out), turned into built-in blocks with `pageBlocks()`, at `about.md` →
+  `/about` (`index`, `_index`, and `readme` being their folder's), `permalink`, `url`, or `slug` winning, with
+  `unreservedPagePath()` (core's `content/paths.ts`, which the WordPress import uses too) giving an address
+  `isReservedPagePath()` refuses one a page can have; the top's index replaces `/` only with `replaceHome`, and
+  addresses the site has are left out (`taken`) without `replacePages`. **Items** keep their Markdown
+  (`rewriteMarkdown()` changes links' and pictures' addresses outside code, making links that go nowhere their words),
+  with front matter the import knows (`KNOWN`) as fields, and the rest left out (`fields` note) unless `keepFields`.
+- **Links and media:** every link goes to a file's new address, an old address's (`permalink`, or where the file was),
+  or a page the site has, or becomes its words (`missing-links`), so publishing never stops at a broken link; pictures
+  beside the files (or under `static/`, `public/`, `assets/`) are copied once each (`MarkdownMediaCopy`), and callers
+  read them, then plan again with `copied`, as the WordPress import does. Changed addresses, `aliases`, and
+  `redirect_from` become redirects, never from folders starting with `_`.
+- **Where:** the Import / Export tab's `MarkdownImportSection` (`markdown-import.tsx`) reads a folder chosen with
+  `webkitdirectory` (copying the `FileList` before clearing the box, which empties it), prepares media with
+  `prepareUpload()`, and publishes into a draft where drafts come too (`drafts`); `importMarkdown()` and
+  `formatMarkdownImport()` in `@goodfellow-cms/core/node` (`node-wordpress.ts`) do it on disk for
+  `goodfellow import markdown` and `goodfellow-next import markdown` (`markdownFolderChoices()` reads `--pages` and
+  `--collection`), leaving out SVGs and files over `MAX_UPLOAD_BYTES`.
 
 ## Exporting Markdown folders
 
-- **Writing:** `markdownExport(content, options)` (core's `markdown-export.ts`, exported from `@goodfellow-cms/core/wordpress`, since it shares its conversion) writes the site as a folder of Markdown files with no disk or network access, from its content alone, never its code, so it works in the admin panel's page: each page and item at its address (`about.md`, or `about/index.md` where others are under it; collections without pages in `_<id>/`), with YAML front matter (`title`, `description`, `permalink`, redirects to it as `aliases` and `redirect_from`, `lang`, `translationKey`, `noindex`, `image`, items' `date` and fields by their names, schedules as `publishDate`, `expiryDate`, and `draft`), `menus.json`, and `media` to copy into `media/`. Blocks become Markdown through the WordPress export's `puckBlocks()` (with `expandSyncedBlocks()` first, and an Image's empty alt text taking the media library's description, `ConvertContext.describe`), then `itemParts()` and `partsMarkdown()`; blocks Markdown can't hold (`LEFT_OUT`) are left out with a `left-out-block` note, and blocks of the site's own export what's in their slots. Markdown items keep their body; rich text becomes Markdown. Links keep the site's addresses through `pageLink()` (`links: "site"`, the default, which Hugo, Jekyll, Eleventy, and Astro serve the files at), or become paths to the exported files (`links: "files"`, for notes apps), through `rewriteMarkdown()`. What a schedule hides is left out unless `scheduled`. Media a storage plugin keeps is linked at its storage's address (`withStoredMedia()`), not copied.
-- **Where:** the Import / Export tab's `MarkdownExportSection` (`markdown-export.tsx`) zips it with `siteArchive()`, in one folder named by `markdownExportName()`; `exportMarkdown()` and `formatMarkdownExport()` in `@goodfellow-cms/core/node` (`node-wordpress.ts`) write it into an empty folder (`MarkdownExportError` otherwise) for `goodfellow export markdown` and `goodfellow-next export markdown` (`--scheduled`, `--links site|files`). A test reads an export back with `planMarkdownImport()`, so both directions agree.
+- **Writing:** `markdownExport(content, options)` (core's `markdown-export.ts`, exported from
+  `@goodfellow-cms/core/wordpress`, since it shares its conversion) writes the site as a folder of Markdown files with
+  no disk or network access, from its content alone, never its code, so it works in the admin panel's page: each page
+  and item at its address (`about.md`, or `about/index.md` where others are under it; collections without pages in
+  `_<id>/`), with YAML front matter (`title`, `description`, `permalink`, redirects to it as `aliases` and
+  `redirect_from`, `lang`, `translationKey`, `noindex`, `image`, items' `date` and fields by their names, schedules as
+  `publishDate`, `expiryDate`, and `draft`), `menus.json`, and `media` to copy into `media/`. Blocks become Markdown
+  through the WordPress export's `puckBlocks()` (with `expandSyncedBlocks()` first, and an Image's empty alt text taking
+  the media library's description, `ConvertContext.describe`), then `itemParts()` and `partsMarkdown()`; blocks Markdown
+  can't hold (`LEFT_OUT`) are left out with a `left-out-block` note, and blocks of the site's own export what's in their
+  slots. Markdown items keep their body; rich text becomes Markdown. Links keep the site's addresses through
+  `pageLink()` (`links: "site"`, the default, which Hugo, Jekyll, Eleventy, and Astro serve the files at), or become
+  paths to the exported files (`links: "files"`, for notes apps), through `rewriteMarkdown()`. What a schedule hides is
+  left out unless `scheduled`. Media a storage plugin keeps is linked at its storage's address (`withStoredMedia()`),
+  not copied.
+- **Where:** the Import / Export tab's `MarkdownExportSection` (`markdown-export.tsx`) zips it with `siteArchive()`, in
+  one folder named by `markdownExportName()`; `exportMarkdown()` and `formatMarkdownExport()` in
+  `@goodfellow-cms/core/node` (`node-wordpress.ts`) write it into an empty folder (`MarkdownExportError` otherwise) for
+  `goodfellow export markdown` and `goodfellow-next export markdown` (`--scheduled`, `--links site|files`). A test reads
+  an export back with `planMarkdownImport()`, so both directions agree.
 
 ## Moving content between Goodfellow sites
 
-- **The export** is **Download a copy**'s zip (see Backends' Download a copy) with `goodfellow-transfer.json` (`TRANSFER_MANIFEST`, `transferManifest()` in core's `site-transfer.ts`: the release, content versions, and blocks it uses), which `siteCopyArchive()` adds; the Import / Export tab's `SiteExportSection` (`site-transfer.tsx`) makes the same file. `exportSite()` and `formatSiteExport()` in `@goodfellow-cms/core/node` (`node-transfer.ts`, with fflate's `zipSync`) write it for `goodfellow export site` and `goodfellow-next export site`. "Copy" is the staging term (see Copies of a site), so code calls this a transfer.
-- **Planning:** `planSiteImport(files, site, options)` works out the changes with no disk or network access: `transferPaths()` finds the site's files in an archive (under one folder too, and only `isTransferPath()`'s), the export is loaded with `loadSiteContent()` first (older files migrated, newer refused as `SiteImportError` `newer`), and files come across as they are. Adding (the default) brings in pages, collections, items, synced blocks, and media, and, where chosen, menus (merged by name), Site Settings with styles, code, and admin text, the header and footer, and redirects the site lacks; what both have differently is a `SiteImportConflict`, kept as the site has it unless `take` names it. A collection with other fields brings only the items that fit its fields (`itemsFit()`), or, taken, replaces the site's whole. Replacing makes the site's content the export's and removes the rest. `NEVER_IMPORTED` (limits, update settings, media storage) and the Site address always stay. What uses blocks the site lacks is left out, or brought in without them (`withoutMissingBlocks`); missing blocks the export installed from Goodfellow's registry are `installable`, and counted present when `installing`. Media the export's storage keeps is linked at its address (`withStoredAddresses()`), or listed in the site's storage where it's the same. Notes are data the admin panel and `formatSiteImport()` put in words.
-- **Where:** the Import / Export tab's `SiteImportSection` reads the zip with fflate, compares media both have by their bytes (`sameMedia`), leaves out what uploads refuse (`uncopied`), re-plans as choices change, and publishes everything, with Goodfellow's registry blocks it chose added in the same publish through `planBlockChanges()` (only `GOODFELLOW_REGISTRY`, and not where code can't be published from the admin panel: content repositories, demos, full-stack sites' code review). `importSite()` in `@goodfellow-cms/core/node` does it on disk for `goodfellow import site` and `goodfellow-next import site` (`--take site|export`, `--replace`, `--menus`, `--settings`, `--layout`, `--redirects`, `--without-missing-blocks`, `--dry-run`), with the site's blocks from its config (`loadTaskConfig()`), leaving out media `unsafeMediaChanges()` refuses.
+- **The export** is **Download a copy**'s zip (see Backends' Download a copy) with `goodfellow-transfer.json`
+  (`TRANSFER_MANIFEST`, `transferManifest()` in core's `site-transfer.ts`: the release, content versions, and blocks it
+  uses), which `siteCopyArchive()` adds; the Import / Export tab's `SiteExportSection` (`site-transfer.tsx`) makes the
+  same file. `exportSite()` and `formatSiteExport()` in `@goodfellow-cms/core/node` (`node-transfer.ts`, with fflate's
+  `zipSync`) write it for `goodfellow export site` and `goodfellow-next export site`. "Copy" is the staging term (see
+  Copies of a site), so code calls this a transfer.
+- **Planning:** `planSiteImport(files, site, options)` works out the changes with no disk or network access:
+  `transferPaths()` finds the site's files in an archive (under one folder too, and only `isTransferPath()`'s), the
+  export is loaded with `loadSiteContent()` first (older files migrated, newer refused as `SiteImportError` `newer`),
+  and files come across as they are. Adding (the default) brings in pages, collections, items, synced blocks, and media,
+  and, where chosen, menus (merged by name), Site Settings with styles, code, and admin text, the header and footer, and
+  redirects the site lacks; what both have differently is a `SiteImportConflict`, kept as the site has it unless `take`
+  names it. A collection with other fields brings only the items that fit its fields (`itemsFit()`), or, taken, replaces
+  the site's whole. Replacing makes the site's content the export's and removes the rest. `NEVER_IMPORTED` (limits,
+  update settings, media storage) and the Site address always stay. What uses blocks the site lacks is left out, or
+  brought in without them (`withoutMissingBlocks`); missing blocks the export installed from Goodfellow's registry are
+  `installable`, and counted present when `installing`. Media the export's storage keeps is linked at its address
+  (`withStoredAddresses()`), or listed in the site's storage where it's the same. Notes are data the admin panel and
+  `formatSiteImport()` put in words.
+- **Where:** the Import / Export tab's `SiteImportSection` reads the zip with fflate, compares media both have by their
+  bytes (`sameMedia`), leaves out what uploads refuse (`uncopied`), re-plans as choices change, and publishes
+  everything, with Goodfellow's registry blocks it chose added in the same publish through `planBlockChanges()` (only
+  `GOODFELLOW_REGISTRY`, and not where code can't be published from the admin panel: content repositories, demos,
+  full-stack sites' code review). `importSite()` in `@goodfellow-cms/core/node` does it on disk for
+  `goodfellow import site` and `goodfellow-next import site` (`--take site|export`, `--replace`, `--menus`,
+  `--settings`, `--layout`, `--redirects`, `--without-missing-blocks`, `--dry-run`), with the site's blocks from its
+  config (`loadTaskConfig()`), leaving out media `unsafeMediaChanges()` refuses.
 
 ## Site checks
 
-- **From content alone:** `checkSite()` in `@goodfellow-cms/core` (`content/checks.ts`) finds a site's `SiteProblem`s without rendering pages, so the admin panel and builds run the same checks. Errors: links to pages and items (`missing-page`, against `sitePages()` and redirects' `from`) and media (`missing-media`) that don't exist, and links that would run code (`unsafe-link`, `isScriptUrl()`: `javascript:`, `vbscript:`, `data:`, `blob:` and `file:`, as browsers read schemes). Warnings: pages without a title or description (`no-title`, `no-description`) and theme colors text is hard to read on (`low-contrast`, `contrastProblems()`, with `contrastRatio()` from `contrast.ts`, WCAG's ratio, below `MINIMUM_CONTRAST`). `siteLinks()` finds links in blocks' props by their fields (a text field whose whole value is an address, and `href`, `src`, and `poster` in HTML), root props, menus, Site Settings' media, redirects' `to`, and items' link, image, and rich text fields and Markdown bodies; values with `{placeholders}` and addresses `linkTarget()` leaves out (files, `/admin`, `/calendars/`, `/pagefind/`) aren't checked. The default theme colors, and the starters', must pass the contrast check; a test checks this.
-- **When publishing:** `useAdmin().publish()` runs `checkPublish()` (`site-checks.ts`), which loads the site as the changes would leave it and compares it with the site as loaded (`publishProblems()`): errors the publish brings stop it, and warnings it brings to the files it changes (rendered problems compared with the same pages rendered as they were) are listed, so a warning published anyway isn't asked about again. `ChecksDialog` lists them, in the string table's words (`describeProblem()`), and offers **Publish anyway** for warnings only. Going back returns `reason: "checks"`, which screens show nothing for. Publishes that can't break a link and that the editor didn't write (uploads, the Domain screen's address, update settings, stock photos) pass `{ checks: false }`. The Theme tab shows `contrastProblems()` as colors are chosen.
-- **Moves update links:** moving a page (`movePageChanges()`), renaming an item (`moveEntryChanges()`) and changing a collection's address pattern (the admin panel's `collectionSettingsChanges()` given the site) point every link to the old addresses at the new ones in the same save, so moves are never stopped by the checks. `relinkSite()` (`content/links.ts`) rewrites links with the same traversal the checks find them with (`mapSiteLinks()`), keeping each link's `?…` and `#…` and moving addresses under a moved one with it unless they're pages of their own; `relinkedChanges()` writes the files it changed. Markdown bodies' links are changed outside code.
-- **On rendered pages:** `renderedProblems()` (`content/rendered-checks.ts`) reads a page's HTML as text, so it runs anywhere, and finds images without alt text (`no-alt`; an empty `alt` counts, unless the image or what's around it is `aria-hidden` or `role="presentation"`), headings that skip a level (`skipped-heading`, within each of `gf-header`, `gf-main`, and `gf-footer`; the page's own content may start at level 1 or 2), and links with no text or English text like "Click here" (`empty-link`, `vague-link`), each put down to the header, the footer, or the page's file. The admin panel renders the pages a publish changes (`pagesToRender()` in `site-code.ts`, at most `MAX_RENDERED`: a collection's design on its first item's page, a synced block on the first page showing it, the header and footer on the home page) in the frame that runs the site's code (`SiteCodeService.renderedProblems()`, `preparePage()` and `PageBody` into a detached element), so these are warnings.
-- **In builds:** `goodfellow build` returns them in `BuildResult.problems` and prints them (`reportSiteProblems()`, with `formatSiteProblem()` and GitHub Actions annotations); they fail the build only with `--strict`, so nightly updates never fail on content. It also checks every built page with `checkBuiltPages()` from `@goodfellow-cms/core/accessibility` (`node-accessibility.ts`, an entry of its own so nothing else loads axe-core): `renderedProblems()` and axe-core in happy-dom (which every site already has through Puck), leaving out the rules the site checks cover and the ones that need layout (`LEFT_OUT`), with axe's rules explained in `PLAIN_WORDS` (add the ones sites break); where a page breaks any and has responsive display classes (`max-sm:hidden`, `hidden lg:flex`, as the Style setting's Hide on writes), it checks those rules again at a width on each side of every breakpoint they use, without what each hides (`screenWidths()`, `hiddenAt()`), and keeps what those find, so blocks shown only on phones and their stand-ins on computers aren't counted as two of the same. The header's and footer's problems are listed once. `goodfellow-next finish` checks exported pages the same way (`exportedPages()`, `checkPages()` in `@goodfellow-cms/next/export`), before writing redirects' pages; Next.js builds don't run the content checks yet. Never say a site is accessible because nothing was found: automated checks find only some problems.
+- **From content alone:** `checkSite()` in `@goodfellow-cms/core` (`content/checks.ts`) finds a site's `SiteProblem`s
+  without rendering pages, so the admin panel and builds run the same checks. Errors: links to pages and items
+  (`missing-page`, against `sitePages()` and redirects' `from`) and media (`missing-media`) that don't exist, and links
+  that would run code (`unsafe-link`, `isScriptUrl()`: `javascript:`, `vbscript:`, `data:`, `blob:` and `file:`, as
+  browsers read schemes). Warnings: pages without a title or description (`no-title`, `no-description`) and theme colors
+  text is hard to read on (`low-contrast`, `contrastProblems()`, with `contrastRatio()` from `contrast.ts`, WCAG's
+  ratio, below `MINIMUM_CONTRAST`). `siteLinks()` finds links in blocks' props by their fields (a text field whose whole
+  value is an address, and `href`, `src`, and `poster` in HTML), root props, menus, Site Settings' media, redirects'
+  `to`, and items' link, image, and rich text fields and Markdown bodies; values with `{placeholders}` and addresses
+  `linkTarget()` leaves out (files, `/admin`, `/calendars/`, `/pagefind/`) aren't checked. The default theme colors, and
+  the starters', must pass the contrast check; a test checks this.
+- **When publishing:** `useAdmin().publish()` runs `checkPublish()` (`site-checks.ts`), which loads the site as the
+  changes would leave it and compares it with the site as loaded (`publishProblems()`): errors the publish brings stop
+  it, and warnings it brings to the files it changes (rendered problems compared with the same pages rendered as they
+  were) are listed, so a warning published anyway isn't asked about again. `ChecksDialog` lists them, in the string
+  table's words (`describeProblem()`), and offers **Publish anyway** for warnings only. Going back returns
+  `reason: "checks"`, which screens show nothing for. Publishes that can't break a link and that the editor didn't write
+  (uploads, the Domain screen's address, update settings, stock photos) pass `{ checks: false }`. The Theme tab shows
+  `contrastProblems()` as colors are chosen.
+- **Moves update links:** moving a page (`movePageChanges()`), renaming an item (`moveEntryChanges()`) and changing a
+  collection's address pattern (the admin panel's `collectionSettingsChanges()` given the site) point every link to the
+  old addresses at the new ones in the same save, so moves are never stopped by the checks. `relinkSite()`
+  (`content/links.ts`) rewrites links with the same traversal the checks find them with (`mapSiteLinks()`), keeping each
+  link's `?…` and `#…` and moving addresses under a moved one with it unless they're pages of their own;
+  `relinkedChanges()` writes the files it changed. Markdown bodies' links are changed outside code.
+- **On rendered pages:** `renderedProblems()` (`content/rendered-checks.ts`) reads a page's HTML as text, so it runs
+  anywhere, and finds images without alt text (`no-alt`; an empty `alt` counts, unless the image or what's around it is
+  `aria-hidden` or `role="presentation"`), headings that skip a level (`skipped-heading`, within each of `gf-header`,
+  `gf-main`, and `gf-footer`; the page's own content may start at level 1 or 2), and links with no text or English text
+  like "Click here" (`empty-link`, `vague-link`), each put down to the header, the footer, or the page's file. The admin
+  panel renders the pages a publish changes (`pagesToRender()` in `site-code.ts`, at most `MAX_RENDERED`: a collection's
+  design on its first item's page, a synced block on the first page showing it, the header and footer on the home page)
+  in the frame that runs the site's code (`SiteCodeService.renderedProblems()`, `preparePage()` and `PageBody` into a
+  detached element), so these are warnings.
+- **In builds:** `goodfellow build` returns them in `BuildResult.problems` and prints them (`reportSiteProblems()`, with
+  `formatSiteProblem()` and GitHub Actions annotations); they fail the build only with `--strict`, so nightly updates
+  never fail on content. It also checks every built page with `checkBuiltPages()` from
+  `@goodfellow-cms/core/accessibility` (`node-accessibility.ts`, an entry of its own so nothing else loads axe-core):
+  `renderedProblems()` and axe-core in happy-dom (which every site already has through Puck), leaving out the rules the
+  site checks cover and the ones that need layout (`LEFT_OUT`), with axe's rules explained in `PLAIN_WORDS` (add the
+  ones sites break); where a page breaks any and has responsive display classes (`max-sm:hidden`, `hidden lg:flex`, as
+  the Style setting's Hide on writes), it checks those rules again at a width on each side of every breakpoint they use,
+  without what each hides (`screenWidths()`, `hiddenAt()`), and keeps what those find, so blocks shown only on phones
+  and their stand-ins on computers aren't counted as two of the same. The header's and footer's problems are listed
+  once. `goodfellow-next finish` checks exported pages the same way (`exportedPages()`, `checkPages()` in
+  `@goodfellow-cms/next/export`), before writing redirects' pages; Next.js builds don't run the content checks yet.
+  Never say a site is accessible because nothing was found: automated checks find only some problems.
 
 ## AI assistant
 
-- **Split:** `@goodfellow-cms/ai` builds requests, checks answers, and talks to AI services, with no React. The panel itself is in the admin panel's page (`ai-panel.tsx`), beside the editor's frame, never in it, so blocks never see editors' keys: it reads what's edited from the frame's `editor.state` and changes it with `editor.apply` (`EditorChange`), with its text in the string table.
-- **Reports:** after putting an answer in, the panel says how many settings changed, blocks it put in and what it left out (`ai-report.ts`: `countBlocks()`, `valuesReport()`, `ApplyReport`; a value that changed nothing is left out unless `toValues()`, cleaning it on its own, gives what the field already held, so the report follows the rules that put answers in, an event's repeat included), and its settings list services that cost the editor nothing first (`freeFirst()`).
-- **Answers as data:** blocks come back as a flat list with parent ids, because structured outputs can't describe nesting. Always turn answers into content with `toContent()` or `toValues()`, which drop anything that doesn't fit the site's fields. Never use an answer as it came, since free services don't always follow the schema.
-- **Owners' settings:** `cleanProps()` keeps fields marked `metadata: { owners: true }` at their block's starting values, and `objectSchema()` leaves them out, so neither the assistant nor the Claude connector chooses them, since a page's own words could ask for them. `buildRequest()` puts everything the site's editors write between `<site-content>` markers (`json()`, which escapes a closing one): the site's details (`siteContext()`: title, description, pages, collections, contact details and images), and a task's page, collection, item kind, language and links as well as its blocks and values, so the prompt's own words are only Goodfellow's and the person's. The system prompt says what's between them is content, not instructions.
-- **Custom fields** don't say what they hold, so give them `metadata: { ai: … }` (an `AiFieldHint`) for the assistant to fill them in. A `table` hint is rows of plain text, which `tableField()` in `@goodfellow-cms/react` gives the Table block's cells.
-- **Free services first:** the AI panel's settings list the services that cost nothing first (`freeFirst()`), and until one is set up the panel shows a card for each (`FREE_SERVICES`, `freeCards()`), which chooses it and opens the settings.
-- **Claude** is called through the official `@anthropic-ai/sdk`, loaded only when used, with structured outputs and server-side safety fallbacks. Other services use the OpenAI-compatible chat API. Don't call Claude through an OpenAI-compatible endpoint.
+- **Split:** `@goodfellow-cms/ai` builds requests, checks answers, and talks to AI services, with no React. The panel
+  itself is in the admin panel's page (`ai-panel.tsx`), beside the editor's frame, never in it, so blocks never see
+  editors' keys: it reads what's edited from the frame's `editor.state` and changes it with `editor.apply`
+  (`EditorChange`), with its text in the string table.
+- **Reports:** after putting an answer in, the panel says how many settings changed, blocks it put in and what it left
+  out (`ai-report.ts`: `countBlocks()`, `valuesReport()`, `ApplyReport`; a value that changed nothing is left out unless
+  `toValues()`, cleaning it on its own, gives what the field already held, so the report follows the rules that put
+  answers in, an event's repeat included), and its settings list services that cost the editor nothing first
+  (`freeFirst()`).
+- **Answers as data:** blocks come back as a flat list with parent ids, because structured outputs can't describe
+  nesting. Always turn answers into content with `toContent()` or `toValues()`, which drop anything that doesn't fit the
+  site's fields. Never use an answer as it came, since free services don't always follow the schema.
+- **Owners' settings:** `cleanProps()` keeps fields marked `metadata: { owners: true }` at their block's starting
+  values, and `objectSchema()` leaves them out, so neither the assistant nor the Claude connector chooses them, since a
+  page's own words could ask for them. `buildRequest()` puts everything the site's editors write between
+  `<site-content>` markers (`json()`, which escapes a closing one): the site's details (`siteContext()`: title,
+  description, pages, collections, contact details and images), and a task's page, collection, item kind, language and
+  links as well as its blocks and values, so the prompt's own words are only Goodfellow's and the person's. The system
+  prompt says what's between them is content, not instructions.
+- **Custom fields** don't say what they hold, so give them `metadata: { ai: … }` (an `AiFieldHint`) for the assistant to
+  fill them in. A `table` hint is rows of plain text, which `tableField()` in `@goodfellow-cms/react` gives the Table
+  block's cells.
+- **Free services first:** the AI panel's settings list the services that cost nothing first (`freeFirst()`), and until
+  one is set up the panel shows a card for each (`FREE_SERVICES`, `freeCards()`), which chooses it and opens the
+  settings.
+- **Claude** is called through the official `@anthropic-ai/sdk`, loaded only when used, with structured outputs and
+  server-side safety fallbacks. Other services use the OpenAI-compatible chat API. Don't call Claude through an
+  OpenAI-compatible endpoint.
 - **New services** must allow requests from browsers (CORS), or they can't work without a server.
-- **Stock photos:** the AI marks an image field it has no photo for with a search, `stock-photo: <words>` (`STOCK_PHOTO_PREFIX`), only when `SiteSummary.stockPhotos` says it may: the AI panel's checkbox (`useStockPhotoChoice()`, in the `goodfellow.ai` preferences) is on and the config's `ai.stockPhotos` isn't `false`. The admin panel finds each with `findStockPhotos()` (`stock-photos.ts`), at most `MAX_STOCK_PHOTOS`, through `searchStockPhotos()` and `downloadStockPhoto()` in `@goodfellow-cms/ai`, which ask Openverse's API with no key (its downloads go through Openverse's own address, which allows browsers' requests where the photos' sources don't), and only for `STOCK_PHOTO_LICENSES`. It publishes the photos and their credits (`stockPhotoCredit()`) in one commit, through `prepareUpload()` like any upload, then `withStockPhotos()` puts their addresses in the answer, leaving fields empty where none was found, before `toContent()` or `toValues()`. Tests use `fakeOpenverse()` from `@goodfellow-cms/ai/testing`.
-- **Credits** live in `content/media.json` (`mediaFileSchema` in `@goodfellow-cms/core`'s `content/credits.ts`), by media address, written with `mediaFileChange()`, which takes the file's credits and descriptions together (`MediaDetails`); deleting or replacing a file drops its credit and description in the same commit (`withoutMediaDetails()`). Only web addresses are linked. `preparePage()` finds the credits of the media a page, its header and footer, and the collections its blocks show use (`pageCredits()`), and `PageBody` lists them at the end of `<main>` (`.gf-credits`, left out of search), so licenses are honored whatever block shows a photo.
+- **Stock photos:** the AI marks an image field it has no photo for with a search, `stock-photo: <words>`
+  (`STOCK_PHOTO_PREFIX`), only when `SiteSummary.stockPhotos` says it may: the AI panel's checkbox
+  (`useStockPhotoChoice()`, in the `goodfellow.ai` preferences) is on and the config's `ai.stockPhotos` isn't `false`.
+  The admin panel finds each with `findStockPhotos()` (`stock-photos.ts`), at most `MAX_STOCK_PHOTOS`, through
+  `searchStockPhotos()` and `downloadStockPhoto()` in `@goodfellow-cms/ai`, which ask Openverse's API with no key (its
+  downloads go through Openverse's own address, which allows browsers' requests where the photos' sources don't), and
+  only for `STOCK_PHOTO_LICENSES`. It publishes the photos and their credits (`stockPhotoCredit()`) in one commit,
+  through `prepareUpload()` like any upload, then `withStockPhotos()` puts their addresses in the answer, leaving fields
+  empty where none was found, before `toContent()` or `toValues()`. Tests use `fakeOpenverse()` from
+  `@goodfellow-cms/ai/testing`.
+- **Credits** live in `content/media.json` (`mediaFileSchema` in `@goodfellow-cms/core`'s `content/credits.ts`), by
+  media address, written with `mediaFileChange()`, which takes the file's credits and descriptions together
+  (`MediaDetails`); deleting or replacing a file drops its credit and description in the same commit
+  (`withoutMediaDetails()`). Only web addresses are linked. `preparePage()` finds the credits of the media a page, its
+  header and footer, and the collections its blocks show use (`pageCredits()`), and `PageBody` lists them at the end of
+  `<main>` (`.gf-credits`, left out of search), so licenses are honored whatever block shows a photo.
 
 ## Sign-in worker
 
-- **What it is:** `packages/worker` is a Cloudflare Worker, Goodfellow's only server code, for sites' owners to run, from their browser or a computer (Goodfellow Cloud, planned, would run one for its sites; see Goodfellow Cloud), which signs editors in with GitHub through two GitHub Apps: the everyday app (`EDIT_*`, Contents and Pull requests write; Actions, Checks, Commit statuses, Deployments, Metadata, and Pages read) and the owners' app (`OWNER_*`, Administration, Actions, Contents, Pages, Secrets, Variables, and Workflows), whose tokens only the Editors, Domain, and Updates screens and the setup page use. It's private (not on npm, and in Changesets' `ignore`), uses Web APIs and Octokit's `universal-github-app-jwt` for the apps' JWTs, and is deployed with `wrangler.jsonc`; `docs/content/collections/docs/sign-in-service.md` says how to run your own.
-- **Setting it up from a browser:** owners deploy it with Cloudflare's Deploy to Cloudflare button from `goodfellow-cms/goodfellow-sign-in`, a public repository holding `packages/worker/deploy/` (`wrangler.json` with no `vars`, since the setup page writes its settings as secrets, which a var of the same name would clash with, and `keep_vars`; `deploy.mjs`, which deploys with `--var WORKER_NAME:<its name>`; an exact Wrangler with its lockfile; `update.mjs` and `update.yml`) and the worker bundled into one file (`tsdown.bundle.config.ts`, `dist/bundle/worker.js`), which create-goodfellow's build carries as `templates/sign-in/`. The deployed worker's `/setup` (`self-setup.ts`, only where `WORKER_NAME` is set, and its own address leads there until it's set up, `isConfigured()`) takes a Cloudflare API token made from a link that fills in its permissions (`TOKEN_TEMPLATE_URL`), finds itself in that token's accounts, and writes its secrets through Cloudflare's API, taking forms only from its own page (`Sec-Fetch-Site`, or else `Origin`): a new `SESSION_KEY` every time, never one already there, `ALLOWED_ORIGINS` (always, `parseAddresses()`), then each app's keys and slug as the manifest flow gives them, at `/setup/github/callback`. A token reaches only its own account's Workers, so nobody else can set up an owner's worker. Between steps the token travels sealed under the new key in a `__Host-` cookie named by the key's `keyId()`, so a version still running with the key before waits for the next, for half an hour at most, and is never kept, logged, or shown; errors never show what Cloudflare or GitHub answered. Once set up, `/setup` only changes `ALLOWED_ORIGINS`, with a token again. Copies update themselves: `update.yml` runs `update.mjs` weekly, which takes the highest create-goodfellow release a day old from npm, never one lower than the copy has (`chooseRelease()`, recorded as `goodfellowRelease` in its `package.json`), packs it with `--ignore-scripts`, has `npm audit signatures` check that file alone and checks its provenance names this repository's `release.yml` and the file (`provenanceProblem()`), then copies its `templates/sign-in/` over, keeping the Worker's name, and pushes, which Cloudflare deploys; GitHub can't let a workflow change workflow files, so `update.yml` itself stays as it was. create-goodfellow's `sign-in-template.test.ts` checks the copy, and `self-setup.test.ts` goes through the page against a fake Cloudflare.
-- **Setting it up from a computer:** `pnpm run setup` in `packages/worker` (`scripts/setup.mjs`) deploys it to learn its address, creates both apps through GitHub's app manifest flow from a page it serves on 127.0.0.1 (`appManifest()` in `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for), writes their slugs and `SETUP_ORIGINS` into `wrangler.jsonc` (`withVars()`), sets the secrets with `wrangler secret bulk` through standard input, never in arguments or files, keeps an existing `SESSION_KEY`, deploys again, and checks `/health`. Its testable parts are in `src/setup.ts`; `GITHUB_WEB` and `GITHUB_API` point it at a fake GitHub.
-- **Flow** (`worker.ts`): `/github/check`, then `/github/start` to GitHub, and `/github/callback` back to the admin panel with a grant in `goodfellow_sign_in` (or a problem in `goodfellow_sign_in_error`), after the address's `#`, in the screen's own query (`#/settings/editors?goodfellow_sign_in=…`), so hosts' logs never see it, where `start` was given `fragment=1` (`StateData.fragment`; older admin panels get the query, which `signInReturn()` still reads), which `/github/session` exchanges, with the PKCE verifier only that tab has, for a session and the first token (the setup page's grant holds GitHub's one-time code, exchanged only then, so its address never carries a way to the person's token); `/github/token` renews it about once an hour. With `install=1` (`RedirectOptions.install`, offered where the problem is `not-installed`), `start` goes to the app's install page instead, which signs the person in too, since the apps request authorization during installation; the address can only be checked once it's installed, so the callback checks it then, and answers with a page, never a redirect, if it isn't the site's. Bodies are sent as `text/plain` JSON, so browsers send no preflight. Installations are remembered for a few minutes, and that the app isn't on a repository for a minute (`MISSED_INSTALLATION_MS`), since each lookup is signed as the app and shares the hourly limit every site's tokens are made within (at most `MAX_REMEMBERED` repositories, `remember()`, since anyone can ask about any); coming back from installing, and the setup page's check of a repository it has just made, ask again, and the addresses `/github/check` and `/github/start` compare with for two (`ADDRESS_CHECK_MS`, since anyone can ask for those), while giving a token always reads them again; where GitHub refuses a remembered one, as once the app is uninstalled or the repository taken out of it, `withInstallation()` looks it up again, so the person is told `not-installed`, never `unavailable`.
-- **Nothing stored:** the person's own GitHub token is revoked in the callback, once it's shown who they are and that they may sign in; after that, each `/github/token` checks they still may with the installation token (`collaborators/{login}/permission`). Sessions are sealed with AES-GCM (`seal.ts`, under `SESSION_KEY`, each sealed value bound to its kind and given an expiry) and hold only who and which site, and when they signed in (`signedInAt`): renewing reseals a session only until its lifetime since then (`sealSession()`), so a session in use still ends. The one exception is the setup page's session, which keeps the person's token, sealed, until the repository is created (then it's revoked); the worker refuses the session after 30 minutes, but storing nothing, it can't revoke the token of a setup left unfinished, which stays good at GitHub until GitHub's own expiry, inside a session nobody can open. Never return it, log it, or put it in a URL. What the admin panel gets is an installation token for the one repository with the purpose's `PERMISSIONS`, lasting an hour, or without `LATER_PERMISSIONS` (Checks, Commit statuses, and Pull requests, the setup page's Secrets) where an installation hasn't accepted those yet (`purposeToken()`); tokens the worker makes only to check something, or that fail a check, are revoked straight away. Signing out forgets the session and revokes the admin panel's installation token.
-- **Only to the site's address:** tokens go only to the origin of `content/site.json`'s `url`, read with an installation token every time one is given, and its admin address's (`siteAddresses()`, from `goodfellow-site.json` at the Site address, fetched without following redirects), or only to its token broker's where that names one, never to `isLocalAddress()`, and `start` refuses to redirect anywhere else (it shows a page instead). The grant comes back only to the page there that signs in (`SiteAddress.paths`): the admin panel (`adminPaths()`) under the address's own path or the origin's root, or the token broker's page, never another page at the origin, since an editor's redirect there would pass the grant on; `start` checks it, and the callback once more after installing. A link can't make an owner's sign-in remembered (`remember` is only ever for editors'). The setup page's address is `SETUP_ORIGINS`. Editors can change the files those addresses come from, so `ALLOWED_ORIGINS`, where set, is the only list tokens go to (the site's addresses that are in it), and an owner's `start` to an origin not in it first shows `confirmPage()`, naming the origin, and goes on only with the `CONFIRM_COOKIE` that page set (`SameSite=Strict`, so a link from elsewhere can't), since GitHub signs in people who approved the app before without asking. Every sign-in's sealed state carries the hash of `STATE_COOKIE`, a random value `start` keeps in the browser it was sent to, and the callback goes on only in that browser, so a state someone started can't be handed to anyone else through GitHub's link. The worker's pages can't be framed (`PAGE_HEADERS`). Tokens made only to check something are revoked even when the check fails (`checkSite()`'s `finally`).
-- **Why it stores nothing** (the maintainer's decision, so don't add storage without one): owners run their own worker on Cloudflare's free plan, and a store (KV, D1, or a Durable Object) would add setup, limits, and costs to every one of them, and something to protect and back up; with nothing stored, a worker that's broken into or misconfigured gives up no tokens, sessions, or list of editors, since everything it knows comes sealed from the browser or fresh from GitHub, which stays the one place that says who may edit (checked on every renewal). What that costs, accepted: a session can't be ended before its lifetime from the worker, so signing out ends it only in that browser, and a copy taken from it before then works until it ends, unless the person is removed from the repository (within the hour) or `SESSION_KEY` changes (everyone, at once), which the docs say; and there's no record of which tokens it gave or which confirmations people made, which the host's own records cover (commits name the editor). Anything that would need a list it keeps, such as revoking one session or rate limiting, belongs in Cloudflare's settings or the host instead.
-- **No limits of its own:** every request the worker gets counts towards Cloudflare's daily limit, even one it turns away, so it keeps no counts. Cloudflare limits it instead: when the free plan's requests run out, or a rate limiting rule (which needs a domain of its own, not `workers.dev`) blocks a computer, the browser can't read Cloudflare's answer, which is `unavailable`, and the sign-in screen opens the token form.
-- **Naming it, and GitLab's and Bitbucket's own:** Site Settings' Security tab (`SignInSection` in `sign-in-settings.tsx`) publishes the backend line's `signIn` on GitHub, once the service's `/health` says it's set up, and walks owners through GitLab's application or Bitbucket's consumer form, with each value to copy (`signInRedirectAddresses()`: the admin panel at the Site address, the admin address, and the token broker), before publishing its `clientId`, since neither host lets a site make one for a normal account. Core's `sign-in-config.ts` reads and writes the line (`configBackendHost()`, `configBackendOption()`, `withBackendOption()`, which changes the `backend:` call's options where they hold no objects, and gives `undefined` otherwise, for a developer to change by hand), and `goodfellow sign-in service|client-id|remove` and `goodfellow-next sign-in` (`setSignIn()` in `@goodfellow-cms/core/node`'s `node-sign-in.ts`) do the same for content repositories, whose config is the code's.
-- **In the browser:** `github({ signIn })`, the address of a worker the site's owner runs (none by default, since each owner runs their own; never default to an address the site's owner doesn't run), offers it only off this computer, through `SignInService` (`sign-in.ts`); `renewingToken()` is the backend's token (`ApiOptions.token` can be a `TokenSource`, retried once on a 401). With an app's token, commits are made with Git's data API (`writeCommit()`), naming the editor as author with their `users.noreply.github.com` address, since `createCommitOnBranch` would name the app. The owner's sign-in (`OwnerAccess.startRedirect`) comes back to the same screen and is kept in memory only. `githubSetup()` creates repositories through `/github/setup/*`. Problems are `SignInError`s (`not-installed` with a `link`, `no-address`, `wrong-address`, `local-address`, `not-owner`, `unavailable`), and the sign-in screen opens the token form for those that tokens get around. The Domain screen's reminder to add a new address to the host's OAuth application shows only where `GitHost.redirectAddressesListed` (GitLab), since the worker follows the Site address.
-- **Tests:** `@goodfellow-cms/worker/testing` (`testSignIn()`) makes both apps with keys of their own for `fakeGitHub({ apps })`, which fakes app JWTs, OAuth, installing apps, installations, and installation tokens (`fake.issued`, `fake.authorize()`, `fake.install()`, `fake.commitAuthors`). The worker's tests drive `github()` and `githubSetup()` through it as a browser would; `sign-in-worker.spec.ts` serves the built GitHub site at `https://parish.example` and routes the worker's address to the same code.
+- **What it is:** `packages/worker` is a Cloudflare Worker, Goodfellow's only server code, for sites' owners to run,
+  from their browser or a computer (Goodfellow Cloud, planned, would run one for its sites; see Goodfellow Cloud), which
+  signs editors in with GitHub through two GitHub Apps: the everyday app (`EDIT_*`, Contents and Pull requests write;
+  Actions, Checks, Commit statuses, Deployments, Metadata, and Pages read) and the owners' app (`OWNER_*`,
+  Administration, Actions, Contents, Pages, Secrets, Variables, and Workflows), whose tokens only the Editors, Domain,
+  and Updates screens and the setup page use. It's private (not on npm, and in Changesets' `ignore`), uses Web APIs and
+  Octokit's `universal-github-app-jwt` for the apps' JWTs, and is deployed with `wrangler.jsonc`;
+  `docs/content/collections/docs/sign-in-service.md` says how to run your own.
+- **Setting it up from a browser:** owners deploy it with Cloudflare's Deploy to Cloudflare button from
+  `goodfellow-cms/goodfellow-sign-in`, a public repository holding `packages/worker/deploy/` (`wrangler.json` with no
+  `vars`, since the setup page writes its settings as secrets, which a var of the same name would clash with, and
+  `keep_vars`; `deploy.mjs`, which deploys with `--var WORKER_NAME:<its name>`; an exact Wrangler with its lockfile;
+  `update.mjs` and `update.yml`) and the worker bundled into one file (`tsdown.bundle.config.ts`,
+  `dist/bundle/worker.js`), which create-goodfellow's build carries as `templates/sign-in/`. The deployed worker's
+  `/setup` (`self-setup.ts`, only where `WORKER_NAME` is set, and its own address leads there until it's set up,
+  `isConfigured()`) takes a Cloudflare API token made from a link that fills in its permissions (`TOKEN_TEMPLATE_URL`),
+  finds itself in that token's accounts, and writes its secrets through Cloudflare's API, taking forms only from its own
+  page (`Sec-Fetch-Site`, or else `Origin`): a new `SESSION_KEY` every time, never one already there, `ALLOWED_ORIGINS`
+  (always, `parseAddresses()`), then each app's keys and slug as the manifest flow gives them, at
+  `/setup/github/callback`. A token reaches only its own account's Workers, so nobody else can set up an owner's worker.
+  Between steps the token travels sealed under the new key in a `__Host-` cookie named by the key's `keyId()`, so a
+  version still running with the key before waits for the next, for half an hour at most, and is never kept, logged, or
+  shown; errors never show what Cloudflare or GitHub answered. Once set up, `/setup` only changes `ALLOWED_ORIGINS`,
+  with a token again. Copies update themselves: `update.yml` runs `update.mjs` weekly, which takes the highest
+  create-goodfellow release a day old from npm, never one lower than the copy has (`chooseRelease()`, recorded as
+  `goodfellowRelease` in its `package.json`), packs it with `--ignore-scripts`, has `npm audit signatures` check that
+  file alone and checks its provenance names this repository's `release.yml` and the file (`provenanceProblem()`), then
+  copies its `templates/sign-in/` over, keeping the Worker's name, and pushes, which Cloudflare deploys; GitHub can't
+  let a workflow change workflow files, so `update.yml` itself stays as it was. create-goodfellow's
+  `sign-in-template.test.ts` checks the copy, and `self-setup.test.ts` goes through the page against a fake Cloudflare.
+- **Setting it up from a computer:** `pnpm run setup` in `packages/worker` (`scripts/setup.mjs`) deploys it to learn its
+  address, creates both apps through GitHub's app manifest flow from a page it serves on 127.0.0.1 (`appManifest()` in
+  `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for), writes their slugs and `SETUP_ORIGINS` into
+  `wrangler.jsonc` (`withVars()`), sets the secrets with `wrangler secret bulk` through standard input, never in
+  arguments or files, keeps an existing `SESSION_KEY`, deploys again, and checks `/health`. Its testable parts are in
+  `src/setup.ts`; `GITHUB_WEB` and `GITHUB_API` point it at a fake GitHub.
+- **Flow** (`worker.ts`): `/github/check`, then `/github/start` to GitHub, and `/github/callback` back to the admin
+  panel with a grant in `goodfellow_sign_in` (or a problem in `goodfellow_sign_in_error`), after the address's `#`, in
+  the screen's own query (`#/settings/editors?goodfellow_sign_in=…`), so hosts' logs never see it, where `start` was
+  given `fragment=1` (`StateData.fragment`; older admin panels get the query, which `signInReturn()` still reads), which
+  `/github/session` exchanges, with the PKCE verifier only that tab has, for a session and the first token (the setup
+  page's grant holds GitHub's one-time code, exchanged only then, so its address never carries a way to the person's
+  token); `/github/token` renews it about once an hour. With `install=1` (`RedirectOptions.install`, offered where the
+  problem is `not-installed`), `start` goes to the app's install page instead, which signs the person in too, since the
+  apps request authorization during installation; the address can only be checked once it's installed, so the callback
+  checks it then, and answers with a page, never a redirect, if it isn't the site's. Bodies are sent as `text/plain`
+  JSON, so browsers send no preflight. Installations are remembered for a few minutes, and that the app isn't on a
+  repository for a minute (`MISSED_INSTALLATION_MS`), since each lookup is signed as the app and shares the hourly limit
+  every site's tokens are made within (at most `MAX_REMEMBERED` repositories, `remember()`, since anyone can ask about
+  any); coming back from installing, and the setup page's check of a repository it has just made, ask again, and the
+  addresses `/github/check` and `/github/start` compare with for two (`ADDRESS_CHECK_MS`, since anyone can ask for
+  those), while giving a token always reads them again; where GitHub refuses a remembered one, as once the app is
+  uninstalled or the repository taken out of it, `withInstallation()` looks it up again, so the person is told
+  `not-installed`, never `unavailable`.
+- **Nothing stored:** the person's own GitHub token is revoked in the callback, once it's shown who they are and that
+  they may sign in; after that, each `/github/token` checks they still may with the installation token
+  (`collaborators/{login}/permission`). Sessions are sealed with AES-GCM (`seal.ts`, under `SESSION_KEY`, each sealed
+  value bound to its kind and given an expiry) and hold only who and which site, and when they signed in (`signedInAt`):
+  renewing reseals a session only until its lifetime since then (`sealSession()`), so a session in use still ends. The
+  one exception is the setup page's session, which keeps the person's token, sealed, until the repository is created
+  (then it's revoked); the worker refuses the session after 30 minutes, but storing nothing, it can't revoke the token
+  of a setup left unfinished, which stays good at GitHub until GitHub's own expiry, inside a session nobody can open.
+  Never return it, log it, or put it in a URL. What the admin panel gets is an installation token for the one repository
+  with the purpose's `PERMISSIONS`, lasting an hour, or without `LATER_PERMISSIONS` (Checks, Commit statuses, and Pull
+  requests, the setup page's Secrets) where an installation hasn't accepted those yet (`purposeToken()`); tokens the
+  worker makes only to check something, or that fail a check, are revoked straight away. Signing out forgets the session
+  and revokes the admin panel's installation token.
+- **Only to the site's address:** tokens go only to the origin of `content/site.json`'s `url`, read with an installation
+  token every time one is given, and its admin address's (`siteAddresses()`, from `goodfellow-site.json` at the Site
+  address, fetched without following redirects), or only to its token broker's where that names one, never to
+  `isLocalAddress()`, and `start` refuses to redirect anywhere else (it shows a page instead). The grant comes back only
+  to the page there that signs in (`SiteAddress.paths`): the admin panel (`adminPaths()`) under the address's own path
+  or the origin's root, or the token broker's page, never another page at the origin, since an editor's redirect there
+  would pass the grant on; `start` checks it, and the callback once more after installing. A link can't make an owner's
+  sign-in remembered (`remember` is only ever for editors'). The setup page's address is `SETUP_ORIGINS`. Editors can
+  change the files those addresses come from, so `ALLOWED_ORIGINS`, where set, is the only list tokens go to (the site's
+  addresses that are in it), and an owner's `start` to an origin not in it first shows `confirmPage()`, naming the
+  origin, and goes on only with the `CONFIRM_COOKIE` that page set (`SameSite=Strict`, so a link from elsewhere can't),
+  since GitHub signs in people who approved the app before without asking. Every sign-in's sealed state carries the hash
+  of `STATE_COOKIE`, a random value `start` keeps in the browser it was sent to, and the callback goes on only in that
+  browser, so a state someone started can't be handed to anyone else through GitHub's link. The worker's pages can't be
+  framed (`PAGE_HEADERS`). Tokens made only to check something are revoked even when the check fails (`checkSite()`'s
+  `finally`).
+- **Why it stores nothing** (the maintainer's decision, so don't add storage without one): owners run their own worker
+  on Cloudflare's free plan, and a store (KV, D1, or a Durable Object) would add setup, limits, and costs to every one
+  of them, and something to protect and back up; with nothing stored, a worker that's broken into or misconfigured gives
+  up no tokens, sessions, or list of editors, since everything it knows comes sealed from the browser or fresh from
+  GitHub, which stays the one place that says who may edit (checked on every renewal). What that costs, accepted: a
+  session can't be ended before its lifetime from the worker, so signing out ends it only in that browser, and a copy
+  taken from it before then works until it ends, unless the person is removed from the repository (within the hour) or
+  `SESSION_KEY` changes (everyone, at once), which the docs say; and there's no record of which tokens it gave or which
+  confirmations people made, which the host's own records cover (commits name the editor). Anything that would need a
+  list it keeps, such as revoking one session or rate limiting, belongs in Cloudflare's settings or the host instead.
+- **No limits of its own:** every request the worker gets counts towards Cloudflare's daily limit, even one it turns
+  away, so it keeps no counts. Cloudflare limits it instead: when the free plan's requests run out, or a rate limiting
+  rule (which needs a domain of its own, not `workers.dev`) blocks a computer, the browser can't read Cloudflare's
+  answer, which is `unavailable`, and the sign-in screen opens the token form.
+- **Naming it, and GitLab's and Bitbucket's own:** Site Settings' Security tab (`SignInSection` in
+  `sign-in-settings.tsx`) publishes the backend line's `signIn` on GitHub, once the service's `/health` says it's set
+  up, and walks owners through GitLab's application or Bitbucket's consumer form, with each value to copy
+  (`signInRedirectAddresses()`: the admin panel at the Site address, the admin address, and the token broker), before
+  publishing its `clientId`, since neither host lets a site make one for a normal account. Core's `sign-in-config.ts`
+  reads and writes the line (`configBackendHost()`, `configBackendOption()`, `withBackendOption()`, which changes the
+  `backend:` call's options where they hold no objects, and gives `undefined` otherwise, for a developer to change by
+  hand), and `goodfellow sign-in service|client-id|remove` and `goodfellow-next sign-in` (`setSignIn()` in
+  `@goodfellow-cms/core/node`'s `node-sign-in.ts`) do the same for content repositories, whose config is the code's.
+- **In the browser:** `github({ signIn })`, the address of a worker the site's owner runs (none by default, since each
+  owner runs their own; never default to an address the site's owner doesn't run), offers it only off this computer,
+  through `SignInService` (`sign-in.ts`); `renewingToken()` is the backend's token (`ApiOptions.token` can be a
+  `TokenSource`, retried once on a 401). With an app's token, commits are made with Git's data API (`writeCommit()`),
+  naming the editor as author with their `users.noreply.github.com` address, since `createCommitOnBranch` would name the
+  app. The owner's sign-in (`OwnerAccess.startRedirect`) comes back to the same screen and is kept in memory only.
+  `githubSetup()` creates repositories through `/github/setup/*`. Problems are `SignInError`s (`not-installed` with a
+  `link`, `no-address`, `wrong-address`, `local-address`, `not-owner`, `unavailable`), and the sign-in screen opens the
+  token form for those that tokens get around. The Domain screen's reminder to add a new address to the host's OAuth
+  application shows only where `GitHost.redirectAddressesListed` (GitLab), since the worker follows the Site address.
+- **Tests:** `@goodfellow-cms/worker/testing` (`testSignIn()`) makes both apps with keys of their own for
+  `fakeGitHub({ apps })`, which fakes app JWTs, OAuth, installing apps, installations, and installation tokens
+  (`fake.issued`, `fake.authorize()`, `fake.install()`, `fake.commitAuthors`). The worker's tests drive `github()` and
+  `githubSetup()` through it as a browser would; `sign-in-worker.spec.ts` serves the built GitHub site at
+  `https://parish.example` and routes the worker's address to the same code.
 
 ## Claude connector
 
-- **Split:** `@goodfellow-cms/mcp` has the tools (`tools.ts`, registered by `createGoodfellowServer()` for any MCP transport, given a `ConnectorContext` of sites, backends, and an optional `Screenshotter`), with no React. It runs on the editor's computer as `goodfellow-mcp` (`stdio.ts`: the sites in `GOODFELLOW_SITE` and its arguments, each signed in with its host's token, `GOODFELLOW_GITHUB_TOKEN`, `GOODFELLOW_GITLAB_TOKEN`, `GOODFELLOW_BITBUCKET_TOKEN`, or else `GOODFELLOW_TOKEN`, or a folder on this computer, `local.ts`: `localBackend()` over `localFileStore()`, with one draft kept by `keptDrafts()` in `LOCAL_DRAFT_FILE`, read through its development server, `servedAt()`, which `ConnectorContext.served` gives `openSite()` in place of the Site address; screenshots with `localScreenshots()` and the computer's own Chrome or Edge through `playwright-core`, an optional dependency, each in a browser of its own without the GPU, in Chrome's sandbox (`sandbox: false` only for CI's container) and without the connector's tokens or anything named like a credential in its environment (`browserEnvironment()`), settled on load, fonts, images, and a moment's quiet rather than `networkidle`, at most `MAX_SCREENSHOT_HEIGHT` tall and `SCREENSHOT_TIME` long, tried again in a fresh browser, the other one where there are both, when one closes, with `browserSaid()` passing on what it said), and as the Claude Desktop extension, whose settings (`user_config` in `pack-extension.mjs`) are the sites, folders (a `directory` setting whose folders are arguments) and a token for each host, which `pnpm --filter @goodfellow-cms/mcp pack-extension` (`scripts/pack-extension.mjs`) bundles into `goodfellow.mcpb` and `docs.yml` publishes on the docs site. `packages/connector` is the connector service, a Cloudflare Worker like the sign-in worker, for organizations to run (Goodfellow Cloud, planned, would run one for its sites): private, in Changesets' `ignore`, deployed with `wrangler.jsonc`, and set up with `pnpm run setup` (`scripts/setup.mjs`, its testable parts in `src/setup.ts`).
-- **What a site has:** the tools don't have the site's code, so every build publishes `goodfellow-site.json` (`SITE_DESCRIPTION_PATH`, `SiteDescription` in `@goodfellow-cms/core`'s `site-description.ts`): its blocks' fields as JSON (`describeSite()` in `@goodfellow-cms/react`, from the site's config), the content versions it reads and its Goodfellow version (`GOODFELLOW_VERSION`, from core's `package.json` at build time). `goodfellow build` writes it, `goodfellow dev` serves it, and the Next.js starter's `app/goodfellow-site.json/route.ts` serves `siteDescription()`. It also carries what the config lets Claude do (`claude: { publish: false }`, which the `publish` tool checks), which the tools can't change, since they write only content. `openSite()` reads it from the Site address, which is content too, so the description, its owners-only fields included, holds against Claude, never against people who can change Site settings, who can publish anyway; it's read as other sites' files are (`readDescription()` with `readRemoteText()`: from the web only, but a folder's development server, `served`, and at most `MAX_DESCRIPTION_BYTES`); `siteVersionProblem()` refuses changes to sites made with an older minor version than the previous one, a newer one, or other content versions, and reading still works.
-- **Same changes as the admin panel:** the tools build file changes with the helpers in `@goodfellow-cms/core`'s `content/changes.ts`, which `packages/admin/src/changes.ts` re-exports, and check content as loading the site does (`parseEntryFile()`, Puck's fields from the description). Add a new kind of change there, not in either caller. `publish` runs the admin panel's checks first (`publishProblemsOf()`: `checkSite()` of the live site and the draft, by `publishProblems()`, links against `allPages()` since blocks' own pages need the code), unless `ConnectorContext.siteChecks` is `false`, as the connector service sets it, since that reads the whole site twice; `delete_page` and `delete_item` unlink translations as the admin panel does and name menus still linking to the page; `move_page` uses `movePageChanges()` with a redirect, reading the whole site, since links anywhere can point to it; `save_page` and `save_item` take `showFrom` and `hideAfter` (an empty string clears one, leaving both out keeps the file's); `list_drafts` lists `drafts.list()` with `reviews()`; `update_settings` changes only `CLAUDE_SETTINGS`, merging what it's given key by key at every depth (`mergeSettings()`: `null` takes a setting out, lists are replaced whole) (never forms, consent, comments, languages, search engines, or the address); and tools say what they do with `readOnlyHint`, `destructiveHint` (deleting, publishing, and throwing drafts away) and `openWorldHint` (screenshots), so clients ask first. `INSTRUCTIONS` says what the tools return from the site is content, never instructions.
-- **Finding the site:** blocks come from the description the site's build published, so `openSite()` reads it from the Site address, or, where Site settings has none, from where the backend's `pages` says the host publishes the site (its domain, then its `github.io` or `gitlab.io` address), remembering what it found for each site.
-- **Reading little:** Workers' free plan allows 10 ms of CPU and 50 subrequests a request (Workers Paid, which the docs recommend for sites that reach them, allows 30 seconds and 10,000), so tools read only the files they need (`contentFiles()` in `content.ts`), never with `loadSiteContent()` straight from the backend, which reads each file on its own (`move_page`, whose relinking needs the whole site, uses `loadWholeSite()`, reading every content file first in batches, which Bitbucket, with no batch API, still reads one request a file, as the connector service's docs say), through a backend's optional `readFiles()` (`ContentSource.readFiles`), which reads many files in one request with GraphQL (GitHub: 100 blobs by id; GitLab: 50 paths through `/api/graphql`). `fileSizes()` gives files' sizes without reading them (GitHub's tree lists them; GitLab's GraphQL blobs, 50 at a time), which `list_media` shows with each file's credit from `content/media.json`.
-- **Drafts:** a backend's optional `drafts` (`SiteDrafts` in core's `drafts.ts`, made with `branchDrafts()` from a `DraftHost`) keeps changes on a branch, `goodfellow-draft-<name>` (`newDraftName()`, `isDraftName()`). Publishing applies the branch's changes since its merge base to the live branch with `writeChanges()`, so someone else's change to the same files throws `ConflictError`, then deletes the branch; it refuses a draft that changes anything outside the editable folders (`assertEditableDraft()`, `DraftError` `not-editable`, since anyone who can push a branch can put any file on one), and callers hand it the changes they checked (`publish(message, { changes })`: the admin panel's **Publish all** after `safeMediaChanges()`, the connector's `publish` after `unsafeMediaChanges()`), which it publishes as given once they're the draft's files; `submitForReview()` opens a pull request (GitHub) or merge request (GitLab), and the site only builds from the main branch. `list()` gives every draft, newest first (`listBranches()`), `paths()` the files one changed, and `create(name, { from })` starts one at the revision an editor loaded, so publishing it fails where someone changed the same files since. Both backends implement it, and both fakes keep branches, merge bases, and reviews (`FakeRepo.reviews`). The admin panel uses the same drafts (see Admin panel's Drafts).
-- **Preview page:** `/admin/#/preview` (`PREVIEW_ROUTE`, `SitePreview` in the admin panel's `site-preview.tsx`) renders a page from content files handed to `window.goodfellowPreview({ files, path })`, in a render frame as tall as the page (`render.height`), for screenshots of drafts. It reads nothing from its address and signs in to nothing, so only code running in the page, such as a screenshot browser, can use it. `admin.tsx` shows it before sign-in.
-- **The connector service** (`connector.ts`) is an OAuth authorization server as Claude's custom connectors need: `/mcp` answers 401 with `resource_metadata`, the `.well-known` documents, client registration (`/register`, whose client ids are the client's details sealed) and client ID metadata documents (`clients.ts`, `findClient()`), PKCE with S256, `/authorize` (which shows requests it can't use rather than sending the person back to the client's address; its "Which sites?" form carries the list of sites sealed in its body, so `open()` takes it longer than values that travel in addresses, `MAX_PICKER_LENGTH`, and past that the list is cut short and the page says so), and `/token` with refresh tokens that work once. Who connected and which sites (`Connection` in `connection.ts`) are sealed in the tokens with the sign-in worker's `seal.ts`; the only thing stored is each connection's refresh token generation in D1 (`grants.ts`, `migrations/`), and a code or refresh token used twice ends the connection (a code by the id sealed in it, `CodeData.id`, so another spelling of it is the same code; an ended connection keeps its row at generation 0 until it would have lapsed, so its code can't make it again) (except the refresh token before the current one, for `REFRESH_GRACE_MS`, so a retried refresh doesn't; for GitLab and Bitbucket that one is refused without ending it, since the host's refresh token sealed in it was used), which every `/mcp` request checks (`GrantStore.active()`), so its access tokens stop working at once. Pages the person sees (`pages.ts`) allow no frames or outside resources, and a cookie set by `/authorize` makes sure the browser that started is the one that finishes.
-- **Signing in to sites from the connector:** GitHub through its own GitHub App, Goodfellow for Claude (`PERMISSIONS` in `permissions.ts`: Contents and Pull requests write), separate from the sign-in worker's: the person's own token only lists the repositories they can push to that it's installed on, then it's revoked; each `/mcp` request mints an installation token for one repository, checks `collaborators/{login}/permission`, and revokes it after answering (`waitUntil`). GitLab and Bitbucket have no such tokens, so the person's tokens are sealed in Claude's (`HostTokens`, as `token` in access and refresh tokens; GitLab's sealed before Bitbucket was added carry `gitlab`), the access token never outliving the host's, and renewed when Claude renews its own. Bitbucket signs in through a private OAuth consumer (`bitbucket.ts`), whose secret allows the code grant and refresh tokens, which the admin panel's implicit grant doesn't give; its sites are the repositories the person can write to in their first workspaces (`/user/workspaces/{ws}/permissions/repositories`), and each backend reads the repository's main branch. Never log tokens or put them in a URL or error, here as in the sign-in worker. `/mcp` is stateless (`WebStandardStreamableHTTPServerTransport` with JSON answers), with a new server for each request. Screenshots use Browser Rendering (`browserScreenshots()`, `@cloudflare/puppeteer`, which needs `nodejs_compat`), and the tool isn't offered without the binding. Screenshots of media library images (`image: true`, addresses checked by `mediaImage()`) show them on `imagePage()`, sized to the width asked for, in both setups, since browsers can't screenshot an SVG opened on its own.
-- **Tests:** `@goodfellow-cms/mcp`'s tests call the tools through `InMemoryTransport` against the fakes. The connector's tests (`connector.test.ts`) go through Claude's whole flow, as a browser and as Claude, against `fakeGitHub({ apps })` and `fakeGitLab({ oauth })`, with `memoryGrants()`. `site-preview.spec.ts` checks the preview page and `localScreenshots()` with the built starter.
+- **Split:** `@goodfellow-cms/mcp` has the tools (`tools.ts`, registered by `createGoodfellowServer()` for any MCP
+  transport, given a `ConnectorContext` of sites, backends, and an optional `Screenshotter`), with no React. It runs on
+  the editor's computer as `goodfellow-mcp` (`stdio.ts`: the sites in `GOODFELLOW_SITE` and its arguments, each signed
+  in with its host's token, `GOODFELLOW_GITHUB_TOKEN`, `GOODFELLOW_GITLAB_TOKEN`, `GOODFELLOW_BITBUCKET_TOKEN`, or else
+  `GOODFELLOW_TOKEN`, or a folder on this computer, `local.ts`: `localBackend()` over `localFileStore()`, with one draft
+  kept by `keptDrafts()` in `LOCAL_DRAFT_FILE`, read through its development server, `servedAt()`, which
+  `ConnectorContext.served` gives `openSite()` in place of the Site address; screenshots with `localScreenshots()` and
+  the computer's own Chrome or Edge through `playwright-core`, an optional dependency, each in a browser of its own
+  without the GPU, in Chrome's sandbox (`sandbox: false` only for CI's container) and without the connector's tokens or
+  anything named like a credential in its environment (`browserEnvironment()`), settled on load, fonts, images, and a
+  moment's quiet rather than `networkidle`, at most `MAX_SCREENSHOT_HEIGHT` tall and `SCREENSHOT_TIME` long, tried again
+  in a fresh browser, the other one where there are both, when one closes, with `browserSaid()` passing on what it
+  said), and as the Claude Desktop extension, whose settings (`user_config` in `pack-extension.mjs`) are the sites,
+  folders (a `directory` setting whose folders are arguments) and a token for each host, which
+  `pnpm --filter @goodfellow-cms/mcp pack-extension` (`scripts/pack-extension.mjs`) bundles into `goodfellow.mcpb` and
+  `docs.yml` publishes on the docs site. `packages/connector` is the connector service, a Cloudflare Worker like the
+  sign-in worker, for organizations to run (Goodfellow Cloud, planned, would run one for its sites): private, in
+  Changesets' `ignore`, deployed with `wrangler.jsonc`, and set up with `pnpm run setup` (`scripts/setup.mjs`, its
+  testable parts in `src/setup.ts`).
+- **What a site has:** the tools don't have the site's code, so every build publishes `goodfellow-site.json`
+  (`SITE_DESCRIPTION_PATH`, `SiteDescription` in `@goodfellow-cms/core`'s `site-description.ts`): its blocks' fields as
+  JSON (`describeSite()` in `@goodfellow-cms/react`, from the site's config), the content versions it reads and its
+  Goodfellow version (`GOODFELLOW_VERSION`, from core's `package.json` at build time). `goodfellow build` writes it,
+  `goodfellow dev` serves it, and the Next.js starter's `app/goodfellow-site.json/route.ts` serves `siteDescription()`.
+  It also carries what the config lets Claude do (`claude: { publish: false }`, which the `publish` tool checks), which
+  the tools can't change, since they write only content. `openSite()` reads it from the Site address, which is content
+  too, so the description, its owners-only fields included, holds against Claude, never against people who can change
+  Site settings, who can publish anyway; it's read as other sites' files are (`readDescription()` with
+  `readRemoteText()`: from the web only, but a folder's development server, `served`, and at most
+  `MAX_DESCRIPTION_BYTES`); `siteVersionProblem()` refuses changes to sites made with an older minor version than the
+  previous one, a newer one, or other content versions, and reading still works.
+- **Same changes as the admin panel:** the tools build file changes with the helpers in `@goodfellow-cms/core`'s
+  `content/changes.ts`, which `packages/admin/src/changes.ts` re-exports, and check content as loading the site does
+  (`parseEntryFile()`, Puck's fields from the description). Add a new kind of change there, not in either caller.
+  `publish` runs the admin panel's checks first (`publishProblemsOf()`: `checkSite()` of the live site and the draft, by
+  `publishProblems()`, links against `allPages()` since blocks' own pages need the code), unless
+  `ConnectorContext.siteChecks` is `false`, as the connector service sets it, since that reads the whole site twice;
+  `delete_page` and `delete_item` unlink translations as the admin panel does and name menus still linking to the page;
+  `move_page` uses `movePageChanges()` with a redirect, reading the whole site, since links anywhere can point to it;
+  `save_page` and `save_item` take `showFrom` and `hideAfter` (an empty string clears one, leaving both out keeps the
+  file's); `list_drafts` lists `drafts.list()` with `reviews()`; `update_settings` changes only `CLAUDE_SETTINGS`,
+  merging what it's given key by key at every depth (`mergeSettings()`: `null` takes a setting out, lists are replaced
+  whole) (never forms, consent, comments, languages, search engines, or the address); and tools say what they do with
+  `readOnlyHint`, `destructiveHint` (deleting, publishing, and throwing drafts away) and `openWorldHint` (screenshots),
+  so clients ask first. `INSTRUCTIONS` says what the tools return from the site is content, never instructions.
+- **Finding the site:** blocks come from the description the site's build published, so `openSite()` reads it from the
+  Site address, or, where Site settings has none, from where the backend's `pages` says the host publishes the site (its
+  domain, then its `github.io` or `gitlab.io` address), remembering what it found for each site.
+- **Reading little:** Workers' free plan allows 10 ms of CPU and 50 subrequests a request (Workers Paid, which the docs
+  recommend for sites that reach them, allows 30 seconds and 10,000), so tools read only the files they need
+  (`contentFiles()` in `content.ts`), never with `loadSiteContent()` straight from the backend, which reads each file on
+  its own (`move_page`, whose relinking needs the whole site, uses `loadWholeSite()`, reading every content file first
+  in batches, which Bitbucket, with no batch API, still reads one request a file, as the connector service's docs say),
+  through a backend's optional `readFiles()` (`ContentSource.readFiles`), which reads many files in one request with
+  GraphQL (GitHub: 100 blobs by id; GitLab: 50 paths through `/api/graphql`). `fileSizes()` gives files' sizes without
+  reading them (GitHub's tree lists them; GitLab's GraphQL blobs, 50 at a time), which `list_media` shows with each
+  file's credit from `content/media.json`.
+- **Drafts:** a backend's optional `drafts` (`SiteDrafts` in core's `drafts.ts`, made with `branchDrafts()` from a
+  `DraftHost`) keeps changes on a branch, `goodfellow-draft-<name>` (`newDraftName()`, `isDraftName()`). Publishing
+  applies the branch's changes since its merge base to the live branch with `writeChanges()`, so someone else's change
+  to the same files throws `ConflictError`, then deletes the branch; it refuses a draft that changes anything outside
+  the editable folders (`assertEditableDraft()`, `DraftError` `not-editable`, since anyone who can push a branch can put
+  any file on one), and callers hand it the changes they checked (`publish(message, { changes })`: the admin panel's
+  **Publish all** after `safeMediaChanges()`, the connector's `publish` after `unsafeMediaChanges()`), which it
+  publishes as given once they're the draft's files; `submitForReview()` opens a pull request (GitHub) or merge request
+  (GitLab), and the site only builds from the main branch. `list()` gives every draft, newest first (`listBranches()`),
+  `paths()` the files one changed, and `create(name, { from })` starts one at the revision an editor loaded, so
+  publishing it fails where someone changed the same files since. Both backends implement it, and both fakes keep
+  branches, merge bases, and reviews (`FakeRepo.reviews`). The admin panel uses the same drafts (see Admin panel's
+  Drafts).
+- **Preview page:** `/admin/#/preview` (`PREVIEW_ROUTE`, `SitePreview` in the admin panel's `site-preview.tsx`) renders
+  a page from content files handed to `window.goodfellowPreview({ files, path })`, in a render frame as tall as the page
+  (`render.height`), for screenshots of drafts. It reads nothing from its address and signs in to nothing, so only code
+  running in the page, such as a screenshot browser, can use it. `admin.tsx` shows it before sign-in.
+- **The connector service** (`connector.ts`) is an OAuth authorization server as Claude's custom connectors need: `/mcp`
+  answers 401 with `resource_metadata`, the `.well-known` documents, client registration (`/register`, whose client ids
+  are the client's details sealed) and client ID metadata documents (`clients.ts`, `findClient()`), PKCE with S256,
+  `/authorize` (which shows requests it can't use rather than sending the person back to the client's address; its
+  "Which sites?" form carries the list of sites sealed in its body, so `open()` takes it longer than values that travel
+  in addresses, `MAX_PICKER_LENGTH`, and past that the list is cut short and the page says so), and `/token` with
+  refresh tokens that work once. Who connected and which sites (`Connection` in `connection.ts`) are sealed in the
+  tokens with the sign-in worker's `seal.ts`; the only thing stored is each connection's refresh token generation in D1
+  (`grants.ts`, `migrations/`), and a code or refresh token used twice ends the connection (a code by the id sealed in
+  it, `CodeData.id`, so another spelling of it is the same code; an ended connection keeps its row at generation 0 until
+  it would have lapsed, so its code can't make it again) (except the refresh token before the current one, for
+  `REFRESH_GRACE_MS`, so a retried refresh doesn't; for GitLab and Bitbucket that one is refused without ending it,
+  since the host's refresh token sealed in it was used), which every `/mcp` request checks (`GrantStore.active()`), so
+  its access tokens stop working at once. Pages the person sees (`pages.ts`) allow no frames or outside resources, and a
+  cookie set by `/authorize` makes sure the browser that started is the one that finishes.
+- **Signing in to sites from the connector:** GitHub through its own GitHub App, Goodfellow for Claude (`PERMISSIONS` in
+  `permissions.ts`: Contents and Pull requests write), separate from the sign-in worker's: the person's own token only
+  lists the repositories they can push to that it's installed on, then it's revoked; each `/mcp` request mints an
+  installation token for one repository, checks `collaborators/{login}/permission`, and revokes it after answering
+  (`waitUntil`). GitLab and Bitbucket have no such tokens, so the person's tokens are sealed in Claude's (`HostTokens`,
+  as `token` in access and refresh tokens; GitLab's sealed before Bitbucket was added carry `gitlab`), the access token
+  never outliving the host's, and renewed when Claude renews its own. Bitbucket signs in through a private OAuth
+  consumer (`bitbucket.ts`), whose secret allows the code grant and refresh tokens, which the admin panel's implicit
+  grant doesn't give; its sites are the repositories the person can write to in their first workspaces
+  (`/user/workspaces/{ws}/permissions/repositories`), and each backend reads the repository's main branch. Never log
+  tokens or put them in a URL or error, here as in the sign-in worker. `/mcp` is stateless
+  (`WebStandardStreamableHTTPServerTransport` with JSON answers), with a new server for each request. Screenshots use
+  Browser Rendering (`browserScreenshots()`, `@cloudflare/puppeteer`, which needs `nodejs_compat`), and the tool isn't
+  offered without the binding. Screenshots of media library images (`image: true`, addresses checked by `mediaImage()`)
+  show them on `imagePage()`, sized to the width asked for, in both setups, since browsers can't screenshot an SVG
+  opened on its own.
+- **Tests:** `@goodfellow-cms/mcp`'s tests call the tools through `InMemoryTransport` against the fakes. The connector's
+  tests (`connector.test.ts`) go through Claude's whole flow, as a browser and as Claude, against `fakeGitHub({ apps })`
+  and `fakeGitLab({ oauth })`, with `memoryGrants()`. `site-preview.spec.ts` checks the preview page and
+  `localScreenshots()` with the built starter.
 
 ## Full-stack Next.js sites
 
-- **What it is:** a Next.js app with a server of its own can be a Goodfellow site whose admin panel signs in with the app's own sign-in and publishes through the app's server, which reaches the repository with one token of its own (`GOODFELLOW_GIT_TOKEN`). It's for developers who choose it; nothing else may depend on it. `docs/content/collections/docs/full-stack-nextjs.md` says how to set one up, and strongly recommends keeping the content in a repository of its own (see Content in a repository of its own), so the server's token can't change the code it runs.
-- **Server access:** `GitHost.server({ token })` (`ServerGit` in core's `git.ts`), which both backends implement, gives `revision()` and `at(revision, author)`: a `GitBackend` whose reads see the revision the browser loaded (the backends' `revision` option) and whose commits name the editor (`author`: GitHub's data API, as with the sign-in worker's tokens; GitLab's `author_name` and `author_email`). The fakes record who commits name (`fake.commitAuthors`).
-- **The API:** `appApi()` in `@goodfellow-cms/core/server` (`server-app-api.ts`, Web `Request` and `Response` only, so it runs on Cloudflare Workers too; `core/node`'s `appApi()` is the same with `nodeProvenance()`) answers `session`, reads (`file`, `files`, `version`, `history`), `write`, `changed`, `deploy`, and `ai/<service>/…`, keeping a backend for each of the last few revisions read. `goodfellowApi()` in `@goodfellow-cms/next/server` mounts it as a catch-all route, making it on the first request so builds need no token. `withGoodfellow(config, { server: true })` builds for a server instead of `output: "export"`, including `content/` and `public/media/` with it. Everything visitors get stays static, unless the site renders pages from its repository (below): pages are rendered by `next build`, and after it `goodfellow-next finish --server` writes the calendar files into `public/calendars/` (`writeCalendarFiles()`) and indexes the site's pages into `public/pagefind/` with `writePagesSearchIndex()`, since public files written then are still served: `renderedPages()` from `@goodfellow-cms/next/export` renders every one of `sitePages()` from the content and the config in Node with `createPageRenderer()`, as `goodfellow build` does, each in its language, so it needs nothing `next build` writes and runs before a build that writes no `.next/`, such as vinext's, as well as after one (`builtPages()` still reads what Next.js rendered). Where `.next/` isn't there, `exportTrailingSlash()` and the base path come from `next.config.ts` itself (`siteServing()`), which `withGoodfellow()` marks with `SITE_SERVING` without being called.
-- **Pages from the repository:** `goodfellowPages(config, { source })` renders pages from a `ContentSource` as they're visited (`loadSourceSite()`, once a request, read as builds read it with `builtSource()` and `shownContent()`, or `root`'s files where `source` gives nothing, as in `next dev`), such as `repositorySource(git)` (core's `repository-source.ts`: the live branch's newest revision, asked for each time, each revision's content read once with `prefetchedSource()`, the last few kept), so with `goodfellowApi({ onPublish })` calling `revalidatePath()` a publish shows without a rebuild; `loadSite` on what it returns is the same site, and `language()` is its language for the root layout's `<html lang>`, or the built files' where `source` can't be read, since the root layout wraps the admin panel and sign-in, which must open then. The page route says `dynamic = "force-static"`, so the host keeps each page once it has rendered, and `revalidate` (an hour in the company example, and its sitemap's), since only `onPublish` marks pages changed: schedules, `changesOn()` dates, and changes that reach the repository another way show once a page is that old. The company example keeps them in Workers KV (`kvDataAdapter()`), since nothing emulates Workers Cache outside Cloudflare, so its end-to-end test can count the GitHub requests a visit makes (`/__requests`).
-- **Who may do what:** the app's `authorize(request)` gives an `AppEditor` (`login`, `name`, `email`, `role`), `null` for nobody or `false` for someone who may not edit, on every request. Owners may change everything but plugins and the site's code (installed blocks, `components/`, `lib/`, and `hooks/`, which the server runs), which they submit for review (see Plugins; the Blocks screen's **Submit for review**, from `AppSession.codeReview` and `Account.codeReview`), unless `codeChanges: "publish"` (`AppApiOptions.codeChanges`, `goodfellowApi({ codeChanges })`) lets them publish code; editors may not change what `isSettingsPath()` covers (Site Settings, redirects, updates, custom CSS and code, collections' `_collection.json`, installed blocks' code). Editors also may not change blocks' settings marked `metadata: { owners: true }` (`isOwnersOnlyField()`, such as Custom HTML's `sanitize`): `goodfellowApi()` passes `ownersOnlyFields(config.blocks)` as `AppApiOptions.ownersOnly`, and `ownersOnlyChanges()` refuses a write where such a value changed on a block, by id, or a new block's isn't its default; the editor's frame shows them read-only (`withOwnersOnlyLocked()`, `EditorOpen.ownersOnlyLocked`). An owners-only setting that isn't its starting value makes the block the owners' whole (any other change to it is refused), two blocks with one id count as a change (`checkPuckData()` refuses them too), and pages sent as bytes are read as text (`toFileChange()`). The server checks every write, and `review` the same way for settings and owners-only settings; the admin panel only hides what editors can't do (`useCanChangeSettings()`).
-- **Never trusting the browser:** every request needs `APP_API_HEADER` and must be same-origin (`Sec-Fetch-Site`, or else `Origin`). Media is checked as `safeMediaChanges()` would (`unsafeMediaChanges()` in `@goodfellow-cms/core/server`'s `svg-check.ts`: a kind `mediaKind()` allows, and SVGs already clean by `isCleanSvg()`, which reads them with htmlparser2 by the same rules as `cleanSvg()`, `svg-rules.ts` in core, and refuses what the two parsers could read differently), and someone who isn't an owner may change only `content/media-storage.json`'s files, never its plugin or address (`keepsStorageSettings()`). Paths must be `isEditablePath()`, and revisions look like commits. Errors from the git host stay on the server (`onError`), and answers say only what kind of failure it was. After each `write`, `AppApiOptions.onPublish` (`goodfellowApi({ onPublish })`) is given a `PublishedChanges` (the paths, the `AppEditor` and the new revision) before the answer, and its failures go to `onError`, never the editor, since the publish has happened. The token is never sent to a browser, logged, or put in an answer.
-- **Pages for members:** pages' and templates' `visibility` root prop ("Who can see this page", `VISIBILITY_PROP`, `everyone` or `members`) and `_collection.json`'s `visibility` mark what only a server can keep to members; core's `content/visibility.ts` (`isMembersOnly()`, `isMembersCollection()`, which counts a template marked so too, `membersPages()`, `withoutMembersContent()`) says which. The editor offers the setting only where `Account.members` (full-stack sites) is set (`EditorOpen.members`, else `withoutVisibility()`) or the page already says `members` (`isMembersPageData()`), and the collection settings only there or where it's published (by the collection or its template, which unchecking it clears too), with or without items' pages, since items without pages are still left out of the content API. Like a collection's, a page's is owners' (`metadata: { owners: true }`, locked for editors by `withOwnersOnlyLocked()`, which covers the root's fields, and refused by `appApi()` with `visibilityChanges()`, which reads pages sent as bytes too, and counts deleting a members' page, since its address could then be published again for everyone). What builds publish beside pages leaves them out: `PageContent`'s `data-pagefind-body`, `feedCollections()`, `calendarCollections()` (the calendar blocks offer no files for members' calendars), and `prepareContentApi()` (`withoutMembersContent()`). Enforcement is the app's; `goodfellow build`'s and `goodfellow-next finish`'s notes warn about members' pages on static sites (`buildNotes()`' `membersPages`, `exportedMembersPages()`). `goodfellowPages(config, { paywall })` names a block of the site's own that ends a members-only page's teaser: `Page` shows everyone else `teaserData()` (the top-level blocks before the first block holding a paywall, then the paywall; only a paywall where there's none, so nothing an editor didn't choose is shown; drop zones go with their blocks), `MembersPage` shows every page through `withoutPaywall()`, for the route the app's proxy sends members to and must refuse to everyone else, and `shownPage()` picks one, after `expandSyncedBlocks()`, since a paywall can be in a synced block.
-- **In the browser:** `<Admin server>` (`<GoodfellowAdmin server>`) uses `AppSignInGate` (`app-sign-in.tsx`) and `appServer()` (`app-server.ts`), whose backend has no `pages`, `editors`, `updates`, or `drafts`, so those screens aren't shown. `next dev` still uses the local backend.
-- **AI keys:** `aiServer(keys)` in `@goodfellow-cms/ai` (`server.ts`) sends on only the requests the assistant makes (Claude's `v1/messages`, others' `chat/completions` and `models`), each body rebuilt with only the fields the assistant sends (`claudeBody()`: one of `CLAUDE_MODELS`, and of `ServerKey.models` where it's given, at most `MAX_TOKENS`, text messages and a JSON schema; `chatBody()`: a model, from `ServerKey.models` where it's given, text messages and JSON answers), with only the headers they need (of `anthropic-beta`, only `ANTHROPIC_BETAS`) and the site's key, and redacts the key from errors. The admin panel gets the services from the session, and `ProviderSettings.server` sends requests there with no key.
-- **Tests:** `next-server.spec.ts` runs a full-stack copy of the Next.js starter (`e2e/.site-next-server`) with `next start`, its own made-up sign-in, and fakes of GitHub and an AI service served over HTTP by `start-next-server-site.mjs`, which only its server calls.
+- **What it is:** a Next.js app with a server of its own can be a Goodfellow site whose admin panel signs in with the
+  app's own sign-in and publishes through the app's server, which reaches the repository with one token of its own
+  (`GOODFELLOW_GIT_TOKEN`). It's for developers who choose it; nothing else may depend on it.
+  `docs/content/collections/docs/full-stack-nextjs.md` says how to set one up, and strongly recommends keeping the
+  content in a repository of its own (see Content in a repository of its own), so the server's token can't change the
+  code it runs.
+- **Server access:** `GitHost.server({ token })` (`ServerGit` in core's `git.ts`), which both backends implement, gives
+  `revision()` and `at(revision, author)`: a `GitBackend` whose reads see the revision the browser loaded (the backends'
+  `revision` option) and whose commits name the editor (`author`: GitHub's data API, as with the sign-in worker's
+  tokens; GitLab's `author_name` and `author_email`). The fakes record who commits name (`fake.commitAuthors`).
+- **The API:** `appApi()` in `@goodfellow-cms/core/server` (`server-app-api.ts`, Web `Request` and `Response` only, so
+  it runs on Cloudflare Workers too; `core/node`'s `appApi()` is the same with `nodeProvenance()`) answers `session`,
+  reads (`file`, `files`, `version`, `history`), `write`, `changed`, `deploy`, and `ai/<service>/…`, keeping a backend
+  for each of the last few revisions read. `goodfellowApi()` in `@goodfellow-cms/next/server` mounts it as a catch-all
+  route, making it on the first request so builds need no token. `withGoodfellow(config, { server: true })` builds for a
+  server instead of `output: "export"`, including `content/` and `public/media/` with it. Everything visitors get stays
+  static, unless the site renders pages from its repository (below): pages are rendered by `next build`, and after it
+  `goodfellow-next finish --server` writes the calendar files into `public/calendars/` (`writeCalendarFiles()`) and
+  indexes the site's pages into `public/pagefind/` with `writePagesSearchIndex()`, since public files written then are
+  still served: `renderedPages()` from `@goodfellow-cms/next/export` renders every one of `sitePages()` from the content
+  and the config in Node with `createPageRenderer()`, as `goodfellow build` does, each in its language, so it needs
+  nothing `next build` writes and runs before a build that writes no `.next/`, such as vinext's, as well as after one
+  (`builtPages()` still reads what Next.js rendered). Where `.next/` isn't there, `exportTrailingSlash()` and the base
+  path come from `next.config.ts` itself (`siteServing()`), which `withGoodfellow()` marks with `SITE_SERVING` without
+  being called.
+- **Pages from the repository:** `goodfellowPages(config, { source })` renders pages from a `ContentSource` as they're
+  visited (`loadSourceSite()`, once a request, read as builds read it with `builtSource()` and `shownContent()`, or
+  `root`'s files where `source` gives nothing, as in `next dev`), such as `repositorySource(git)` (core's
+  `repository-source.ts`: the live branch's newest revision, asked for each time, each revision's content read once with
+  `prefetchedSource()`, the last few kept), so with `goodfellowApi({ onPublish })` calling `revalidatePath()` a publish
+  shows without a rebuild; `loadSite` on what it returns is the same site, and `language()` is its language for the root
+  layout's `<html lang>`, or the built files' where `source` can't be read, since the root layout wraps the admin panel
+  and sign-in, which must open then. The page route says `dynamic = "force-static"`, so the host keeps each page once it
+  has rendered, and `revalidate` (an hour in the company example, and its sitemap's), since only `onPublish` marks pages
+  changed: schedules, `changesOn()` dates, and changes that reach the repository another way show once a page is that
+  old. The company example keeps them in Workers KV (`kvDataAdapter()`), since nothing emulates Workers Cache outside
+  Cloudflare, so its end-to-end test can count the GitHub requests a visit makes (`/__requests`).
+- **Who may do what:** the app's `authorize(request)` gives an `AppEditor` (`login`, `name`, `email`, `role`), `null`
+  for nobody or `false` for someone who may not edit, on every request. Owners may change everything but plugins and the
+  site's code (installed blocks, `components/`, `lib/`, and `hooks/`, which the server runs), which they submit for
+  review (see Plugins; the Blocks screen's **Submit for review**, from `AppSession.codeReview` and
+  `Account.codeReview`), unless `codeChanges: "publish"` (`AppApiOptions.codeChanges`, `goodfellowApi({ codeChanges })`)
+  lets them publish code; editors may not change what `isSettingsPath()` covers (Site Settings, redirects, updates,
+  custom CSS and code, collections' `_collection.json`, installed blocks' code). Editors also may not change blocks'
+  settings marked `metadata: { owners: true }` (`isOwnersOnlyField()`, such as Custom HTML's `sanitize`):
+  `goodfellowApi()` passes `ownersOnlyFields(config.blocks)` as `AppApiOptions.ownersOnly`, and `ownersOnlyChanges()`
+  refuses a write where such a value changed on a block, by id, or a new block's isn't its default; the editor's frame
+  shows them read-only (`withOwnersOnlyLocked()`, `EditorOpen.ownersOnlyLocked`). An owners-only setting that isn't its
+  starting value makes the block the owners' whole (any other change to it is refused), two blocks with one id count as
+  a change (`checkPuckData()` refuses them too), and pages sent as bytes are read as text (`toFileChange()`). The server
+  checks every write, and `review` the same way for settings and owners-only settings; the admin panel only hides what
+  editors can't do (`useCanChangeSettings()`).
+- **Never trusting the browser:** every request needs `APP_API_HEADER` and must be same-origin (`Sec-Fetch-Site`, or
+  else `Origin`). Media is checked as `safeMediaChanges()` would (`unsafeMediaChanges()` in
+  `@goodfellow-cms/core/server`'s `svg-check.ts`: a kind `mediaKind()` allows, and SVGs already clean by `isCleanSvg()`,
+  which reads them with htmlparser2 by the same rules as `cleanSvg()`, `svg-rules.ts` in core, and refuses what the two
+  parsers could read differently), and someone who isn't an owner may change only `content/media-storage.json`'s files,
+  never its plugin or address (`keepsStorageSettings()`). Paths must be `isEditablePath()`, and revisions look like
+  commits. Errors from the git host stay on the server (`onError`), and answers say only what kind of failure it was.
+  After each `write`, `AppApiOptions.onPublish` (`goodfellowApi({ onPublish })`) is given a `PublishedChanges` (the
+  paths, the `AppEditor` and the new revision) before the answer, and its failures go to `onError`, never the editor,
+  since the publish has happened. The token is never sent to a browser, logged, or put in an answer.
+- **Pages for members:** pages' and templates' `visibility` root prop ("Who can see this page", `VISIBILITY_PROP`,
+  `everyone` or `members`) and `_collection.json`'s `visibility` mark what only a server can keep to members; core's
+  `content/visibility.ts` (`isMembersOnly()`, `isMembersCollection()`, which counts a template marked so too,
+  `membersPages()`, `withoutMembersContent()`) says which. The editor offers the setting only where `Account.members`
+  (full-stack sites) is set (`EditorOpen.members`, else `withoutVisibility()`) or the page already says `members`
+  (`isMembersPageData()`), and the collection settings only there or where it's published (by the collection or its
+  template, which unchecking it clears too), with or without items' pages, since items without pages are still left out
+  of the content API. Like a collection's, a page's is owners' (`metadata: { owners: true }`, locked for editors by
+  `withOwnersOnlyLocked()`, which covers the root's fields, and refused by `appApi()` with `visibilityChanges()`, which
+  reads pages sent as bytes too, and counts deleting a members' page, since its address could then be published again
+  for everyone). What builds publish beside pages leaves them out: `PageContent`'s `data-pagefind-body`,
+  `feedCollections()`, `calendarCollections()` (the calendar blocks offer no files for members' calendars), and
+  `prepareContentApi()` (`withoutMembersContent()`). Enforcement is the app's; `goodfellow build`'s and
+  `goodfellow-next finish`'s notes warn about members' pages on static sites (`buildNotes()`' `membersPages`,
+  `exportedMembersPages()`). `goodfellowPages(config, { paywall })` names a block of the site's own that ends a
+  members-only page's teaser: `Page` shows everyone else `teaserData()` (the top-level blocks before the first block
+  holding a paywall, then the paywall; only a paywall where there's none, so nothing an editor didn't choose is shown;
+  drop zones go with their blocks), `MembersPage` shows every page through `withoutPaywall()`, for the route the app's
+  proxy sends members to and must refuse to everyone else, and `shownPage()` picks one, after `expandSyncedBlocks()`,
+  since a paywall can be in a synced block.
+- **In the browser:** `<Admin server>` (`<GoodfellowAdmin server>`) uses `AppSignInGate` (`app-sign-in.tsx`) and
+  `appServer()` (`app-server.ts`), whose backend has no `pages`, `editors`, `updates`, or `drafts`, so those screens
+  aren't shown. `next dev` still uses the local backend.
+- **AI keys:** `aiServer(keys)` in `@goodfellow-cms/ai` (`server.ts`) sends on only the requests the assistant makes
+  (Claude's `v1/messages`, others' `chat/completions` and `models`), each body rebuilt with only the fields the
+  assistant sends (`claudeBody()`: one of `CLAUDE_MODELS`, and of `ServerKey.models` where it's given, at most
+  `MAX_TOKENS`, text messages and a JSON schema; `chatBody()`: a model, from `ServerKey.models` where it's given, text
+  messages and JSON answers), with only the headers they need (of `anthropic-beta`, only `ANTHROPIC_BETAS`) and the
+  site's key, and redacts the key from errors. The admin panel gets the services from the session, and
+  `ProviderSettings.server` sends requests there with no key.
+- **Tests:** `next-server.spec.ts` runs a full-stack copy of the Next.js starter (`e2e/.site-next-server`) with
+  `next start`, its own made-up sign-in, and fakes of GitHub and an AI service served over HTTP by
+  `start-next-server-site.mjs`, which only its server calls.
 
 ## Content in a repository of its own
 
-- **What it is:** a site can keep `content/` and `public/media/` in a repository of its own, so the tokens editors and full-stack sites' servers use can change the content but never the code. The config's backend points at the content repository with `contentOnly: true` (`GitBackend.contentOnly`, `ServerGit.contentOnly`); every backend then refuses other paths with `CodeChangeError` (`assertContentChanges()`, `isContentPath()` in core's `content/store.ts`), `appApi()` refuses them too and says so in the session, and the admin panel has no Blocks screen (`useAdmin().contentOnly`). Their `updates` follow the code repository's update job where the backend names it as `code` (`githubCodeUpdates()`, `gitlabCodeUpdates()`, `bitbucketCodeUpdates()`, with `SiteUpdates.code`, a `CodeRepository` the Updates screen reads `package.json` and its history from, and `no-access` where the sign-in can't see it); without `code` they have none, and the Updates screen only explains. Going back from the Updates screen skips the release it left in `content/updates.json` itself, since the update can't. `docs/content/collections/docs/content-repository.md` says how to set one up.
-- **On disk:** the content repository is in the code's `content-repository/` folder (`CONTENT_REPOSITORY_DIR`), ignored by the code's `.gitignore` with the links. `setUpContentRepository()` in `@goodfellow-cms/core/node` (`node-content-repository.ts`) links `content/` and `public/media/` to it (`goodfellow content link`, `goodfellow-next content link`; junctions on Windows), so every tool finds the files where it always does, or copies them (`content copy`), as builds do, since Next.js doesn't copy linked folders into an export. `contentRepositoryProblem()` stops `goodfellow dev`, `build`, and `withGoodfellow()` with what to run when the content isn't in place yet. `goodfellow dev` keeps the links' real folders out of Vite's watcher too, and `update()` never writes `content/updates.json` there, since it's the content repository's.
-- **Setup files:** `separateSetupFiles()` (core's `content-repository-setup.ts`) writes each repository's setup for each host: GitHub Pages and GitLab Pages build from the content repository, which checks out the code with read access only, while the code's repository runs the nightly update and starts the content repository's build after each change to the code; Cloudflare Pages builds from the content repository, which it reports builds to, with the build command `cloudflareContentBuild()` gives (cloning the code into `site/`), while the code's update job and the content's scheduled-change check ask it to rebuild through its deploy hook; Vercel builds from either (`CONTENT_BUILDS`, `contentBuildsFor()`), and the other repository asks it to rebuild through a deploy hook, in a job or workflow named `REBUILD_JOB`, which backends leave out of deploy status since it says nothing about when the site is live. On Bitbucket (Vercel only) the content repository's `bitbucket-pipelines.yml` (`bitbucketContentPipelines()`) rebuilds for scheduled changes, each night (`rebuild`, scheduled by an owner) and, where Vercel builds from the code, on every change; the code's (`bitbucketCodeRebuildPipelines()`) rebuilds on every change where Vercel builds from the content. Neither runs updates, so `bitbucketCodeUpdates()` reads the code's setup as missing. Whoever can push to the repository a host builds from controls the build, so sites whose build has secrets build from the code repository. `planSite({ content })` moves the content under `content-repository/`, swaps the setup files, and adds README sections; `create-goodfellow` (`--content`, `--build`) makes the content repository a git repository before the code's, so git doesn't count it as part of the code's. `separateSetupLinks()` says what else connects them, which the setup page sets up.
-- **Setup page:** it creates the code repository with `NewSiteRepository.more` (the sign-in worker keeps the person's token for the next one), then the content repository with `link` (a `RepositoryLink`), which connects them before the content's files are written, since its first build reads the code: on GitHub, for private repositories, a read-only Ed25519 deploy key on the repository read and its private half, in OpenSSH's format, as an Actions secret of the one reading (`deploy-keys.ts`: Web Crypto keys, and libsodium's sealed box from `@noble/ciphers` and `@noble/hashes`, loaded only then); on GitLab, each project in the other's job token allowlist (needed even for public ones), the code project's publishing key (`addPublishingKey()`) and a nightly schedule. Where that fails, the site is still created, with `connect-unavailable`; on GitLab each connection is tried on its own (`connectProjects()`, then `scheduleNightly()` once the project has its files, since a schedule names the main branch), and the ones GitLab refuses come back as `CreatedSiteRepository.unconnected` (`UnmadeConnection`s, with what GitLab answered), which the setup page lists with links to where they're added.
-- **Code tokens:** on GitHub, `github({ code })` asks the sign-in worker for a token for the code repository with each one for the site (`IssuedToken.code`, renewed together by `renewingToken()`). The worker gives one only where Goodfellow is installed there, the code's `goodfellow.config.tsx` names the site's repository, and the person can see it (owners: publish to it), with `CODE_PERMISSIONS`: Actions and Contents read, or for owners Actions write, never anything that changes code. Signing in works without one. The owners' app asks for Secrets for the setup page; where an installation hasn't accepted it, the setup token is made without it.
-- **Tests:** `content-repository.spec.ts` runs a production build of the starter (`e2e/.site-content`) whose content is linked from `content-repository/`, with a content-only GitHub backend whose code repository the fake adds with `addRepo()`. `site-setup.spec.ts` creates sites in two repositories on both hosts; the fakes keep deploy keys and opened secrets (`FakeCreatedRepo`), and job token allowlists and schedules (`FakeCreatedProject`).
+- **What it is:** a site can keep `content/` and `public/media/` in a repository of its own, so the tokens editors and
+  full-stack sites' servers use can change the content but never the code. The config's backend points at the content
+  repository with `contentOnly: true` (`GitBackend.contentOnly`, `ServerGit.contentOnly`); every backend then refuses
+  other paths with `CodeChangeError` (`assertContentChanges()`, `isContentPath()` in core's `content/store.ts`),
+  `appApi()` refuses them too and says so in the session, and the admin panel has no Blocks screen
+  (`useAdmin().contentOnly`). Their `updates` follow the code repository's update job where the backend names it as
+  `code` (`githubCodeUpdates()`, `gitlabCodeUpdates()`, `bitbucketCodeUpdates()`, with `SiteUpdates.code`, a
+  `CodeRepository` the Updates screen reads `package.json` and its history from, and `no-access` where the sign-in can't
+  see it); without `code` they have none, and the Updates screen only explains. Going back from the Updates screen skips
+  the release it left in `content/updates.json` itself, since the update can't.
+  `docs/content/collections/docs/content-repository.md` says how to set one up.
+- **On disk:** the content repository is in the code's `content-repository/` folder (`CONTENT_REPOSITORY_DIR`), ignored
+  by the code's `.gitignore` with the links. `setUpContentRepository()` in `@goodfellow-cms/core/node`
+  (`node-content-repository.ts`) links `content/` and `public/media/` to it (`goodfellow content link`,
+  `goodfellow-next content link`; junctions on Windows), so every tool finds the files where it always does, or copies
+  them (`content copy`), as builds do, since Next.js doesn't copy linked folders into an export.
+  `contentRepositoryProblem()` stops `goodfellow dev`, `build`, and `withGoodfellow()` with what to run when the content
+  isn't in place yet. `goodfellow dev` keeps the links' real folders out of Vite's watcher too, and `update()` never
+  writes `content/updates.json` there, since it's the content repository's.
+- **Setup files:** `separateSetupFiles()` (core's `content-repository-setup.ts`) writes each repository's setup for each
+  host: GitHub Pages and GitLab Pages build from the content repository, which checks out the code with read access
+  only, while the code's repository runs the nightly update and starts the content repository's build after each change
+  to the code; Cloudflare Pages builds from the content repository, which it reports builds to, with the build command
+  `cloudflareContentBuild()` gives (cloning the code into `site/`), while the code's update job and the content's
+  scheduled-change check ask it to rebuild through its deploy hook; Vercel builds from either (`CONTENT_BUILDS`,
+  `contentBuildsFor()`), and the other repository asks it to rebuild through a deploy hook, in a job or workflow named
+  `REBUILD_JOB`, which backends leave out of deploy status since it says nothing about when the site is live. On
+  Bitbucket (Vercel only) the content repository's `bitbucket-pipelines.yml` (`bitbucketContentPipelines()`) rebuilds
+  for scheduled changes, each night (`rebuild`, scheduled by an owner) and, where Vercel builds from the code, on every
+  change; the code's (`bitbucketCodeRebuildPipelines()`) rebuilds on every change where Vercel builds from the content.
+  Neither runs updates, so `bitbucketCodeUpdates()` reads the code's setup as missing. Whoever can push to the
+  repository a host builds from controls the build, so sites whose build has secrets build from the code repository.
+  `planSite({ content })` moves the content under `content-repository/`, swaps the setup files, and adds README
+  sections; `create-goodfellow` (`--content`, `--build`) makes the content repository a git repository before the
+  code's, so git doesn't count it as part of the code's. `separateSetupLinks()` says what else connects them, which the
+  setup page sets up.
+- **Setup page:** it creates the code repository with `NewSiteRepository.more` (the sign-in worker keeps the person's
+  token for the next one), then the content repository with `link` (a `RepositoryLink`), which connects them before the
+  content's files are written, since its first build reads the code: on GitHub, for private repositories, a read-only
+  Ed25519 deploy key on the repository read and its private half, in OpenSSH's format, as an Actions secret of the one
+  reading (`deploy-keys.ts`: Web Crypto keys, and libsodium's sealed box from `@noble/ciphers` and `@noble/hashes`,
+  loaded only then); on GitLab, each project in the other's job token allowlist (needed even for public ones), the code
+  project's publishing key (`addPublishingKey()`) and a nightly schedule. Where that fails, the site is still created,
+  with `connect-unavailable`; on GitLab each connection is tried on its own (`connectProjects()`, then
+  `scheduleNightly()` once the project has its files, since a schedule names the main branch), and the ones GitLab
+  refuses come back as `CreatedSiteRepository.unconnected` (`UnmadeConnection`s, with what GitLab answered), which the
+  setup page lists with links to where they're added.
+- **Code tokens:** on GitHub, `github({ code })` asks the sign-in worker for a token for the code repository with each
+  one for the site (`IssuedToken.code`, renewed together by `renewingToken()`). The worker gives one only where
+  Goodfellow is installed there, the code's `goodfellow.config.tsx` names the site's repository, and the person can see
+  it (owners: publish to it), with `CODE_PERMISSIONS`: Actions and Contents read, or for owners Actions write, never
+  anything that changes code. Signing in works without one. The owners' app asks for Secrets for the setup page; where
+  an installation hasn't accepted it, the setup token is made without it.
+- **Tests:** `content-repository.spec.ts` runs a production build of the starter (`e2e/.site-content`) whose content is
+  linked from `content-repository/`, with a content-only GitHub backend whose code repository the fake adds with
+  `addRepo()`. `site-setup.spec.ts` creates sites in two repositories on both hosts; the fakes keep deploy keys and
+  opened secrets (`FakeCreatedRepo`), and job token allowlists and schedules (`FakeCreatedProject`).
 
 ## Hosting anywhere
 
-- **Any host:** a site is static files, so it can be hosted anywhere; the setup files Goodfellow writes are for GitHub Pages, GitLab Pages, Cloudflare Pages, Netlify, and Vercel, and the docs' Host anywhere page (`any-host.md`) says what any other host needs: the build's folder, `404.html`, the headers in `_headers`, the redirects' pages, how addresses end, and `goodfellow nightly`, `due`, and `update` for the rest. Nothing outside the setup files may require one of the five hosts: where the admin panel can't tell the host (`outsideHost()` gives `undefined`), screens explain rather than fail (the Domain screen's `domain.elsewhere.other`, the Updates screen's `updates.needsSetup`), build status follows any workflow run or deployment for the commit, and `goodfellow admin add` and `check` work on any host, expecting the sandbox header only where the setup files name one that sends it.
+- **Any host:** a site is static files, so it can be hosted anywhere; the setup files Goodfellow writes are for GitHub
+  Pages, GitLab Pages, Cloudflare Pages, Netlify, and Vercel, and the docs' Host anywhere page (`any-host.md`) says what
+  any other host needs: the build's folder, `404.html`, the headers in `_headers`, the redirects' pages, how addresses
+  end, and `goodfellow nightly`, `due`, and `update` for the rest. Nothing outside the setup files may require one of
+  the five hosts: where the admin panel can't tell the host (`outsideHost()` gives `undefined`), screens explain rather
+  than fail (the Domain screen's `domain.elsewhere.other`, the Updates screen's `updates.needsSetup`), build status
+  follows any workflow run or deployment for the commit, and `goodfellow admin add` and `check` work on any host,
+  expecting the sandbox header only where the setup files name one that sends it.
 
 ## Goodfellow Cloud
 
-- **Planned, not built:** Goodfellow Cloud would set up and run, for its sites, what owners put online themselves today (the sign-in worker, a token broker, the connector service, and media storage), and later hosting, once enough organizations are interested. The docs' Goodfellow Cloud page (`goodfellow-cloud.md`), the README and the docs site's `/cloud` page say so without prices, dates, or what enough means; `/cloud`'s waitlist is a Form block posting to Web3Forms through the docs' own `content/site.json` `forms`, with `/cloud/thanks` as its thank-you page.
-- **The core is always free:** never make something Goodfellow does work only through Cloud. Everything Cloud would run stays possible, documented, and supported for owners who run it themselves (it charges for convenience, never capability), sites never need it, and the docs and code never promise a free hosted service.
+- **Planned, not built:** Goodfellow Cloud would set up and run, for its sites, what owners put online themselves today
+  (the sign-in worker, a token broker, the connector service, and media storage), and later hosting, once enough
+  organizations are interested. The docs' Goodfellow Cloud page (`goodfellow-cloud.md`), the README and the docs site's
+  `/cloud` page say so without prices, dates, or what enough means; `/cloud`'s waitlist is a Form block posting to
+  Web3Forms through the docs' own `content/site.json` `forms`, with `/cloud/thanks` as its thank-you page.
+- **The core is always free:** never make something Goodfellow does work only through Cloud. Everything Cloud would run
+  stays possible, documented, and supported for owners who run it themselves (it charges for convenience, never
+  capability), sites never need it, and the docs and code never promise a free hosted service.
 
 ## Copies of a site
 
-- **What it is:** a copy of a site, such as staging, is built from another branch of the same repository with the same config. The backend's `branch` comes from the build's environment in the config, and what else differs is set where it's built, never in content, so merging the copy's branch brings nothing of the copy's with it: `GOODFELLOW_SITE_URL` (`SITE_URL_VARIABLE`) for its address and `GOODFELLOW_NO_INDEX` (`NO_INDEX_VARIABLE`) to keep every page out of search engines (`settings.noIndex`, which `getPageHead()` reads). `siteCopyFrom()` in core's `site-copy.ts` reads them, and throws in words for values it can't use. `docs/content/collections/docs/staging.md` says how to set one up.
-- **Only builds see them:** `builtSiteSource()` in `@goodfellow-cms/core/node` is `fileSystemSource()` with `content/site.json` read as the copy is built (`withSiteCopy()`). Use it wherever pages, feeds, calendar files, sitemaps, redirects, or the build record are made (`goodfellow build` and `dev`, Next.js's `loadSite()`, `siteRedirects()` and every export helper), and never where content is saved: the local backend's `localFileStore()` keeps the plain `fileSystemSource()`, or Site Settings would save the copy's address. The nightly check reads the copy's address from the environment too.
-- **The admin panel** gets the copy's details as `AdminSite.copy`, only to show them (the Domain screen's note). A copy at an address of its own leaves out the config's admin address (`adminSiteForCopy()`, `describedForCopy()`, used by both builds and the Next.js adapter's `admin()` and `siteDescription()`), since the main site's would send its admin panel there; guards follow the admin site that's left.
-- **Sign-in:** the config's `copies` lists the copies' addresses, which `describeSite()` puts in `goodfellow-site.json`; the sign-in worker reads them from the main site's (`describedAddresses()`), and gives tokens to them as to the admin address: `https://` only, never `isLocalAddress()`, and not at all with a token broker.
+- **What it is:** a copy of a site, such as staging, is built from another branch of the same repository with the same
+  config. The backend's `branch` comes from the build's environment in the config, and what else differs is set where
+  it's built, never in content, so merging the copy's branch brings nothing of the copy's with it: `GOODFELLOW_SITE_URL`
+  (`SITE_URL_VARIABLE`) for its address and `GOODFELLOW_NO_INDEX` (`NO_INDEX_VARIABLE`) to keep every page out of search
+  engines (`settings.noIndex`, which `getPageHead()` reads). `siteCopyFrom()` in core's `site-copy.ts` reads them, and
+  throws in words for values it can't use. `docs/content/collections/docs/staging.md` says how to set one up.
+- **Only builds see them:** `builtSiteSource()` in `@goodfellow-cms/core/node` is `fileSystemSource()` with
+  `content/site.json` read as the copy is built (`withSiteCopy()`). Use it wherever pages, feeds, calendar files,
+  sitemaps, redirects, or the build record are made (`goodfellow build` and `dev`, Next.js's `loadSite()`,
+  `siteRedirects()` and every export helper), and never where content is saved: the local backend's `localFileStore()`
+  keeps the plain `fileSystemSource()`, or Site Settings would save the copy's address. The nightly check reads the
+  copy's address from the environment too.
+- **The admin panel** gets the copy's details as `AdminSite.copy`, only to show them (the Domain screen's note). A copy
+  at an address of its own leaves out the config's admin address (`adminSiteForCopy()`, `describedForCopy()`, used by
+  both builds and the Next.js adapter's `admin()` and `siteDescription()`), since the main site's would send its admin
+  panel there; guards follow the admin site that's left.
+- **Sign-in:** the config's `copies` lists the copies' addresses, which `describeSite()` puts in `goodfellow-site.json`;
+  the sign-in worker reads them from the main site's (`describedAddresses()`), and gives tokens to them as to the admin
+  address: `https://` only, never `isLocalAddress()`, and not at all with a token broker.
 
 ## Editors' limits
 
-- **The file:** `content/permissions.json` (`PERMISSIONS_FILE`, `permissionsFileSchema` in core's `content/permissions.ts`, content kind `permissions`, loaded into `SiteContent.permissions`) gives each limited person, by sign-in name compared without case (`limitsFor()`), their `EditorLimits`: page sections by address (`/news` with what's under it and pages whose `translationOf` is in it; `/` every page), collections' items, `media`, `layout`, `menus`, and `languages`. People it doesn't name have no limits. `reviewers` names who reviews the rest, else every owner (`reviewersFor()`, never the person themselves). `isSettingsPath()` covers it; the Editors screen's Limits section (`permissions-section.tsx`) writes it with `permissionsFileChange()`.
-- **The check:** `outsideLimits(content, limits, changes)` gives a `LimitProblem` for each file outside them, checking pages and items as they were and as the change leaves them, menus by the languages a change touches, and anything limits don't name (settings, redirects, collections' settings, the file itself) as `other`, so a move that relinks pages outside someone's sections is outside as a whole. It reads only `LimitsContent`; `limitsContent(source, changes)` reads just the files the changes touch, and `readPermissions()` the file, which the Claude connector and full-stack servers use rather than loading the site (see Claude connector's Reading little).
-- **Where it's checked:** the admin panel shows what's outside as read-only (`limits.ts`: `mayChange()`, `useMayChange()`; Puck's `permissions` all off in the frame through `EditorOpen.readOnly`), and `useAdmin().publish()` and **Publish all** stop at `LimitsDialog` (`limits-dialog.tsx`), which submits the changes for review in a new draft, with `reviewers`, or through `Account.review` on full-stack sites; changes into a draft aren't checked, since drafts aren't live. The broker refuses `write` and `draft.publish` outside them (`decide()`'s `backend`, `BrokerRefusedError` `limits`), the connector's `publish` tool refuses and `submit_for_review` asks the reviewers, and `appApi()` answers `outside-limits` to writes and takes content changes in its `review` route. Only that last one holds against the person themselves: on static sites editors' own accounts can change any file, and the docs say so.
-- **Reviews:** `Draft.submitForReview({ reviewers })` asks them through each host (GitHub's `requested_reviewers`, ignoring ones it refuses; GitLab's `reviewer_ids`, only the first on its free plan; Bitbucket's by `account_id` from workspace members, retrying without them where refused), `SiteDrafts.reviews()` lists open ones (`DraftReview`, only the repository's own, never a fork's with a draft's branch name), which `DraftBanner` shows owners first, and `branchDrafts()`'s publish and discard close them (`DraftHost.closeReview()`), since GitLab and Bitbucket keep them open when the branch goes.
+- **The file:** `content/permissions.json` (`PERMISSIONS_FILE`, `permissionsFileSchema` in core's
+  `content/permissions.ts`, content kind `permissions`, loaded into `SiteContent.permissions`) gives each limited
+  person, by sign-in name compared without case (`limitsFor()`), their `EditorLimits`: page sections by address (`/news`
+  with what's under it and pages whose `translationOf` is in it; `/` every page), collections' items, `media`, `layout`,
+  `menus`, and `languages`. People it doesn't name have no limits. `reviewers` names who reviews the rest, else every
+  owner (`reviewersFor()`, never the person themselves). `isSettingsPath()` covers it; the Editors screen's Limits
+  section (`permissions-section.tsx`) writes it with `permissionsFileChange()`.
+- **The check:** `outsideLimits(content, limits, changes)` gives a `LimitProblem` for each file outside them, checking
+  pages and items as they were and as the change leaves them, menus by the languages a change touches, and anything
+  limits don't name (settings, redirects, collections' settings, the file itself) as `other`, so a move that relinks
+  pages outside someone's sections is outside as a whole. It reads only `LimitsContent`;
+  `limitsContent(source, changes)` reads just the files the changes touch, and `readPermissions()` the file, which the
+  Claude connector and full-stack servers use rather than loading the site (see Claude connector's Reading little).
+- **Where it's checked:** the admin panel shows what's outside as read-only (`limits.ts`: `mayChange()`,
+  `useMayChange()`; Puck's `permissions` all off in the frame through `EditorOpen.readOnly`), and `useAdmin().publish()`
+  and **Publish all** stop at `LimitsDialog` (`limits-dialog.tsx`), which submits the changes for review in a new draft,
+  with `reviewers`, or through `Account.review` on full-stack sites; changes into a draft aren't checked, since drafts
+  aren't live. The broker refuses `write` and `draft.publish` outside them (`decide()`'s `backend`, `BrokerRefusedError`
+  `limits`), the connector's `publish` tool refuses and `submit_for_review` asks the reviewers, and `appApi()` answers
+  `outside-limits` to writes and takes content changes in its `review` route. Only that last one holds against the
+  person themselves: on static sites editors' own accounts can change any file, and the docs say so.
+- **Reviews:** `Draft.submitForReview({ reviewers })` asks them through each host (GitHub's `requested_reviewers`,
+  ignoring ones it refuses; GitLab's `reviewer_ids`, only the first on its free plan; Bitbucket's by `account_id` from
+  workspace members, retrying without them where refused), `SiteDrafts.reviews()` lists open ones (`DraftReview`, only
+  the repository's own, never a fork's with a draft's branch name), which `DraftBanner` shows owners first, and
+  `branchDrafts()`'s publish and discard close them (`DraftHost.closeReview()`), since GitLab and Bitbucket keep them
+  open when the branch goes.
 
 ## Puck
 
 - Use `@puckeditor/core`. `@measured/puck` is the old package name; don't import it.
-- Puck is pre-1.0 and its minor versions have breaking changes. Pin an exact version in every package, and upgrade it in one dedicated change across the workspace.
-- Prefer Puck's own APIs (slots, the `metadata` API, `richtext` fields, plugins, overrides, the dictionary, `FieldGroup`) over reimplementing them.
-- **Field types:** everything that reads blocks' fields without rendering them knows each of Puck's types: the edited-data checks (`checkEditedData()`), the AI assistant's schemas and answer checks (`fieldSchema()`, `cleanValue()` in `@goodfellow-cms/ai`), and the frame's labels (`withLabels()`). A `checkbox` field holds the chosen options' values as a list, in the field's order. A type Puck adds needs handling in each, or its values are taken as they come and left out of the assistant's schemas.
-- **Rich text** is rendered by Goodfellow, never by Puck's renderer, which loads TipTap and happy-dom and renders after a Suspense boundary: every `Render` (both renderers', and the editor frames' header, footer, item preview and synced blocks) gets `richTextTransforms` from `@goodfellow-cms/react` (`rich-text.tsx`, Puck's `fieldTransforms`, which reach rich text in arrays and objects too), which renders `<div class="rich-text">` holding `cleanRichText()`'s HTML (core's `content/sanitize.ts`): `RICH_TEXT_TAGS`, the formatting Puck's editor makes (its TipTap schema), with text alignment as it writes it, a code block's `language-…` class, links only to `isSafeUrl()` addresses and opened in a new tab only where `setLinkTargets()` said so, and plain text as a paragraph; anything else keeps its text, and scripts, styles and frames go whole, so rich text can't load another site's image. The editor's own canvas still edits rich text with Puck's editor. A field's own TipTap extensions (`tiptap.extensions`) show only what `RICH_TEXT_TAGS` keeps, so a block that needs more renders its HTML itself.
-- **The editor's frame** turns on Puck's drag handle in each block's action bar (`dnd: { enableDragHandle: true }`), whose text is the dictionary's `action-drag`.
+- Puck is pre-1.0 and its minor versions have breaking changes. Pin an exact version in every package, and upgrade it in
+  one dedicated change across the workspace.
+- Prefer Puck's own APIs (slots, the `metadata` API, `richtext` fields, plugins, overrides, the dictionary,
+  `FieldGroup`) over reimplementing them.
+- **Field types:** everything that reads blocks' fields without rendering them knows each of Puck's types: the
+  edited-data checks (`checkEditedData()`), the AI assistant's schemas and answer checks (`fieldSchema()`,
+  `cleanValue()` in `@goodfellow-cms/ai`), and the frame's labels (`withLabels()`). A `checkbox` field holds the chosen
+  options' values as a list, in the field's order. A type Puck adds needs handling in each, or its values are taken as
+  they come and left out of the assistant's schemas.
+- **Rich text** is rendered by Goodfellow, never by Puck's renderer, which loads TipTap and happy-dom and renders after
+  a Suspense boundary: every `Render` (both renderers', and the editor frames' header, footer, item preview and synced
+  blocks) gets `richTextTransforms` from `@goodfellow-cms/react` (`rich-text.tsx`, Puck's `fieldTransforms`, which reach
+  rich text in arrays and objects too), which renders `<div class="rich-text">` holding `cleanRichText()`'s HTML (core's
+  `content/sanitize.ts`): `RICH_TEXT_TAGS`, the formatting Puck's editor makes (its TipTap schema), with text alignment
+  as it writes it, a code block's `language-…` class, links only to `isSafeUrl()` addresses and opened in a new tab only
+  where `setLinkTargets()` said so, and plain text as a paragraph; anything else keeps its text, and scripts, styles and
+  frames go whole, so rich text can't load another site's image. The editor's own canvas still edits rich text with
+  Puck's editor. A field's own TipTap extensions (`tiptap.extensions`) show only what `RICH_TEXT_TAGS` keeps, so a block
+  that needs more renders its HTML itself.
+- **The editor's frame** turns on Puck's drag handle in each block's action bar (`dnd: { enableDragHandle: true }`),
+  whose text is the dictionary's `action-drag`.
 
 ## Blocks
 
-- **Never rename** a block's key in a site's `blocks` or any of its props. Content files refer to blocks and props by name, so a rename needs a content migration.
-- **CSS classes:** every block has a `className` prop. Declare `className: classNameField` and apply it to the block's outermost element. A block that doesn't declare it gets wrapped in a `<div>` that carries the classes.
-- **Style:** `classNameField` is the block's Style setting: a text field marked `metadata: { style: true }` (`isStyleField()`), so the AI assistant (its `STYLE_HINT`), the Claude connector, the content checks, and editor plugins see the classes it holds, which the editor's frame draws as controls (`withStyleFields()` in `frame/style-field.tsx`, on blocks' fields, the root's, and what `resolveFields` gives, and never in the config it describes to the page). Alignment, text size, colors (the theme's as `text-primary`, or the editor's own as `bg-[#hex]`), space inside and around, rounded corners, and the sizes of screen a block is hidden on (`hiddenOn`, `SCREEN_SIZES`: phones below `sm`, tablets to `lg`, computers from it, as `max-sm:hidden`, `sm:max-lg:hidden` and `lg:hidden`, the fewest of them, never plain `hidden`, which blocks use with `dark:block`; not offered for the page) are read and written by `readBlockStyle()` and `withBlockStyle()` (core's `block-style.ts`, which keeps classes it doesn't cover, first and in order, and writes only values a class can say); a block with its own `align` field gets no text alignment there. The site's Tailwind finds the classes through `@source "../content"`, as any class in content.
-- **Combining classes:** use `cx()` from `@goodfellow-cms/react`, with `className` last. It uses tailwind-merge, so an editor's classes override the block's defaults instead of conflicting with them.
-- **Named parts:** give every part of a block a stable name with `useParts()` from `@goodfellow-cms/react` (`part("gf-card-title", own, ...chosen)`): the name, then the block's own classes (with the looks it offers, such as a style, a size, or a heading level), then the theme's (`theme.parts` in `content/site.json`), then what an editor chose for the block (alignment, spacing, toggles such as rounded corners, and states such as the current page), with `className` last. Declare a block's parts, with what owners call them, with `withParts()`, which `describeSite()` carries to the admin panel's page (the Theme tab's `PartsEditor`, `parts-editor.tsx`) and `goodfellow-site.json`. Built-in blocks' names are in `parts.ts` in `@goodfellow-cms/blocks`, and `parts.test.ts` keeps every published one; registry blocks start theirs with `gf-` and the item's name. Client Components get their parts' classes from the block as plain props, unless they read `useSite()` already. Scripts that add elements get theirs from attributes the block renders, as the Search box's results do. Never rename or remove a part's name: themes refer to them, as content does to props.
-- **Complete class names:** write Tailwind classes as complete strings, using lookup tables for options (`{ sm: "gap-3", md: "gap-6" }`). Never build class names from parts, or Tailwind won't find them.
-- **Theme tokens:** style with theme classes (`bg-primary`, `text-muted-foreground`, `font-heading`, `rounded-lg`) rather than fixed colors, so blocks follow the site's theme.
-- **Dark mode** is off until a site turns it on (`theme.darkMode` in `content/site.json`, with `theme.darkColors` and `logo.darkSrc`). Then `themeToCss()` adds dark colors (`darkThemeColor()`, falling back to `DEFAULT_DARK_THEME_COLORS`) for `prefers-color-scheme: dark`, and pages get `<meta name="color-scheme" content="light dark">` (`colorSchemeMeta()`, in both renderers). Theme tokens follow by themselves. `dark:` classes go through `@custom-variant dark` in `@goodfellow-cms/react/theme.css`, which applies them only on pages with that meta, so light-only sites never use them, and wherever `COLOR_SCHEME_ATTRIBUTE` (`data-gf-color-scheme`) says `dark`, which is how the admin panel's previews show a site dark (`PreviewStyles.scheme`, like the admin panel unless the Theme tab's Preview says otherwise) and how the Dark mode switch block shows a visitor's choice (`darkModeScript()` in core's `block-scripts.ts`, kept in `localStorage` under `COLOR_SCHEME_STORAGE_KEY` and put back before the page shows by `colorSchemeScript()`, an inline script both renderers add to sites with dark mode; the Next.js starter's `<html>` has `suppressHydrationWarning` for it). `color-scheme.ts` in core has no imports, since the switch's script uses it in visitors' browsers. Where a block needs a different file in dark mode, render both with `dark:hidden` and `hidden dark:block`, as SiteBrand does with the dark logo. Code highlighted "like the page" (`colors: "page"`, and Markdown's code) carries Shiki's dark colors as variables on sites with dark mode, which `@goodfellow-cms/blocks/styles.css` uses in dark mode.
-- **Site data:** read menus, settings, collections, and the site's pages (`useSite().pages`, `pageLinks()` and `pageTree()` in core's `content/page-links.ts`, in the page's language, which every place that makes a site's context fills in) with `useSite()`. Never copy them into a block's props.
-- **Fields the editor draws:** a field blocks can't draw themselves, since only the admin panel's code runs in the editor, is a custom field marked in its `metadata`, such as `tableField()`'s, whose render the editor's frame replaces (`withTableFields()` in `frame/table-field.tsx`, a grid of cells), and that draws nothing anywhere else.
-- **Links and images:** render them with `SiteLink` and `SiteImage` from `@goodfellow-cms/react`, never `<a>` and `<img>`, so they follow the site's base path and use the renderer's components (`next/link`, `next/image`). `SiteLink` leaves out an address `isScriptUrl()` finds, keeping the link's words, whatever the checks let through. Any other root-relative address, such as a CSS background, goes through `withBase(url, useSite().base)`.
-- **Headings:** blocks that are a page's headings say so with `withHeading()` in `@goodfellow-cms/react` (the Heading block's text, level, and optional `anchor`), and `pageHeadings()` gives each a link name unique on the page (`headingAnchors()` in core's `content/page-headings.ts`, beside an item's Markdown headings' ids), which `preparePage()` puts in `useSite().headings` and the content API's page files, and the editor's frame works out again as the page changes. Heading blocks render it as their `id`, and On this page (`listedHeadings()` in `docs-data.ts`) lists them, or an item's Markdown headings where it has a Markdown body.
-- **Formatted table cells:** the Table block's cells are HTML limited to `TABLE_CELL_TAGS` (bold, italics, underline, strikethrough, code, links, and line breaks), rendered through `tableCellHtml()`, where its `format` is `html`, as every new table's is. Tables from before have none, and their cells are plain text: `render` escapes them (`escapeCellText()`), and `resolveData` makes them formatted once they change or where pages are built, never on the editor's `load`, which would count as an unpublished change. `format` is a custom field that draws nothing, so the AI assistant and the connector keep it. The editor's grid edits each cell as formatted text (`RichCell` in `frame/table-field.tsx`); the content API gives the cells as rich text by `cells.<row>.<column>`, which apps draw; WordPress imports and exports keep their links and formatting.
-- **Breadcrumbs:** the Breadcrumbs block's way to the page comes from `breadcrumbs()` in core's `content/page-links.ts` (the home page of the page's language, then each of `pages` whose address is above it, then the page, an item by its title, a page a block adds after the page it's on), through `pageBreadcrumbs()` in `links.ts`, which its native version shares. It's marked up as schema.org's `BreadcrumbList` with microdata (`itemScope`, `itemProp`, and `<meta itemProp="position">`, which React renders in place), not JSON-LD, so it needs nothing from `structuredData()`. It shows nothing on the home page or without a `path`, as in a Next.js layout.
-- **Menus on phones:** Menu's `menuButton` (`MenuButton` in `links.ts`: `never`, `sm`, `md`, `lg`, `always`, from `MENU_BUTTON`'s complete classes) shows every level of its links in a `<details>` panel, with no JavaScript, below the breakpoint chosen, since submenus open on hover; a menu across the page with submenus (`hasSubmenus()`) that never has it says so in the editor (`MENU_BUTTON_NOTICE`). Its native version has the button below the same breakpoint, and on phones for any menu with submenus.
-- **Built-in blocks never need React in visitors' browsers,** those there are and any added later: they render plain HTML, and what they do in the browser beyond HTML and CSS (`<details>`, `:hover`, `:focus-within`) is a small script of its own in core's `block-scripts.ts` (`copyScript()`, `darkModeScript()`, `searchScript()`, `lightboxScript()`, `announcementScript()`), with no imports but constants, listening on the whole document rather than on its elements and doing nothing a second time, so it works on what Next.js's navigations add, and never moving or removing the page's elements, which Next.js's React may take over before or after it runs (`suppressHydrationWarning` on what it changes). Each is marked by an attribute (`BLOCK_SCRIPTS`), and `goodfellow build` adds a script only to pages with its attribute (`blockScriptsFor()`), while Next.js's layout, which can't know the page, has them all (`BlockScripts`). Where a script needs an address, a `data-gf-base` attribute carries the site's, which `applyBasePath()` gives the base path. The only Client Component left, the Language switch in a Next.js layout (`language-switch-client.tsx`), runs only where Next.js has React anyway. A new built-in block adds its script there, with a test in `block-scripts.test.ts`. The one script a block renders itself is `announcementHideScript()`, which a closable Announcement bar puts just before itself where pages are built, so a bar the visitor closed (remembered by `announcementHash()` of its message and link, in `ANNOUNCEMENT_STORAGE_KEY`) is hidden before it shows; it reads only hashes back from storage.
-- **Interactive parts** of sites', registries', and plugins' blocks can go in a Client Component, a file starting with `"use client"`, which may use any hooks; pass it plain values and content (`children`) only. They run in the browser with Next.js and `goodfellow build` alike (see Islands). A page with one loads React, so avoid them where HTML and CSS will work.
-- **No hooks in `render` itself**, other than `useSite()` and `useParts()`, which reads it: blocks render as Server Components in Next.js, where hooks such as `useState` fail.
+- **Never rename** a block's key in a site's `blocks` or any of its props. Content files refer to blocks and props by
+  name, so a rename needs a content migration.
+- **CSS classes:** every block has a `className` prop. Declare `className: classNameField` and apply it to the block's
+  outermost element. A block that doesn't declare it gets wrapped in a `<div>` that carries the classes.
+- **Style:** `classNameField` is the block's Style setting: a text field marked `metadata: { style: true }`
+  (`isStyleField()`), so the AI assistant (its `STYLE_HINT`), the Claude connector, the content checks, and editor
+  plugins see the classes it holds, which the editor's frame draws as controls (`withStyleFields()` in
+  `frame/style-field.tsx`, on blocks' fields, the root's, and what `resolveFields` gives, and never in the config it
+  describes to the page). Alignment, text size, colors (the theme's as `text-primary`, or the editor's own as
+  `bg-[#hex]`), space inside and around, rounded corners, and the sizes of screen a block is hidden on (`hiddenOn`,
+  `SCREEN_SIZES`: phones below `sm`, tablets to `lg`, computers from it, as `max-sm:hidden`, `sm:max-lg:hidden` and
+  `lg:hidden`, the fewest of them, never plain `hidden`, which blocks use with `dark:block`; not offered for the page)
+  are read and written by `readBlockStyle()` and `withBlockStyle()` (core's `block-style.ts`, which keeps classes it
+  doesn't cover, first and in order, and writes only values a class can say); a block with its own `align` field gets no
+  text alignment there. The site's Tailwind finds the classes through `@source "../content"`, as any class in content.
+- **Combining classes:** use `cx()` from `@goodfellow-cms/react`, with `className` last. It uses tailwind-merge, so an
+  editor's classes override the block's defaults instead of conflicting with them.
+- **Named parts:** give every part of a block a stable name with `useParts()` from `@goodfellow-cms/react`
+  (`part("gf-card-title", own, ...chosen)`): the name, then the block's own classes (with the looks it offers, such as a
+  style, a size, or a heading level), then the theme's (`theme.parts` in `content/site.json`), then what an editor chose
+  for the block (alignment, spacing, toggles such as rounded corners, and states such as the current page), with
+  `className` last. Declare a block's parts, with what owners call them, with `withParts()`, which `describeSite()`
+  carries to the admin panel's page (the Theme tab's `PartsEditor`, `parts-editor.tsx`) and `goodfellow-site.json`.
+  Built-in blocks' names are in `parts.ts` in `@goodfellow-cms/blocks`, and `parts.test.ts` keeps every published one;
+  registry blocks start theirs with `gf-` and the item's name. Client Components get their parts' classes from the block
+  as plain props, unless they read `useSite()` already. Scripts that add elements get theirs from attributes the block
+  renders, as the Search box's results do. Never rename or remove a part's name: themes refer to them, as content does
+  to props.
+- **Complete class names:** write Tailwind classes as complete strings, using lookup tables for options
+  (`{ sm: "gap-3", md: "gap-6" }`). Never build class names from parts, or Tailwind won't find them.
+- **Theme tokens:** style with theme classes (`bg-primary`, `text-muted-foreground`, `font-heading`, `rounded-lg`)
+  rather than fixed colors, so blocks follow the site's theme.
+- **Dark mode** is off until a site turns it on (`theme.darkMode` in `content/site.json`, with `theme.darkColors` and
+  `logo.darkSrc`). Then `themeToCss()` adds dark colors (`darkThemeColor()`, falling back to
+  `DEFAULT_DARK_THEME_COLORS`) for `prefers-color-scheme: dark`, and pages get
+  `<meta name="color-scheme" content="light dark">` (`colorSchemeMeta()`, in both renderers). Theme tokens follow by
+  themselves. `dark:` classes go through `@custom-variant dark` in `@goodfellow-cms/react/theme.css`, which applies them
+  only on pages with that meta, so light-only sites never use them, and wherever `COLOR_SCHEME_ATTRIBUTE`
+  (`data-gf-color-scheme`) says `dark`, which is how the admin panel's previews show a site dark
+  (`PreviewStyles.scheme`, like the admin panel unless the Theme tab's Preview says otherwise) and how the Dark mode
+  switch block shows a visitor's choice (`darkModeScript()` in core's `block-scripts.ts`, kept in `localStorage` under
+  `COLOR_SCHEME_STORAGE_KEY` and put back before the page shows by `colorSchemeScript()`, an inline script both
+  renderers add to sites with dark mode; the Next.js starter's `<html>` has `suppressHydrationWarning` for it).
+  `color-scheme.ts` in core has no imports, since the switch's script uses it in visitors' browsers. Where a block needs
+  a different file in dark mode, render both with `dark:hidden` and `hidden dark:block`, as SiteBrand does with the dark
+  logo. Code highlighted "like the page" (`colors: "page"`, and Markdown's code) carries Shiki's dark colors as
+  variables on sites with dark mode, which `@goodfellow-cms/blocks/styles.css` uses in dark mode.
+- **Site data:** read menus, settings, collections, and the site's pages (`useSite().pages`, `pageLinks()` and
+  `pageTree()` in core's `content/page-links.ts`, in the page's language, which every place that makes a site's context
+  fills in) with `useSite()`. Never copy them into a block's props.
+- **Fields the editor draws:** a field blocks can't draw themselves, since only the admin panel's code runs in the
+  editor, is a custom field marked in its `metadata`, such as `tableField()`'s, whose render the editor's frame replaces
+  (`withTableFields()` in `frame/table-field.tsx`, a grid of cells), and that draws nothing anywhere else.
+- **Links and images:** render them with `SiteLink` and `SiteImage` from `@goodfellow-cms/react`, never `<a>` and
+  `<img>`, so they follow the site's base path and use the renderer's components (`next/link`, `next/image`). `SiteLink`
+  leaves out an address `isScriptUrl()` finds, keeping the link's words, whatever the checks let through. Any other
+  root-relative address, such as a CSS background, goes through `withBase(url, useSite().base)`.
+- **Headings:** blocks that are a page's headings say so with `withHeading()` in `@goodfellow-cms/react` (the Heading
+  block's text, level, and optional `anchor`), and `pageHeadings()` gives each a link name unique on the page
+  (`headingAnchors()` in core's `content/page-headings.ts`, beside an item's Markdown headings' ids), which
+  `preparePage()` puts in `useSite().headings` and the content API's page files, and the editor's frame works out again
+  as the page changes. Heading blocks render it as their `id`, and On this page (`listedHeadings()` in `docs-data.ts`)
+  lists them, or an item's Markdown headings where it has a Markdown body.
+- **Formatted table cells:** the Table block's cells are HTML limited to `TABLE_CELL_TAGS` (bold, italics, underline,
+  strikethrough, code, links, and line breaks), rendered through `tableCellHtml()`, where its `format` is `html`, as
+  every new table's is. Tables from before have none, and their cells are plain text: `render` escapes them
+  (`escapeCellText()`), and `resolveData` makes them formatted once they change or where pages are built, never on the
+  editor's `load`, which would count as an unpublished change. `format` is a custom field that draws nothing, so the AI
+  assistant and the connector keep it. The editor's grid edits each cell as formatted text (`RichCell` in
+  `frame/table-field.tsx`); the content API gives the cells as rich text by `cells.<row>.<column>`, which apps draw;
+  WordPress imports and exports keep their links and formatting.
+- **Breadcrumbs:** the Breadcrumbs block's way to the page comes from `breadcrumbs()` in core's `content/page-links.ts`
+  (the home page of the page's language, then each of `pages` whose address is above it, then the page, an item by its
+  title, a page a block adds after the page it's on), through `pageBreadcrumbs()` in `links.ts`, which its native
+  version shares. It's marked up as schema.org's `BreadcrumbList` with microdata (`itemScope`, `itemProp`, and
+  `<meta itemProp="position">`, which React renders in place), not JSON-LD, so it needs nothing from `structuredData()`.
+  It shows nothing on the home page or without a `path`, as in a Next.js layout.
+- **Menus on phones:** Menu's `menuButton` (`MenuButton` in `links.ts`: `never`, `sm`, `md`, `lg`, `always`, from
+  `MENU_BUTTON`'s complete classes) shows every level of its links in a `<details>` panel, with no JavaScript, below the
+  breakpoint chosen, since submenus open on hover; a menu across the page with submenus (`hasSubmenus()`) that never has
+  it says so in the editor (`MENU_BUTTON_NOTICE`). Its native version has the button below the same breakpoint, and on
+  phones for any menu with submenus.
+- **Built-in blocks never need React in visitors' browsers,** those there are and any added later: they render plain
+  HTML, and what they do in the browser beyond HTML and CSS (`<details>`, `:hover`, `:focus-within`) is a small script
+  of its own in core's `block-scripts.ts` (`copyScript()`, `darkModeScript()`, `searchScript()`, `lightboxScript()`,
+  `announcementScript()`), with no imports but constants, listening on the whole document rather than on its elements
+  and doing nothing a second time, so it works on what Next.js's navigations add, and never moving or removing the
+  page's elements, which Next.js's React may take over before or after it runs (`suppressHydrationWarning` on what it
+  changes). Each is marked by an attribute (`BLOCK_SCRIPTS`), and `goodfellow build` adds a script only to pages with
+  its attribute (`blockScriptsFor()`), while Next.js's layout, which can't know the page, has them all (`BlockScripts`).
+  Where a script needs an address, a `data-gf-base` attribute carries the site's, which `applyBasePath()` gives the base
+  path. The only Client Component left, the Language switch in a Next.js layout (`language-switch-client.tsx`), runs
+  only where Next.js has React anyway. A new built-in block adds its script there, with a test in
+  `block-scripts.test.ts`. The one script a block renders itself is `announcementHideScript()`, which a closable
+  Announcement bar puts just before itself where pages are built, so a bar the visitor closed (remembered by
+  `announcementHash()` of its message and link, in `ANNOUNCEMENT_STORAGE_KEY`) is hidden before it shows; it reads only
+  hashes back from storage.
+- **Interactive parts** of sites', registries', and plugins' blocks can go in a Client Component, a file starting with
+  `"use client"`, which may use any hooks; pass it plain values and content (`children`) only. They run in the browser
+  with Next.js and `goodfellow build` alike (see Islands). A page with one loads React, so avoid them where HTML and CSS
+  will work.
+- **No hooks in `render` itself**, other than `useSite()` and `useParts()`, which reads it: blocks render as Server
+  Components in Next.js, where hooks such as `useState` fail.
 - **Labels:** field labels and option names are for non-technical users ("Space above and below", not "padding-y").
-- **Finding blocks:** the editor's block list has a search box (`BlockSearch` in the admin panel's `frame/block-search.tsx`, Puck's `drawer` override, listing what it finds with Puck's `Drawer`), which finds blocks by their labels, names' words, groups, and keywords (`withKeywords()` in `@goodfellow-cms/react`, carried in `describeSite()` as `keywords`; the built-in blocks' are `BLOCK_KEYWORDS` in `@goodfellow-cms/blocks`, which a test keeps complete, with WordPress's names for its blocks among them). The built-in groups start open where they fit what's edited (`OPEN_CATEGORIES`, applied by `createPuckConfig()` where a site's config doesn't set `defaultExpanded`); sites' own and installed groups start open. Each item shows its block's icon in place of Puck's drag handle (`drawerItemWithIcon()` in `frame/block-icon.tsx`, Puck's `drawerItem` override, which the search's results use too): `withIcon()` in `@goodfellow-cms/react` gives a block Lucide-style shapes on a 24-unit grid, kept only as plain shapes and numbers (`cleanBlockIcon()` in core's `block-icons.ts`, also applied when reading `goodfellow-site.json`), carried in `describeSite()` as `icon`, so editor plugins draw them too; the built-in blocks' are `BLOCK_ICONS` in `@goodfellow-cms/blocks` (`src/icons.ts`, written from lucide-react's icon data with its license by `pnpm --filter @goodfellow-cms/blocks update-icons`, never by hand), which a test keeps complete, and blocks without one get a box.
-- **Versions for apps:** every built-in block has a native version beside it (`<file>.native.tsx`, in `nativeBlocks`), which a test keeps complete: a new built-in block needs one, and what both show goes in a module with no React (see Apps).
-- **Accessible output:** blocks' own headings never skip a level (a list's items' titles go one level under its heading, or are level 2 without one), images only there to look nice get `alt=""` and `aria-hidden`, and nothing landmark-like (`<aside>`) goes inside `<main>`. Builds check the starters', the example's, and the docs' pages, and a test expects no problems.
+- **Finding blocks:** the editor's block list has a search box (`BlockSearch` in the admin panel's
+  `frame/block-search.tsx`, Puck's `drawer` override, listing what it finds with Puck's `Drawer`), which finds blocks by
+  their labels, names' words, groups, and keywords (`withKeywords()` in `@goodfellow-cms/react`, carried in
+  `describeSite()` as `keywords`; the built-in blocks' are `BLOCK_KEYWORDS` in `@goodfellow-cms/blocks`, which a test
+  keeps complete, with WordPress's names for its blocks among them). The built-in groups start open where they fit
+  what's edited (`OPEN_CATEGORIES`, applied by `createPuckConfig()` where a site's config doesn't set
+  `defaultExpanded`); sites' own and installed groups start open. Each item shows its block's icon in place of Puck's
+  drag handle (`drawerItemWithIcon()` in `frame/block-icon.tsx`, Puck's `drawerItem` override, which the search's
+  results use too): `withIcon()` in `@goodfellow-cms/react` gives a block Lucide-style shapes on a 24-unit grid, kept
+  only as plain shapes and numbers (`cleanBlockIcon()` in core's `block-icons.ts`, also applied when reading
+  `goodfellow-site.json`), carried in `describeSite()` as `icon`, so editor plugins draw them too; the built-in blocks'
+  are `BLOCK_ICONS` in `@goodfellow-cms/blocks` (`src/icons.ts`, written from lucide-react's icon data with its license
+  by `pnpm --filter @goodfellow-cms/blocks update-icons`, never by hand), which a test keeps complete, and blocks
+  without one get a box.
+- **Versions for apps:** every built-in block has a native version beside it (`<file>.native.tsx`, in `nativeBlocks`),
+  which a test keeps complete: a new built-in block needs one, and what both show goes in a module with no React (see
+  Apps).
+- **Accessible output:** blocks' own headings never skip a level (a list's items' titles go one level under its heading,
+  or are level 2 without one), images only there to look nice get `alt=""` and `aria-hidden`, and nothing landmark-like
+  (`<aside>`) goes inside `<main>`. Builds check the starters', the example's, and the docs' pages, and a test expects
+  no problems.
 
 ## Admin panel
 
-- **Text:** every string goes through `useStrings()` and the table in `packages/admin/src/strings.tsx`. A test fails if any string uses git terms, in any language Goodfellow ships; sites' own languages (see below) aren't held to it.
-- **Languages:** the admin panel speaks the languages in `ADMIN_LANGUAGES` (`admin-language.ts`): each editor's choice, kept in `localStorage`, else the browser's first one it speaks (`browserAdminLanguage()`), else English, set with the header's language menu (`LanguageMenu`) and on `<html lang>`. Each language but English is `languages/<code>.ts` (`AdminText`: `strings`, the whole `Strings` table with the same `{placeholders}`, Puck's `dictionary` as `puck`, and blocks' `labels` by their English wording), loaded only when chosen, so a new string needs its translation in every language in the same change, which the tests and the `Strings` type enforce. The page gives frames the table, Puck's dictionary, and the labels in `init` (`FrameInit.puck`, `.labels`, `EditorTextContext` in `editor-text.ts`, which frames import in place of `admin-language.ts`), so frames never bundle a language; the editor's frame puts the labels in place of the English with `withLabels()` (`frame/labels.ts`: blocks' names, groups, settings' labels, choices, and placeholders, `resolveFields`' too, never props or values), which a test keeps complete for the built-in blocks. The `Admin` component's `strings` go over the chosen language's. Content the admin panel writes in words, such as WordPress imports' collection names and commit messages, follows the editor's language.
-- **Sites' own languages:** a site can have the admin panel in any language in `content/admin-text/<code>.json` (core's `content/admin-text.ts`: `adminTextFileSchema`, content kind `admin-text`; `strings`, `puck`, and `labels`, each entry's `text` with `source`, `englishHash()` of the English it was made from, and `reviewed`), which `isSettingsPath()` keeps to owners. `composeAdminText()` (`admin-language.ts`) lays a file over Goodfellow's own translation, where it ships one, over the English, checking every string as it's used (`adminTextTable()`, `adminTextOverlay()`, `adminTextProblem()`: not empty, not past `MAX_ADMIN_TEXT_LENGTH`, and the English's `{placeholders}`, never the words a translation chooses, git's included), and puts the English after the site's words for `showsEnglish()`'s strings (signing in, tokens, owners', plugins', and what can't be undone). Builds publish the files beside the admin panel (`publishedAdminText()`, `ADMIN_TEXT_INDEX`, `writeAdminText()` in `@goodfellow-cms/core/node`, run by `goodfellow build` and `goodfellow-next finish`, into `public/admin/text/` with `--server`), which `usePublishedAdminText()` reads before sign-in; once the site loads, `Shell` reads the site's own (`readAdminText()`, which leaves out files it can't read rather than throwing) with each revision, which win. `useAdminLanguages()` gives the menu Goodfellow's and the site's languages; a language only the site has waits for the site's list before falling back to the browser's.
-- **Translating them:** Site Settings' Admin panel languages screen (`admin-languages-screen.tsx`) adds a language and translates it with the AI service the editor chose (`useAiService()`, shared with the AI panel, and its `ServiceSettings`): `adminTextSources()` (`admin-text-sources.ts`, no React) lists every English string, by `sourceKey()` (`strings:`, `puck:`, `labels:`), from `defaultStrings`, `PUCK_ENGLISH` (`languages/en-puck.ts`, Puck's own English for the keys Goodfellow translates, which Puck doesn't export and a test keeps the same as the Spanish table's keys) and the site's blocks' labels (`labelSources()`, from the description, with the Spanish labels' keys for the built-in groups); `sourcesToTranslate()` picks what's missing, unusable, or (on request) outdated; `translateAdminText()` in `@goodfellow-cms/ai` (`admin-text.ts`: `adminTextRequest()`, `ADMIN_TEXT_BATCH` at a time, `ADMIN_GLOSSARY`'s terms first so later batches are told their words, every answer checked with `readAdminTextAnswer()`) stops at the first failure keeping what came back; and `withTranslations()` writes it with each string's `englishHash()`, published at once, even part way. `languageStatus()` counts what each language says.
-- **Editing them:** each language opens at `#/settings/admin-languages/<code>` in `AdminTextEditor` (`admin-text-editor.tsx`): `filterSources()` searches and narrows by `SourceFilter`, edits are kept as `AdminTextEdit`s until **Publish**, which `withEdits()` writes (today's English's hash, `reviewed` as marked, emptied ones taken out), and a string `adminTextProblem()` refuses keeps Publish off. Goodfellow's own languages open the same way, their files (`en.json`, `es.json`) holding only what the owner changed over Goodfellow's words, which the editor shows as each box's placeholder (`shippedDefaults()`); they aren't listed among the site's languages, and `composeAdminText()`'s `english` leaves the English off English's own changed words.
-- **Language packs:** the admin panel's text in one language as an npm package with no code, `goodfellow-language-<name>` (`isLanguagePackName()`, `LANGUAGE_PACK_KEYWORD`) holding `goodfellow-language.json` (`LANGUAGE_PACK_MANIFEST`, `languagePackManifestSchema` in core's `content/language-packs.ts`: a language's file with its `code`), found and read like themes (`searchLanguagePacks()`, `languagePackReleases()`, `chooseLanguagePackRelease()`, `fetchLanguagePack()` in `language-packs.ts`, over `npm-packages.ts`). `planLanguagePack(code, file, pack, { replaceOwn })` writes the language's file with no network access: the file's `pack` names the release, and each string it wrote carries `pack`, `englishHash()` of its text, so `fromLanguagePack()` tells what nobody has changed since, which an update or removal (`pack` undefined) replaces or takes out, keeping the rest as `kept` (or listing it as `replaced` with `replaceOwn`), and deleting a file left empty. `withEdits()` and `withTranslations()` keep both marks. The Admin panel languages screen's `LanguagePacks` (`language-packs.tsx`) searches only when asked, and installs, updates, and removes them through `publish()`; nothing updates them by itself. Packs' own tests read the admin panel's English from `@goodfellow-cms/admin/text` (`src/text.ts`, an entry of its own that draws nothing: `goodfellowAdminTextSources()`, `BUILT_IN_LABELS`, `languageStatus()`, `sourceState()`). None live in this repository: Goodfellow's own, French, is `goodfellow-cms/goodfellow-language-fr`, the example the docs' Languages page points publishers to. Tests use `fakeLanguagePacks()` and `sampleLanguagePackFiles()` from `@goodfellow-cms/core/testing`.
-- **Saving:** build file changes with the helpers in `packages/admin/src/changes.ts`, so files are always written in canonical form, and publish them through `useAdmin().publish()`, which passes the revision the editor loaded. After a `ConflictError`, the editor's **Reload** opens Puck again with what was reloaded (`EditorOpen.reopened`, which remounts it) and takes that as what's published, keeping the editor's own data for **Put my changes back**, so publishing again never puts the old version back over someone else's. What the editor's frame hands back passes `checkPuckData()` (core's `content/edited-data.ts`: plain JSON, and only the site's blocks, in slots and drop zones too) before it's published, as editor plugins' passes `checkEditedData()`.
-- **Kept changes:** `PuckEditor` keeps what's edited and unpublished in IndexedDB as typing stops (`kept-edits.ts`: `editKeeper()`, a `KeptEdit` by `keptEditKey()` of the site, what's edited and the draft, with what was published when it started), and offers it back when the same thing opens again, saying when someone has published since; what it puts back passes `checkPuckData()` first, since the site's pages can write the admin panel's storage where it shares their address. It's removed once published, added to a draft, or undone, after `KEPT_EDIT_DAYS`, and on signing out (`forgetKeptEdits()`, in the account menu), never when a sign-in runs out, which is when it's needed. Forms elsewhere don't keep theirs.
-- **Local backend:** `@goodfellow-cms/admin/dev` (`localStore()`) is imported only by the dev server's admin entry, and by `GoodfellowAdmin` behind a `process.env.NODE_ENV === "development"` check that `next build` removes. Never import it from anything a build includes; a test checks the Next.js export doesn't contain it.
-- **Navigation:** link between screens with `AppLink`, which asks before leaving unpublished changes. Screens with unpublished changes call `useUnsavedChanges()`.
-- **Tab icon:** the admin panel shows the site's icon, as its pages do: `showSiteIcon()` (`site-icon.ts`) sets it once the site has loaded, from the repository if the live site doesn't have it yet, and the admin page's HTML names it beforehand (`adminHtml()`'s `icon` in `goodfellow build` and `goodfellow dev`; `adminMetadata()` from `goodfellowPages()` in the Next.js starter's `app/admin/layout.tsx`).
-- **Blocks' notes** in the editor link to where they're fixed with `useSite().adminLink(place)` (an `AdminPlace` such as `"forms-settings"`), which only the editor supplies: spread its props onto an `<a>`. It registers the link with Puck's `registerOverlayPortal()`, so it takes clicks through Puck's overlay, and asks the admin panel's page to go there (the frame's `navigate` request, only `#/…` addresses), which asks first about unpublished changes. Site Settings scrolls to a section of its General tab named in the address (`#/settings/general?section=forms`, `SETTINGS_SECTIONS` in `router.tsx`).
-- **Free services:** Site Settings' General tab starts with a card for each service with a free plan the site can set up (`FREE_SITE_SERVICES` in `free-services.tsx`: forms, comments, visit counts), saying whether its settings have it (`freeServicesSetUp()`) and linking to where it's set up. A new one goes there.
-- **Site Settings' sidebar:** `SettingsLayout` (`admin.tsx`) shows every Site Settings tab beside `SettingsSidebar` (`settings-sidebar.tsx`): the form's tabs, which share one Publish and plain links, then, after a divider, the screens of their own, through `AppLink`, then, after another, plugins' screens (see Plugins). Each has a `lucide-react` icon (the version sites already include), and each screen's heading is its tab's name. Collapsed (remembered in `localStorage`, and always in windows narrower than 720px), the names become tooltips beside the icons, which fade and slide in, without the slide for reduced motion. A new tab goes in `FORM_ITEMS` or `SCREEN_ITEMS` and in `SettingsLayout`.
-- **Drafts:** the editor's **Add to draft** (`publish(changes, message, { draft: true })`) starts a draft, and while one is open (`useAdmin().drafts.current`) every publish goes into it: `AdminProvider` reads, loads, checks, and writes through the draft's `store` (`content`), and the string table's `publish.button`, `publish.publishing`, and `publish.done` become the `draft.*` ones. `DraftBanner` (`admin.tsx`) shows it on every screen, with **Publish all** (`drafts.publishAll()`: `checkPublish()` of all its `changes()` against the live site as it is now, then `Draft.publish()`), **Submit for review**, **Throw away**, and **Back to the live site**, or offers to open the drafts `list()` gives, other editors' and Claude's included. The draft a browser works in is remembered in `localStorage` (`rememberDraft()` in `drafts.ts`) and opened again; opening or leaving one counts in `LoadState`'s `view`, which keys the screen so forms start again from what's loaded. Backends without `drafts` (full-stack sites' `appServer()`, demos, the local backend) keep one draft in the browser with `keptDrafts()` (core's `kept-drafts.ts`, over the live store, kept by `browserDraftKeeper()` in IndexedDB), which can't be submitted for review, and catches someone else's change to its files with `changedPaths()` from the revision it started at, or else by keeping each file as it was. Vercel's `vercel.ts` turns off previews of `goodfellow-draft-*` and `goodfellow-task-*` branches (`git.deploymentEnabled`), as the Next.js starter's `vercel.json` does (`VERCEL_JSON` in `NEXT_SITE_FILES`, so updates add it to older Next.js sites), since a preview would build what's submitted for review with the project's secrets; Cloudflare Pages has it in its setup steps.
-- **Published:** "Published." shows just under the Publish button with `PublishedNotice` (in `ui.tsx`, inside the button's `gfa-header-actions`), placed on the screen since editors' headers clip what hangs below them, and goes after a few seconds or as soon as the screen has unpublished changes again.
-- **The site's host:** `useOutsideHost()` (`site-host.ts`) reads the site's setup files at the loaded revision with `versions.readAt()`, since `read()` covers only the editable folders on GitLab, and gives `outsideHost()`'s answer, for the Domain screen's explanation and the media library's note on videos on Cloudflare Pages.
-- **Previews:** previews are render frames (`PreviewFrame` in `preview.tsx`, given a `RenderShow`: the site as it would be and the page's address), styled there by `usePreviewStyles()`: the site's CSS plus the theme and custom CSS being edited, with `@tailwindcss/browser` generating classes the compiled CSS doesn't have yet. It also keeps media showing (see Media).
-- **Testing Puck:** Puck is in the editor's frame, which tests reach with `editor(page)`, and its canvas with `canvas(page)` (`e2e/tests/helpers.ts`); the header, Publish, and the AI panel are in the page (`.gfa-editor-header`). Puck renders hidden copies of its fields, so tests select visible ones (`:visible`) and click blocks through their `[data-puck-component]` handle.
-- **Fonts:** Site settings offers the families in `src/google-fonts.ts`, which `pnpm --filter @goodfellow-cms/admin update-fonts` (`scripts/google-fonts.mjs`) writes from Google Fonts' list; commit what it writes. The list is loaded only when a font picker opens. Picking a font also saves its category (`theme.fonts.headingCategory` and `bodyCategory`), which `themeToCss()` turns into a fallback stack of the same kind. Builds put size-matched stand-ins before that stack with `fontStandIns()` (`node-fonts.ts` in `@goodfellow-cms/core/node`), which uses Fontaine's `getMetricsForFamily()` and `generateFontFace()` (not its CSS plugin, since Google's stylesheet isn't the site's CSS): each computer font gets a stand-in of its own name, so the browser tries each in turn, and Liberation's fonts use the measurements of the fonts they're made to match. Next.js sites get them from `withGoodfellow()`, which works them out as `next build` loads the config and passes them through the env (`GOODFELLOW_FONT_STAND_INS`, `BuiltFontStandIns`, read where they're for the theme's fonts), so a full-stack site's server never bundles Fontaine's measurements, the largest thing it would; `next dev` works them out as it renders. Both renderers preload the text font's 400 and the headings' 700 latin files with `fontPreloads()` (`fonts.ts` in core), given `readStylesheet` from `@goodfellow-cms/core/node`, which reads Google's stylesheet once per build and gives nothing when Google can't be reached (it and `readFontFile` ask again after a failed connection, a timeout, or a 429 or 5xx, `fetchFontsAsset()` with `FONT_RETRY_DELAYS_MS`, since `next build` asks from several processes at once and one failure leaves every page's fonts with Google); Next.js adds them with React's `preload()`, which keeps one of each. Builds then copy the fonts into the site (`selfHostFonts()` in `@goodfellow-cms/core/node`, run by `goodfellow build` and `goodfellow-next finish`): `selfHostedFonts()` reads the stylesheet and every font file it names into `FONTS_DIR` (`fonts/google/`, the stylesheet named by its hash, with addresses relative to it), and `withSelfHostedFonts()` points every built page and Next.js payload at them, under the base path. Renderers write no preconnects to Google, since Next.js would put its own back from its payload in the browser, and keep writing Google's addresses, so both builds' HTML stays the same and `goodfellow dev` and `next dev` load from Google; where Google can't be reached, or any file fails, pages are left as rendered (`buildNotes()` says which). Next.js can't change a full-stack site's pages once it has rendered them, so `withGoodfellow({ server: true })` copies its fonts into `public/fonts/google/` as `next build` loads the config (`hostFonts()`) and passes where they are through the env as `GOODFELLOW_FONTS`, which Next.js writes into the renderer's code, so pages rendered while it builds and while it runs both point at them (`withSelfHostedFonts()`).
-- **Own fonts:** `content/site.json`'s `theme.fonts.custom` (`CustomFont`s in core's `custom-fonts.ts`: a family, its category, and its WOFF2 files, each a `CUSTOM_FONT_ADDRESS` in `FONTS_MEDIA_DIR`, `public/media/fonts/`, with a weight, or a variable font's range to `weightTo`, and a style; at most `MAX_CUSTOM_FONTS` of `MAX_FONT_FILES`) lets `heading` and `body` name fonts an owner uploaded, which are kept in the site, never a media storage plugin's, since browsers load fonts from another address only with headers static hosts can't send. `themeToCss()` writes their `@font-face` rules (`customFontFaces()`, with the base path its `base` gives, which `goodfellow build` passes in `PageAssets.base` and Next.js's layout from `basePath()`, since `applyBasePath()` doesn't reach CSS), `googleFontsUrl()` leaves their families out, both renderers preload the text's 400 and the headings' 700 (`customFontPreloads()`), and `fontStandIns()` measures them from their files with Fontaine's `readMetrics()` given the site's `root` (`PageAssets.root`). The admin panel's frames can't load the site's files (their origin is `null`), so they ask `themeToCss()` for no `@font-face` (`fontFaces: false`) and add each font from its bytes with `installCustomFonts()` (`custom-font-faces.ts`, through `MediaPreviews.bytes()`), editor plugins' frames too (`PluginEditorStyles.customFonts`). The Colors & fonts tab's `OwnFonts` and its Add a font dialog (`own-fonts.tsx`) check each file (`isWoff2()`, `MAX_FONT_BYTES`, and a `FontFace` load), guess its weight, style, and family from its name (`guessFontFile()`, `guessFontFamily()`), name it with `fontFileName()`, ask the owner to confirm the font's license allows websites (with an `InfoBubble` linking to the docs, `docsLink()`), and put it in the tab's draft with its bytes, which the tab's Publish writes with `customFontFileChanges()`, taking removed fonts' files out in the same commit; `FontPicker` lists them first (`own`). WOFF2 is media kind `font`, which uploads refuse (`UploadError` `font`), `safeMediaChanges()` and `unsafeMediaChanges()` take only in the fonts folder and by their bytes (`isSafeFontFile()`), and the media library leaves out. `mapSiteLinks()` visits their files, so a missing one is `missing-media`. Themes can't bring them (`themeManifestSchema` refuses `custom`) and `planTheme()` keeps them; the Claude connector's `update_settings` keeps them as they are. Tests read `packages/core/test/fonts/inter-sample.woff2`, a subset of Inter under the SIL Open Font License (`OFL.txt` beside it).
-- **Undo:** forms with their own history use `useHistory()` from `history.ts`, which joins typing in one field into one step and handles Ctrl+Z outside text fields.
-- **Keyboard shortcuts:** `shortcuts.ts` (no React, frames use it too) says which key presses are shortcuts (`shortcutFor()`, `isTyping()`): Ctrl/⌘+S `save`, Ctrl/⌘+K `goTo` even while typing, Ctrl/⌘+Z, Shift+Z and Y `undo` and `redo`, and `?` `help`, outside text fields. `ShortcutsProvider` (`shortcuts-provider.tsx`, around the screens in `Shell`) opens the Go to box (`goToPlaces()`, `findPlaces()`, with `SETTINGS_ITEMS` from `settings-sidebar.tsx`) and the list of shortcuts, and runs what the screen showing registers with `useShortcutHandlers()`: `PuckEditor`'s `save` only ever adds to a draft (`onPublish(true)`), never publishes, so an unfinished page doesn't go live by accident. The editor's frame passes on only `FORWARDED_SHORTCUTS`' names (the `shortcut` request, which the page answers only for editor frames, `isForwardedShortcut()`, through `runShortcut()`), never what was typed; Puck undoes and redoes in the frame itself. Plugins' editor frames don't pass them on.
-- **Narrow windows:** at 720px and below, the header keeps the site's name, the deploy status, `DarkModeSwitch`, and a menu button, and `.gfa-topbar-menu` (the links, View site, and the account, in the header itself in wider windows, through `display: contents`) opens under it (`useTopbarMenu()` in `admin.tsx`, closed by choosing a link, another screen, Escape, or a click elsewhere).
-- **Colors:** style the admin panel with its `--gfa-*` tokens, each written `light-dark(light, dark)` in `styles.css`, never fixed colors, so dark mode works. `theme.ts` keeps the editor's choice (`data-gfa-theme` on the page, or the computer's setting), which the header's dark mode switch sets with `setDarkMode()`, back to the computer's setting when that's what it gives; `styles.css` gives Puck's palette dark values too. Code editors use `CodeEditor` (CodeMirror, loaded when shown). Site previews keep the site's own colors.
-- **Dev server watching:** `content/` and `public/media/` are excluded from Vite's watcher, because Tailwind's Vite plugin reloads every open page when a file it scans changes. That would reload the admin panel on every publish. `content/` is watched separately, and `goodfellow dev` serves `/media/` from disk itself.
+- **Text:** every string goes through `useStrings()` and the table in `packages/admin/src/strings.tsx`. A test fails if
+  any string uses git terms, in any language Goodfellow ships; sites' own languages (see below) aren't held to it.
+- **Languages:** the admin panel speaks the languages in `ADMIN_LANGUAGES` (`admin-language.ts`): each editor's choice,
+  kept in `localStorage`, else the browser's first one it speaks (`browserAdminLanguage()`), else English, set with the
+  header's language menu (`LanguageMenu`) and on `<html lang>`. Each language but English is `languages/<code>.ts`
+  (`AdminText`: `strings`, the whole `Strings` table with the same `{placeholders}`, Puck's `dictionary` as `puck`, and
+  blocks' `labels` by their English wording), loaded only when chosen, so a new string needs its translation in every
+  language in the same change, which the tests and the `Strings` type enforce. The page gives frames the table, Puck's
+  dictionary, and the labels in `init` (`FrameInit.puck`, `.labels`, `EditorTextContext` in `editor-text.ts`, which
+  frames import in place of `admin-language.ts`), so frames never bundle a language; the editor's frame puts the labels
+  in place of the English with `withLabels()` (`frame/labels.ts`: blocks' names, groups, settings' labels, choices, and
+  placeholders, `resolveFields`' too, never props or values), which a test keeps complete for the built-in blocks. The
+  `Admin` component's `strings` go over the chosen language's. Content the admin panel writes in words, such as
+  WordPress imports' collection names and commit messages, follows the editor's language.
+- **Sites' own languages:** a site can have the admin panel in any language in `content/admin-text/<code>.json` (core's
+  `content/admin-text.ts`: `adminTextFileSchema`, content kind `admin-text`; `strings`, `puck`, and `labels`, each
+  entry's `text` with `source`, `englishHash()` of the English it was made from, and `reviewed`), which
+  `isSettingsPath()` keeps to owners. `composeAdminText()` (`admin-language.ts`) lays a file over Goodfellow's own
+  translation, where it ships one, over the English, checking every string as it's used (`adminTextTable()`,
+  `adminTextOverlay()`, `adminTextProblem()`: not empty, not past `MAX_ADMIN_TEXT_LENGTH`, and the English's
+  `{placeholders}`, never the words a translation chooses, git's included), and puts the English after the site's words
+  for `showsEnglish()`'s strings (signing in, tokens, owners', plugins', and what can't be undone). Builds publish the
+  files beside the admin panel (`publishedAdminText()`, `ADMIN_TEXT_INDEX`, `writeAdminText()` in
+  `@goodfellow-cms/core/node`, run by `goodfellow build` and `goodfellow-next finish`, into `public/admin/text/` with
+  `--server`), which `usePublishedAdminText()` reads before sign-in; once the site loads, `Shell` reads the site's own
+  (`readAdminText()`, which leaves out files it can't read rather than throwing) with each revision, which win.
+  `useAdminLanguages()` gives the menu Goodfellow's and the site's languages; a language only the site has waits for the
+  site's list before falling back to the browser's.
+- **Translating them:** Site Settings' Admin panel languages screen (`admin-languages-screen.tsx`) adds a language and
+  translates it with the AI service the editor chose (`useAiService()`, shared with the AI panel, and its
+  `ServiceSettings`): `adminTextSources()` (`admin-text-sources.ts`, no React) lists every English string, by
+  `sourceKey()` (`strings:`, `puck:`, `labels:`), from `defaultStrings`, `PUCK_ENGLISH` (`languages/en-puck.ts`, Puck's
+  own English for the keys Goodfellow translates, which Puck doesn't export and a test keeps the same as the Spanish
+  table's keys) and the site's blocks' labels (`labelSources()`, from the description, with the Spanish labels' keys for
+  the built-in groups); `sourcesToTranslate()` picks what's missing, unusable, or (on request) outdated;
+  `translateAdminText()` in `@goodfellow-cms/ai` (`admin-text.ts`: `adminTextRequest()`, `ADMIN_TEXT_BATCH` at a time,
+  `ADMIN_GLOSSARY`'s terms first so later batches are told their words, every answer checked with
+  `readAdminTextAnswer()`) stops at the first failure keeping what came back; and `withTranslations()` writes it with
+  each string's `englishHash()`, published at once, even part way. `languageStatus()` counts what each language says.
+- **Editing them:** each language opens at `#/settings/admin-languages/<code>` in `AdminTextEditor`
+  (`admin-text-editor.tsx`): `filterSources()` searches and narrows by `SourceFilter`, edits are kept as
+  `AdminTextEdit`s until **Publish**, which `withEdits()` writes (today's English's hash, `reviewed` as marked, emptied
+  ones taken out), and a string `adminTextProblem()` refuses keeps Publish off. Goodfellow's own languages open the same
+  way, their files (`en.json`, `es.json`) holding only what the owner changed over Goodfellow's words, which the editor
+  shows as each box's placeholder (`shippedDefaults()`); they aren't listed among the site's languages, and
+  `composeAdminText()`'s `english` leaves the English off English's own changed words.
+- **Language packs:** the admin panel's text in one language as an npm package with no code,
+  `goodfellow-language-<name>` (`isLanguagePackName()`, `LANGUAGE_PACK_KEYWORD`) holding `goodfellow-language.json`
+  (`LANGUAGE_PACK_MANIFEST`, `languagePackManifestSchema` in core's `content/language-packs.ts`: a language's file with
+  its `code`), found and read like themes (`searchLanguagePacks()`, `languagePackReleases()`,
+  `chooseLanguagePackRelease()`, `fetchLanguagePack()` in `language-packs.ts`, over `npm-packages.ts`).
+  `planLanguagePack(code, file, pack, { replaceOwn })` writes the language's file with no network access: the file's
+  `pack` names the release, and each string it wrote carries `pack`, `englishHash()` of its text, so
+  `fromLanguagePack()` tells what nobody has changed since, which an update or removal (`pack` undefined) replaces or
+  takes out, keeping the rest as `kept` (or listing it as `replaced` with `replaceOwn`), and deleting a file left empty.
+  `withEdits()` and `withTranslations()` keep both marks. The Admin panel languages screen's `LanguagePacks`
+  (`language-packs.tsx`) searches only when asked, and installs, updates, and removes them through `publish()`; nothing
+  updates them by itself. Packs' own tests read the admin panel's English from `@goodfellow-cms/admin/text`
+  (`src/text.ts`, an entry of its own that draws nothing: `goodfellowAdminTextSources()`, `BUILT_IN_LABELS`,
+  `languageStatus()`, `sourceState()`). None live in this repository: Goodfellow's own, French, is
+  `goodfellow-cms/goodfellow-language-fr`, the example the docs' Languages page points publishers to. Tests use
+  `fakeLanguagePacks()` and `sampleLanguagePackFiles()` from `@goodfellow-cms/core/testing`.
+- **Saving:** build file changes with the helpers in `packages/admin/src/changes.ts`, so files are always written in
+  canonical form, and publish them through `useAdmin().publish()`, which passes the revision the editor loaded. After a
+  `ConflictError`, the editor's **Reload** opens Puck again with what was reloaded (`EditorOpen.reopened`, which
+  remounts it) and takes that as what's published, keeping the editor's own data for **Put my changes back**, so
+  publishing again never puts the old version back over someone else's. What the editor's frame hands back passes
+  `checkPuckData()` (core's `content/edited-data.ts`: plain JSON, and only the site's blocks, in slots and drop zones
+  too) before it's published, as editor plugins' passes `checkEditedData()`.
+- **Kept changes:** `PuckEditor` keeps what's edited and unpublished in IndexedDB as typing stops (`kept-edits.ts`:
+  `editKeeper()`, a `KeptEdit` by `keptEditKey()` of the site, what's edited and the draft, with what was published when
+  it started), and offers it back when the same thing opens again, saying when someone has published since; what it puts
+  back passes `checkPuckData()` first, since the site's pages can write the admin panel's storage where it shares their
+  address. It's removed once published, added to a draft, or undone, after `KEPT_EDIT_DAYS`, and on signing out
+  (`forgetKeptEdits()`, in the account menu), never when a sign-in runs out, which is when it's needed. Forms elsewhere
+  don't keep theirs.
+- **Local backend:** `@goodfellow-cms/admin/dev` (`localStore()`) is imported only by the dev server's admin entry, and
+  by `GoodfellowAdmin` behind a `process.env.NODE_ENV === "development"` check that `next build` removes. Never import
+  it from anything a build includes; a test checks the Next.js export doesn't contain it.
+- **Navigation:** link between screens with `AppLink`, which asks before leaving unpublished changes. Screens with
+  unpublished changes call `useUnsavedChanges()`.
+- **Tab icon:** the admin panel shows the site's icon, as its pages do: `showSiteIcon()` (`site-icon.ts`) sets it once
+  the site has loaded, from the repository if the live site doesn't have it yet, and the admin page's HTML names it
+  beforehand (`adminHtml()`'s `icon` in `goodfellow build` and `goodfellow dev`; `adminMetadata()` from
+  `goodfellowPages()` in the Next.js starter's `app/admin/layout.tsx`).
+- **Blocks' notes** in the editor link to where they're fixed with `useSite().adminLink(place)` (an `AdminPlace` such as
+  `"forms-settings"`), which only the editor supplies: spread its props onto an `<a>`. It registers the link with Puck's
+  `registerOverlayPortal()`, so it takes clicks through Puck's overlay, and asks the admin panel's page to go there (the
+  frame's `navigate` request, only `#/…` addresses), which asks first about unpublished changes. Site Settings scrolls
+  to a section of its General tab named in the address (`#/settings/general?section=forms`, `SETTINGS_SECTIONS` in
+  `router.tsx`).
+- **Free services:** Site Settings' General tab starts with a card for each service with a free plan the site can set up
+  (`FREE_SITE_SERVICES` in `free-services.tsx`: forms, comments, visit counts), saying whether its settings have it
+  (`freeServicesSetUp()`) and linking to where it's set up. A new one goes there.
+- **Site Settings' sidebar:** `SettingsLayout` (`admin.tsx`) shows every Site Settings tab beside `SettingsSidebar`
+  (`settings-sidebar.tsx`): the form's tabs, which share one Publish and plain links, then, after a divider, the screens
+  of their own, through `AppLink`, then, after another, plugins' screens (see Plugins). Each has a `lucide-react` icon
+  (the version sites already include), and each screen's heading is its tab's name. Collapsed (remembered in
+  `localStorage`, and always in windows narrower than 720px), the names become tooltips beside the icons, which fade and
+  slide in, without the slide for reduced motion. A new tab goes in `FORM_ITEMS` or `SCREEN_ITEMS` and in
+  `SettingsLayout`.
+- **Drafts:** the editor's **Add to draft** (`publish(changes, message, { draft: true })`) starts a draft, and while one
+  is open (`useAdmin().drafts.current`) every publish goes into it: `AdminProvider` reads, loads, checks, and writes
+  through the draft's `store` (`content`), and the string table's `publish.button`, `publish.publishing`, and
+  `publish.done` become the `draft.*` ones. `DraftBanner` (`admin.tsx`) shows it on every screen, with **Publish all**
+  (`drafts.publishAll()`: `checkPublish()` of all its `changes()` against the live site as it is now, then
+  `Draft.publish()`), **Submit for review**, **Throw away**, and **Back to the live site**, or offers to open the drafts
+  `list()` gives, other editors' and Claude's included. The draft a browser works in is remembered in `localStorage`
+  (`rememberDraft()` in `drafts.ts`) and opened again; opening or leaving one counts in `LoadState`'s `view`, which keys
+  the screen so forms start again from what's loaded. Backends without `drafts` (full-stack sites' `appServer()`, demos,
+  the local backend) keep one draft in the browser with `keptDrafts()` (core's `kept-drafts.ts`, over the live store,
+  kept by `browserDraftKeeper()` in IndexedDB), which can't be submitted for review, and catches someone else's change
+  to its files with `changedPaths()` from the revision it started at, or else by keeping each file as it was. Vercel's
+  `vercel.ts` turns off previews of `goodfellow-draft-*` and `goodfellow-task-*` branches (`git.deploymentEnabled`), as
+  the Next.js starter's `vercel.json` does (`VERCEL_JSON` in `NEXT_SITE_FILES`, so updates add it to older Next.js
+  sites), since a preview would build what's submitted for review with the project's secrets; Cloudflare Pages has it in
+  its setup steps.
+- **Published:** "Published." shows just under the Publish button with `PublishedNotice` (in `ui.tsx`, inside the
+  button's `gfa-header-actions`), placed on the screen since editors' headers clip what hangs below them, and goes after
+  a few seconds or as soon as the screen has unpublished changes again.
+- **The site's host:** `useOutsideHost()` (`site-host.ts`) reads the site's setup files at the loaded revision with
+  `versions.readAt()`, since `read()` covers only the editable folders on GitLab, and gives `outsideHost()`'s answer,
+  for the Domain screen's explanation and the media library's note on videos on Cloudflare Pages.
+- **Previews:** previews are render frames (`PreviewFrame` in `preview.tsx`, given a `RenderShow`: the site as it would
+  be and the page's address), styled there by `usePreviewStyles()`: the site's CSS plus the theme and custom CSS being
+  edited, with `@tailwindcss/browser` generating classes the compiled CSS doesn't have yet. It also keeps media showing
+  (see Media).
+- **Testing Puck:** Puck is in the editor's frame, which tests reach with `editor(page)`, and its canvas with
+  `canvas(page)` (`e2e/tests/helpers.ts`); the header, Publish, and the AI panel are in the page (`.gfa-editor-header`).
+  Puck renders hidden copies of its fields, so tests select visible ones (`:visible`) and click blocks through their
+  `[data-puck-component]` handle.
+- **Fonts:** Site settings offers the families in `src/google-fonts.ts`, which
+  `pnpm --filter @goodfellow-cms/admin update-fonts` (`scripts/google-fonts.mjs`) writes from Google Fonts' list; commit
+  what it writes. The list is loaded only when a font picker opens. Picking a font also saves its category
+  (`theme.fonts.headingCategory` and `bodyCategory`), which `themeToCss()` turns into a fallback stack of the same kind.
+  Builds put size-matched stand-ins before that stack with `fontStandIns()` (`node-fonts.ts` in
+  `@goodfellow-cms/core/node`), which uses Fontaine's `getMetricsForFamily()` and `generateFontFace()` (not its CSS
+  plugin, since Google's stylesheet isn't the site's CSS): each computer font gets a stand-in of its own name, so the
+  browser tries each in turn, and Liberation's fonts use the measurements of the fonts they're made to match. Next.js
+  sites get them from `withGoodfellow()`, which works them out as `next build` loads the config and passes them through
+  the env (`GOODFELLOW_FONT_STAND_INS`, `BuiltFontStandIns`, read where they're for the theme's fonts), so a full-stack
+  site's server never bundles Fontaine's measurements, the largest thing it would; `next dev` works them out as it
+  renders. Both renderers preload the text font's 400 and the headings' 700 latin files with `fontPreloads()`
+  (`fonts.ts` in core), given `readStylesheet` from `@goodfellow-cms/core/node`, which reads Google's stylesheet once
+  per build and gives nothing when Google can't be reached (it and `readFontFile` ask again after a failed connection, a
+  timeout, or a 429 or 5xx, `fetchFontsAsset()` with `FONT_RETRY_DELAYS_MS`, since `next build` asks from several
+  processes at once and one failure leaves every page's fonts with Google); Next.js adds them with React's `preload()`,
+  which keeps one of each. Builds then copy the fonts into the site (`selfHostFonts()` in `@goodfellow-cms/core/node`,
+  run by `goodfellow build` and `goodfellow-next finish`): `selfHostedFonts()` reads the stylesheet and every font file
+  it names into `FONTS_DIR` (`fonts/google/`, the stylesheet named by its hash, with addresses relative to it), and
+  `withSelfHostedFonts()` points every built page and Next.js payload at them, under the base path. Renderers write no
+  preconnects to Google, since Next.js would put its own back from its payload in the browser, and keep writing Google's
+  addresses, so both builds' HTML stays the same and `goodfellow dev` and `next dev` load from Google; where Google
+  can't be reached, or any file fails, pages are left as rendered (`buildNotes()` says which). Next.js can't change a
+  full-stack site's pages once it has rendered them, so `withGoodfellow({ server: true })` copies its fonts into
+  `public/fonts/google/` as `next build` loads the config (`hostFonts()`) and passes where they are through the env as
+  `GOODFELLOW_FONTS`, which Next.js writes into the renderer's code, so pages rendered while it builds and while it runs
+  both point at them (`withSelfHostedFonts()`).
+- **Own fonts:** `content/site.json`'s `theme.fonts.custom` (`CustomFont`s in core's `custom-fonts.ts`: a family, its
+  category, and its WOFF2 files, each a `CUSTOM_FONT_ADDRESS` in `FONTS_MEDIA_DIR`, `public/media/fonts/`, with a
+  weight, or a variable font's range to `weightTo`, and a style; at most `MAX_CUSTOM_FONTS` of `MAX_FONT_FILES`) lets
+  `heading` and `body` name fonts an owner uploaded, which are kept in the site, never a media storage plugin's, since
+  browsers load fonts from another address only with headers static hosts can't send. `themeToCss()` writes their
+  `@font-face` rules (`customFontFaces()`, with the base path its `base` gives, which `goodfellow build` passes in
+  `PageAssets.base` and Next.js's layout from `basePath()`, since `applyBasePath()` doesn't reach CSS),
+  `googleFontsUrl()` leaves their families out, both renderers preload the text's 400 and the headings' 700
+  (`customFontPreloads()`), and `fontStandIns()` measures them from their files with Fontaine's `readMetrics()` given
+  the site's `root` (`PageAssets.root`). The admin panel's frames can't load the site's files (their origin is `null`),
+  so they ask `themeToCss()` for no `@font-face` (`fontFaces: false`) and add each font from its bytes with
+  `installCustomFonts()` (`custom-font-faces.ts`, through `MediaPreviews.bytes()`), editor plugins' frames too
+  (`PluginEditorStyles.customFonts`). The Colors & fonts tab's `OwnFonts` and its Add a font dialog (`own-fonts.tsx`)
+  check each file (`isWoff2()`, `MAX_FONT_BYTES`, and a `FontFace` load), guess its weight, style, and family from its
+  name (`guessFontFile()`, `guessFontFamily()`), name it with `fontFileName()`, ask the owner to confirm the font's
+  license allows websites (with an `InfoBubble` linking to the docs, `docsLink()`), and put it in the tab's draft with
+  its bytes, which the tab's Publish writes with `customFontFileChanges()`, taking removed fonts' files out in the same
+  commit; `FontPicker` lists them first (`own`). WOFF2 is media kind `font`, which uploads refuse (`UploadError`
+  `font`), `safeMediaChanges()` and `unsafeMediaChanges()` take only in the fonts folder and by their bytes
+  (`isSafeFontFile()`), and the media library leaves out. `mapSiteLinks()` visits their files, so a missing one is
+  `missing-media`. Themes can't bring them (`themeManifestSchema` refuses `custom`) and `planTheme()` keeps them; the
+  Claude connector's `update_settings` keeps them as they are. Tests read `packages/core/test/fonts/inter-sample.woff2`,
+  a subset of Inter under the SIL Open Font License (`OFL.txt` beside it).
+- **Undo:** forms with their own history use `useHistory()` from `history.ts`, which joins typing in one field into one
+  step and handles Ctrl+Z outside text fields.
+- **Keyboard shortcuts:** `shortcuts.ts` (no React, frames use it too) says which key presses are shortcuts
+  (`shortcutFor()`, `isTyping()`): Ctrl/⌘+S `save`, Ctrl/⌘+K `goTo` even while typing, Ctrl/⌘+Z, Shift+Z and Y `undo`
+  and `redo`, and `?` `help`, outside text fields. `ShortcutsProvider` (`shortcuts-provider.tsx`, around the screens in
+  `Shell`) opens the Go to box (`goToPlaces()`, `findPlaces()`, with `SETTINGS_ITEMS` from `settings-sidebar.tsx`) and
+  the list of shortcuts, and runs what the screen showing registers with `useShortcutHandlers()`: `PuckEditor`'s `save`
+  only ever adds to a draft (`onPublish(true)`), never publishes, so an unfinished page doesn't go live by accident. The
+  editor's frame passes on only `FORWARDED_SHORTCUTS`' names (the `shortcut` request, which the page answers only for
+  editor frames, `isForwardedShortcut()`, through `runShortcut()`), never what was typed; Puck undoes and redoes in the
+  frame itself. Plugins' editor frames don't pass them on.
+- **Narrow windows:** at 720px and below, the header keeps the site's name, the deploy status, `DarkModeSwitch`, and a
+  menu button, and `.gfa-topbar-menu` (the links, View site, and the account, in the header itself in wider windows,
+  through `display: contents`) opens under it (`useTopbarMenu()` in `admin.tsx`, closed by choosing a link, another
+  screen, Escape, or a click elsewhere).
+- **Colors:** style the admin panel with its `--gfa-*` tokens, each written `light-dark(light, dark)` in `styles.css`,
+  never fixed colors, so dark mode works. `theme.ts` keeps the editor's choice (`data-gfa-theme` on the page, or the
+  computer's setting), which the header's dark mode switch sets with `setDarkMode()`, back to the computer's setting
+  when that's what it gives; `styles.css` gives Puck's palette dark values too. Code editors use `CodeEditor`
+  (CodeMirror, loaded when shown). Site previews keep the site's own colors.
+- **Dev server watching:** `content/` and `public/media/` are excluded from Vite's watcher, because Tailwind's Vite
+  plugin reloads every open page when a file it scans changes. That would reload the admin panel on every publish.
+  `content/` is watched separately, and `goodfellow dev` serves `/media/` from disk itself.
 
 ## The editor's sandbox
 
-- **Two realms:** the admin panel's page (`/admin`) signs in, keeps tokens and AI keys, and publishes. Puck, the site's config, and every block run only in frames sandboxed without `allow-same-origin` (`frame/` in `@goodfellow-cms/admin`, started by `mountEditorFrame()` from `@goodfellow-cms/admin/editor`), so their code can't reach the page, its storage, or its tokens. Every frame is sandboxed with `allow-scripts` alone (`FRAME_SANDBOX`), development servers' too: a sandboxed page's origin is `null`, and both Vite and Next.js rightly refuse their development modules to `null` origins, so the development servers serve the frames a bundle instead (see Pages). Never give a frame `allow-same-origin`, and never let a server answer `null` origins' reads, which any website's sandboxed frames send.
-- **What the page knows:** `AdminSite` (core's `admin-site.ts`, made by `adminSite()` in `@goodfellow-cms/react`): the blocks' fields as JSON (`describeSite()`, read with `describedConfig()`), `demo`, `ai`, `registries`, and the git host as `GitHost.source` (`hostSource()`: package, export, and JSON options), which the admin entry makes again (`goodfellow build` imports the package it names; `GoodfellowAdmin` loads the two Goodfellow hosts it knows, `HOSTS` in `@goodfellow-cms/next`'s `admin.tsx`). Never pass the config to the admin page. A Next.js site's `app/admin/page.tsx` from before the frames passes `GoodfellowAdmin` its `config`; it then shows `OutdatedAdminPage` (from `@goodfellow-cms/admin`), which says how to update it and never signs in, and `goodfellow-next update` replaces it where it's still the starter's (`NEXT_SITE_FILES`, see Backends' Updates).
-- **Talking:** a frame posts `READY_MESSAGE` to its parent, which answers with a `MessagePort` (`CONNECT_MESSAGE`); after that they speak only through `createChannel()` (`frame/channel.ts`) in `frame/protocol.ts`'s terms: `init`, `site`, `theme`, `editor.*`, `render.show`, `code.*`, and `media.remember` for the frame, and only `navigate`, `media.choose`, and `media.bytes` for the page, which checks everything a frame sends as the site's code may have written it. A frame that starts again more than `MAX_CONNECTIONS` times is given up on. Plugins' admin frames are sandboxed the same way, with protocols of their own (see Plugins).
-- **Frames:** the editor (`PuckEditor` in the page draws the header, Undo, Redo, the sidebars' buttons, preview widths, the AI panel, and Publish; `FrameEditor` in the frame is Puck with its own header hidden, which `Bridge` reports as `editor.state`); render frames for previews (`PreviewFrame`, `FrameRender`); and one hidden frame for the site's code (`SiteCodeFrame`, `frameSiteCode()`: the pages blocks add and pages rendered for the checks, `SiteCodeService` in `site-code.ts`, which `localSiteCode()` answers and tests use directly). In the frames, `FrameProviders` gives the admin panel's shared components a stand-in `AdminContext` that can't publish or read, and media choosing goes to the page (`MediaChoiceContext`).
-- **The canvas:** Puck draws blocks into the frame's own page (`iframe: { enabled: false }`), inside `.gf-canvas`, so the site's CSS, theme, custom CSS, and `@tailwindcss/browser`'s output are kept to it with `scopeCss()` (`frame/scope-css.ts`: each rule's selectors become `.gf-canvas :is(…)`, the page's own (`:root`, `html`, `body`) the canvas, and width media queries container queries), and the page's preview widths resize the canvas (`editor.viewport`).
-- **Pages:** `goodfellow build` bundles the frames as one classic script (`EDITOR_ENTRY`, IIFE, `EDITOR_PRELUDE` first, which removes WebRTC) and writes `admin/editor/index.html` with `editorPolicy()` as its Content Security Policy; `goodfellow dev` bundles them the same way, rebuilt as the site's code changes (`buildEditor()` in `editor-bundle.ts`, with `watch`), into `node_modules/.goodfellow/editor/`, serves them from there, and reloads the frames, never the admin page, once rebuilds settle (`EDITOR_REBUILT_EVENT`, `reloadFrames()`). The frames' page is `editorPage()` from core, with `editorPolicy()`, wherever it's written. Next.js sites have `app/admin/editor/page.tsx` (`GoodfellowEditor` from `@goodfellow-cms/next/editor`), whose exported page `goodfellow-next finish` gives the policy, with Next.js's inline scripts' hashes, and the prelude (`writeEditorPolicy()`); full-stack sites don't, since their frames are static files (`goodfellow-next finish --server`) and the page would make their server bundle Puck and every block again, so `goodfellow-next update` adds it only where `app/admin/page.tsx` is one the starter wrote (`nextSiteFiles()`). Full-stack sites' frames are bundled instead, as `next dev`'s are (`editorFramesOptions()` in `editor-frames.ts`, which both share), by `goodfellow-next finish --server` into `public/admin/editor/frames/` (`writeEditorFrames()`, `EDITOR_FRAMES_PATH`, which `GoodfellowAdmin` frames where it has `server`), since a server's pages can't be changed once Next.js has rendered them and a build such as vinext's writes no `.next/` to change; their page runs no inline scripts, so `withGoodfellow({ server: true })` sends `editorPolicy()` as a header there too (`editorFramesHeaders()`), with nothing to hash. The policy runs only the site's own scripts and lets frames fetch nothing; a sandboxed page can still leave for another address, so it limits what blocks can send without sealing it. Tokens are what the sandbox keeps from them. The admin panel's own page has `ADMIN_POLICY` (`frame-src 'self'`, in `adminHtml()`'s meta tag, and rendered by `GoodfellowAdmin`, which React puts in the head), so its frames can only show its own address's pages, the editor's.
+- **Two realms:** the admin panel's page (`/admin`) signs in, keeps tokens and AI keys, and publishes. Puck, the site's
+  config, and every block run only in frames sandboxed without `allow-same-origin` (`frame/` in `@goodfellow-cms/admin`,
+  started by `mountEditorFrame()` from `@goodfellow-cms/admin/editor`), so their code can't reach the page, its storage,
+  or its tokens. Every frame is sandboxed with `allow-scripts` alone (`FRAME_SANDBOX`), development servers' too: a
+  sandboxed page's origin is `null`, and both Vite and Next.js rightly refuse their development modules to `null`
+  origins, so the development servers serve the frames a bundle instead (see Pages). Never give a frame
+  `allow-same-origin`, and never let a server answer `null` origins' reads, which any website's sandboxed frames send.
+- **What the page knows:** `AdminSite` (core's `admin-site.ts`, made by `adminSite()` in `@goodfellow-cms/react`): the
+  blocks' fields as JSON (`describeSite()`, read with `describedConfig()`), `demo`, `ai`, `registries`, and the git host
+  as `GitHost.source` (`hostSource()`: package, export, and JSON options), which the admin entry makes again
+  (`goodfellow build` imports the package it names; `GoodfellowAdmin` loads the two Goodfellow hosts it knows, `HOSTS`
+  in `@goodfellow-cms/next`'s `admin.tsx`). Never pass the config to the admin page. A Next.js site's
+  `app/admin/page.tsx` from before the frames passes `GoodfellowAdmin` its `config`; it then shows `OutdatedAdminPage`
+  (from `@goodfellow-cms/admin`), which says how to update it and never signs in, and `goodfellow-next update` replaces
+  it where it's still the starter's (`NEXT_SITE_FILES`, see Backends' Updates).
+- **Talking:** a frame posts `READY_MESSAGE` to its parent, which answers with a `MessagePort` (`CONNECT_MESSAGE`);
+  after that they speak only through `createChannel()` (`frame/channel.ts`) in `frame/protocol.ts`'s terms: `init`,
+  `site`, `theme`, `editor.*`, `render.show`, `code.*`, and `media.remember` for the frame, and only `navigate`,
+  `media.choose`, and `media.bytes` for the page, which checks everything a frame sends as the site's code may have
+  written it. A frame that starts again more than `MAX_CONNECTIONS` times is given up on. Plugins' admin frames are
+  sandboxed the same way, with protocols of their own (see Plugins).
+- **Frames:** the editor (`PuckEditor` in the page draws the header, Undo, Redo, the sidebars' buttons, preview widths,
+  the AI panel, and Publish; `FrameEditor` in the frame is Puck with its own header hidden, which `Bridge` reports as
+  `editor.state`); render frames for previews (`PreviewFrame`, `FrameRender`); and one hidden frame for the site's code
+  (`SiteCodeFrame`, `frameSiteCode()`: the pages blocks add and pages rendered for the checks, `SiteCodeService` in
+  `site-code.ts`, which `localSiteCode()` answers and tests use directly). In the frames, `FrameProviders` gives the
+  admin panel's shared components a stand-in `AdminContext` that can't publish or read, and media choosing goes to the
+  page (`MediaChoiceContext`).
+- **The canvas:** Puck draws blocks into the frame's own page (`iframe: { enabled: false }`), inside `.gf-canvas`, so
+  the site's CSS, theme, custom CSS, and `@tailwindcss/browser`'s output are kept to it with `scopeCss()`
+  (`frame/scope-css.ts`: each rule's selectors become `.gf-canvas :is(…)`, the page's own (`:root`, `html`, `body`) the
+  canvas, and width media queries container queries), and the page's preview widths resize the canvas
+  (`editor.viewport`).
+- **Pages:** `goodfellow build` bundles the frames as one classic script (`EDITOR_ENTRY`, IIFE, `EDITOR_PRELUDE` first,
+  which removes WebRTC) and writes `admin/editor/index.html` with `editorPolicy()` as its Content Security Policy;
+  `goodfellow dev` bundles them the same way, rebuilt as the site's code changes (`buildEditor()` in `editor-bundle.ts`,
+  with `watch`), into `node_modules/.goodfellow/editor/`, serves them from there, and reloads the frames, never the
+  admin page, once rebuilds settle (`EDITOR_REBUILT_EVENT`, `reloadFrames()`). The frames' page is `editorPage()` from
+  core, with `editorPolicy()`, wherever it's written. Next.js sites have `app/admin/editor/page.tsx` (`GoodfellowEditor`
+  from `@goodfellow-cms/next/editor`), whose exported page `goodfellow-next finish` gives the policy, with Next.js's
+  inline scripts' hashes, and the prelude (`writeEditorPolicy()`); full-stack sites don't, since their frames are static
+  files (`goodfellow-next finish --server`) and the page would make their server bundle Puck and every block again, so
+  `goodfellow-next update` adds it only where `app/admin/page.tsx` is one the starter wrote (`nextSiteFiles()`).
+  Full-stack sites' frames are bundled instead, as `next dev`'s are (`editorFramesOptions()` in `editor-frames.ts`,
+  which both share), by `goodfellow-next finish --server` into `public/admin/editor/frames/` (`writeEditorFrames()`,
+  `EDITOR_FRAMES_PATH`, which `GoodfellowAdmin` frames where it has `server`), since a server's pages can't be changed
+  once Next.js has rendered them and a build such as vinext's writes no `.next/` to change; their page runs no inline
+  scripts, so `withGoodfellow({ server: true })` sends `editorPolicy()` as a header there too (`editorFramesHeaders()`),
+  with nothing to hash. The policy runs only the site's own scripts and lets frames fetch nothing; a sandboxed page can
+  still leave for another address, so it limits what blocks can send without sealing it. Tokens are what the sandbox
+  keeps from them. The admin panel's own page has `ADMIN_POLICY` (`frame-src 'self'`, in `adminHtml()`'s meta tag, and
+  rendered by `GoodfellowAdmin`, which React puts in the head), so its frames can only show its own address's pages, the
+  editor's.
 
 ## Admin addresses
 
-- **What it is:** the config's `admin` (`AdminAddress` in core's `admin-domain.ts`: `url`, and `checked`) gives the admin panel an origin of its own, such as `https://admin.example.org`, so the site's pages can't reach its storage. `adminOrigin()` takes `https://` addresses, and `http://` only for `localhost` and `127.0.0.1`, for tests. It's in the config, not content, since sign-in gives tokens to it; `adminSite()` and `describeSite()` carry it to the admin page and `goodfellow-site.json`.
-- **Two publishes:** with `url` alone, builds guard every page and the sign-in worker gives tokens there too, but the admin panel still works at the Site address. The admin panel then checks the address from the address itself (`AdminAddressState` in `admin-address.tsx`: a site page there starts with the guard, and is sandboxed or sent away where the host sends headers), the only place that can read its pages, and publishes `checked: true`, after which the admin page's guard sends it there from anywhere else.
-- **Guards:** `goodfellow build` and `goodfellow-next finish` (`guardExport()`) end with `guardBuiltSite()` (`node-admin-domain.ts`), which puts `siteGuard()` first in every file a browser opens as a page (`pageFileKind()`: HTML, SVG, and XML, `404.html`, redirect pages, and media included; `adminGuard()` in `admin/`, nothing in the editor's frames or plugins', whose `EDITOR_PRELUDE` refuses to run outside a sandboxed frame), checks each with `startsWithGuard()`, which refuses anything that could run first (a script, an `on…` attribute, a frame, an XML stylesheet, a comment browsers end sooner than it seems to, `<!-->`, `<!--->` or `--!>`), and fails the build, naming them, if any can't. The site's guard writes `<plaintext hidden>`, stops the page, and goes to the same page at the Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`, so XML can hold them in CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`) leaves none by default; an empty root element (`<svg …/>`) is opened and closed around the guard. `admin-domain.spec.ts` tries every way a script could run before them (`e2e/fixtures/admin-domain`) in Chromium, Firefox, and WebKit, which with `preact.spec.ts` are the only specs the Firefox and WebKit projects run.
-- **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add `cloudflareSiteHeaders()` to `_headers` with `writeSiteHeaders()` (after the site's own, once, by `SITE_HEADERS_MARK`): `SITE_HEADERS` everywhere, `SVG_MEDIA_HEADERS` (`sandbox`) on the media library's SVGs, never PDFs, which Chrome won't show sandboxed, and, without an admin address, `adminPageHeaders()` and the frames' headers on the admin panel, each frame's rule taking away the admin panel's, since Cloudflare joins every matching rule's. Files named by their content get `CACHED_HEADERS` (a year, `immutable`) in `CACHED_FOLDERS`: Vite's `assets/`, Next.js's `_next/static/`, and the self-hosted Google Fonts (`fonts/google/`, written out in `admin-domain.ts`, which imports nothing), leaving out `assets/` where a file there has no hash in its name (`cachedFolders()`, as a site's own `public/assets/` wouldn't); never `/media/`, whose files keep their names when replaced, uploaded fonts included. Vercel gets the same (`vercelSiteHeaders()`, and `vercelHeaders()` with an admin address's after them, caching only `fonts/google/`, and `assets/` with `assets`, which the starters' `vercel.ts` asks for where the site has no `public/assets/`, since Vercel caches Next.js's files itself and Next.js warns about rules for `/_next/`) from the starters' `vercel.ts` and `withGoodfellow()` (on static exports only where `VERCEL` is set or there's an admin address, since Next.js warns that an export can't send headers). Pages' Content Security Policy (in `SITE_HEADERS`) is only `object-src 'none'; base-uri 'self'`: limiting scripts, styles, or frames would break custom code and embeds. Where `headersHost()` says Netlify (`NETLIFY`, which Netlify's builds set, or `GOODFELLOW_HOST`, `HOST_VARIABLE`), `writeSiteHeaders()` writes `netlifySiteHeaders()` instead: Netlify reads `_headers` too, but its documentation doesn't say how rules matching one path combine and has no `! Header`, so its rules never set a header twice for one path but the Content Security Policy, each rule's policy carrying `SITE_HEADERS`' own (the cache rules' too), and the admin panel's headers go on its page's exact addresses, never on the frames under it.
-- **Host rules:** Cloudflare Pages gets `_headers` rules (`cloudflareAdminHeaders()`, which `guardBuiltSite()` appends): `Content-Security-Policy: sandbox` for everything at the admin address, and `ADMIN_PAGE_HEADERS` (COOP, `frame-ancestors 'none'`, `Origin-Agent-Cluster`) for the admin panel, with its editor's frames and plugins' allowed in it. Vercel gets the same as `headers` matching the host (`vercelAdminHeaders()`), from the starters' `vercel.ts`, which reads the config's line itself, and from `withGoodfellow()`; a Vercel site built from its content repository reads its `vercel.ts` before the code is cloned, so that one has the rules written out (`withVercelHeaders()`), which `planSite()`, `goodfellow admin`, and `goodfellow broker` keep in step with the code's config (`syncContentHeaders()`). Full-stack Next.js sites can't have one: `withGoodfellow({ server: true })` and `goodfellow-next finish --server` refuse it.
-- **Host redirects:** Vercel also sends pages opened at the wrong address where the guards would, before anything loads (`vercelAdminRedirects()`, `permanent: false`): a site page at the admin address to the Site address, and, once `checked`, the admin panel at the Site address's host to the admin address. Only navigations (`Sec-Fetch-Dest: document`), so frames, what pages load, and the address checks stay put, and only from the Site address's own host, so copies and previews keep theirs; the Site address is `content/site.json`'s, never a copy's. The starters' `vercel.ts` works them out itself (`adminRedirects()`, reading the config's line and `content/site.json`), `withGoodfellow()` adds them with `basePath: false`, and a content repository's `vercel.ts` has the address written into its `adminRedirects()` call (`withVercelAdminAddress()`, kept in step with the header rules by `planSite()` and `syncContentHeaders()`). Cloudflare Pages' `_redirects` can't match hosts, so the docs give zone Redirect Rules to add by hand; GitLab Pages and Netlify have only the guards (`guardBuiltSite()` writes no host rules where `headersHost()` says Netlify, and `checkAdminAddress()` expects no sandbox header there).
-- **The config line:** `withAdminConfig()` writes `  admin: { url: "…", checked: true },` just inside `defineConfig({`, and `configAdmin()`, `vercel.ts`, and `withGoodfellow()` read it back; keep the three in step. The Domain screen's Admin address section (`AdminAddressSection`) writes it with the owner's sign-in, reading the config with `versions.readAt()`, so it's offered only where the host serves a site at more than one address: `PagesDomains.severalDomains` (GitLab Pages, which also connects the domain, `secure(domain, { primary: false })`), Cloudflare Pages, Netlify, and Vercel.
-- **Content in a repository of its own:** the config is the code's, which content-only sign-ins can't publish, by design, since sign-in gives tokens to the address. The Domain screen (`CodeAdminAddress`) connects the domain and shows what a developer runs, reading the code's config through `updates.code` where the sign-in can: `goodfellow admin add`, `check`, and `remove` (and `goodfellow-next admin`), which are `setAdminAddress()` and `checkSiteAdminAddress()` in `@goodfellow-cms/core/node` (`node-admin.ts`). The check is `checkAdminAddress()`, the same one the Domain screen runs from the address, read from a computer, which a browser's cross-origin rules don't stop; it expects the sandbox header where the site's setup files, the code's or the content repository's, say Cloudflare Pages or Vercel (`outsideHost()`). `planSite({ content, admin })` writes the address, unchecked, into the code's config.
+- **What it is:** the config's `admin` (`AdminAddress` in core's `admin-domain.ts`: `url`, and `checked`) gives the
+  admin panel an origin of its own, such as `https://admin.example.org`, so the site's pages can't reach its storage.
+  `adminOrigin()` takes `https://` addresses, and `http://` only for `localhost` and `127.0.0.1`, for tests. It's in the
+  config, not content, since sign-in gives tokens to it; `adminSite()` and `describeSite()` carry it to the admin page
+  and `goodfellow-site.json`.
+- **Two publishes:** with `url` alone, builds guard every page and the sign-in worker gives tokens there too, but the
+  admin panel still works at the Site address. The admin panel then checks the address from the address itself
+  (`AdminAddressState` in `admin-address.tsx`: a site page there starts with the guard, and is sandboxed or sent away
+  where the host sends headers), the only place that can read its pages, and publishes `checked: true`, after which the
+  admin page's guard sends it there from anywhere else.
+- **Guards:** `goodfellow build` and `goodfellow-next finish` (`guardExport()`) end with `guardBuiltSite()`
+  (`node-admin-domain.ts`), which puts `siteGuard()` first in every file a browser opens as a page (`pageFileKind()`:
+  HTML, SVG, and XML, `404.html`, redirect pages, and media included; `adminGuard()` in `admin/`, nothing in the
+  editor's frames or plugins', whose `EDITOR_PRELUDE` refuses to run outside a sandboxed frame), checks each with
+  `startsWithGuard()`, which refuses anything that could run first (a script, an `on…` attribute, a frame, an XML
+  stylesheet, a comment browsers end sooner than it seems to, `<!-->`, `<!--->` or `--!>`), and fails the build, naming
+  them, if any can't. The site's guard writes `<plaintext hidden>`, stops the page, and goes to the same page at the
+  Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`, so XML can hold them in
+  CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`) leaves none by default; an
+  empty root element (`<svg …/>`) is opened and closed around the guard. `admin-domain.spec.ts` tries every way a script
+  could run before them (`e2e/fixtures/admin-domain`) in Chromium, Firefox, and WebKit, which with `preact.spec.ts` are
+  the only specs the Firefox and WebKit projects run.
+- **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add
+  `cloudflareSiteHeaders()` to `_headers` with `writeSiteHeaders()` (after the site's own, once, by
+  `SITE_HEADERS_MARK`): `SITE_HEADERS` everywhere, `SVG_MEDIA_HEADERS` (`sandbox`) on the media library's SVGs, never
+  PDFs, which Chrome won't show sandboxed, and, without an admin address, `adminPageHeaders()` and the frames' headers
+  on the admin panel, each frame's rule taking away the admin panel's, since Cloudflare joins every matching rule's.
+  Files named by their content get `CACHED_HEADERS` (a year, `immutable`) in `CACHED_FOLDERS`: Vite's `assets/`,
+  Next.js's `_next/static/`, and the self-hosted Google Fonts (`fonts/google/`, written out in `admin-domain.ts`, which
+  imports nothing), leaving out `assets/` where a file there has no hash in its name (`cachedFolders()`, as a site's own
+  `public/assets/` wouldn't); never `/media/`, whose files keep their names when replaced, uploaded fonts included.
+  Vercel gets the same (`vercelSiteHeaders()`, and `vercelHeaders()` with an admin address's after them, caching only
+  `fonts/google/`, and `assets/` with `assets`, which the starters' `vercel.ts` asks for where the site has no
+  `public/assets/`, since Vercel caches Next.js's files itself and Next.js warns about rules for `/_next/`) from the
+  starters' `vercel.ts` and `withGoodfellow()` (on static exports only where `VERCEL` is set or there's an admin
+  address, since Next.js warns that an export can't send headers). Pages' Content Security Policy (in `SITE_HEADERS`) is
+  only `object-src 'none'; base-uri 'self'`: limiting scripts, styles, or frames would break custom code and embeds.
+  Where `headersHost()` says Netlify (`NETLIFY`, which Netlify's builds set, or `GOODFELLOW_HOST`, `HOST_VARIABLE`),
+  `writeSiteHeaders()` writes `netlifySiteHeaders()` instead: Netlify reads `_headers` too, but its documentation
+  doesn't say how rules matching one path combine and has no `! Header`, so its rules never set a header twice for one
+  path but the Content Security Policy, each rule's policy carrying `SITE_HEADERS`' own (the cache rules' too), and the
+  admin panel's headers go on its page's exact addresses, never on the frames under it.
+- **Host rules:** Cloudflare Pages gets `_headers` rules (`cloudflareAdminHeaders()`, which `guardBuiltSite()` appends):
+  `Content-Security-Policy: sandbox` for everything at the admin address, and `ADMIN_PAGE_HEADERS` (COOP,
+  `frame-ancestors 'none'`, `Origin-Agent-Cluster`) for the admin panel, with its editor's frames and plugins' allowed
+  in it. Vercel gets the same as `headers` matching the host (`vercelAdminHeaders()`), from the starters' `vercel.ts`,
+  which reads the config's line itself, and from `withGoodfellow()`; a Vercel site built from its content repository
+  reads its `vercel.ts` before the code is cloned, so that one has the rules written out (`withVercelHeaders()`), which
+  `planSite()`, `goodfellow admin`, and `goodfellow broker` keep in step with the code's config
+  (`syncContentHeaders()`). Full-stack Next.js sites can't have one: `withGoodfellow({ server: true })` and
+  `goodfellow-next finish --server` refuse it.
+- **Host redirects:** Vercel also sends pages opened at the wrong address where the guards would, before anything loads
+  (`vercelAdminRedirects()`, `permanent: false`): a site page at the admin address to the Site address, and, once
+  `checked`, the admin panel at the Site address's host to the admin address. Only navigations
+  (`Sec-Fetch-Dest: document`), so frames, what pages load, and the address checks stay put, and only from the Site
+  address's own host, so copies and previews keep theirs; the Site address is `content/site.json`'s, never a copy's. The
+  starters' `vercel.ts` works them out itself (`adminRedirects()`, reading the config's line and `content/site.json`),
+  `withGoodfellow()` adds them with `basePath: false`, and a content repository's `vercel.ts` has the address written
+  into its `adminRedirects()` call (`withVercelAdminAddress()`, kept in step with the header rules by `planSite()` and
+  `syncContentHeaders()`). Cloudflare Pages' `_redirects` can't match hosts, so the docs give zone Redirect Rules to add
+  by hand; GitLab Pages and Netlify have only the guards (`guardBuiltSite()` writes no host rules where `headersHost()`
+  says Netlify, and `checkAdminAddress()` expects no sandbox header there).
+- **The config line:** `withAdminConfig()` writes `  admin: { url: "…", checked: true },` just inside `defineConfig({`,
+  and `configAdmin()`, `vercel.ts`, and `withGoodfellow()` read it back; keep the three in step. The Domain screen's
+  Admin address section (`AdminAddressSection`) writes it with the owner's sign-in, reading the config with
+  `versions.readAt()`, so it's offered only where the host serves a site at more than one address:
+  `PagesDomains.severalDomains` (GitLab Pages, which also connects the domain, `secure(domain, { primary: false })`),
+  Cloudflare Pages, Netlify, and Vercel.
+- **Content in a repository of its own:** the config is the code's, which content-only sign-ins can't publish, by
+  design, since sign-in gives tokens to the address. The Domain screen (`CodeAdminAddress`) connects the domain and
+  shows what a developer runs, reading the code's config through `updates.code` where the sign-in can:
+  `goodfellow admin add`, `check`, and `remove` (and `goodfellow-next admin`), which are `setAdminAddress()` and
+  `checkSiteAdminAddress()` in `@goodfellow-cms/core/node` (`node-admin.ts`). The check is `checkAdminAddress()`, the
+  same one the Domain screen runs from the address, read from a computer, which a browser's cross-origin rules don't
+  stop; it expects the sandbox header where the site's setup files, the code's or the content repository's, say
+  Cloudflare Pages or Vercel (`outsideHost()`). `planSite({ content, admin })` writes the address, unchecked, into the
+  code's config.
 
 ## Token broker
 
-- **What it is:** `packages/broker` (`@goodfellow-cms/broker`, published, its `site/` folder the whole page, built with Vite into one script with no inline code) is a static page on an address of its own where editors sign in: it keeps their sign-in and AI keys in its own storage, shows the admin panel in a frame (`allow-same-origin`, since the admin panel runs at its own address, but never `allow-top-navigation`) and makes every call to the git host and AI services for it. It reads `broker.json` beside it (`BrokerConfig`: `sites`, each a `HostSource`, chosen with `?site=`), makes the host from Goodfellow's two (`main.ts`), refuses to be shown in a frame, and frames the admin panel at the Site address read from the repository, or the config's checked admin address, never at its own origin (`sameOrigin`), which could read its storage, naming the origin it frames in its bar; since editors can change the Site address, it frames only a `BrokerSite`'s `admin` where `broker.json` gives one (`pinnedElsewhere`), and otherwise asks before framing an origin other than the one it last showed in that browser (`SHOWN_KEY`, `moved`). Its words are in `strings.ts`.
-- **Talking:** the admin panel posts `BROKER_READY_MESSAGE` to its parent at the config's broker origin; the broker checks it came from its own frame at the admin panel's origin and answers `BROKER_CONNECT_MESSAGE` with a `BrokerAccount` and two ports. On the first, `serveBackend()` (core's `broker.ts`) answers `remoteBackend()`'s calls for what `GitBackend` offers and nothing else, making changes again (`rebuiltChanges()`: one kind each, a plain string path, no path twice) before the check and the backend see the same ones (its `Shape`s: values, methods, objects within, objects methods return such as drafts, and `filesAt()`, whose factory gets exactly its `arity`'s arguments, and whose check must give back as many as it was given, so each is made where it was checked), with errors rebuilt as their classes (`receiveError()`) and values such as `ownerAccess.active` refreshed with every answer. The second carries AI requests (`BrokerServiceRequest`: the admin panel's `ai.fetch`, at `BROKER_AI_ADDRESS`, which the broker sends on with `aiServer()` and its keys, through `brokerAi()` in `ai.ts`, with `browser` set, since Anthropic's API answers a browser only when it's told the request comes from one) and the screen the admin panel shows, which the broker opens again after going to the host to sign in, keeping only its `#/…` screen without what a sign-in brought back (`adminRoute()`, `route.ts`), so no grant or token reaches the framed page's address. A draft's publish names the changes the broker checked (`serveBackend()` reads them before `check`), so nothing added to the draft meanwhile goes live unchecked.
-- **What it checks:** every call goes through `check`, with its path in the backend (`write`, `draft.store.write`, `draft.publish`, `editors.invite`, …): `decide()` (`policy.ts`, with core's `brokerChangeCheck()`) refuses workflows (`isWorkflowPath()`: `.github/`, `.gitlab-ci.yml`, `.gitlab/`, and `bitbucket-pipelines.yml`) and asks the editor, in a dialog of the broker's own, before publishing code (anything outside `content/` and `public/media/`), custom code (`content/code/`), files in `public/media/` that could run on the site's address (`media-code`: SVGs, whose cleaning the broker can't check, and anything not one of `mediaKind()`'s; deleting asks nothing), or a new Site address (however `content/site.json` is written, or deleted), starting an update, giving someone access or taking it away (naming, and handing the backend, the editor `editors.list()` gives the id, through the decision's `args`, which `serveBackend()`'s `check` returns, `reason: "editor"` where it gives none), changing domains (`pages.connect`, `secure`, `disconnect`), setting up updates, throwing away a draft, or running a plugin's task (`tasks.run`, asked once per task while the page is open). It makes unasked only the calls in `UNASKED`, each with what its arguments must be, and no more of them than it lists, so none moves another out of a checked place (`ArgKind`: plain paths, `isPlainPath()`, commits' ids, `isCommitId()`, both in core's `content/store.ts`, domains as `normalizeDomain()` writes them, repositories' `owner/name`, or a `value` only a body or query holds), since backends put them in the host's addresses (`reason: "read"`), and refuses the rest (`reason: "unknown"`), so a method added to `BACKEND` later is refused until it's listed or given a question; `policy.test.ts` checks every one of `brokerCalls()` has a decision. Owner tokens are asked for in the broker's own dialog (`ownerAccess.requestToken`, which it offers instead of `applyToken()`), so the admin panel never holds one.
-- **The admin panel:** with the config's `broker` (`BrokerAddress`, written by Site Settings' Security tab, `security-screen.tsx`, with `withBrokerConfig()`), `Admin` uses `BrokerGate` (`broker-gate.tsx`) in place of signing in: it waits for the broker, says where to sign in when it's opened anywhere else, and forgets any sign-in kept at its own address. The admin address's guard (`adminGuard(admin, broker)`) and header rules (`adminPageHeaders()`) let the broker frame it; the sign-in worker gives tokens only to the broker once `goodfellow-site.json` names one. Full-stack sites don't use it: `server` wins.
-- **Adding one:** `planBroker()` (core's `broker-setup.ts`) works out a broker's repository with no disk or network access: the released page in `site/` (`fetchBrokerRelease()` reads it from `brokerReleaseUrl()`, jsDelivr, by the `files.json` the broker's build writes, with each file's SHA-256; the admin panel's build keeps those from the broker built with it, `BROKER_DIGESTS` in `broker-digests.ts`, so the Security tab copies only the released files, and its build fails without them; `goodfellow broker add` doesn't check them yet, since core is built before the broker), `site/broker.json` naming the site (`newSiteSource()` for new sites), and the host's setup (`BrokerHost`: a GitHub Pages workflow that runs no code, with a `CNAME`, or a GitLab Pages job publishing `site/`; Cloudflare Pages and Vercel only get README steps). The Security tab's **Add a token broker** (`add-broker.tsx`) creates it with `GitHost.setup()`, which both backends implement with a token only (the sign-in worker sends setup sign-ins back to the setup page alone), and `NewSiteRepository.domain` gives its Pages a domain of its own; `goodfellow broker add`, `use`, and `remove` (`addBroker()` and `setBrokerAddress()` in `@goodfellow-cms/core/node`, `node-broker.ts`; `goodfellow-next broker use` and `remove` for Next.js sites) do the same from a computer; `create-goodfellow --broker` (`scaffoldBroker()`, from its bundled `templates/broker/`) and the setup page (`/starters/broker.json`) make one beside a new site. None of them publishes the broker's address in the config: that waits until it's online.
-- **Tests:** `broker.spec.ts` serves the built broker at `127.0.0.1:4413` (`start-broker.mjs`, into `e2e/.broker`) beside a production build of the starter whose config names it (`e2e/.site-broker`, at `localhost:4412`), against the fake GitHub; core's `broker.test.ts` and the broker's `policy.test.ts` cover the protocol and the checks.
+- **What it is:** `packages/broker` (`@goodfellow-cms/broker`, published, its `site/` folder the whole page, built with
+  Vite into one script with no inline code) is a static page on an address of its own where editors sign in: it keeps
+  their sign-in and AI keys in its own storage, shows the admin panel in a frame (`allow-same-origin`, since the admin
+  panel runs at its own address, but never `allow-top-navigation`) and makes every call to the git host and AI services
+  for it. It reads `broker.json` beside it (`BrokerConfig`: `sites`, each a `HostSource`, chosen with `?site=`), makes
+  the host from Goodfellow's two (`main.ts`), refuses to be shown in a frame, and frames the admin panel at the Site
+  address read from the repository, or the config's checked admin address, never at its own origin (`sameOrigin`), which
+  could read its storage, naming the origin it frames in its bar; since editors can change the Site address, it frames
+  only a `BrokerSite`'s `admin` where `broker.json` gives one (`pinnedElsewhere`), and otherwise asks before framing an
+  origin other than the one it last showed in that browser (`SHOWN_KEY`, `moved`). Its words are in `strings.ts`.
+- **Talking:** the admin panel posts `BROKER_READY_MESSAGE` to its parent at the config's broker origin; the broker
+  checks it came from its own frame at the admin panel's origin and answers `BROKER_CONNECT_MESSAGE` with a
+  `BrokerAccount` and two ports. On the first, `serveBackend()` (core's `broker.ts`) answers `remoteBackend()`'s calls
+  for what `GitBackend` offers and nothing else, making changes again (`rebuiltChanges()`: one kind each, a plain string
+  path, no path twice) before the check and the backend see the same ones (its `Shape`s: values, methods, objects
+  within, objects methods return such as drafts, and `filesAt()`, whose factory gets exactly its `arity`'s arguments,
+  and whose check must give back as many as it was given, so each is made where it was checked), with errors rebuilt as
+  their classes (`receiveError()`) and values such as `ownerAccess.active` refreshed with every answer. The second
+  carries AI requests (`BrokerServiceRequest`: the admin panel's `ai.fetch`, at `BROKER_AI_ADDRESS`, which the broker
+  sends on with `aiServer()` and its keys, through `brokerAi()` in `ai.ts`, with `browser` set, since Anthropic's API
+  answers a browser only when it's told the request comes from one) and the screen the admin panel shows, which the
+  broker opens again after going to the host to sign in, keeping only its `#/…` screen without what a sign-in brought
+  back (`adminRoute()`, `route.ts`), so no grant or token reaches the framed page's address. A draft's publish names the
+  changes the broker checked (`serveBackend()` reads them before `check`), so nothing added to the draft meanwhile goes
+  live unchecked.
+- **What it checks:** every call goes through `check`, with its path in the backend (`write`, `draft.store.write`,
+  `draft.publish`, `editors.invite`, …): `decide()` (`policy.ts`, with core's `brokerChangeCheck()`) refuses workflows
+  (`isWorkflowPath()`: `.github/`, `.gitlab-ci.yml`, `.gitlab/`, and `bitbucket-pipelines.yml`) and asks the editor, in
+  a dialog of the broker's own, before publishing code (anything outside `content/` and `public/media/`), custom code
+  (`content/code/`), files in `public/media/` that could run on the site's address (`media-code`: SVGs, whose cleaning
+  the broker can't check, and anything not one of `mediaKind()`'s; deleting asks nothing), or a new Site address
+  (however `content/site.json` is written, or deleted), starting an update, giving someone access or taking it away
+  (naming, and handing the backend, the editor `editors.list()` gives the id, through the decision's `args`, which
+  `serveBackend()`'s `check` returns, `reason: "editor"` where it gives none), changing domains (`pages.connect`,
+  `secure`, `disconnect`), setting up updates, throwing away a draft, or running a plugin's task (`tasks.run`, asked
+  once per task while the page is open). It makes unasked only the calls in `UNASKED`, each with what its arguments must
+  be, and no more of them than it lists, so none moves another out of a checked place (`ArgKind`: plain paths,
+  `isPlainPath()`, commits' ids, `isCommitId()`, both in core's `content/store.ts`, domains as `normalizeDomain()`
+  writes them, repositories' `owner/name`, or a `value` only a body or query holds), since backends put them in the
+  host's addresses (`reason: "read"`), and refuses the rest (`reason: "unknown"`), so a method added to `BACKEND` later
+  is refused until it's listed or given a question; `policy.test.ts` checks every one of `brokerCalls()` has a decision.
+  Owner tokens are asked for in the broker's own dialog (`ownerAccess.requestToken`, which it offers instead of
+  `applyToken()`), so the admin panel never holds one.
+- **The admin panel:** with the config's `broker` (`BrokerAddress`, written by Site Settings' Security tab,
+  `security-screen.tsx`, with `withBrokerConfig()`), `Admin` uses `BrokerGate` (`broker-gate.tsx`) in place of signing
+  in: it waits for the broker, says where to sign in when it's opened anywhere else, and forgets any sign-in kept at its
+  own address. The admin address's guard (`adminGuard(admin, broker)`) and header rules (`adminPageHeaders()`) let the
+  broker frame it; the sign-in worker gives tokens only to the broker once `goodfellow-site.json` names one. Full-stack
+  sites don't use it: `server` wins.
+- **Adding one:** `planBroker()` (core's `broker-setup.ts`) works out a broker's repository with no disk or network
+  access: the released page in `site/` (`fetchBrokerRelease()` reads it from `brokerReleaseUrl()`, jsDelivr, by the
+  `files.json` the broker's build writes, with each file's SHA-256; the admin panel's build keeps those from the broker
+  built with it, `BROKER_DIGESTS` in `broker-digests.ts`, so the Security tab copies only the released files, and its
+  build fails without them; `goodfellow broker add` doesn't check them yet, since core is built before the broker),
+  `site/broker.json` naming the site (`newSiteSource()` for new sites), and the host's setup (`BrokerHost`: a GitHub
+  Pages workflow that runs no code, with a `CNAME`, or a GitLab Pages job publishing `site/`; Cloudflare Pages and
+  Vercel only get README steps). The Security tab's **Add a token broker** (`add-broker.tsx`) creates it with
+  `GitHost.setup()`, which both backends implement with a token only (the sign-in worker sends setup sign-ins back to
+  the setup page alone), and `NewSiteRepository.domain` gives its Pages a domain of its own; `goodfellow broker add`,
+  `use`, and `remove` (`addBroker()` and `setBrokerAddress()` in `@goodfellow-cms/core/node`, `node-broker.ts`;
+  `goodfellow-next broker use` and `remove` for Next.js sites) do the same from a computer; `create-goodfellow --broker`
+  (`scaffoldBroker()`, from its bundled `templates/broker/`) and the setup page (`/starters/broker.json`) make one
+  beside a new site. None of them publishes the broker's address in the config: that waits until it's online.
+- **Tests:** `broker.spec.ts` serves the built broker at `127.0.0.1:4413` (`start-broker.mjs`, into `e2e/.broker`)
+  beside a production build of the starter whose config names it (`e2e/.site-broker`, at `localhost:4412`), against the
+  fake GitHub; core's `broker.test.ts` and the broker's `policy.test.ts` cover the protocol and the checks.
 
 ## Next.js
 
-- **Server Components:** Next.js renders Goodfellow pages as Server Components, which have no React context. `@goodfellow-cms/react` has a second entry for them (`index.server.ts`, the `react-server` export condition) whose `SiteProvider` and `useSite()` keep the site in React's per-request `cache()` instead, and whose `PageBody` uses Puck's server `Render`. Export the same names from both entries; a test checks they match.
-- **Per-page site data:** Next.js renders the "not found" page in the same request as every other page, so a single per-request value is ambiguous. The server entry's Puck config wraps each block's `render` to `setSite()` its own page's site first; a block and the components it renders run in one pass. Never rely on `SiteProvider` alone on the server.
-- **Layout:** the Next.js starter shows the header and footer in `app/(site)/layout.tsx` (`goodfellowPages().Layout`, with `PageHeader`, `PageFooter`, and `prepareLayout()`), so they stay mounted between pages, and pages render only `PageContent`. `withGoodfellow()` turns off React's debug channel in `next dev` (`experimental.reactDebugChannel`), which made the browser's memory grow to gigabytes with the header and footer in a layout; check memory in `next dev` (Chrome's task manager) before turning it back on. A layout doesn't know the current page, so its blocks get an empty `path`; Menu marks current links with `data-current` and `aria-current`, which `CurrentMenuLinks` sets in the browser after each navigation, closing any menu button's links (`details[open]`) too. Blocks in the header and footer must not need `path` for anything else. "Page not found" is shown outside the `(site)` layout, so `NotFound` renders the header and footer itself.
-- **Client Components** in blocks get the site through the browser entry's context: the server `SiteProvider` also renders the `"use client"` `SiteProvider` from `site-context.tsx`, so the site, including `components` (which must be client references, as `NextLink` and `NextImage` in `packages/next/src/components.tsx` are), is passed to the browser, with every page, without members-only collections or the page's item where it's one of theirs (`browserSite()` in `browser-site.ts`), which blocks rendered on the server still see. Keep context and other browser-only code out of modules the server entry imports, or Next.js refuses to build. `site-context.tsx` is its own build entry so its directive survives bundling. `@goodfellow-cms/react` is built one file per module (`unbundle`), like core, so a Client Component that imports `SiteLink` from it gets only that: Next.js sends a page every Client Component its layout and blocks could use, and one bundled file would bring Puck and the page renderer to every visitor. A test checks the Next.js starter's pages load no Puck and stay under 250 kB of JavaScript.
-- **Same HTML:** pages must render the same HTML in Next.js as with `goodfellow build`, apart from what `next/link` and `next/image` add. A test in `packages/next` compares the Next.js starter's export with the starter's build, so `templates/next` keeps the starter's `content/` and `public/` exactly. Shared preparation (entries, `resolveData`, base paths in rich text) lives in `preparePage()`.
-- **Puck's server `Render`** puts `puck.metadata` in a block's props before looking for slots in them, so metadata keys that match a slot's name (an entry's `content`, a Section's `content`) break it. `hiddenFromSlots()` works around this; remove it once Puck fixes it.
-- **Development:** `withGoodfellow()` runs the local backend on a random port on 127.0.0.1 in `next dev`, and Next.js rewrites `/__goodfellow/api/*` to it. It also serves the editor's frames there (`DEV_EDITOR_PREFIX`, `startDevEditor()` in `dev-editor.ts`), since Next.js refuses its development files to sandboxed frames: the site's config and the editor bundled as one classic script with Rolldown (a dependency loaded only in `next dev`), rebuilt as the code changes, with `version.json` counting rebuilds once they settle, which `GoodfellowAdmin` polls to reload the frames (`reloadFrames()`). The API trusts any page on this computer (`isLocalOrigin`) since requests arrive through Next.js's address. Both development servers refuse requests to any other name than this computer's (`isAllowedDevHost()`: `localhost`, IP addresses, and Vite's `server.allowedHosts`), which `handleDevApi()` checks itself (`DevApiOptions.allowedHosts`) and `goodfellow dev` checks before the middlewares that run ahead of Vite's own check, since a website can point its name at this computer (DNS rebinding) and its pages are then same-origin. Next.js passes every header on as the client sent it, so the next dev backend can't tell another computer's requests from this one's: it turns itself off, answering 403, while `next dev` answers on this computer's network addresses (`answersNetwork()` through `exposureCheck()`, asked at its first request and again whenever this computer's network addresses change, until it does), which the starters' `next dev -H 127.0.0.1` never does.
-- **Base path:** `withGoodfellow()` takes `basePath`, or `GOODFELLOW_BASE`, and passes it to pages and the admin panel as `GOODFELLOW_BASE_PATH`. `goodfellow build` rewrites finished HTML instead (`applyBasePath`), so it leaves `useSite().base` unset; Next.js can't rewrite its output, so pages get `base` and blocks add it through `SiteLink`, `SiteImage`, and `withBase`. `next/link` adds the base path itself; `next/image` doesn't, so `SiteImage` passes it the full address.
-- **Images:** `readMediaSizes()` (cached by modification time) gives `next/image` each image's size. Without a custom loader, `withGoodfellow()` sets `images.unoptimized`, since a static export can't optimize images, and lists the smaller copies `goodfellow-next finish` writes (see Media's Smaller copies).
-- **Routes:** the page route leaves `dynamicParams` on, so `next dev` shows pages created in the admin panel at once; the export only contains `generateStaticParams`' pages.
+- **Server Components:** Next.js renders Goodfellow pages as Server Components, which have no React context.
+  `@goodfellow-cms/react` has a second entry for them (`index.server.ts`, the `react-server` export condition) whose
+  `SiteProvider` and `useSite()` keep the site in React's per-request `cache()` instead, and whose `PageBody` uses
+  Puck's server `Render`. Export the same names from both entries; a test checks they match.
+- **Per-page site data:** Next.js renders the "not found" page in the same request as every other page, so a single
+  per-request value is ambiguous. The server entry's Puck config wraps each block's `render` to `setSite()` its own
+  page's site first; a block and the components it renders run in one pass. Never rely on `SiteProvider` alone on the
+  server.
+- **Layout:** the Next.js starter shows the header and footer in `app/(site)/layout.tsx` (`goodfellowPages().Layout`,
+  with `PageHeader`, `PageFooter`, and `prepareLayout()`), so they stay mounted between pages, and pages render only
+  `PageContent`. `withGoodfellow()` turns off React's debug channel in `next dev` (`experimental.reactDebugChannel`),
+  which made the browser's memory grow to gigabytes with the header and footer in a layout; check memory in `next dev`
+  (Chrome's task manager) before turning it back on. A layout doesn't know the current page, so its blocks get an empty
+  `path`; Menu marks current links with `data-current` and `aria-current`, which `CurrentMenuLinks` sets in the browser
+  after each navigation, closing any menu button's links (`details[open]`) too. Blocks in the header and footer must not
+  need `path` for anything else. "Page not found" is shown outside the `(site)` layout, so `NotFound` renders the header
+  and footer itself.
+- **Client Components** in blocks get the site through the browser entry's context: the server `SiteProvider` also
+  renders the `"use client"` `SiteProvider` from `site-context.tsx`, so the site, including `components` (which must be
+  client references, as `NextLink` and `NextImage` in `packages/next/src/components.tsx` are), is passed to the browser,
+  with every page, without members-only collections or the page's item where it's one of theirs (`browserSite()` in
+  `browser-site.ts`), which blocks rendered on the server still see. Keep context and other browser-only code out of
+  modules the server entry imports, or Next.js refuses to build. `site-context.tsx` is its own build entry so its
+  directive survives bundling. `@goodfellow-cms/react` is built one file per module (`unbundle`), like core, so a Client
+  Component that imports `SiteLink` from it gets only that: Next.js sends a page every Client Component its layout and
+  blocks could use, and one bundled file would bring Puck and the page renderer to every visitor. A test checks the
+  Next.js starter's pages load no Puck and stay under 250 kB of JavaScript.
+- **Same HTML:** pages must render the same HTML in Next.js as with `goodfellow build`, apart from what `next/link` and
+  `next/image` add. A test in `packages/next` compares the Next.js starter's export with the starter's build, so
+  `templates/next` keeps the starter's `content/` and `public/` exactly. Shared preparation (entries, `resolveData`,
+  base paths in rich text) lives in `preparePage()`.
+- **Puck's server `Render`** puts `puck.metadata` in a block's props before looking for slots in them, so metadata keys
+  that match a slot's name (an entry's `content`, a Section's `content`) break it. `hiddenFromSlots()` works around
+  this; remove it once Puck fixes it.
+- **Development:** `withGoodfellow()` runs the local backend on a random port on 127.0.0.1 in `next dev`, and Next.js
+  rewrites `/__goodfellow/api/*` to it. It also serves the editor's frames there (`DEV_EDITOR_PREFIX`,
+  `startDevEditor()` in `dev-editor.ts`), since Next.js refuses its development files to sandboxed frames: the site's
+  config and the editor bundled as one classic script with Rolldown (a dependency loaded only in `next dev`), rebuilt as
+  the code changes, with `version.json` counting rebuilds once they settle, which `GoodfellowAdmin` polls to reload the
+  frames (`reloadFrames()`). The API trusts any page on this computer (`isLocalOrigin`) since requests arrive through
+  Next.js's address. Both development servers refuse requests to any other name than this computer's
+  (`isAllowedDevHost()`: `localhost`, IP addresses, and Vite's `server.allowedHosts`), which `handleDevApi()` checks
+  itself (`DevApiOptions.allowedHosts`) and `goodfellow dev` checks before the middlewares that run ahead of Vite's own
+  check, since a website can point its name at this computer (DNS rebinding) and its pages are then same-origin. Next.js
+  passes every header on as the client sent it, so the next dev backend can't tell another computer's requests from this
+  one's: it turns itself off, answering 403, while `next dev` answers on this computer's network addresses
+  (`answersNetwork()` through `exposureCheck()`, asked at its first request and again whenever this computer's network
+  addresses change, until it does), which the starters' `next dev -H 127.0.0.1` never does.
+- **Base path:** `withGoodfellow()` takes `basePath`, or `GOODFELLOW_BASE`, and passes it to pages and the admin panel
+  as `GOODFELLOW_BASE_PATH`. `goodfellow build` rewrites finished HTML instead (`applyBasePath`), so it leaves
+  `useSite().base` unset; Next.js can't rewrite its output, so pages get `base` and blocks add it through `SiteLink`,
+  `SiteImage`, and `withBase`. `next/link` adds the base path itself; `next/image` doesn't, so `SiteImage` passes it the
+  full address.
+- **Images:** `readMediaSizes()` (cached by modification time) gives `next/image` each image's size. Without a custom
+  loader, `withGoodfellow()` sets `images.unoptimized`, since a static export can't optimize images, and lists the
+  smaller copies `goodfellow-next finish` writes (see Media's Smaller copies).
+- **Routes:** the page route leaves `dynamicParams` on, so `next dev` shows pages created in the admin panel at once;
+  the export only contains `generateStaticParams`' pages.
 
 ## Islands
 
-How `goodfellow build` and `goodfellow dev` run Client Components in the browser. Next.js does this itself and uses none of it.
+How `goodfellow build` and `goodfellow dev` run Client Components in the browser. Next.js does this itself and uses none
+of it.
 
-- **Finding them:** `islandsPlugin()` in `packages/cli/src/islands.ts` works where the server loads pages' modules. Where a module that isn't `"use client"` imports one that is, it gets an island module instead, with each export wrapped in `island()` from `@goodfellow-cms/react/island`. Client Components importing each other get the real module, as in the browser, so hooks, contexts, and helpers they share keep working. The modules found feed the browser's entry, `virtual:goodfellow/islands`, which loads each one only on pages that use it. Modules of the packages that render pages (`@goodfellow-cms/react`, Puck, React) are never islands. Packages of blocks (the site's packages that use `@goodfellow-cms/react`) are `ssr.noExternal`, so Vite loads them and their Client Components are found too.
-- **On the server**, `island()` renders the component as its own React root with an `identifierPrefix`, as `hydrateIslands()` in `hydrate.tsx` does in the browser, so `useId()` matches. Inside another island, a Client Component renders as it is. Props go into the page as JSON, and anything else is refused with a plain error, as Next.js does. Content props (`children` and other JSX) are rendered by the page in `<template>`s, which `fillSlots()` moves into the island's `<gf-slot>`s; the browser keeps that HTML as it is and starts islands inside it on their own.
-- **Pages:** `createPageRenderer` adds the site's data (`useSite()`, with `base` for `goodfellow build`) and the script only to pages with an island; other pages need neither. It writes every page and island whole (`progressiveChunkSize`), since React otherwise moves a Suspense boundary's content past a long page's end for a script to put back, out of `<main>` for visitors without JavaScript, search engines, and the site checks.
-- **Preact:** where every Client Component the site's config brings says it works with Preact (`export const worksWithPreact = true` in its `"use client"` module, `PREACT_EXPORT`, read without running it by `clientModuleExports()`, and listed by `needReact()` where it doesn't) and nothing says React (`ReactReason`: the build's `react` option, which `--react` sets, then `GOODFELLOW_REACT` (`REACT_VARIABLE`, `reactFromEnv()`), then the config's `preact: false`), `goodfellow build` runs islands with `preact/compat` (`preact.ts` in the CLI, `BuildResult.islands`, which `islandsSummary()` puts in words): the browser's islands are a bundle of their own, with `preactAliases()` making `react` the CLI's `src/preact/react.ts` (Preact's, with `useId()` taking each island's prefix, since Preact counts ids per root) and `react-dom/client` `react-dom-client.ts` (whose roots take `identifierPrefix`), apart from the admin panel's, which keeps React; and `preactIslands()` bundles the site's Client Components for the server the same way, with `render.ts`, and has `island()` render each from it (`setIslandRenderer()`), so the ids match the browser's. That bundle leaves to Node only Node's own modules and packages that don't use React that Node finds from the site (`leftToNode()`), and Puck (`NEVER_ISLANDS`), which islands never render. Pages themselves are still rendered by React, and their HTML differs from React's only in ids and React's `<!-- -->` between pieces of text. `goodfellow dev` and Next.js always use React. Mark a Client Component only once it's been tried with Preact; `preact.spec.ts` tries the registry's.
-- **Production builds:** Vite takes production mode from `NODE_ENV`, which its server for rendering pages sets to `"development"`, so `build()` sets it to `"production"` for the build.
+- **Finding them:** `islandsPlugin()` in `packages/cli/src/islands.ts` works where the server loads pages' modules.
+  Where a module that isn't `"use client"` imports one that is, it gets an island module instead, with each export
+  wrapped in `island()` from `@goodfellow-cms/react/island`. Client Components importing each other get the real module,
+  as in the browser, so hooks, contexts, and helpers they share keep working. The modules found feed the browser's
+  entry, `virtual:goodfellow/islands`, which loads each one only on pages that use it. Modules of the packages that
+  render pages (`@goodfellow-cms/react`, Puck, React) are never islands. Packages of blocks (the site's packages that
+  use `@goodfellow-cms/react`) are `ssr.noExternal`, so Vite loads them and their Client Components are found too.
+- **On the server**, `island()` renders the component as its own React root with an `identifierPrefix`, as
+  `hydrateIslands()` in `hydrate.tsx` does in the browser, so `useId()` matches. Inside another island, a Client
+  Component renders as it is. Props go into the page as JSON, and anything else is refused with a plain error, as
+  Next.js does. Content props (`children` and other JSX) are rendered by the page in `<template>`s, which `fillSlots()`
+  moves into the island's `<gf-slot>`s; the browser keeps that HTML as it is and starts islands inside it on their own.
+- **Pages:** `createPageRenderer` adds the site's data (`useSite()`, with `base` for `goodfellow build`) and the script
+  only to pages with an island; other pages need neither. It writes every page and island whole
+  (`progressiveChunkSize`), since React otherwise moves a Suspense boundary's content past a long page's end for a
+  script to put back, out of `<main>` for visitors without JavaScript, search engines, and the site checks.
+- **Preact:** where every Client Component the site's config brings says it works with Preact
+  (`export const worksWithPreact = true` in its `"use client"` module, `PREACT_EXPORT`, read without running it by
+  `clientModuleExports()`, and listed by `needReact()` where it doesn't) and nothing says React (`ReactReason`: the
+  build's `react` option, which `--react` sets, then `GOODFELLOW_REACT` (`REACT_VARIABLE`, `reactFromEnv()`), then the
+  config's `preact: false`), `goodfellow build` runs islands with `preact/compat` (`preact.ts` in the CLI,
+  `BuildResult.islands`, which `islandsSummary()` puts in words): the browser's islands are a bundle of their own, with
+  `preactAliases()` making `react` the CLI's `src/preact/react.ts` (Preact's, with `useId()` taking each island's
+  prefix, since Preact counts ids per root) and `react-dom/client` `react-dom-client.ts` (whose roots take
+  `identifierPrefix`), apart from the admin panel's, which keeps React; and `preactIslands()` bundles the site's Client
+  Components for the server the same way, with `render.ts`, and has `island()` render each from it
+  (`setIslandRenderer()`), so the ids match the browser's. That bundle leaves to Node only Node's own modules and
+  packages that don't use React that Node finds from the site (`leftToNode()`), and Puck (`NEVER_ISLANDS`), which
+  islands never render. Pages themselves are still rendered by React, and their HTML differs from React's only in ids
+  and React's `<!-- -->` between pieces of text. `goodfellow dev` and Next.js always use React. Mark a Client Component
+  only once it's been tried with Preact; `preact.spec.ts` tries the registry's.
+- **Production builds:** Vite takes production mode from `NODE_ENV`, which its server for rendering pages sets to
+  `"development"`, so `build()` sets it to `"production"` for the build.
 
 ## Code and search
 
-- **Highlighting** happens in `resolveData` with Shiki (`loadHighlighter()` in `packages/blocks/src/highlight.ts`), so builds, and the editor's preview, do it, and visitors only get HTML. It loads a fixed list of languages with the JavaScript regex engine; add a language there and to `CODE_LANGUAGES` together. Never highlight in `render`. Its colors are the site's code themes (`theme.code` in `content/site.json`, read with `codeStyle()` from Puck's `metadata.site`): `CODE_THEMES` in core lists the ones Site Settings offers, and `CODE_THEME_LOADERS` loads each when it's used, so add a theme to both. With `background: "site"`, code colored like the page takes `--muted` in place of its theme's background.
-- **Search:** blocks that search with Pagefind render `SEARCH_ATTRIBUTE` (`data-goodfellow-search`), and `writeSearchIndex()` (`@goodfellow-cms/core/search-index`) indexes a built site only when a page has it. `goodfellow build` calls it; Next.js sites run `goodfellow-next finish out` (full-stack ones `goodfellow-next finish --server`, see Full-stack Next.js sites), which also puts the export's prefetch files where browsers look for them (`fixSegmentFiles()` from `@goodfellow-cms/next/export`: on Windows, Next.js 16 writes `__next.…` folders instead of files). It's its own entry, not part of `@goodfellow-cms/core/node`, so Next.js never bundles Pagefind's binary. Pages mark their main content `data-pagefind-body`, except "Page not found", pages blocks add, and pages with `noSearch`. The Search block tells Pagefind its base is `/`, since `SiteLink` adds the site's base path.
-- **The copy button and the Search box** are plain HTML that `copyScript()` and `searchScript()` make work (see Blocks), with their words from the block's props, which editors can translate, in the HTML. The copy button copies the text of the `<pre>` beside it; the Search box loads Pagefind from `data-gf-base` and writes its results with the classes its list carries (`data-gf-link-class` and the rest). Results are plain links; in Next.js, `SearchResultLinks` in the layout (`components.tsx` in `@goodfellow-cms/next`) opens them with Next.js's router and loads them ahead when they're pointed at or focused, as `next/link` does, so `goodfellow build` needs no React for them.
-- **Client Components in `@goodfellow-cms/blocks`** (only `language-switch-client.tsx`) are entries of their own in `tsdown.config.ts`, so their `"use client"` directive survives the build. Blocks pass them only the values they need, never all their props: Puck's `puck` prop holds functions, which Next.js can't send to the browser.
+- **Highlighting** happens in `resolveData` with Shiki (`loadHighlighter()` in `packages/blocks/src/highlight.ts`), so
+  builds, and the editor's preview, do it, and visitors only get HTML. It loads a fixed list of languages with the
+  JavaScript regex engine; add a language there and to `CODE_LANGUAGES` together. Never highlight in `render`. Its
+  colors are the site's code themes (`theme.code` in `content/site.json`, read with `codeStyle()` from Puck's
+  `metadata.site`): `CODE_THEMES` in core lists the ones Site Settings offers, and `CODE_THEME_LOADERS` loads each when
+  it's used, so add a theme to both. With `background: "site"`, code colored like the page takes `--muted` in place of
+  its theme's background.
+- **Search:** blocks that search with Pagefind render `SEARCH_ATTRIBUTE` (`data-goodfellow-search`), and
+  `writeSearchIndex()` (`@goodfellow-cms/core/search-index`) indexes a built site only when a page has it.
+  `goodfellow build` calls it; Next.js sites run `goodfellow-next finish out` (full-stack ones
+  `goodfellow-next finish --server`, see Full-stack Next.js sites), which also puts the export's prefetch files where
+  browsers look for them (`fixSegmentFiles()` from `@goodfellow-cms/next/export`: on Windows, Next.js 16 writes
+  `__next.…` folders instead of files). It's its own entry, not part of `@goodfellow-cms/core/node`, so Next.js never
+  bundles Pagefind's binary. Pages mark their main content `data-pagefind-body`, except "Page not found", pages blocks
+  add, and pages with `noSearch`. The Search block tells Pagefind its base is `/`, since `SiteLink` adds the site's base
+  path.
+- **The copy button and the Search box** are plain HTML that `copyScript()` and `searchScript()` make work (see Blocks),
+  with their words from the block's props, which editors can translate, in the HTML. The copy button copies the text of
+  the `<pre>` beside it; the Search box loads Pagefind from `data-gf-base` and writes its results with the classes its
+  list carries (`data-gf-link-class` and the rest). Results are plain links; in Next.js, `SearchResultLinks` in the
+  layout (`components.tsx` in `@goodfellow-cms/next`) opens them with Next.js's router and loads them ahead when they're
+  pointed at or focused, as `next/link` does, so `goodfellow build` needs no React for them.
+- **Client Components in `@goodfellow-cms/blocks`** (only `language-switch-client.tsx`) are entries of their own in
+  `tsdown.config.ts`, so their `"use client"` directive survives the build. Blocks pass them only the values they need,
+  never all their props: Puck's `puck` prop holds functions, which Next.js can't send to the browser.
 
 ## Demo mode
 
-- **Turned on only in the config** (`demo: true`). Nothing in the admin panel may change it, or `goodfellow.config.tsx` at all.
-- **Content:** builds write `demoContent()` to `DEMO_CONTENT_PATH` (`admin/demo-content.json`): `goodfellow build` beside the admin panel, Next.js through the starter's `app/admin/demo-content.json/route.ts` (an empty file when the site isn't a demo, since a static export can't leave a route out). It holds `content/` and the installed blocks' record, and lists media, which the demo reads from the site's own address. No host API is called, so the repository can be private.
-- **Saving:** `Admin` wraps the store in `demoStore()` (`createDemoStore()` in `demo.ts`): reads come from the build's copy (or, in `goodfellow dev` and `next dev`, the local backend), and saves go to the browser's IndexedDB. It refuses saves from a tab that loaded an older version with `ConflictError`, as a real backend does, so the admin panel's usual flows all work.
-- **Screens** check `useAdmin().demo`: the banner offers Start over, which reloads the admin panel so every screen starts again; Publish's "Published." becomes "Saved in this browser."; the Blocks screen can't add or remove blocks, since that changes code.
+- **Turned on only in the config** (`demo: true`). Nothing in the admin panel may change it, or `goodfellow.config.tsx`
+  at all.
+- **Content:** builds write `demoContent()` to `DEMO_CONTENT_PATH` (`admin/demo-content.json`): `goodfellow build`
+  beside the admin panel, Next.js through the starter's `app/admin/demo-content.json/route.ts` (an empty file when the
+  site isn't a demo, since a static export can't leave a route out). It holds `content/` and the installed blocks'
+  record, and lists media, which the demo reads from the site's own address. No host API is called, so the repository
+  can be private.
+- **Saving:** `Admin` wraps the store in `demoStore()` (`createDemoStore()` in `demo.ts`): reads come from the build's
+  copy (or, in `goodfellow dev` and `next dev`, the local backend), and saves go to the browser's IndexedDB. It refuses
+  saves from a tab that loaded an older version with `ConflictError`, as a real backend does, so the admin panel's usual
+  flows all work.
+- **Screens** check `useAdmin().demo`: the banner offers Start over, which reloads the admin panel so every screen
+  starts again; Publish's "Published." becomes "Saved in this browser."; the Blocks screen can't add or remove blocks,
+  since that changes code.
 
 ## Media
 
-- **Files** live in `public/media/` and content refers to them as `/media/name.jpg`. Uploads are binary `FileChange`s (`{ path, bytes }`), and every `ContentStore` implements `readBytes()`.
-- **Media fields:** a prop that holds a media address uses `mediaField()` from `@goodfellow-cms/react`, which marks it with `metadata: { media: "image" | "video" | "audio" | "file" }`. The admin panel adds the media library's chooser to those fields in Puck; its own forms use `MediaField`.
-- **Uploads** go through `prepareUpload()`, which refuses file types that could run code, shrinks large photos, always re-saves JPEGs to drop hidden details such as location (even when that's a little larger), takes Exif, text, and XMP out of PNGs and WebPs without re-saving them (`withoutImageDetails()` in core's `image-size.ts`, which `importWordPress()` uses too, so animations keep moving), and keeps only SVG's own drawing elements and safe attributes in SVGs (`cleanSvg()`, an allowlist by namespace and name, since a denylist missed prefixed scripts, entity-spelled `javascript:` and animated links), and what an SVG loads as it draws (images, `use`, CSS's `url()` and `@import`) only from the file itself or the site, so opening one tells no other site. Keep the allowed types in core's `content/media-files.ts` (`mediaKind()`, which the admin panel's `media.ts` re-exports) to ones that can't run code on the site's address. `useAdmin().publish()` passes every change through `safeMediaChanges()` (`upload.ts`), which refuses files in `public/media/` that aren't one of them by the name they're saved under and cleans every SVG again, so a replaced file or a plugin's publish can't skip the checks; a replacement must be the same kind as the file it replaces.
-- **Videos:** the Video block (`video.tsx` in `@goodfellow-cms/blocks`) plays uploads with `<video>` and players in `<iframe>`s, with no player library, so pages need no JavaScript and no player's script runs in the editor's own page. `youtubeVideo()` and `vimeoVideo()` in `@goodfellow-cms/core` (`video.ts`) read every address those sites give, embed codes included, and `youtubePlayerUrl()` (privacy-enhanced, `youtube-nocookie.com`) and `vimeoPlayerUrl()` (`dnt=1`) write their players'; both are allowlisted, so they aren't sandboxed. Other sites' players are sandboxed, and `embedPlayerUrl()` accepts only `https://` addresses on another site: never the site's own address, this computer, or, in the editor, the admin panel's own address, since a player there would have the editor's access. Media fields can hold videos (`mediaField(label, "video")`), whose chooser offers only videos. Uploads stay in the repository's history for good, so `MAX_UPLOAD_BYTES` stays at 25 MB. On a site Cloudflare Pages builds, the media library says Cloudflare's terms ask free plans to serve video through its paid services, once it has a video, and suggests YouTube or Vimeo.
-- **Social posts:** the Social post block (`Embed`, `embed.tsx` in `@goodfellow-cms/blocks`, sharing `embed-data.ts` with its native version) shows posts from Bluesky, Mastodon, Instagram, X, Spotify, and SoundCloud. `embeddedPost()` in core (`embeds.ts`) reads a post's address or its site's embed code into the site's own embed page, with no request to any site, and refuses short links, which only their site can follow, and addresses on the site's own or this computer, as `embedPlayerUrl()` does; the frame is sandboxed as other sites' players are, through `ConsentFrame`, as tall as `EmbeddedPost.height` unless the editor says otherwise, since frames can't size themselves without a script on the page. Bluesky's embed needs its author's DID, so a post by handle is looked up (`blueskyDid()`, Bluesky's public API) in `resolveData` only where pages are built, never in the editor, which links it where Bluesky can't be reached.
-- **Documents:** the Document viewer (`Document` in `media.tsx`, sharing `media-data.ts` with its native version) frames only PDFs (`documentAddress()`), since the site's own pages of any other kind would run in the frame, and only the media library's (`isFramedDocument()`: `/media/`, or under `useSite().mediaStorage`, the storage's public address, which `preparePage()` and `prepareLayout()` give), since browsers won't show a PDF in a sandboxed frame and another site could answer for a `.pdf` with a page, so other sites' are only linked; the editor shows a box in its place, since its frame can't open the site's files. Apps open the PDF in the phone's viewer.
-- **Giving and sharing:** the Donate button and Share buttons (`share.tsx`, sharing `share-data.ts` with their native versions) are links only, so pages load nothing from the services. `givingPage()` takes only `https://` addresses, naming the services people know, and `shareLink()` writes each site's share address for the page's full address (`pageAddress()`, from the Site address, without which Share buttons show nothing).
-- **Kept by a plugin:** where `content/media-storage.json` says a plugin keeps media (see Plugins' Media storage), uploads go to it through its frame, larger ones too, up to its `mediaStorage.maxBytes`, prepared with `prepareStoredUpload()`, and never into `public/media/`.
-- **Smaller copies:** builds write copies of the media library's JPEG, PNG, and WebP photos at each of `IMAGE_WIDTHS` narrower than them (by `imageSize()`, which swaps a JPEG's width and height where Exif says it's turned, `exifOrientation()`), into `media-sizes/<width>/`, as WebP named after the photo with `.webp` after it (`MEDIA_SIZES_DIR`, `imageVariantPath()`), with `writeImageSizes()` in `@goodfellow-cms/core/node`, given sharp's resizer (`sharpResizer()`, which writes WebP), copying the photo as it is where sharp can't load or read it (browsers read an image by its bytes, not its name), so every address a page lists is there (`buildNotes()` says which). `SiteImage` lists them in `srcset` (`imageSrcSet()`) only where the site's context has `imageWidths`, which only builds that write them set: `goodfellow build`, and Next.js static exports whose images aren't optimized, where `withGoodfellow()` sets `IMAGE_SIZES_ENV` and leaves `IMAGE_SIZES_MARK` in `.next/` for `goodfellow-next finish` (`writeImageFiles()`). It then renders a plain `<img>` in both renderers, since `next/image` drops `srcset` when unoptimized and pages' HTML must stay the same. Dev servers, the editor, and full-stack sites never list them.
-- **Descriptions:** `content/media.json`'s `descriptions` (`mediaDescriptionSchema`: `text` in the main language, `translations` by code, at most `MAX_DESCRIPTION_LENGTH`) say what images show, written on the Media screen (`DescribeMediaDialog` in `media-library.tsx`). `preparePage()` and `prepareLayout()` give `useSite().descriptions` those of the images the page uses, in its language (`pageDescriptions()`, `describedIn()`), and the editor's frame all of them; `SiteImage` uses one where a block's `alt` is empty and the image isn't `aria-hidden` or `role="presentation"`, so blocks keep `alt=""` with `aria-hidden` for images only there to look nice. The content API's `site.json` carries them (`ApiSiteFile.descriptions`), which `NativeImage` reads through `useNativeSite().describe()` unless it's `decorative`. `withStoredMedia()` maps their addresses as it does credits'.
-- **Focal points and tags:** `content/media.json`'s `focus` (`mediaFocusSchema`, percent from the left and top) and `tags` (`cleanTags()`: trimmed, once whatever their case, at most `MAX_TAGS` of `MAX_TAG_LENGTH`), loaded as `SiteContent.focus` and `mediaTags`; read all of the file with `mediaDetailsOf()` before writing it with `mediaFileChange()`, so a change to one part keeps the rest. `preparePage()` and `prepareLayout()` give `useSite().focus` the positions of the images a page uses (`pageFocus()`, `focusPosition()`), which `SiteImage` puts in `object-position` unless the block sets its own, and Section in `background-position` where its own Keep in view is left in the middle; the content API's `site.json` carries them too, which apps don't use yet. Replacing a file keeps its tags (`withoutMediaDetails()`'s `keepTags`).
-- **The Details dialog** (`MediaDetailsDialog` in `media-details.tsx`) publishes a file's focal point (`FocusPicker`, a button whose clicks and arrow keys place it), description and tags at once; `TagFilesDialog` tags several files, and `TagFilter` narrows the Media screen and the picker by tag, which the search (`matchesMedia()`) reads too, with descriptions.
-- **Crop and turn:** `CropDialog` crops and turns JPEG, PNG, and WebP photos in the site's own files (`canCrop()`), read with `readBytes()` so the canvas may read them back, and saves them through the usual upload (`useUploadMedia()`) as a new image (`croppedName()`) or in place of the original. Its arithmetic is `crop.ts` (`fittedBox()`, `movedBox()`, `resizedBox()`, `cropPixels()`), with no DOM.
-- **Deleting several:** the Media screen's **Select files** chooses files to delete together, in one publish, through the same `DeleteMediaDialog` as one file.
-- **Previews** never use `/media/` addresses as they are: `showMediaInPreview()` adds the site's base path, shows new uploads from memory, and reads files the live site doesn't have yet from the repository, in render frames, the editor's and editor plugins' frames alike.
+- **Files** live in `public/media/` and content refers to them as `/media/name.jpg`. Uploads are binary `FileChange`s
+  (`{ path, bytes }`), and every `ContentStore` implements `readBytes()`.
+- **Media fields:** a prop that holds a media address uses `mediaField()` from `@goodfellow-cms/react`, which marks it
+  with `metadata: { media: "image" | "video" | "audio" | "file" }`. The admin panel adds the media library's chooser to
+  those fields in Puck; its own forms use `MediaField`.
+- **Uploads** go through `prepareUpload()`, which refuses file types that could run code, shrinks large photos, always
+  re-saves JPEGs to drop hidden details such as location (even when that's a little larger), takes Exif, text, and XMP
+  out of PNGs and WebPs without re-saving them (`withoutImageDetails()` in core's `image-size.ts`, which
+  `importWordPress()` uses too, so animations keep moving), and keeps only SVG's own drawing elements and safe
+  attributes in SVGs (`cleanSvg()`, an allowlist by namespace and name, since a denylist missed prefixed scripts,
+  entity-spelled `javascript:` and animated links), and what an SVG loads as it draws (images, `use`, CSS's `url()` and
+  `@import`) only from the file itself or the site, so opening one tells no other site. Keep the allowed types in core's
+  `content/media-files.ts` (`mediaKind()`, which the admin panel's `media.ts` re-exports) to ones that can't run code on
+  the site's address. `useAdmin().publish()` passes every change through `safeMediaChanges()` (`upload.ts`), which
+  refuses files in `public/media/` that aren't one of them by the name they're saved under and cleans every SVG again,
+  so a replaced file or a plugin's publish can't skip the checks; a replacement must be the same kind as the file it
+  replaces.
+- **Videos:** the Video block (`video.tsx` in `@goodfellow-cms/blocks`) plays uploads with `<video>` and players in
+  `<iframe>`s, with no player library, so pages need no JavaScript and no player's script runs in the editor's own page.
+  `youtubeVideo()` and `vimeoVideo()` in `@goodfellow-cms/core` (`video.ts`) read every address those sites give, embed
+  codes included, and `youtubePlayerUrl()` (privacy-enhanced, `youtube-nocookie.com`) and `vimeoPlayerUrl()` (`dnt=1`)
+  write their players'; both are allowlisted, so they aren't sandboxed. Other sites' players are sandboxed, and
+  `embedPlayerUrl()` accepts only `https://` addresses on another site: never the site's own address, this computer, or,
+  in the editor, the admin panel's own address, since a player there would have the editor's access. Media fields can
+  hold videos (`mediaField(label, "video")`), whose chooser offers only videos. Uploads stay in the repository's history
+  for good, so `MAX_UPLOAD_BYTES` stays at 25 MB. On a site Cloudflare Pages builds, the media library says Cloudflare's
+  terms ask free plans to serve video through its paid services, once it has a video, and suggests YouTube or Vimeo.
+- **Social posts:** the Social post block (`Embed`, `embed.tsx` in `@goodfellow-cms/blocks`, sharing `embed-data.ts`
+  with its native version) shows posts from Bluesky, Mastodon, Instagram, X, Spotify, and SoundCloud. `embeddedPost()`
+  in core (`embeds.ts`) reads a post's address or its site's embed code into the site's own embed page, with no request
+  to any site, and refuses short links, which only their site can follow, and addresses on the site's own or this
+  computer, as `embedPlayerUrl()` does; the frame is sandboxed as other sites' players are, through `ConsentFrame`, as
+  tall as `EmbeddedPost.height` unless the editor says otherwise, since frames can't size themselves without a script on
+  the page. Bluesky's embed needs its author's DID, so a post by handle is looked up (`blueskyDid()`, Bluesky's public
+  API) in `resolveData` only where pages are built, never in the editor, which links it where Bluesky can't be reached.
+- **Documents:** the Document viewer (`Document` in `media.tsx`, sharing `media-data.ts` with its native version) frames
+  only PDFs (`documentAddress()`), since the site's own pages of any other kind would run in the frame, and only the
+  media library's (`isFramedDocument()`: `/media/`, or under `useSite().mediaStorage`, the storage's public address,
+  which `preparePage()` and `prepareLayout()` give), since browsers won't show a PDF in a sandboxed frame and another
+  site could answer for a `.pdf` with a page, so other sites' are only linked; the editor shows a box in its place,
+  since its frame can't open the site's files. Apps open the PDF in the phone's viewer.
+- **Giving and sharing:** the Donate button and Share buttons (`share.tsx`, sharing `share-data.ts` with their native
+  versions) are links only, so pages load nothing from the services. `givingPage()` takes only `https://` addresses,
+  naming the services people know, and `shareLink()` writes each site's share address for the page's full address
+  (`pageAddress()`, from the Site address, without which Share buttons show nothing).
+- **Kept by a plugin:** where `content/media-storage.json` says a plugin keeps media (see Plugins' Media storage),
+  uploads go to it through its frame, larger ones too, up to its `mediaStorage.maxBytes`, prepared with
+  `prepareStoredUpload()`, and never into `public/media/`.
+- **Smaller copies:** builds write copies of the media library's JPEG, PNG, and WebP photos at each of `IMAGE_WIDTHS`
+  narrower than them (by `imageSize()`, which swaps a JPEG's width and height where Exif says it's turned,
+  `exifOrientation()`), into `media-sizes/<width>/`, as WebP named after the photo with `.webp` after it
+  (`MEDIA_SIZES_DIR`, `imageVariantPath()`), with `writeImageSizes()` in `@goodfellow-cms/core/node`, given sharp's
+  resizer (`sharpResizer()`, which writes WebP), copying the photo as it is where sharp can't load or read it (browsers
+  read an image by its bytes, not its name), so every address a page lists is there (`buildNotes()` says which).
+  `SiteImage` lists them in `srcset` (`imageSrcSet()`) only where the site's context has `imageWidths`, which only
+  builds that write them set: `goodfellow build`, and Next.js static exports whose images aren't optimized, where
+  `withGoodfellow()` sets `IMAGE_SIZES_ENV` and leaves `IMAGE_SIZES_MARK` in `.next/` for `goodfellow-next finish`
+  (`writeImageFiles()`). It then renders a plain `<img>` in both renderers, since `next/image` drops `srcset` when
+  unoptimized and pages' HTML must stay the same. Dev servers, the editor, and full-stack sites never list them.
+- **Descriptions:** `content/media.json`'s `descriptions` (`mediaDescriptionSchema`: `text` in the main language,
+  `translations` by code, at most `MAX_DESCRIPTION_LENGTH`) say what images show, written on the Media screen
+  (`DescribeMediaDialog` in `media-library.tsx`). `preparePage()` and `prepareLayout()` give `useSite().descriptions`
+  those of the images the page uses, in its language (`pageDescriptions()`, `describedIn()`), and the editor's frame all
+  of them; `SiteImage` uses one where a block's `alt` is empty and the image isn't `aria-hidden` or
+  `role="presentation"`, so blocks keep `alt=""` with `aria-hidden` for images only there to look nice. The content
+  API's `site.json` carries them (`ApiSiteFile.descriptions`), which `NativeImage` reads through
+  `useNativeSite().describe()` unless it's `decorative`. `withStoredMedia()` maps their addresses as it does credits'.
+- **Focal points and tags:** `content/media.json`'s `focus` (`mediaFocusSchema`, percent from the left and top) and
+  `tags` (`cleanTags()`: trimmed, once whatever their case, at most `MAX_TAGS` of `MAX_TAG_LENGTH`), loaded as
+  `SiteContent.focus` and `mediaTags`; read all of the file with `mediaDetailsOf()` before writing it with
+  `mediaFileChange()`, so a change to one part keeps the rest. `preparePage()` and `prepareLayout()` give
+  `useSite().focus` the positions of the images a page uses (`pageFocus()`, `focusPosition()`), which `SiteImage` puts
+  in `object-position` unless the block sets its own, and Section in `background-position` where its own Keep in view is
+  left in the middle; the content API's `site.json` carries them too, which apps don't use yet. Replacing a file keeps
+  its tags (`withoutMediaDetails()`'s `keepTags`).
+- **The Details dialog** (`MediaDetailsDialog` in `media-details.tsx`) publishes a file's focal point (`FocusPicker`, a
+  button whose clicks and arrow keys place it), description and tags at once; `TagFilesDialog` tags several files, and
+  `TagFilter` narrows the Media screen and the picker by tag, which the search (`matchesMedia()`) reads too, with
+  descriptions.
+- **Crop and turn:** `CropDialog` crops and turns JPEG, PNG, and WebP photos in the site's own files (`canCrop()`), read
+  with `readBytes()` so the canvas may read them back, and saves them through the usual upload (`useUploadMedia()`) as a
+  new image (`croppedName()`) or in place of the original. Its arithmetic is `crop.ts` (`fittedBox()`, `movedBox()`,
+  `resizedBox()`, `cropPixels()`), with no DOM.
+- **Deleting several:** the Media screen's **Select files** chooses files to delete together, in one publish, through
+  the same `DeleteMediaDialog` as one file.
+- **Previews** never use `/media/` addresses as they are: `showMediaInPreview()` adds the site's base path, shows new
+  uploads from memory, and reads files the live site doesn't have yet from the repository, in render frames, the
+  editor's and editor plugins' frames alike.
 
 ## Backends
 
-- **Reads are pinned:** a backend's reads see the revision its last `revision()` call returned, so loading the site is consistent even if someone publishes meanwhile. Trees and blobs are cached by id, since they never change.
-- **Saving:** the admin panel publishes through `writeChanges()` from `@goodfellow-cms/core`, and only the Domain screen writes outside the editable folders (the config's `admin` line), which GitLab's `write()` checks for with the files API, since its cached trees cover only the editable folders. It retries on top of other people's commits when they only touched other files, and throws `ConflictError` when they touched the same ones, or when the host can't list everything that changed (`changedPaths()` throws past GitHub's 300 files and GitLab's 1,000, rather than give a list missing some). Backends must throw `ConflictError` when the branch has moved (GitHub: `expectedHeadOid`; GitLab: a branch check plus each file's `last_commit_id`).
-- **Creating sites:** `SetupHost` and `SetupAccount` in `@goodfellow-cms/core` (`setup-host.ts`), implemented by `githubSetup()` and `gitlabSetup()`, create a site's repository on `main` with every file in one first commit, and turn on Pages. Their sign-in keeps tokens in memory only, since they're needed once. Problems they can name throw `SetupError`, and ones that don't stop the site being created come back as `warnings`.
-- **Version history:** a backend's `history()` lists the commits that changed a file, newest first, up to the revision reads are pinned to, and `readAt()` reads a file at one. The Version history screen (`versions-screen.tsx`) loads a version with `contentWithVersion()` from `versions.ts`, which loads the whole site with that one file put back, so a version is checked as loading the site would check it, and restores it with the usual change helpers (`restoreChange()`), in canonical form. Versions that use blocks the site no longer has (`unknownBlocks()`) aren't restored. The fakes' commits record who made them and when (`FakeRepo.history()`, which lists a folder's commits too).
-- **The whole site's history:** `history()` of a folder lists the publishes that changed anything in it, and `filesAt(revision)` (`RevisionFiles`) reads the site's files as they were at a revision, sharing the backend's caches. Site Settings' Site history tab (`site-history-screen.tsx`) lists `siteHistory()` (`content/site-history.ts` in core: `content/` and `public/media/` merged by date, a page at a time), loads the site at a publish with `loadSiteContent(filesAt(…))`, and finds what has changed since with `siteChangesSince()`, which compares content files' text, since hosts list at most a few hundred changed files, and media by the files each has and the host's `changedPaths()`. `describeSiteChanges()` names them as pages, items, and settings, and `siteRestoreChanges()` puts them back in one publish, leaving `content/updates.json` alone (`isRestoredPath()`), since going back to an older list of releases to skip could install one again. Previews show the media as it was through `PreviewFrame`'s `media` (`createMediaPreviews(filesAt(…))`).
-- **Download a copy:** the Site history tab's `DownloadCopy` zips the site as the admin panel loaded it (`listFiles()` and `readBytes()`, so a draft that's open is included, and demos and the local backend work too) with `site-download.ts` (no React or DOM): `downloadPaths()` (`DOWNLOAD_FOLDERS`, `content/` and `public/media/`, and `DOWNLOAD_RECORDS`, the installed blocks' and plugins' records, never code), `siteArchive()` (fflate's streaming `Zip`, loaded only then, already-compressed files stored as they are), `siteCopyArchive()` (with `goodfellow-transfer.json`, so another Goodfellow site can import it, see Moving content between Goodfellow sites) and `downloadName()` (`transferName()`, `<site>-<YYYY-MM-DD>.zip`). Media a storage plugin keeps isn't in it.
-- **Editors:** a backend's optional `editors` (`SiteEditors` in `@goodfellow-cms/core`'s `editors.ts`) lists, invites, changes, and removes the people who edit the site, as owners, editors, or viewers. Hosts whose sign-in can't do that, or change Pages settings, offer `ownerAccess`: a second sign-in (`startRedirect`, through the sign-in worker's owners' app, with `problem` saying why the last one didn't work) or token, kept in memory only, never stored, and forgotten on sign-out, which the admin panel asks for with `OwnerTokenForm` (`owner-token.tsx`) on the Editors and Domain screens. GitLab's `letEditorsPublish()` protects the main branch again with Developers allowed to push, since its free plan can't change an existing protection. Problems the screen can explain throw `EditorsError`.
-- **Failed rebuilds:** a failed `DeployStatus` carries a `BuildProblem` (`build-problems.ts`): the step that failed (`buildStepFor()` names steps from what they run) and, where `goodfellow build` said, its `BuildCause`, a content file or code. `goodfellow build` prints the cause on a line of its own (`formatBuildCause()`, plus a GitHub Actions annotation), which the GitLab backend finds in the failed job's log (`findBuildCause()`); fine-grained GitHub tokens can't read logs or annotations, so the GitHub backend reads the workflow run's failed step, which also tells it a build failed before any deployment existed. The admin panel explains it with `BuildProblemButton` (`build-problem.tsx`), and checks whether the publish changed the site's code with `changedPaths()`. A cancelled build isn't a failure where the branch has moved on: the starters' GitLab Pages jobs are `interruptible`, so a newer publish cancels a running build, and GitHub's concurrency group replaces a waiting run, so `deployStatus()` reports the branch head's build, which includes the commit (the fakes' `cancelBuild()`).
-- **Cloudflare Pages' and Netlify's builds:** both build every push themselves and report to the git host, so `deployStatus()` reads that: GitHub's check runs of Cloudflare's app, or commit statuses (`HOST_BUILDS`, which takes Netlify's deploy statuses, `netlify/<site>/deploy…`, and never its other checks, which finish first; its GitHub App also creates deployments, read first), which fine-grained tokens can read where check runs need a GitHub App's Checks permission (the token links ask for `statuses`); GitLab's commit statuses, leaving out the `update` and `rebuild` jobs (`builds()`). A commit with nothing yet counts as building if Cloudflare reported on its parent, since it reports a little late. The fakes simulate it: `fakeGitHub({ cloudflare, netlify, checkRunsForbidden })` with `failCloudflare()`, and `fakeGitLab({ deployJob, external })`.
-- **Updates:** `update()` in `@goodfellow-cms/core/node` (`node-update.ts`), run by `goodfellow update` and `goodfellow-next update`, picks a release with `chooseUpdate()` (`updates.ts`: `fixes` is the newest with the same major and minor version, leaving out `content/updates.json`'s `skip` list; `automatic`, which the nightly runs pass, does nothing when its `automatic` is off, takes only `agedReleases()`, at least `UPDATE_AGE_DAYS` old and not deprecated, as `goodfellow nightly` does too, and installs only where every Goodfellow package it installs, those the site names and the ones their releases depend on (`goodfellowPackagesAt()`, stopping where npm can't say), has provenance that verifies as built by `GOODFELLOW_RELEASE_SOURCE` (`verifiedSource()`, else `UpdateResult.step` `provenance`), and checks the Goodfellow packages `package-lock.json` names once npm has installed them with `--ignore-scripts`, before the build (`lockedGoodfellowPackages()`, `unverifiedInstalls()`: from npm's registry, with the `integrity` `verifiedSource()` checked the provenance against), putting everything back where one doesn't; an older release goes back, and adds the release it left to `skip` in the same commit), updates Goodfellow's packages and the Puck version that release uses, with `blocks` (`--blocks`) updates Goodfellow registry blocks with `planUpdate()` (which replaces or removes only files whose hash still matches the record, and lists the rest as `kept`), never by default, since `publish-update` takes no code, installs with `--before` a day after npm's `time` for the release (`installedBefore()`), builds, and puts every file back if either fails; with `--publish` it commits and pushes, and with `--commit` it only commits (setting the step's `commit` output on GitHub Actions). It also brings the site's own files that releases change up to date (`siteFiles`, `SiteFile`, `siteFileChanges()`): each only where its text is exactly what an earlier release wrote, on every run, even when Goodfellow already is up to date (the updating run is the old release's code, which doesn't know the new files), and back to the earlier text when going back before its `since`; `goodfellow-next update` passes `NEXT_SITE_FILES` (`site-files.ts`, which a test keeps the same as `templates/next`). It prints its `UpdateResult` on a line of its own (`formatUpdateResult()`). The starters' `deploy.yml` runs it with `--commit` in an `update` job on schedules and when dispatched with an `update` input, with a token that can only read, and a `publish-update` job (`PUBLISH_UPDATE_JOB`) that runs none of the site's code pushes the commit it made, as a patch, once `UPDATE_CHECK` finds it changes only `UPDATE_FILES`' plain files (never blocks' or any other code, which the update job could have written) and takes new packages only from `UPDATE_REGISTRY` (a site file a release adds needs adding to `UPDATE_FILES`, which a test checks for `NEXT_SITE_FILES`); and their `.gitlab-ci.yml` with `--commit` too, in a `prepare` job (`PREPARE_JOB`, core's `gitlab-publish.ts`: `gitlabPrepareJob()`, which also writes the lockfile, `gitlabLockfileScript()`, committing only) on scheduled pipelines, with `GOODFELLOW_UPDATE`, and when `package.json` changes (`gitlabPublishRules()`), whose commits a `publish` job (`PUBLISH_JOB`, `gitlabPublishJob()`) that runs none of the site's code checks with `UPDATE_CHECK` and pushes over SSH with a deploy key (`DEPLOY_KEY_TITLE`), whose private half is `DEPLOY_KEY_VARIABLE`, masked, protected and scoped to `PUBLISH_ENVIRONMENT`, so only that job has it, running git and Node.js under `env -i` so a pipeline's variables can't change them; the prepare job hands over files only (`PUBLISH_PATCH`, `BUILD_DECISION`), never a dotenv report, whose variables would reach the publish job. The pages job (`gitlabPagesJob()`) builds, writing the lockfile itself where the publish job couldn't publish it (`gitlabLockfileScript({ build: true })`), as builds did before, or publishes the live files again where nothing changed or the branch moved (`GITLAB_BRANCH_MOVED`), since the publish starts a pipeline of its own; `gitlabPagesPipelineJobs()` is all three as the starters have them, which a test checks. Cloudflare and Netlify sites run the same jobs (`gitlabHookDecision()`, `gitlabHookUnpublished()`, which calls the deploy hook from the publish job where nothing was published), as does a content repository's code project. A backend's optional `updates` (`SiteUpdates`) says whether the site's setup runs it, turns on what GitLab needs (`addPublishingKey()` in `@goodfellow-cms/gitlab`'s `updates.ts`: a new deploy key that may push to the main branch, protecting it for Developers where it wasn't, the variable, removing older keys and turning job token pushes off; or, for a `.gitlab-ci.yml` without `PUBLISH_MARK`, from before, job token pushes; and a nightly schedule, throwing `UpdatesError` `publishing` where GitLab won't let the key push), reads the last run (GitHub: the workflow's `update` and `publish-update` jobs and the site's version before and after; GitLab: the result line in the prepare job's log, or the pages or `update` job's in older pipelines) and starts it. `letEditorsPublish()` keeps the key's place in the branch's protection. The Updates screen is `updates-screen.tsx`; it publishes `content/updates.json` (`parseUpdateSettings()` and `updateSettingsFile()`) with `updateSettingsFileChange()`, and offers to go back to the newest older release in `package.json`'s history.
-- **Custom domains:** a backend's optional `pages` (`PagesDomains` in `@goodfellow-cms/core`'s `domains.ts`) is its host's own Pages: where it publishes the site, connecting a domain (which returns the DNS records to add), the host's checks and HTTPS, and removing it. Hosts' Pages addresses and record formats live in the backend packages (`pages.ts`). The admin panel's Domain screen (`domain-screen.tsx`) checks records with `checkRecords()` and `domainZone()`, which ask Google Public DNS's JSON API since it answers browsers, and publishes the new address as the Site address, which rebuilds the site for it. Problems the screen can explain throw `DomainError`. `severalDomains` says whether the host serves a site at more than one address, which admin addresses need (see Admin addresses).
-- **Rate limits:** every backend's `fetch` goes through `withRateLimits()` (core's `rate-limits.ts`), which waits for a 429, or GitHub's 403 that says its limit was reached, as long as the host's `Retry-After` or reset header asks, up to `MAX_RATE_LIMIT_WAIT_MS`, a few times, and otherwise throws `RateLimitError`, which the Claude connector's tools put in words. GitLab's backend also lists its own commit's files from the commit it made them on and what it wrote (`carryTree()`, with git's blob ids, which `FakeRepo` uses too, `gitBlobSha()`), sharing what it has read with its drafts' backends (`caches`), so a run of saves to a draft doesn't list every folder again each time.
-- **Sign-in problems** throw `SignInError` with a `problem` the admin panel turns into text. Backends never supply UI text; token links name string-table keys instead.
-- **Fakes:** each backend package exports a fake of its host's API from `@goodfellow-cms/<host>/testing`, built on `FakeRepo` from `@goodfellow-cms/core/testing`. Unit tests pass the fake's `fetch`; end-to-end tests route the browser's requests to its `handle` with `routeToFake()`. Never import `/testing` entry points from code that ships.
+- **Reads are pinned:** a backend's reads see the revision its last `revision()` call returned, so loading the site is
+  consistent even if someone publishes meanwhile. Trees and blobs are cached by id, since they never change.
+- **Saving:** the admin panel publishes through `writeChanges()` from `@goodfellow-cms/core`, and only the Domain screen
+  writes outside the editable folders (the config's `admin` line), which GitLab's `write()` checks for with the files
+  API, since its cached trees cover only the editable folders. It retries on top of other people's commits when they
+  only touched other files, and throws `ConflictError` when they touched the same ones, or when the host can't list
+  everything that changed (`changedPaths()` throws past GitHub's 300 files and GitLab's 1,000, rather than give a list
+  missing some). Backends must throw `ConflictError` when the branch has moved (GitHub: `expectedHeadOid`; GitLab: a
+  branch check plus each file's `last_commit_id`).
+- **Creating sites:** `SetupHost` and `SetupAccount` in `@goodfellow-cms/core` (`setup-host.ts`), implemented by
+  `githubSetup()` and `gitlabSetup()`, create a site's repository on `main` with every file in one first commit, and
+  turn on Pages. Their sign-in keeps tokens in memory only, since they're needed once. Problems they can name throw
+  `SetupError`, and ones that don't stop the site being created come back as `warnings`.
+- **Version history:** a backend's `history()` lists the commits that changed a file, newest first, up to the revision
+  reads are pinned to, and `readAt()` reads a file at one. The Version history screen (`versions-screen.tsx`) loads a
+  version with `contentWithVersion()` from `versions.ts`, which loads the whole site with that one file put back, so a
+  version is checked as loading the site would check it, and restores it with the usual change helpers
+  (`restoreChange()`), in canonical form. Versions that use blocks the site no longer has (`unknownBlocks()`) aren't
+  restored. The fakes' commits record who made them and when (`FakeRepo.history()`, which lists a folder's commits too).
+- **The whole site's history:** `history()` of a folder lists the publishes that changed anything in it, and
+  `filesAt(revision)` (`RevisionFiles`) reads the site's files as they were at a revision, sharing the backend's caches.
+  Site Settings' Site history tab (`site-history-screen.tsx`) lists `siteHistory()` (`content/site-history.ts` in core:
+  `content/` and `public/media/` merged by date, a page at a time), loads the site at a publish with
+  `loadSiteContent(filesAt(…))`, and finds what has changed since with `siteChangesSince()`, which compares content
+  files' text, since hosts list at most a few hundred changed files, and media by the files each has and the host's
+  `changedPaths()`. `describeSiteChanges()` names them as pages, items, and settings, and `siteRestoreChanges()` puts
+  them back in one publish, leaving `content/updates.json` alone (`isRestoredPath()`), since going back to an older list
+  of releases to skip could install one again. Previews show the media as it was through `PreviewFrame`'s `media`
+  (`createMediaPreviews(filesAt(…))`).
+- **Download a copy:** the Site history tab's `DownloadCopy` zips the site as the admin panel loaded it (`listFiles()`
+  and `readBytes()`, so a draft that's open is included, and demos and the local backend work too) with
+  `site-download.ts` (no React or DOM): `downloadPaths()` (`DOWNLOAD_FOLDERS`, `content/` and `public/media/`, and
+  `DOWNLOAD_RECORDS`, the installed blocks' and plugins' records, never code), `siteArchive()` (fflate's streaming
+  `Zip`, loaded only then, already-compressed files stored as they are), `siteCopyArchive()` (with
+  `goodfellow-transfer.json`, so another Goodfellow site can import it, see Moving content between Goodfellow sites) and
+  `downloadName()` (`transferName()`, `<site>-<YYYY-MM-DD>.zip`). Media a storage plugin keeps isn't in it.
+- **Editors:** a backend's optional `editors` (`SiteEditors` in `@goodfellow-cms/core`'s `editors.ts`) lists, invites,
+  changes, and removes the people who edit the site, as owners, editors, or viewers. Hosts whose sign-in can't do that,
+  or change Pages settings, offer `ownerAccess`: a second sign-in (`startRedirect`, through the sign-in worker's owners'
+  app, with `problem` saying why the last one didn't work) or token, kept in memory only, never stored, and forgotten on
+  sign-out, which the admin panel asks for with `OwnerTokenForm` (`owner-token.tsx`) on the Editors and Domain screens.
+  GitLab's `letEditorsPublish()` protects the main branch again with Developers allowed to push, since its free plan
+  can't change an existing protection. Problems the screen can explain throw `EditorsError`.
+- **Failed rebuilds:** a failed `DeployStatus` carries a `BuildProblem` (`build-problems.ts`): the step that failed
+  (`buildStepFor()` names steps from what they run) and, where `goodfellow build` said, its `BuildCause`, a content file
+  or code. `goodfellow build` prints the cause on a line of its own (`formatBuildCause()`, plus a GitHub Actions
+  annotation), which the GitLab backend finds in the failed job's log (`findBuildCause()`); fine-grained GitHub tokens
+  can't read logs or annotations, so the GitHub backend reads the workflow run's failed step, which also tells it a
+  build failed before any deployment existed. The admin panel explains it with `BuildProblemButton`
+  (`build-problem.tsx`), and checks whether the publish changed the site's code with `changedPaths()`. A cancelled build
+  isn't a failure where the branch has moved on: the starters' GitLab Pages jobs are `interruptible`, so a newer publish
+  cancels a running build, and GitHub's concurrency group replaces a waiting run, so `deployStatus()` reports the branch
+  head's build, which includes the commit (the fakes' `cancelBuild()`).
+- **Cloudflare Pages' and Netlify's builds:** both build every push themselves and report to the git host, so
+  `deployStatus()` reads that: GitHub's check runs of Cloudflare's app, or commit statuses (`HOST_BUILDS`, which takes
+  Netlify's deploy statuses, `netlify/<site>/deploy…`, and never its other checks, which finish first; its GitHub App
+  also creates deployments, read first), which fine-grained tokens can read where check runs need a GitHub App's Checks
+  permission (the token links ask for `statuses`); GitLab's commit statuses, leaving out the `update` and `rebuild` jobs
+  (`builds()`). A commit with nothing yet counts as building if Cloudflare reported on its parent, since it reports a
+  little late. The fakes simulate it: `fakeGitHub({ cloudflare, netlify, checkRunsForbidden })` with `failCloudflare()`,
+  and `fakeGitLab({ deployJob, external })`.
+- **Updates:** `update()` in `@goodfellow-cms/core/node` (`node-update.ts`), run by `goodfellow update` and
+  `goodfellow-next update`, picks a release with `chooseUpdate()` (`updates.ts`: `fixes` is the newest with the same
+  major and minor version, leaving out `content/updates.json`'s `skip` list; `automatic`, which the nightly runs pass,
+  does nothing when its `automatic` is off, takes only `agedReleases()`, at least `UPDATE_AGE_DAYS` old and not
+  deprecated, as `goodfellow nightly` does too, and installs only where every Goodfellow package it installs, those the
+  site names and the ones their releases depend on (`goodfellowPackagesAt()`, stopping where npm can't say), has
+  provenance that verifies as built by `GOODFELLOW_RELEASE_SOURCE` (`verifiedSource()`, else `UpdateResult.step`
+  `provenance`), and checks the Goodfellow packages `package-lock.json` names once npm has installed them with
+  `--ignore-scripts`, before the build (`lockedGoodfellowPackages()`, `unverifiedInstalls()`: from npm's registry, with
+  the `integrity` `verifiedSource()` checked the provenance against), putting everything back where one doesn't; an
+  older release goes back, and adds the release it left to `skip` in the same commit), updates Goodfellow's packages and
+  the Puck version that release uses, with `blocks` (`--blocks`) updates Goodfellow registry blocks with `planUpdate()`
+  (which replaces or removes only files whose hash still matches the record, and lists the rest as `kept`), never by
+  default, since `publish-update` takes no code, installs with `--before` a day after npm's `time` for the release
+  (`installedBefore()`), builds, and puts every file back if either fails; with `--publish` it commits and pushes, and
+  with `--commit` it only commits (setting the step's `commit` output on GitHub Actions). It also brings the site's own
+  files that releases change up to date (`siteFiles`, `SiteFile`, `siteFileChanges()`): each only where its text is
+  exactly what an earlier release wrote, on every run, even when Goodfellow already is up to date (the updating run is
+  the old release's code, which doesn't know the new files), and back to the earlier text when going back before its
+  `since`; `goodfellow-next update` passes `NEXT_SITE_FILES` (`site-files.ts`, which a test keeps the same as
+  `templates/next`). It prints its `UpdateResult` on a line of its own (`formatUpdateResult()`). The starters'
+  `deploy.yml` runs it with `--commit` in an `update` job on schedules and when dispatched with an `update` input, with
+  a token that can only read, and a `publish-update` job (`PUBLISH_UPDATE_JOB`) that runs none of the site's code pushes
+  the commit it made, as a patch, once `UPDATE_CHECK` finds it changes only `UPDATE_FILES`' plain files (never blocks'
+  or any other code, which the update job could have written) and takes new packages only from `UPDATE_REGISTRY` (a site
+  file a release adds needs adding to `UPDATE_FILES`, which a test checks for `NEXT_SITE_FILES`); and their
+  `.gitlab-ci.yml` with `--commit` too, in a `prepare` job (`PREPARE_JOB`, core's `gitlab-publish.ts`:
+  `gitlabPrepareJob()`, which also writes the lockfile, `gitlabLockfileScript()`, committing only) on scheduled
+  pipelines, with `GOODFELLOW_UPDATE`, and when `package.json` changes (`gitlabPublishRules()`), whose commits a
+  `publish` job (`PUBLISH_JOB`, `gitlabPublishJob()`) that runs none of the site's code checks with `UPDATE_CHECK` and
+  pushes over SSH with a deploy key (`DEPLOY_KEY_TITLE`), whose private half is `DEPLOY_KEY_VARIABLE`, masked, protected
+  and scoped to `PUBLISH_ENVIRONMENT`, so only that job has it, running git and Node.js under `env -i` so a pipeline's
+  variables can't change them; the prepare job hands over files only (`PUBLISH_PATCH`, `BUILD_DECISION`), never a dotenv
+  report, whose variables would reach the publish job. The pages job (`gitlabPagesJob()`) builds, writing the lockfile
+  itself where the publish job couldn't publish it (`gitlabLockfileScript({ build: true })`), as builds did before, or
+  publishes the live files again where nothing changed or the branch moved (`GITLAB_BRANCH_MOVED`), since the publish
+  starts a pipeline of its own; `gitlabPagesPipelineJobs()` is all three as the starters have them, which a test checks.
+  Cloudflare and Netlify sites run the same jobs (`gitlabHookDecision()`, `gitlabHookUnpublished()`, which calls the
+  deploy hook from the publish job where nothing was published), as does a content repository's code project. A
+  backend's optional `updates` (`SiteUpdates`) says whether the site's setup runs it, turns on what GitLab needs
+  (`addPublishingKey()` in `@goodfellow-cms/gitlab`'s `updates.ts`: a new deploy key that may push to the main branch,
+  protecting it for Developers where it wasn't, the variable, removing older keys and turning job token pushes off; or,
+  for a `.gitlab-ci.yml` without `PUBLISH_MARK`, from before, job token pushes; and a nightly schedule, throwing
+  `UpdatesError` `publishing` where GitLab won't let the key push), reads the last run (GitHub: the workflow's `update`
+  and `publish-update` jobs and the site's version before and after; GitLab: the result line in the prepare job's log,
+  or the pages or `update` job's in older pipelines) and starts it. `letEditorsPublish()` keeps the key's place in the
+  branch's protection. The Updates screen is `updates-screen.tsx`; it publishes `content/updates.json`
+  (`parseUpdateSettings()` and `updateSettingsFile()`) with `updateSettingsFileChange()`, and offers to go back to the
+  newest older release in `package.json`'s history.
+- **Custom domains:** a backend's optional `pages` (`PagesDomains` in `@goodfellow-cms/core`'s `domains.ts`) is its
+  host's own Pages: where it publishes the site, connecting a domain (which returns the DNS records to add), the host's
+  checks and HTTPS, and removing it. Hosts' Pages addresses and record formats live in the backend packages
+  (`pages.ts`). The admin panel's Domain screen (`domain-screen.tsx`) checks records with `checkRecords()` and
+  `domainZone()`, which ask Google Public DNS's JSON API since it answers browsers, and publishes the new address as the
+  Site address, which rebuilds the site for it. Problems the screen can explain throw `DomainError`. `severalDomains`
+  says whether the host serves a site at more than one address, which admin addresses need (see Admin addresses).
+- **Rate limits:** every backend's `fetch` goes through `withRateLimits()` (core's `rate-limits.ts`), which waits for a
+  429, or GitHub's 403 that says its limit was reached, as long as the host's `Retry-After` or reset header asks, up to
+  `MAX_RATE_LIMIT_WAIT_MS`, a few times, and otherwise throws `RateLimitError`, which the Claude connector's tools put
+  in words. GitLab's backend also lists its own commit's files from the commit it made them on and what it wrote
+  (`carryTree()`, with git's blob ids, which `FakeRepo` uses too, `gitBlobSha()`), sharing what it has read with its
+  drafts' backends (`caches`), so a run of saves to a draft doesn't list every folder again each time.
+- **Sign-in problems** throw `SignInError` with a `problem` the admin panel turns into text. Backends never supply UI
+  text; token links name string-table keys instead.
+- **Fakes:** each backend package exports a fake of its host's API from `@goodfellow-cms/<host>/testing`, built on
+  `FakeRepo` from `@goodfellow-cms/core/testing`. Unit tests pass the fake's `fetch`; end-to-end tests route the
+  browser's requests to its `handle` with `routeToFake()`. Never import `/testing` entry points from code that ships.
 
 ## Bitbucket
 
-- **What it is:** `@goodfellow-cms/bitbucket` is the third backend, for Bitbucket Cloud, through its REST API 2.0, which answers browsers' requests (`access-control-allow-origin: *`). Bitbucket's own static websites have one address for each workspace and no domains, and Cloudflare Pages doesn't build from Bitbucket, so its sites are hosted on Vercel only (`hostsFor("bitbucket")`), and the setup page doesn't offer it; `create-goodfellow --bitbucket` does, content repositories included. The sign-in worker isn't offered for it; the Claude connector signs in with a Bitbucket OAuth consumer (see Claude connector).
-- **Sign-in:** a repository access token (Bearer, which can't read `/user`, so sign-in reads the repository first), an Atlassian API token pasted as `email:token` (Basic, `credentialsFrom()`), or Bitbucket's OAuth implicit grant with the config's `clientId`, since its token endpoint needs a client secret: the token comes back in the address's fragment, lasts about two hours, and can't be renewed, so editors sign in again. Permission comes from `/user/workspaces/{ws}/permissions/repositories`. The owner token (an access token with Admin) is kept in memory only.
-- **Publishing:** `POST /src` with every file in one multipart form, with `parents` and `branch`, which Bitbucket refuses with 409 when the branch has moved (`ConflictError`). Browsers can't read its `Location` header, so the new commit is found among the branch's commits by parent and message (`commitAfter()`). Reads are pinned to a commit, listings come from `src/{commit}/{dir}/?max_depth=10`, and cached text is carried to a newer revision for the paths its diffstat says didn't change.
-- **Pipelines:** `bitbucketPipelines()` (core's `bitbucket-setup.ts`, written by `planSite()` as `BITBUCKET_PIPELINES`) has a `main` branch step that writes `package-lock.json` only when `package.json` changed (a `changesets` condition, so publishing uses no build minutes), committing it for a step after it to publish, and custom pipelines (`BITBUCKET_PIPELINE_NAMES`): `update` (the nightly check and update, `GOODFELLOW_UPDATE` and `GOODFELLOW_REBUILD`), `scheduled` (only the deploy hook, with no clone, so it takes seconds) and `plugin-task`, each asking Vercel to rebuild through `VERCEL_DEPLOY_HOOK` when there's nothing new for it to build. Schedules can't be written in the file: `bitbucketUpdates().enable()` turns Pipelines on and adds the nightly schedule (`BITBUCKET_SCHEDULES`, seven-field cron), since the free plan has 50 build minutes a month; scheduled changes get one-off schedules of their own (see Scheduled publishing). Every step gets every repository variable, which the docs say, but the steps that run the site's code declare `BITBUCKET_READ_ONLY` (`auth.system.scopes` of `read:git:bitbucket` alone), so their token can't push: the lockfile and update steps leave their commits as `PUBLISH_PATCH`, which a step with `BITBUCKET_PUBLISHES` that runs none of the site's code checks with `UPDATE_CHECK` and pushes (`publishStep()`, which also asks Vercel to rebuild where the update step's `BUILD_DECISION` says so and nothing was published), and a plugin task's answer is pushed by a step of its own. `bitbucketUpdates().setup()` takes `update --commit` and, from older setups, `update --publish`.
-- **Editors:** Bitbucket gives permissions only to people already in the repository's workspace, so `SiteEditors.membersOnly` is set and inviting finds them there (by account id or nickname before display name, which members choose themselves, refusing a name more than one member answers to as `EditorsError` `ambiguous`, `memberNamed()`; or by email address for workspace admins) before giving them Write or Admin. Seeing everyone's permissions needs Admin; without it the list shows only the person signed in, and the screen asks for an owner token.
-- **Deploy status** reads the commit's statuses, leaving out Bitbucket's own pipelines' (`bitbucket.org` addresses), so it follows Vercel's.
-- **Tests:** `fakeBitbucket()` from `@goodfellow-cms/bitbucket/testing`, on `FakeRepo`, fakes tokens, OAuth (the implicit grant, and the code grant for consumers with a `secret`), `src`, commits, diffstat, branches and merge bases, pull requests, permissions and workspace members, and Pipelines, its schedules and variables, running tasks as the pipeline would. `bitbucket.spec.ts` runs a production build of the starter configured for it (`e2e/.site-bitbucket`).
+- **What it is:** `@goodfellow-cms/bitbucket` is the third backend, for Bitbucket Cloud, through its REST API 2.0, which
+  answers browsers' requests (`access-control-allow-origin: *`). Bitbucket's own static websites have one address for
+  each workspace and no domains, and Cloudflare Pages doesn't build from Bitbucket, so its sites are hosted on Vercel
+  only (`hostsFor("bitbucket")`), and the setup page doesn't offer it; `create-goodfellow --bitbucket` does, content
+  repositories included. The sign-in worker isn't offered for it; the Claude connector signs in with a Bitbucket OAuth
+  consumer (see Claude connector).
+- **Sign-in:** a repository access token (Bearer, which can't read `/user`, so sign-in reads the repository first), an
+  Atlassian API token pasted as `email:token` (Basic, `credentialsFrom()`), or Bitbucket's OAuth implicit grant with the
+  config's `clientId`, since its token endpoint needs a client secret: the token comes back in the address's fragment,
+  lasts about two hours, and can't be renewed, so editors sign in again. Permission comes from
+  `/user/workspaces/{ws}/permissions/repositories`. The owner token (an access token with Admin) is kept in memory only.
+- **Publishing:** `POST /src` with every file in one multipart form, with `parents` and `branch`, which Bitbucket
+  refuses with 409 when the branch has moved (`ConflictError`). Browsers can't read its `Location` header, so the new
+  commit is found among the branch's commits by parent and message (`commitAfter()`). Reads are pinned to a commit,
+  listings come from `src/{commit}/{dir}/?max_depth=10`, and cached text is carried to a newer revision for the paths
+  its diffstat says didn't change.
+- **Pipelines:** `bitbucketPipelines()` (core's `bitbucket-setup.ts`, written by `planSite()` as `BITBUCKET_PIPELINES`)
+  has a `main` branch step that writes `package-lock.json` only when `package.json` changed (a `changesets` condition,
+  so publishing uses no build minutes), committing it for a step after it to publish, and custom pipelines
+  (`BITBUCKET_PIPELINE_NAMES`): `update` (the nightly check and update, `GOODFELLOW_UPDATE` and `GOODFELLOW_REBUILD`),
+  `scheduled` (only the deploy hook, with no clone, so it takes seconds) and `plugin-task`, each asking Vercel to
+  rebuild through `VERCEL_DEPLOY_HOOK` when there's nothing new for it to build. Schedules can't be written in the file:
+  `bitbucketUpdates().enable()` turns Pipelines on and adds the nightly schedule (`BITBUCKET_SCHEDULES`, seven-field
+  cron), since the free plan has 50 build minutes a month; scheduled changes get one-off schedules of their own (see
+  Scheduled publishing). Every step gets every repository variable, which the docs say, but the steps that run the
+  site's code declare `BITBUCKET_READ_ONLY` (`auth.system.scopes` of `read:git:bitbucket` alone), so their token can't
+  push: the lockfile and update steps leave their commits as `PUBLISH_PATCH`, which a step with `BITBUCKET_PUBLISHES`
+  that runs none of the site's code checks with `UPDATE_CHECK` and pushes (`publishStep()`, which also asks Vercel to
+  rebuild where the update step's `BUILD_DECISION` says so and nothing was published), and a plugin task's answer is
+  pushed by a step of its own. `bitbucketUpdates().setup()` takes `update --commit` and, from older setups,
+  `update --publish`.
+- **Editors:** Bitbucket gives permissions only to people already in the repository's workspace, so
+  `SiteEditors.membersOnly` is set and inviting finds them there (by account id or nickname before display name, which
+  members choose themselves, refusing a name more than one member answers to as `EditorsError` `ambiguous`,
+  `memberNamed()`; or by email address for workspace admins) before giving them Write or Admin. Seeing everyone's
+  permissions needs Admin; without it the list shows only the person signed in, and the screen asks for an owner token.
+- **Deploy status** reads the commit's statuses, leaving out Bitbucket's own pipelines' (`bitbucket.org` addresses), so
+  it follows Vercel's.
+- **Tests:** `fakeBitbucket()` from `@goodfellow-cms/bitbucket/testing`, on `FakeRepo`, fakes tokens, OAuth (the
+  implicit grant, and the code grant for consumers with a `secret`), `src`, commits, diffstat, branches and merge bases,
+  pull requests, permissions and workspace members, and Pipelines, its schedules and variables, running tasks as the
+  pipeline would. `bitbucket.spec.ts` runs a production build of the starter configured for it (`e2e/.site-bitbucket`).
 
 ## Themes
 
-- **What a theme is:** an npm package named `goodfellow-theme-<name>` (or `@scope/goodfellow-theme-<name>`, `isThemeName()`) with the `goodfellow-theme` keyword (`THEME_KEYWORD`) and a `goodfellow-theme.json` (`THEME_MANIFEST`, `themeManifestSchema` in core's `content/themes.ts`): its title, `theme` (the same settings as `content/site.json`'s), and the files to install: `css`, `header`, `footer`, and a picture, `image`. Themes have no code, so installing one runs nothing, on any site. None live in this repository: Goodfellow's own, Harbor, is `goodfellow-cms/goodfellow-theme-harbor`, the example the docs' Themes page points publishers to, with a test that checks it with core's own functions. The docs' Themes page documents the format; keep it, and Harbor's README, up to date with `themeManifestSchema`.
-- **Reading them:** `themes.ts` in core reads npm's registry (`searchThemes()`, `themeReleases()`, with provenance from `dist.attestations` and the repository npm checked with it, through `npm-packages.ts`, which plugins share) and a release's files from jsDelivr (`fetchTheme()`, which checks the header and footer as loading the site does), through a `ThemeFetch`, so core needs no DOM types. `chooseThemeRelease()` offers the newest release that's `THEME_RELEASE_AGE_DAYS` old, isn't deprecated, and whose `peerDependencies` range on `@goodfellow-cms/core` (`THEME_PEER`) includes `GOODFELLOW_VERSION` (`inRange()` in `updates.ts`, which reads npm's ranges and refuses ones it can't); a release without a range is never offered.
-- **Installing:** `planTheme(site, theme, { layout })` works out the changes with no network access: the theme's settings into `content/site.json`'s `theme` one by one (`themeValues()`, `themeFromValues()`), its CSS at the start of the custom CSS between marks (`withThemeCss()`, `themeCssRegion()`, `THEME_CSS_END`, which a theme's CSS can't contain), its header and footer where the owner chose them, and the record, `content/styles/theme.json` (`THEME_FILE`, `themeRecordSchema`, the `theme` content kind), holding the release's settings and hashes of its CSS, header, and footer. An update (the same theme) replaces only what still matches the record and lists the rest as `kept`; another theme, or removing it (`theme` undefined), replaces what the theme before gave and lists owners' changes it replaces as `replaced`. `themeLoads()` lists what the theme would have browsers load besides Google Fonts, `/media/`, and data addresses (from its CSS with `themeCssLoads()`, its parts' classes, such as Tailwind's arbitrary `url()` backgrounds, and its header's and footer's props), which the admin panel shows before installing. A theme's header and footer may use only `THEME_LAYOUT_BLOCKS`, built-in blocks that load and run nothing (a site's own or registry blocks, such as Custom HTML, could run a theme's code), so `themeUnknownBlocks()` lists any other, which keeps them from being used, and `fetchTheme()` refuses a theme whose header or footer holds a `javascript:`, `vbscript:` or `data:` address.
-- **The admin panel:** Site Settings' Themes screen (`themes-screen.tsx`) searches, shows a theme's release, provenance, swatches, and a preview of any of the site's pages (`allPages()`) with the plan applied (`PreviewFrame`), and installs, updates, and removes it through `publish()`. Themes never update by themselves: nothing else, the nightly update included, touches the installed theme, and a newer release is only offered (**See version …**, which previews it) until an owner publishes it. The Updates screen warns when a newer release is outside the installed theme's range (`updates.themeRange`). Tests use `fakeThemes()` and `sampleThemeFiles()` from `@goodfellow-cms/core/testing`, which `themes.spec.ts` routes npm's and jsDelivr's addresses to.
+- **What a theme is:** an npm package named `goodfellow-theme-<name>` (or `@scope/goodfellow-theme-<name>`,
+  `isThemeName()`) with the `goodfellow-theme` keyword (`THEME_KEYWORD`) and a `goodfellow-theme.json`
+  (`THEME_MANIFEST`, `themeManifestSchema` in core's `content/themes.ts`): its title, `theme` (the same settings as
+  `content/site.json`'s), and the files to install: `css`, `header`, `footer`, and a picture, `image`. Themes have no
+  code, so installing one runs nothing, on any site. None live in this repository: Goodfellow's own, Harbor, is
+  `goodfellow-cms/goodfellow-theme-harbor`, the example the docs' Themes page points publishers to, with a test that
+  checks it with core's own functions. The docs' Themes page documents the format; keep it, and Harbor's README, up to
+  date with `themeManifestSchema`.
+- **Reading them:** `themes.ts` in core reads npm's registry (`searchThemes()`, `themeReleases()`, with provenance from
+  `dist.attestations` and the repository npm checked with it, through `npm-packages.ts`, which plugins share) and a
+  release's files from jsDelivr (`fetchTheme()`, which checks the header and footer as loading the site does), through a
+  `ThemeFetch`, so core needs no DOM types. `chooseThemeRelease()` offers the newest release that's
+  `THEME_RELEASE_AGE_DAYS` old, isn't deprecated, and whose `peerDependencies` range on `@goodfellow-cms/core`
+  (`THEME_PEER`) includes `GOODFELLOW_VERSION` (`inRange()` in `updates.ts`, which reads npm's ranges and refuses ones
+  it can't); a release without a range is never offered.
+- **Installing:** `planTheme(site, theme, { layout })` works out the changes with no network access: the theme's
+  settings into `content/site.json`'s `theme` one by one (`themeValues()`, `themeFromValues()`), its CSS at the start of
+  the custom CSS between marks (`withThemeCss()`, `themeCssRegion()`, `THEME_CSS_END`, which a theme's CSS can't
+  contain), its header and footer where the owner chose them, and the record, `content/styles/theme.json` (`THEME_FILE`,
+  `themeRecordSchema`, the `theme` content kind), holding the release's settings and hashes of its CSS, header, and
+  footer. An update (the same theme) replaces only what still matches the record and lists the rest as `kept`; another
+  theme, or removing it (`theme` undefined), replaces what the theme before gave and lists owners' changes it replaces
+  as `replaced`. `themeLoads()` lists what the theme would have browsers load besides Google Fonts, `/media/`, and data
+  addresses (from its CSS with `themeCssLoads()`, its parts' classes, such as Tailwind's arbitrary `url()` backgrounds,
+  and its header's and footer's props), which the admin panel shows before installing. A theme's header and footer may
+  use only `THEME_LAYOUT_BLOCKS`, built-in blocks that load and run nothing (a site's own or registry blocks, such as
+  Custom HTML, could run a theme's code), so `themeUnknownBlocks()` lists any other, which keeps them from being used,
+  and `fetchTheme()` refuses a theme whose header or footer holds a `javascript:`, `vbscript:` or `data:` address.
+- **The admin panel:** Site Settings' Themes screen (`themes-screen.tsx`) searches, shows a theme's release, provenance,
+  swatches, and a preview of any of the site's pages (`allPages()`) with the plan applied (`PreviewFrame`), and
+  installs, updates, and removes it through `publish()`. Themes never update by themselves: nothing else, the nightly
+  update included, touches the installed theme, and a newer release is only offered (**See version …**, which previews
+  it) until an owner publishes it. The Updates screen warns when a newer release is outside the installed theme's range
+  (`updates.themeRange`). Tests use `fakeThemes()` and `sampleThemeFiles()` from `@goodfellow-cms/core/testing`, which
+  `themes.spec.ts` routes npm's and jsDelivr's addresses to.
 
 ## Plugins
 
-- **What a plugin is:** an object a developer lists in the config's `plugins` (`GoodfellowPlugin`, made with `definePlugin()`, in core's `plugins.ts`), named like its npm package, `goodfellow-plugin-<name>` (`isPluginName()`, `PLUGIN_KEYWORD`), with `permissions` (`PluginPermissions`), and any of: `blocks` and `categories`, which `defineConfig()` adds to the config's own (`withPlugins()`, throwing a `PluginError` for a wrong name or a block's name taken twice, `pluginProblems()`); an `admin` module, its `screens`, `build` steps, and a `server` module, each named by module, never imported into the config, which loads in the browser too. `describePlugin()` puts it, without code, in `goodfellow-site.json` (`SiteDescription.plugins`), which is how the admin panel's page knows it. None live in this repository; `e2e/fixtures/plugins/greeter` is the tests' own. The docs' Plugins page documents the format.
-- **Permissions are enforced where they can be:** `connect` is the plugin's frame's Content Security Policy (`pluginPolicy()`, `pluginFramePage()`); `files` is checked by the admin panel's page on every read, list, and publish (`pluginMayUse()`, `pluginMayList()`, `isPluginFile()`, never `content/code/`); `secrets`, `read`, and `write` hold its build steps, each a Node process of its own with `--permission` (`runPluginBuildSteps()` in `@goodfellow-cms/core/node`'s `node-plugins.ts`, which makes declared write folders first, since Node takes a missing path for a file, and gives no reserved variables such as `GITHUB_TOKEN`, `GOODFELLOW_*`, or `NODE_OPTIONS`; `read` takes no patterns, `.git`, or files of secrets, `isPluginReadPath()`). Server modules, steps' network requests, and blocks on the site's pages can't be held to anything, and the docs say so.
-- **Admin frames:** each plugin's admin module is bundled with `pluginFrameEntry()` and `mountPluginFrame()` from `@goodfellow-cms/admin/plugin` (`plugin.ts`, with `plugin.css`, the admin panel's `--gfa-*` colors), as one classic script starting with `EDITOR_PRELUDE`, at `admin/plugins/<id>/` (`PLUGINS_PATH`, `pluginId()`, beside the editor's frames, `pluginFrameUrl()`, which names `index.html`): by `goodfellow build` (`buildPluginFrame()` in the CLI's `plugin-frames.ts`, on its own Vite config), `goodfellow dev` (`devPluginFrames()`, each built the first time it's asked for), `goodfellow-next finish` (`writePluginFiles()` in `@goodfellow-cms/next/export`, into the export or `public/`), and `next dev` (`dev-editor.ts`), the last two with Rolldown (`plugins.ts` in `@goodfellow-cms/next`, which loads the config in Node with `loadSiteConfig()` only where it lists plugins of its own or `plugins/installed/` lists any, `configHasPlugins()`). The page side is `plugin-frames.tsx`: `PluginServices` makes each plugin's hidden service frame the first time something asks it, `PluginScreenFrame` draws a screen at `#/settings/plugin/<id>/<screen>` (listed after a divider in `SettingsSidebar`), and `pluginHandlers()` answers only what `frame/plugin-protocol.ts` allows. Blocks in the editor ask services with `useSite().callPlugin` (the editor frame's `plugin.call` request, which only editor frames may send). A screen's frame is the whole screen, with no heading of the admin panel's (plugins draw their own), and as tall as its body, which it reports (`resize`, at most `MAX_SCREEN_HEIGHT`). A config's `options` for a plugin (`PluginOptions`, JSON, at most `MAX_PLUGIN_OPTIONS`) reach its admin module through `describePlugin()`. Serving a frame distributes what it bundles, so every one of those builds adds `licensesPlugin()` (`node-licenses.ts` in `@goodfellow-cms/core/node`), which writes `LICENSES_FILE` (`LICENSES.txt`) beside the frame from its chunks' modules (`bundledPackages()`: each module's nearest named `package.json`, its license, its repository or else npm as where its source is, and its license files; `licenseNotices()`, each text once), and `pluginFramePage()`'s `licenses` links it.
-- **Build steps** run once Goodfellow has written everything but the build record, the search index, and the guards, so those cover what steps wrote; a failed step (`PluginBuildError`) stops the build. `goodfellow build` returns them in `BuildResult.pluginSteps`.
-- **Server modules** answer `plugins/<id>/…` in `appApi()` (`AppApiOptions.plugins`, `goodfellowApi({ plugins })`, which the site's API route imports, since Next.js bundles only what it imports), before its same-origin check, so webhooks reach them, and are told who's signed in (`PluginServerEditor`) only for requests from the site's own pages. The admin panel's page sends plugins' frames' `server()` requests there with `APP_API_HEADER` (`Account.plugins`), only to addresses under the plugin's own (`pluginServerAddress()`, which refuses `..` in any spelling, since browsers read `%2e%2e` as `..`).
-- **Early updates:** an owner may install an update of a plugin or theme the site has before it's `RELEASE_AGE_DAYS` old only where the release installed and the new one were built by the same repository and workflow file, by their provenance (`mayInstallEarly()` in core's `provenance.ts`, DOM-free, which reads attestations without checking them, `readProvenanceSource()`, `provenanceAttestation()`, `sameSource()`); never a first install, never by version number, never by itself. Install records keep `provenance` (where the release was built) and `early` (`earlyInstallSchema`: the release it updates, the repository, and workflow), on `installedPluginSchema` and `themeRecordSchema`; sites that installed a release before keep reading its provenance from npm. Enforcement is where the site is built, never the browser: `node-provenance.ts` in `@goodfellow-cms/core/node` verifies Sigstore bundles with `sigstore` (loaded only there, `sigstoreVerifier()`, with the workflow's certificate identity, `signerIdentity()`, GitHub's and GitLab.com's, and the statement's subject digest against npm's `integrity`, `verifiedSource()`), `checkEarlyInstall()` checks both releases; `writeEarlyLockfile()` (the `goodfellow-early` bin of `@goodfellow-cms/core`, which lockfile jobs run with `EARLY_COMMAND`, `npm exec` at the release of core the site names, never from its own packages, when `EARLY_CHECK` finds an early record) writes the lockfile with the rest at three days old and each early plugin with `--before` its own publish time, failing loudly and changing nothing otherwise; the starters' build jobs don't run after the lockfile job failed. Themes have no lockfile, so `goodfellow build` and `goodfellow-next finish` run `checkEarlyTheme()`, which reads the release before from git's history where the checkout has it. `appApi()` checks early installs in `write` and `review` (`earlyInstallsIn()` in core's `early-installs.ts`, then `AppApiOptions.provenance`, an `EarlyInstallCheck` such as `nodeProvenance()`, which `goodfellowApi({ provenance })` passes on), owners only, answering `early-refused` with reasons, or `early-unavailable` without a check, since Sigstore needs Node; the session's `earlyInstalls` (`Account.earlyInstalls`) says whether the server checks them, and the Plugins and Themes screens offer **Install now** on full-stack sites only where it does. The broker asks before them in its own words (`confirmEarly`, `theme-early`). The admin panel offers **Install now** only to owners, and on the Plugins screen only where the setup runs it (`writesEarlyLockfile()`). Tests use `fakeVerifier()` and the fakes' attestations (`FakeThemeRelease.workflow`, `builtBy`, `badSignature`).
-- **Tasks** (`tasks`, `PluginTask`, core's `plugin-tasks.ts`) are work an admin module asks the site's CI to do with secrets the admin panel never holds (`api.task(id, input)`, the plugin frame's `task` request): the page checks the plugin declared it, makes a key pair for that request alone (`taskKeys()`), and calls the backend's optional `tasks` (`PluginTasks`, both backends: GitHub's `githubTasks()` sends a `repository_dispatch` (`TASK_EVENT`) that the starters' `.github/workflows/plugin-task.yml` (`githubTaskWorkflow()` in `task-setup.ts`, `TASK_WORKFLOW`) answers on a branch of its own (`TASK_BRANCH_PREFIX`), read and deleted, from a job that runs none of the site's code, after a `describe` job and a `task` job; GitLab's `gitlabTasks()` starts a pipeline whose `plugin-task` job (`gitlabTaskJob()`, `TASK_JOB`, after `TASK_DESCRIBE_JOB`, with `GITLAB_TASK_RULE` keeping `pages` out) leaves it as an artifact; Bitbucket's `bitbucketTasks()` runs the `plugin-task` custom pipeline, which leaves it on a `TASK_BRANCH_PREFIX` branch, since step logs redirect to storage browsers may not read). A task runs in two parts (core's `node-task-runner.ts`), since loading the config runs every package it imports, plugins' own included, unheld, and on Linux a process reads its parent's starting environment (`/proc/<pid>/environ`), so loading it apart in the same job as the secrets (`sitePluginsApart()`, with only `PASSED_ON`'s variables) doesn't keep them from it: `goodfellow task --describe` and `goodfellow-next task --describe` (`describeTask()`, `writeTaskDescription()`, given a `ConfigLoader`: the CLI's own entry `task-config.ts`, `loadTaskConfig()` in `@goodfellow-cms/next/export`) write the task down (`TaskDescription`, `TASK_DESCRIPTION_FILE`) in a job with no secrets (GitHub's `describe` job, GitLab's `TASK_DESCRIBE_JOB`, Bitbucket's first step), and the job with them installs `@goodfellow-cms/core` from npm's registry into a folder of its own at the exact release `package-lock.json` installs, with `--before` a day after npm published it, as `installedBefore()` gives updates (`TASK_CORE_RELEASE`, refusing anything but a release; `taskRunnerInstall()`), runs `npm ci --ignore-scripts`, and runs its `goodfellow-task` bin (`runDescribedTask()`), which never loads the config: it reads the secrets with `taskSecretsFrom()` (which also reads GitHub's `GOODFELLOW_SECRETS`), checks the description as the site's code wrote it (`describedTask()`: the request's plugin and task, the plugin's own module, `isPluginsOwnModule()`, from its package for a plugin `installed.json` names, never a site file, `pluginProblems()`, and no more than `installed.json` approved), runs it with `runPluginTask()`, held as build steps are, and seals the answer to the request's key (`sealTaskAnswer()`, ECDH and AES-GCM), which only the page opens (`openTaskAnswer()`), so a task's output never needs to be secret from the repository. GitLab gives every job every variable that isn't scoped to an environment, so its task job alone is in `TASK_ENVIRONMENT`, which owners scope plugins' variables to; Bitbucket gives every step every repository variable, so there only the plugin's own code is held to its secrets. None of it holds against whoever can publish the site's code, and the docs say so. `goodfellow task` without `--describe` (`runTask()`, `writeTaskResult()`) is the one-job run of sites' setups from before 0.9, which updates can't change. The dev API runs tasks on the computer (`DevApiOptions.tasks`, `localStore().tasks`); full-stack sites pass them through the app API's `task` route; the broker offers `tasks.run` unasked, since it runs only installed plugins' code. Problems are `PluginTaskError`s, which the admin panel words with `plugins.task.*`. Backends say where tasks' secrets are kept (`PluginTasks.secretsPlace()`, a `TaskSecretsPlace`: GitHub's form for a new Actions secret, GitLab's CI/CD variables, Bitbucket's repository variables, the dev servers' `.env.local` (`DEV_SECRETS_FILE`, which the dev API reads as each task runs, and the sites' `.gitignore` leaves out), or a full-stack site's server with its CI), and `pluginSecretsHelp()` (`plugin-secrets.ts`) words the steps with the plugin's declared secrets (`plugins.secrets.*`) for `api.secretsHelp()`; `api.openSecretsLink()` opens only the links it gave, since frames can't open tabs. Task branches are left out of Vercel's previews (`git.deploymentEnabled`). Content repositories can't run them yet.
-- **Media storage:** a plugin with `mediaStorage` keeps the site's media outside the repository: its admin module's `media` (`PluginMediaStorage`: `ready`, `upload` of a batch, `remove`) answers the Media screen through `usePluginMedia()`, and `content/media-storage.json` (`MEDIA_STORAGE_FILE`, content kind `storage`, written with `mediaStorageFileChange()` and `withStoredFiles()`) lists the files it keeps by `/media/` address. `shownContent()` maps those addresses to the storage's (`withStoredMedia()`), so builds, `goodfellow dev`, and Next.js show them from there; `checkSite()` counts them as the site's media; previews and the editor's frames list them with `allMedia()`. The Media screen moves the site's own files there and back (`MoveToStorageDialog`, `MoveBackDialog`), and the Plugins screen won't remove a plugin that keeps files. Goodfellow's own is S3 storage, `goodfellow-cms/goodfellow-plugin-s3`, whose `sign` task returns presigned addresses for the browser.
-- **Page editors:** a plugin with `editor` (`PluginEditorOptions`: a `title`, and `kinds`, pages unless it lists `header`, `footer`, or `template`, `PLUGIN_EDITOR_KINDS`; items' fields stay in Puck's item editor) draws a page editor in its frame in place of Puck's, for whoever chooses it in the editor's header (`useEditorChoice()` in `plugin-editor.tsx`, remembered in `localStorage`). Its admin module's `editor.mount()` gets a `PluginEditorSession` (what's edited as Puck's `Data`, the blocks it may use and the page settings' fields from the site's description, the site's settings and pages, `change()`, `chooseMedia()`, `sharePreview()`, `draw()`, `fields()` and `styles()`) and may return `PluginEditorControls` (`data`, `set` for the AI assistant's changes, which `applyEditorChange()` makes as Puck would, `undo`, `redo`); the frame's `editor` mode in `frame/plugin-protocol.ts` carries them, and only editor frames may send `editor.change`, `media.choose`, `editor.sharePreview`, `editor.draw`, `editor.fields`, and `editor.styles`. `fields()` is `SiteCodeService.blockFields()`: a block's fields as its `resolveFields` makes them in the page edited, with `siteMetadata()` of the prepared page as Puck's `metadata`, as JSON like the description's, for blocks it marks `resolvesFields`; it's optional in the session's type, since older admin panels lack it. `draw()` is `SiteCodeService.drawBlock()` (`site-code.ts`, run in the frame with the site's code by `localSiteCode()`): one of the blocks the editor may use, drawn in the page edited with the config for what's edited, each of its slots holding only a block of drawing's own that leaves an empty `DRAWN_SLOT_ELEMENT` (`<gf-slot data-slot>`) where its blocks go, without the element Puck puts a page's blocks in or the page's photo credits; `styles()` (`PluginEditorStyles`) is the editor's `siteCss()` and `themeToCss()` as `stylesheets`, the previews' Tailwind source (`preview.themeCss` and the custom CSS) as `tailwind`, for `@tailwindcss/browser`, and `googleFontsUrl()` as `fonts`, which only editor plugins' frames may load (`pluginPolicy(permissions, { editor })`, `pluginFramePage()`'s `editor`). Their frames (`gfa-plugin-editor`) get `plugin.css`'s colors and font, never the screens' spacing and plain element styles, which would reach the site's blocks. They show the site's media as Puck's frame does (`showEditorMedia()` in `plugin.ts`: `showMediaInPreview()` over the frame's page, with `keep` leaving text edited in place alone, since its HTML is read back into content; uploads not yet published through the editor frame's `media.bytes` and `media.remember`, and the storage through `media.storage`), which `PluginEditorSession.showsMedia` tells plugins, so they leave `/media/` addresses as they are; a storage plugin's origin is in their `img-src` and `media-src` (`mediaStorageOrigins()` in `@goodfellow-cms/core/node`, read where frame pages are written, `pluginFramePage()`'s `media`). Pasted HTML becomes blocks with `htmlBlocks()` (`wordpress/paste.ts` in `@goodfellow-cms/core/wordpress`), which editor plugins import themselves. `PuckEditor` keeps the header, shows `PluginEditorFrame`'s spinner until the frame says it's open, and publishes only what passes `checkEditedData()` (core's `content/edited-data.ts`: the site's blocks, values fitting their fields or as the editor opened them, any plain value for a choice of a block whose fields change with it, `resolvesFields` in the description, ids of their own, and undeclared props only as the editor opened them, each problem named by its block and setting), which also guards switching back to Puck: switching takes what's edited along (Puck's current data, fetched with `editor.data`, or the plugin's checked data), and asks before leaving behind changes that fail the check (`editor.plugin.switchLoses`). Its frame never loads the site's config or blocks' code. Installing one shows that it offers an editor, and `unapproved()` counts an editor, and each kind it edits, as something to approve. `e2e/fixtures/plugins/outline` is the tests' own (`editor-plugins.spec.ts`).
-- **Installing from the admin panel:** Site Settings' Plugins screen (`plugins-screen.tsx`) finds plugins on npm (`searchPlugins()`, `pluginReleases()` in core's `plugin-packages.ts`, over `npm-packages.ts`, which themes share: `packageReleases()`, `chooseRelease()`, `RELEASE_AGE_DAYS`, `GOODFELLOW_PEER`), reads what each says it does from its `goodfellow-plugin.json` (`PLUGIN_MANIFEST`, `pluginManifestSchema`, written by authors with `pluginManifest()`, read with `fetchPluginPackage()`, which checks it as `pluginProblems()` would) and what its packages' code could do (`reviewPluginPackages()` in `package-review.ts`: the plugin and the packages it needs, at the releases `npm install --before` would take, `resolveRange()`, read from jsDelivr as text, `codeNotes()`, at most `MAX_REVIEWED_PACKAGES`). `planPluginInstall()` and `planPluginRemove()` write `package.json` (`withDependency()`, an exact release), the record `plugins/installed/installed.json` (`INSTALLED_PLUGINS_FILE`, `installedPluginsSchema`, with what was approved) and `plugins/installed/index.ts` (`installedPluginsIndex()`), which every site's config imports as `installedPlugins`, adding the import to older configs with `withInstalledPluginsConfig()` (`CONFIG_FILE`). The index wraps each package's default export in `installedPlugin()`, which throws a `PluginError` (`not-approved`, `unapproved()`) for a plugin asking for more than its record, so the site never loads with it. `plugins/installed/` is in `EDITABLE_FOLDERS`.
-- **Where:** `useAdmin().pluginInstalls` is `publish` at a checked admin address or with a token broker (whose dialog names the plugins a publish installs and what they ask, `pluginQuestion()` in the broker's `policy.ts`), `review` on full-stack sites for owners (`Account.review`, `appServer().review()`, the app API's `review` route, which takes only `isPluginInstallPath()` files, opens a draft and submits it, and refuses `plugins/installed/` in `write`), and nothing elsewhere. Installs also wait for the site's setup to write the lockfile (`writesLockfile()` on its workflows): the starters' `deploy.yml` (`githubLockfileJobs()` in core's `lockfile-setup.ts`: `lockfile` writes it with `LOCKFILE_COMMAND`, `npm install --package-lock-only --ignore-scripts --before=…`, when `LOCKFILE_CHECK` finds `package.json` names what `package-lock.json` doesn't, and `publish-lockfile` publishes it, running none of the site's code, once `LOCKFILE_REGISTRY_CHECK` finds it takes new packages only from `UPDATE_REGISTRY` (GitLab's step runs it too), before `build` checks it out; `githubUpdateJobs({ lockfile })` waits for them) and `.gitlab-ci.yml` (`gitlabLockfileScript()`, `GITLAB_LOCKFILE_VARIABLES`), and Cloudflare Pages' generated setups. A test keeps the starters' text the same as these. Vercel sites have no workflow, so they get no installs yet.
-- **Elsewhere:** the Updates screen warns about releases outside an installed plugin's range (`pluginsOutOfRange()`); `planSite({ plugins })` and `create-goodfellow --plugin` (`findPlugin()`, `pluginAsks()`) install them in new sites. Tests use `fakePlugins()` and `samplePluginFiles()` from `@goodfellow-cms/core/testing` (npm, jsDelivr, and its file lists), which `plugin-installs.spec.ts` routes the admin address test site's requests to.
+- **What a plugin is:** an object a developer lists in the config's `plugins` (`GoodfellowPlugin`, made with
+  `definePlugin()`, in core's `plugins.ts`), named like its npm package, `goodfellow-plugin-<name>` (`isPluginName()`,
+  `PLUGIN_KEYWORD`), with `permissions` (`PluginPermissions`), and any of: `blocks` and `categories`, which
+  `defineConfig()` adds to the config's own (`withPlugins()`, throwing a `PluginError` for a wrong name or a block's
+  name taken twice, `pluginProblems()`); an `admin` module, its `screens`, `build` steps, and a `server` module, each
+  named by module, never imported into the config, which loads in the browser too. `describePlugin()` puts it, without
+  code, in `goodfellow-site.json` (`SiteDescription.plugins`), which is how the admin panel's page knows it. None live
+  in this repository; `e2e/fixtures/plugins/greeter` is the tests' own. The docs' Plugins page documents the format.
+- **Permissions are enforced where they can be:** `connect` is the plugin's frame's Content Security Policy
+  (`pluginPolicy()`, `pluginFramePage()`); `files` is checked by the admin panel's page on every read, list, and publish
+  (`pluginMayUse()`, `pluginMayList()`, `isPluginFile()`, never `content/code/`); `secrets`, `read`, and `write` hold
+  its build steps, each a Node process of its own with `--permission` (`runPluginBuildSteps()` in
+  `@goodfellow-cms/core/node`'s `node-plugins.ts`, which makes declared write folders first, since Node takes a missing
+  path for a file, and gives no reserved variables such as `GITHUB_TOKEN`, `GOODFELLOW_*`, or `NODE_OPTIONS`; `read`
+  takes no patterns, `.git`, or files of secrets, `isPluginReadPath()`). Server modules, steps' network requests, and
+  blocks on the site's pages can't be held to anything, and the docs say so.
+- **Admin frames:** each plugin's admin module is bundled with `pluginFrameEntry()` and `mountPluginFrame()` from
+  `@goodfellow-cms/admin/plugin` (`plugin.ts`, with `plugin.css`, the admin panel's `--gfa-*` colors), as one classic
+  script starting with `EDITOR_PRELUDE`, at `admin/plugins/<id>/` (`PLUGINS_PATH`, `pluginId()`, beside the editor's
+  frames, `pluginFrameUrl()`, which names `index.html`): by `goodfellow build` (`buildPluginFrame()` in the CLI's
+  `plugin-frames.ts`, on its own Vite config), `goodfellow dev` (`devPluginFrames()`, each built the first time it's
+  asked for), `goodfellow-next finish` (`writePluginFiles()` in `@goodfellow-cms/next/export`, into the export or
+  `public/`), and `next dev` (`dev-editor.ts`), the last two with Rolldown (`plugins.ts` in `@goodfellow-cms/next`,
+  which loads the config in Node with `loadSiteConfig()` only where it lists plugins of its own or `plugins/installed/`
+  lists any, `configHasPlugins()`). The page side is `plugin-frames.tsx`: `PluginServices` makes each plugin's hidden
+  service frame the first time something asks it, `PluginScreenFrame` draws a screen at
+  `#/settings/plugin/<id>/<screen>` (listed after a divider in `SettingsSidebar`), and `pluginHandlers()` answers only
+  what `frame/plugin-protocol.ts` allows. Blocks in the editor ask services with `useSite().callPlugin` (the editor
+  frame's `plugin.call` request, which only editor frames may send). A screen's frame is the whole screen, with no
+  heading of the admin panel's (plugins draw their own), and as tall as its body, which it reports (`resize`, at most
+  `MAX_SCREEN_HEIGHT`). A config's `options` for a plugin (`PluginOptions`, JSON, at most `MAX_PLUGIN_OPTIONS`) reach
+  its admin module through `describePlugin()`. Serving a frame distributes what it bundles, so every one of those builds
+  adds `licensesPlugin()` (`node-licenses.ts` in `@goodfellow-cms/core/node`), which writes `LICENSES_FILE`
+  (`LICENSES.txt`) beside the frame from its chunks' modules (`bundledPackages()`: each module's nearest named
+  `package.json`, its license, its repository or else npm as where its source is, and its license files;
+  `licenseNotices()`, each text once), and `pluginFramePage()`'s `licenses` links it.
+- **Build steps** run once Goodfellow has written everything but the build record, the search index, and the guards, so
+  those cover what steps wrote; a failed step (`PluginBuildError`) stops the build. `goodfellow build` returns them in
+  `BuildResult.pluginSteps`.
+- **Server modules** answer `plugins/<id>/…` in `appApi()` (`AppApiOptions.plugins`, `goodfellowApi({ plugins })`, which
+  the site's API route imports, since Next.js bundles only what it imports), before its same-origin check, so webhooks
+  reach them, and are told who's signed in (`PluginServerEditor`) only for requests from the site's own pages. The admin
+  panel's page sends plugins' frames' `server()` requests there with `APP_API_HEADER` (`Account.plugins`), only to
+  addresses under the plugin's own (`pluginServerAddress()`, which refuses `..` in any spelling, since browsers read
+  `%2e%2e` as `..`).
+- **Early updates:** an owner may install an update of a plugin or theme the site has before it's `RELEASE_AGE_DAYS` old
+  only where the release installed and the new one were built by the same repository and workflow file, by their
+  provenance (`mayInstallEarly()` in core's `provenance.ts`, DOM-free, which reads attestations without checking them,
+  `readProvenanceSource()`, `provenanceAttestation()`, `sameSource()`); never a first install, never by version number,
+  never by itself. Install records keep `provenance` (where the release was built) and `early` (`earlyInstallSchema`:
+  the release it updates, the repository, and workflow), on `installedPluginSchema` and `themeRecordSchema`; sites that
+  installed a release before keep reading its provenance from npm. Enforcement is where the site is built, never the
+  browser: `node-provenance.ts` in `@goodfellow-cms/core/node` verifies Sigstore bundles with `sigstore` (loaded only
+  there, `sigstoreVerifier()`, with the workflow's certificate identity, `signerIdentity()`, GitHub's and GitLab.com's,
+  and the statement's subject digest against npm's `integrity`, `verifiedSource()`), `checkEarlyInstall()` checks both
+  releases; `writeEarlyLockfile()` (the `goodfellow-early` bin of `@goodfellow-cms/core`, which lockfile jobs run with
+  `EARLY_COMMAND`, `npm exec` at the release of core the site names, never from its own packages, when `EARLY_CHECK`
+  finds an early record) writes the lockfile with the rest at three days old and each early plugin with `--before` its
+  own publish time, failing loudly and changing nothing otherwise; the starters' build jobs don't run after the lockfile
+  job failed. Themes have no lockfile, so `goodfellow build` and `goodfellow-next finish` run `checkEarlyTheme()`, which
+  reads the release before from git's history where the checkout has it. `appApi()` checks early installs in `write` and
+  `review` (`earlyInstallsIn()` in core's `early-installs.ts`, then `AppApiOptions.provenance`, an `EarlyInstallCheck`
+  such as `nodeProvenance()`, which `goodfellowApi({ provenance })` passes on), owners only, answering `early-refused`
+  with reasons, or `early-unavailable` without a check, since Sigstore needs Node; the session's `earlyInstalls`
+  (`Account.earlyInstalls`) says whether the server checks them, and the Plugins and Themes screens offer **Install
+  now** on full-stack sites only where it does. The broker asks before them in its own words (`confirmEarly`,
+  `theme-early`). The admin panel offers **Install now** only to owners, and on the Plugins screen only where the setup
+  runs it (`writesEarlyLockfile()`). Tests use `fakeVerifier()` and the fakes' attestations
+  (`FakeThemeRelease.workflow`, `builtBy`, `badSignature`).
+- **Tasks** (`tasks`, `PluginTask`, core's `plugin-tasks.ts`) are work an admin module asks the site's CI to do with
+  secrets the admin panel never holds (`api.task(id, input)`, the plugin frame's `task` request): the page checks the
+  plugin declared it, makes a key pair for that request alone (`taskKeys()`), and calls the backend's optional `tasks`
+  (`PluginTasks`, both backends: GitHub's `githubTasks()` sends a `repository_dispatch` (`TASK_EVENT`) that the
+  starters' `.github/workflows/plugin-task.yml` (`githubTaskWorkflow()` in `task-setup.ts`, `TASK_WORKFLOW`) answers on
+  a branch of its own (`TASK_BRANCH_PREFIX`), read and deleted, from a job that runs none of the site's code, after a
+  `describe` job and a `task` job; GitLab's `gitlabTasks()` starts a pipeline whose `plugin-task` job
+  (`gitlabTaskJob()`, `TASK_JOB`, after `TASK_DESCRIBE_JOB`, with `GITLAB_TASK_RULE` keeping `pages` out) leaves it as
+  an artifact; Bitbucket's `bitbucketTasks()` runs the `plugin-task` custom pipeline, which leaves it on a
+  `TASK_BRANCH_PREFIX` branch, since step logs redirect to storage browsers may not read). A task runs in two parts
+  (core's `node-task-runner.ts`), since loading the config runs every package it imports, plugins' own included, unheld,
+  and on Linux a process reads its parent's starting environment (`/proc/<pid>/environ`), so loading it apart in the
+  same job as the secrets (`sitePluginsApart()`, with only `PASSED_ON`'s variables) doesn't keep them from it:
+  `goodfellow task --describe` and `goodfellow-next task --describe` (`describeTask()`, `writeTaskDescription()`, given
+  a `ConfigLoader`: the CLI's own entry `task-config.ts`, `loadTaskConfig()` in `@goodfellow-cms/next/export`) write the
+  task down (`TaskDescription`, `TASK_DESCRIPTION_FILE`) in a job with no secrets (GitHub's `describe` job, GitLab's
+  `TASK_DESCRIBE_JOB`, Bitbucket's first step), and the job with them installs `@goodfellow-cms/core` from npm's
+  registry into a folder of its own at the exact release `package-lock.json` installs, with `--before` a day after npm
+  published it, as `installedBefore()` gives updates (`TASK_CORE_RELEASE`, refusing anything but a release;
+  `taskRunnerInstall()`), runs `npm ci --ignore-scripts`, and runs its `goodfellow-task` bin (`runDescribedTask()`),
+  which never loads the config: it reads the secrets with `taskSecretsFrom()` (which also reads GitHub's
+  `GOODFELLOW_SECRETS`), checks the description as the site's code wrote it (`describedTask()`: the request's plugin and
+  task, the plugin's own module, `isPluginsOwnModule()`, from its package for a plugin `installed.json` names, never a
+  site file, `pluginProblems()`, and no more than `installed.json` approved), runs it with `runPluginTask()`, held as
+  build steps are, and seals the answer to the request's key (`sealTaskAnswer()`, ECDH and AES-GCM), which only the page
+  opens (`openTaskAnswer()`), so a task's output never needs to be secret from the repository. GitLab gives every job
+  every variable that isn't scoped to an environment, so its task job alone is in `TASK_ENVIRONMENT`, which owners scope
+  plugins' variables to; Bitbucket gives every step every repository variable, so there only the plugin's own code is
+  held to its secrets. None of it holds against whoever can publish the site's code, and the docs say so.
+  `goodfellow task` without `--describe` (`runTask()`, `writeTaskResult()`) is the one-job run of sites' setups from
+  before 0.9, which updates can't change. The dev API runs tasks on the computer (`DevApiOptions.tasks`,
+  `localStore().tasks`); full-stack sites pass them through the app API's `task` route; the broker offers `tasks.run`
+  unasked, since it runs only installed plugins' code. Problems are `PluginTaskError`s, which the admin panel words with
+  `plugins.task.*`. Backends say where tasks' secrets are kept (`PluginTasks.secretsPlace()`, a `TaskSecretsPlace`:
+  GitHub's form for a new Actions secret, GitLab's CI/CD variables, Bitbucket's repository variables, the dev servers'
+  `.env.local` (`DEV_SECRETS_FILE`, which the dev API reads as each task runs, and the sites' `.gitignore` leaves out),
+  or a full-stack site's server with its CI), and `pluginSecretsHelp()` (`plugin-secrets.ts`) words the steps with the
+  plugin's declared secrets (`plugins.secrets.*`) for `api.secretsHelp()`; `api.openSecretsLink()` opens only the links
+  it gave, since frames can't open tabs. Task branches are left out of Vercel's previews (`git.deploymentEnabled`).
+  Content repositories can't run them yet.
+- **Media storage:** a plugin with `mediaStorage` keeps the site's media outside the repository: its admin module's
+  `media` (`PluginMediaStorage`: `ready`, `upload` of a batch, `remove`) answers the Media screen through
+  `usePluginMedia()`, and `content/media-storage.json` (`MEDIA_STORAGE_FILE`, content kind `storage`, written with
+  `mediaStorageFileChange()` and `withStoredFiles()`) lists the files it keeps by `/media/` address. `shownContent()`
+  maps those addresses to the storage's (`withStoredMedia()`), so builds, `goodfellow dev`, and Next.js show them from
+  there; `checkSite()` counts them as the site's media; previews and the editor's frames list them with `allMedia()`.
+  The Media screen moves the site's own files there and back (`MoveToStorageDialog`, `MoveBackDialog`), and the Plugins
+  screen won't remove a plugin that keeps files. Goodfellow's own is S3 storage, `goodfellow-cms/goodfellow-plugin-s3`,
+  whose `sign` task returns presigned addresses for the browser.
+- **Page editors:** a plugin with `editor` (`PluginEditorOptions`: a `title`, and `kinds`, pages unless it lists
+  `header`, `footer`, or `template`, `PLUGIN_EDITOR_KINDS`; items' fields stay in Puck's item editor) draws a page
+  editor in its frame in place of Puck's, for whoever chooses it in the editor's header (`useEditorChoice()` in
+  `plugin-editor.tsx`, remembered in `localStorage`). Its admin module's `editor.mount()` gets a `PluginEditorSession`
+  (what's edited as Puck's `Data`, the blocks it may use and the page settings' fields from the site's description, the
+  site's settings and pages, `change()`, `chooseMedia()`, `sharePreview()`, `draw()`, `fields()` and `styles()`) and may
+  return `PluginEditorControls` (`data`, `set` for the AI assistant's changes, which `applyEditorChange()` makes as Puck
+  would, `undo`, `redo`); the frame's `editor` mode in `frame/plugin-protocol.ts` carries them, and only editor frames
+  may send `editor.change`, `media.choose`, `editor.sharePreview`, `editor.draw`, `editor.fields`, and `editor.styles`.
+  `fields()` is `SiteCodeService.blockFields()`: a block's fields as its `resolveFields` makes them in the page edited,
+  with `siteMetadata()` of the prepared page as Puck's `metadata`, as JSON like the description's, for blocks it marks
+  `resolvesFields`; it's optional in the session's type, since older admin panels lack it. `draw()` is
+  `SiteCodeService.drawBlock()` (`site-code.ts`, run in the frame with the site's code by `localSiteCode()`): one of the
+  blocks the editor may use, drawn in the page edited with the config for what's edited, each of its slots holding only
+  a block of drawing's own that leaves an empty `DRAWN_SLOT_ELEMENT` (`<gf-slot data-slot>`) where its blocks go,
+  without the element Puck puts a page's blocks in or the page's photo credits; `styles()` (`PluginEditorStyles`) is the
+  editor's `siteCss()` and `themeToCss()` as `stylesheets`, the previews' Tailwind source (`preview.themeCss` and the
+  custom CSS) as `tailwind`, for `@tailwindcss/browser`, and `googleFontsUrl()` as `fonts`, which only editor plugins'
+  frames may load (`pluginPolicy(permissions, { editor })`, `pluginFramePage()`'s `editor`). Their frames
+  (`gfa-plugin-editor`) get `plugin.css`'s colors and font, never the screens' spacing and plain element styles, which
+  would reach the site's blocks. They show the site's media as Puck's frame does (`showEditorMedia()` in `plugin.ts`:
+  `showMediaInPreview()` over the frame's page, with `keep` leaving text edited in place alone, since its HTML is read
+  back into content; uploads not yet published through the editor frame's `media.bytes` and `media.remember`, and the
+  storage through `media.storage`), which `PluginEditorSession.showsMedia` tells plugins, so they leave `/media/`
+  addresses as they are; a storage plugin's origin is in their `img-src` and `media-src` (`mediaStorageOrigins()` in
+  `@goodfellow-cms/core/node`, read where frame pages are written, `pluginFramePage()`'s `media`). Pasted HTML becomes
+  blocks with `htmlBlocks()` (`wordpress/paste.ts` in `@goodfellow-cms/core/wordpress`), which editor plugins import
+  themselves. `PuckEditor` keeps the header, shows `PluginEditorFrame`'s spinner until the frame says it's open, and
+  publishes only what passes `checkEditedData()` (core's `content/edited-data.ts`: the site's blocks, values fitting
+  their fields or as the editor opened them, any plain value for a choice of a block whose fields change with it,
+  `resolvesFields` in the description, ids of their own, and undeclared props only as the editor opened them, each
+  problem named by its block and setting), which also guards switching back to Puck: switching takes what's edited along
+  (Puck's current data, fetched with `editor.data`, or the plugin's checked data), and asks before leaving behind
+  changes that fail the check (`editor.plugin.switchLoses`). Its frame never loads the site's config or blocks' code.
+  Installing one shows that it offers an editor, and `unapproved()` counts an editor, and each kind it edits, as
+  something to approve. `e2e/fixtures/plugins/outline` is the tests' own (`editor-plugins.spec.ts`).
+- **Installing from the admin panel:** Site Settings' Plugins screen (`plugins-screen.tsx`) finds plugins on npm
+  (`searchPlugins()`, `pluginReleases()` in core's `plugin-packages.ts`, over `npm-packages.ts`, which themes share:
+  `packageReleases()`, `chooseRelease()`, `RELEASE_AGE_DAYS`, `GOODFELLOW_PEER`), reads what each says it does from its
+  `goodfellow-plugin.json` (`PLUGIN_MANIFEST`, `pluginManifestSchema`, written by authors with `pluginManifest()`, read
+  with `fetchPluginPackage()`, which checks it as `pluginProblems()` would) and what its packages' code could do
+  (`reviewPluginPackages()` in `package-review.ts`: the plugin and the packages it needs, at the releases
+  `npm install --before` would take, `resolveRange()`, read from jsDelivr as text, `codeNotes()`, at most
+  `MAX_REVIEWED_PACKAGES`). `planPluginInstall()` and `planPluginRemove()` write `package.json` (`withDependency()`, an
+  exact release), the record `plugins/installed/installed.json` (`INSTALLED_PLUGINS_FILE`, `installedPluginsSchema`,
+  with what was approved) and `plugins/installed/index.ts` (`installedPluginsIndex()`), which every site's config
+  imports as `installedPlugins`, adding the import to older configs with `withInstalledPluginsConfig()` (`CONFIG_FILE`).
+  The index wraps each package's default export in `installedPlugin()`, which throws a `PluginError` (`not-approved`,
+  `unapproved()`) for a plugin asking for more than its record, so the site never loads with it. `plugins/installed/` is
+  in `EDITABLE_FOLDERS`.
+- **Where:** `useAdmin().pluginInstalls` is `publish` at a checked admin address or with a token broker (whose dialog
+  names the plugins a publish installs and what they ask, `pluginQuestion()` in the broker's `policy.ts`), `review` on
+  full-stack sites for owners (`Account.review`, `appServer().review()`, the app API's `review` route, which takes only
+  `isPluginInstallPath()` files, opens a draft and submits it, and refuses `plugins/installed/` in `write`), and nothing
+  elsewhere. Installs also wait for the site's setup to write the lockfile (`writesLockfile()` on its workflows): the
+  starters' `deploy.yml` (`githubLockfileJobs()` in core's `lockfile-setup.ts`: `lockfile` writes it with
+  `LOCKFILE_COMMAND`, `npm install --package-lock-only --ignore-scripts --before=…`, when `LOCKFILE_CHECK` finds
+  `package.json` names what `package-lock.json` doesn't, and `publish-lockfile` publishes it, running none of the site's
+  code, once `LOCKFILE_REGISTRY_CHECK` finds it takes new packages only from `UPDATE_REGISTRY` (GitLab's step runs it
+  too), before `build` checks it out; `githubUpdateJobs({ lockfile })` waits for them) and `.gitlab-ci.yml`
+  (`gitlabLockfileScript()`, `GITLAB_LOCKFILE_VARIABLES`), and Cloudflare Pages' generated setups. A test keeps the
+  starters' text the same as these. Vercel sites have no workflow, so they get no installs yet.
+- **Elsewhere:** the Updates screen warns about releases outside an installed plugin's range (`pluginsOutOfRange()`);
+  `planSite({ plugins })` and `create-goodfellow --plugin` (`findPlugin()`, `pluginAsks()`) install them in new sites.
+  Tests use `fakePlugins()` and `samplePluginFiles()` from `@goodfellow-cms/core/testing` (npm, jsDelivr, and its file
+  lists), which `plugin-installs.spec.ts` routes the admin address test site's requests to.
 
 ## Component libraries
 
-Blocks built with a component library come from block registries: shadcn registries whose items are Goodfellow blocks. Goodfellow publishes one for shadcn/ui, `@goodfellow-cms/registry`, and builds no other library's blocks. Others publish registries in the same format, which `packages/registry/README.md` documents for them; keep it up to date with `registry.ts`.
+Blocks built with a component library come from block registries: shadcn registries whose items are Goodfellow blocks.
+Goodfellow publishes one for shadcn/ui, `@goodfellow-cms/registry`, and builds no other library's blocks. Others publish
+registries in the same format, which `packages/registry/README.md` documents for them; keep it up to date with
+`registry.ts`.
 
-- **Planning:** `planInstall()` and `planRemove()` in `@goodfellow-cms/core` (`registry.ts`) work out the file changes, which `create-goodfellow` writes to disk. The Blocks screen (`blocks-screen.tsx`) marks blocks to add and remove, and publishes them as one commit with `planBlockChanges()`, which plans each in turn as if the ones before had been published. Don't install blocks any other way.
-- **Installing** copies an item's files, and those of its `registryDependencies`, into the site, as the shadcn CLI would: the block's own files to `blocks/installed/<name>/`, shared ones to `components/ui/`, `components/`, `lib/`, or `hooks/` (`EDITABLE_FOLDERS`, which every `ContentStore` can read and write). Shared files the site already has stay as they are. It rewrites `blocks/installed/index.ts` (`installedIndex()`), which every site's config imports, so the editor offers the block once the site has rebuilt.
-- **The record**, `blocks/installed/installed.json`, says where each block came from, its version, and a hash of each file written. Removing deletes only files whose hash still matches and that no other block uses; updates replace only files nobody has changed (`planUpdate()`), which the Blocks screen offers owners where the registry has a newer `version` (`AvailableBlock.version`, a `BlockChange` `update` in `planBlockChanges()`), and `update()` does only with `blocks`.
-- **Removing** a block that any page, template, header, or footer uses is refused (`blockUses()`), since content refers to blocks by name.
-- **Trust:** installed code runs in the admin panel with the editor's git token (rule 8), and `itemUrl()` compares full addresses as they'd be fetched (`new URL()`, refusing encoded dots and slashes), so `..` can't leave a trusted registry's folder, so the admin panel installs only from Goodfellow's registry, and from registries in the config's `registries` and shadcn/ui's own (`SHADCN_NAMESPACE`, for plain names such as `"button"`) only where it's out of the site's pages' reach (`useAdmin().outOfReach`): at a checked admin address (`atAdminAddress()`), or in the development servers (the `registry` prop), whose admin panel holds no tokens. `itemUrl()` trusts plain names only where `registries["@shadcn"]` is given. A site with a token broker counts too, since the admin panel holds no tokens there and the broker asks before publishing code.
-- **Packages:** the admin panel can't update a lockfile, so every site includes `REGISTRY_PACKAGES` (plus React, Puck, `@goodfellow-cms/core`, and `@goodfellow-cms/react`), and items needing anything else are refused. Adding a package to the list means adding it to every site and to `e2e/package.json` in the same change.
-- **Stable names:** a registry item's name is its block's key in content, so it never changes. Goodfellow's shadcn/ui blocks start with `shadcn-`; its others, built with Tailwind alone (`custom-html`, `feed-list`, `map`, `social-links`, `panel`, `slideshow-hero`, `section-links`, `people`, `logos`, `numbers`, `timeline`, `countdown`, `comments`), are lowercase too, so they can't clash with built-in blocks' names. They're there rather than built in because they're for some sites only, and so need no version for apps. `feed-list` reads its feed in `resolveData` only where pages are built, as the Calendar block does, with `changesOn()` for the next day; `map` shows only Google Maps' and OpenStreetMap's embedded maps (`osmMapAddress()`: its embed code, a link to a place on it or a latitude and longitude, never an address, since looking one up would ask OpenStreetMap's search), in a sandboxed frame. `countdown` reports its day with `changesOn()` and passes its Client Component the time already worded, so hydrating matches. `comments` loads Giscus's, Disqus's, or Garrul's script only where pages are built, from a Client Component, or, on a site that asks visitors first, from a held template of its own, as `custom-html` does, with its settings read from Giscus's code (`giscusSettings()`) Disqus's (`disqusShortname()`) or Garrul's (`garrulAddress()`), else Site Settings' `comments` (see Comments), and escaped.
-- **Releases:** the admin panel installs from the `@goodfellow-cms/registry` release it was built with (`__GOODFELLOW_REGISTRY_VERSION__`), through jsDelivr, so a version always means the same files. Its `registry` prop points elsewhere; the dev servers serve the site's installed copy at `/__goodfellow/api/registry/{name}.json` (`localRegistryDir()`).
-- **Snapshot:** the registry's shadcn components in `packages/registry/site/components/ui/` are copied from shadcn/ui by `pnpm --filter @goodfellow-cms/registry update-shadcn`, since shadcn's registry isn't versioned. Never edit them by hand; review and commit what the script writes. `pnpm build` writes the published `r/` folder.
-- **Registry blocks** follow every rule under Blocks. Interactive ones say they work with Preact (`export const worksWithPreact = true`, see Islands), which `preact.spec.ts` tries for each, and put every part that shares React context (an `Accordion` with its items) in one `"use client"` file, since islands don't share context, and keep hidden content in the HTML (`forceMount`, hidden with CSS). The registry's tests install and render every block.
-- **Any shadcn item as a block:** `goodfellow blocks add <item>` and `goodfellow-next blocks add` (`addShadcnBlock()` in `@goodfellow-cms/core/shadcn`, `node-shadcn.ts`, an entry of its own so nothing else loads TypeScript) run shadcn's CLI (`npxShadcn`, at `SHADCN_VERSION`, a release tried with it; a `ShadcnRunner` in tests, which never ask shadcn's registry), read the component's props with TypeScript 7's checker (`typescript/unstable/sync`, loaded from the site's packages as `typescript` or `typescript-7`, `TYPESCRIPT_PACKAGES`, since sites don't depend on it and Next.js sites keep TypeScript 5), and write the block with `componentBlockSource()` (`component-blocks.ts`, which reads nothing, so its output is tested on its own). Props declared in packages are inherited HTML attributes, left out; the interface they come from (`ButtonHTMLAttributes`) says when `children` is words. Parts that share context get shadcn's `<item>-demo` copied into the block's folder as one `"use client"` file. It sets `components.json`'s `"rsc"` to `true`, since shadcn drops `"use client"` otherwise, typechecks the block, and renders it through the caller's `PageRender` (the CLI's Vite server, whose server entry exports `createPageRenderer` so the block shares the config's context; `blockPageRender()` in `@goodfellow-cms/next/export`, with `loadSiteModule()`), and records it as `planInstall()` does, or with `--registry` writes it into a block registry instead. Nothing in the site changes before it knows it can go ahead. It never calls a block finished: `ShadcnNote`s say what's left, and `blockWorks()` is false only where the block doesn't typecheck or render.
+- **Planning:** `planInstall()` and `planRemove()` in `@goodfellow-cms/core` (`registry.ts`) work out the file changes,
+  which `create-goodfellow` writes to disk. The Blocks screen (`blocks-screen.tsx`) marks blocks to add and remove, and
+  publishes them as one commit with `planBlockChanges()`, which plans each in turn as if the ones before had been
+  published. Don't install blocks any other way.
+- **Installing** copies an item's files, and those of its `registryDependencies`, into the site, as the shadcn CLI
+  would: the block's own files to `blocks/installed/<name>/`, shared ones to `components/ui/`, `components/`, `lib/`, or
+  `hooks/` (`EDITABLE_FOLDERS`, which every `ContentStore` can read and write). Shared files the site already has stay
+  as they are. It rewrites `blocks/installed/index.ts` (`installedIndex()`), which every site's config imports, so the
+  editor offers the block once the site has rebuilt.
+- **The record**, `blocks/installed/installed.json`, says where each block came from, its version, and a hash of each
+  file written. Removing deletes only files whose hash still matches and that no other block uses; updates replace only
+  files nobody has changed (`planUpdate()`), which the Blocks screen offers owners where the registry has a newer
+  `version` (`AvailableBlock.version`, a `BlockChange` `update` in `planBlockChanges()`), and `update()` does only with
+  `blocks`.
+- **Removing** a block that any page, template, header, or footer uses is refused (`blockUses()`), since content refers
+  to blocks by name.
+- **Trust:** installed code runs in the admin panel with the editor's git token (rule 8), and `itemUrl()` compares full
+  addresses as they'd be fetched (`new URL()`, refusing encoded dots and slashes), so `..` can't leave a trusted
+  registry's folder, so the admin panel installs only from Goodfellow's registry, and from registries in the config's
+  `registries` and shadcn/ui's own (`SHADCN_NAMESPACE`, for plain names such as `"button"`) only where it's out of the
+  site's pages' reach (`useAdmin().outOfReach`): at a checked admin address (`atAdminAddress()`), or in the development
+  servers (the `registry` prop), whose admin panel holds no tokens. `itemUrl()` trusts plain names only where
+  `registries["@shadcn"]` is given. A site with a token broker counts too, since the admin panel holds no tokens there
+  and the broker asks before publishing code.
+- **Packages:** the admin panel can't update a lockfile, so every site includes `REGISTRY_PACKAGES` (plus React, Puck,
+  `@goodfellow-cms/core`, and `@goodfellow-cms/react`), and items needing anything else are refused. Adding a package to
+  the list means adding it to every site and to `e2e/package.json` in the same change.
+- **Stable names:** a registry item's name is its block's key in content, so it never changes. Goodfellow's shadcn/ui
+  blocks start with `shadcn-`; its others, built with Tailwind alone (`custom-html`, `feed-list`, `map`, `social-links`,
+  `panel`, `slideshow-hero`, `section-links`, `people`, `logos`, `numbers`, `timeline`, `countdown`, `comments`), are
+  lowercase too, so they can't clash with built-in blocks' names. They're there rather than built in because they're for
+  some sites only, and so need no version for apps. `feed-list` reads its feed in `resolveData` only where pages are
+  built, as the Calendar block does, with `changesOn()` for the next day; `map` shows only Google Maps' and
+  OpenStreetMap's embedded maps (`osmMapAddress()`: its embed code, a link to a place on it or a latitude and longitude,
+  never an address, since looking one up would ask OpenStreetMap's search), in a sandboxed frame. `countdown` reports
+  its day with `changesOn()` and passes its Client Component the time already worded, so hydrating matches. `comments`
+  loads Giscus's, Disqus's, or Garrul's script only where pages are built, from a Client Component, or, on a site that
+  asks visitors first, from a held template of its own, as `custom-html` does, with its settings read from Giscus's code
+  (`giscusSettings()`) Disqus's (`disqusShortname()`) or Garrul's (`garrulAddress()`), else Site Settings' `comments`
+  (see Comments), and escaped.
+- **Releases:** the admin panel installs from the `@goodfellow-cms/registry` release it was built with
+  (`__GOODFELLOW_REGISTRY_VERSION__`), through jsDelivr, so a version always means the same files. Its `registry` prop
+  points elsewhere; the dev servers serve the site's installed copy at `/__goodfellow/api/registry/{name}.json`
+  (`localRegistryDir()`).
+- **Snapshot:** the registry's shadcn components in `packages/registry/site/components/ui/` are copied from shadcn/ui by
+  `pnpm --filter @goodfellow-cms/registry update-shadcn`, since shadcn's registry isn't versioned. Never edit them by
+  hand; review and commit what the script writes. `pnpm build` writes the published `r/` folder.
+- **Registry blocks** follow every rule under Blocks. Interactive ones say they work with Preact
+  (`export const worksWithPreact = true`, see Islands), which `preact.spec.ts` tries for each, and put every part that
+  shares React context (an `Accordion` with its items) in one `"use client"` file, since islands don't share context,
+  and keep hidden content in the HTML (`forceMount`, hidden with CSS). The registry's tests install and render every
+  block.
+- **Any shadcn item as a block:** `goodfellow blocks add <item>` and `goodfellow-next blocks add` (`addShadcnBlock()` in
+  `@goodfellow-cms/core/shadcn`, `node-shadcn.ts`, an entry of its own so nothing else loads TypeScript) run shadcn's
+  CLI (`npxShadcn`, at `SHADCN_VERSION`, a release tried with it; a `ShadcnRunner` in tests, which never ask shadcn's
+  registry), read the component's props with TypeScript 7's checker (`typescript/unstable/sync`, loaded from the site's
+  packages as `typescript` or `typescript-7`, `TYPESCRIPT_PACKAGES`, since sites don't depend on it and Next.js sites
+  keep TypeScript 5), and write the block with `componentBlockSource()` (`component-blocks.ts`, which reads nothing, so
+  its output is tested on its own). Props declared in packages are inherited HTML attributes, left out; the interface
+  they come from (`ButtonHTMLAttributes`) says when `children` is words. Parts that share context get shadcn's
+  `<item>-demo` copied into the block's folder as one `"use client"` file. It sets `components.json`'s `"rsc"` to
+  `true`, since shadcn drops `"use client"` otherwise, typechecks the block, and renders it through the caller's
+  `PageRender` (the CLI's Vite server, whose server entry exports `createPageRenderer` so the block shares the config's
+  context; `blockPageRender()` in `@goodfellow-cms/next/export`, with `loadSiteModule()`), and records it as
+  `planInstall()` does, or with `--registry` writes it into a block registry instead. Nothing in the site changes before
+  it knows it can go ahead. It never calls a block finished: `ShadcnNote`s say what's left, and `blockWorks()` is false
+  only where the block doesn't typecheck or render.
 
 Don't copy or adapt any code from `puckeditor/puck-configs` until that repository has a license.
 
 ## Security
 
-- **Tokens:** never log tokens, include them in error messages or URLs, or send them anywhere except the git host's API. Store them only where the user chose (session or local storage), and clear them on sign-out.
-- **AI keys** follow the same rules: sent only to their own service, kept only where the editor chose, cleared on sign-out, and removed from error messages with `redact()`.
+- **Tokens:** never log tokens, include them in error messages or URLs, or send them anywhere except the git host's API.
+  Store them only where the user chose (session or local storage), and clear them on sign-out.
+- **AI keys** follow the same rules: sent only to their own service, kept only where the editor chose, cleared on
+  sign-out, and removed from error messages with `redact()`.
 - **Custom CSS:** when injecting admin-written CSS into a page, escape anything that could close the `<style>` element.
-- **Rich text and embeds:** sanitize rich text when rendering it. Embeds only render in sandboxed iframes or through an allowlisted provider. Custom HTML is sanitized with `sanitizeHtml()` unless its editor chooses to use it as written; then the editor shows it only in an iframe sandboxed with nothing allowed, without running its scripts, and the site's own code (`content/code/`) never renders in the admin panel at all.
-- **Tests:** never call the real GitHub, GitLab, or AI services' APIs in tests; use the fakes (`@goodfellow-cms/ai/testing` for AI services). Never commit real tokens or keys, even expired ones.
+- **Rich text and embeds:** sanitize rich text when rendering it. Embeds only render in sandboxed iframes or through an
+  allowlisted provider. Custom HTML is sanitized with `sanitizeHtml()` unless its editor chooses to use it as written;
+  then the editor shows it only in an iframe sandboxed with nothing allowed, without running its scripts, and the site's
+  own code (`content/code/`) never renders in the admin panel at all.
+- **Tests:** never call the real GitHub, GitLab, or AI services' APIs in tests; use the fakes
+  (`@goodfellow-cms/ai/testing` for AI services). Never commit real tokens or keys, even expired ones.
 
 ## Writing for non-technical users
 
 The admin panel is for people who have never used git.
 
-- **No git jargon in the UI.** Say "Publish" (not commit or push), "Submit for review" (not pull or merge request), "Someone else changed this page" (not merge conflict) and "Version history" (not commit log).
+- **No git jargon in the UI.** Say "Publish" (not commit or push), "Submit for review" (not pull or merge request),
+  "Someone else changed this page" (not merge conflict) and "Version history" (not commit log).
 - **Errors** say what happened and what to do next, in plain language. Put technical details behind a "Details" toggle.
 - **Admin settings** have a sensible default, so a new site works without configuration.
-- **UI text** goes through Puck's dictionary or our own string table, never hard-coded, so the admin panel can be translated.
+- **UI text** goes through Puck's dictionary or our own string table, never hard-coded, so the admin panel can be
+  translated.
 
 ## Repository layout
 
@@ -553,7 +2793,10 @@ What a site's own files are is described in the docs' Create a site and Content 
 | Releases | `pnpm release:version`, then the Release workflow, and `pnpm release:approve` (`scripts/release.mjs`); see RELEASING.md |
 | Node | 22.23.4, 24.22.1, or 26.12.1 or later in its line (`engines`), since earlier versions decompress Brotli unsafely (CVE-2026-111497); CI's `setup-node` steps use `check-latest: true` so they never take a runner's older copy |
 
-Get pnpm with `npm install -g pnpm@12`. Any pnpm from 11 on switches to the version `packageManager` names by itself, downloading it first; Corepack can't run pnpm 12, so turn its shim off (`corepack disable pnpm`) if it's on. The starters and examples use the workspace's own packages (`workspace:*`), so run `pnpm install` from the repo root; `npm install` inside them fails.
+Get pnpm with `npm install -g pnpm@12`. Any pnpm from 11 on switches to the version `packageManager` names by itself,
+downloading it first; Corepack can't run pnpm 12, so turn its shim off (`corepack disable pnpm`) if it's on. The
+starters and examples use the workspace's own packages (`workspace:*`), so run `pnpm install` from the repo root;
+`npm install` inside them fails.
 
 Run these from the repo root before every commit. CI runs the same steps.
 
@@ -566,57 +2809,416 @@ pnpm build
 pnpm test:e2e
 ```
 
-- **CI** runs these steps in Playwright's Docker image (`mcr.microsoft.com/playwright:v<version>-resolute` in `.github/workflows/ci.yml`), which has the browsers and their system packages, since downloading those from Ubuntu's mirror on every run took up to an hour. It has no jq, which GitHub's runners have and `review-status.test.ts` needs, so a step installs a pinned release, checked against its published SHA-256; running `pnpm test` on your own computer needs jq too, and that test says so rather than skipping. Its tag is `@playwright/test`'s version, so upgrade both together; a step before the end-to-end tests fails when the image lacks that version's browsers. A newer push to a pull request cancels its run (`concurrency`), never a run on `master`, which releases wait for, and the job stops after 60 minutes (`timeout-minutes`, about one and a half times a normal run), with the end-to-end tests' output streamed as they run (`--log-order=stream`), so a run stopped then still shows which test it was in. The release workflow installs an exact npm release, which Dependabot can't update, so move it on by hand.
-- **Environment:** Turborepo passes `NODE_EXTRA_CA_CERTS` through to tasks (`globalPassThroughEnv`), so builds behind a proxy that inspects TLS can still read Google Fonts' stylesheet for `fontPreloads()`.
-- **Overrides:** `pnpm-workspace.yaml`'s `overrides` leave out Puppeteer's browser downloader, which `@cloudflare/puppeteer` depends on but Workers never run, since it brings in packages with security advisories, and move packages with advisories to their fixed releases. Sites are installed with npm, which reads overrides only in their own `package.json`, so the ones they need are `SITE_OVERRIDES` (core's `updates.ts`, keep it in step with the workspace's, plus `@puckeditor/core`'s happy-dom, which Puck 0.24 asks for itself but a site going back to a release with Puck 0.23 needs), which `sitePackageJson()` adds to new sites and `update()` to older ones (`withSiteOverrides()`), leaving out the lockfile's copies of what an added override replaces, since npm keeps them otherwise. The Claude Desktop extension is zipped with `fflate` rather than Anthropic's `mcpb` tool for the same reason. Check `pnpm audit` before adding a dependency.
-- **Install scripts:** pnpm runs no package's install script unless `pnpm-workspace.yaml`'s `allowBuilds` names it `true`. esbuild and workerd, which wrangler brings, are named `false`, since their programs come as packages for each platform; a package added later whose install script is needed goes there as `true`, with why.
-- **Audit:** CI's `audit` job runs `pnpm audit` on every pull request and push, in a job of its own so a new advisory doesn't hide the other checks. Fix an advisory with an override to its fixed release; only where there's none, list it in `auditConfig.ignoreGhsas` with why it can't reach sites, editors, or visitors.
-- **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It reads this file (and `CLAUDE.md`) as its guidelines by itself, so rules belong here, not there; the config only keeps its reviews short, leaves out files written by tools (lockfiles, changelogs, `google-fonts.ts`, `icons.ts`, the shadcn snapshot) and linters that repeat Biome, and adds a few path instructions, such as sites' workflows naming actions by their major version on purpose; it also skips pull requests labelled `no-coderabbit` (`auto_review.labels`), so a push to one never spends the hour's review. A file a tool starts writing goes in its `path_filters`. Its findings are claims to check, like any reviewer's; `@coderabbitai configuration` on a pull request shows the settings it read. Its own check ends neutral when it's rate limited, which looks like a pass in the list of pull requests, so `.github/workflows/review-status.yml` sets a commit status, "CodeRabbit reviewed", that fails until CodeRabbit's check on the head commit ends in success (`@coderabbitai review` asks again), then while its review of the head commit lists findings outside the diff ("Outside diff range comments", which open no threads, so a newer commit's review clears them, as Claude's findings outside the change are cleared; counted from whichever of its reviews of the commit lists the most, since its replies in threads are reviews too, and never its nitpicks or duplicates, which are optional or already have threads), and then until every review thread CodeRabbit started is resolved, outdated ones included (CodeRabbit's own automatic approvals give a review, not a check), and passes drafts, Dependabot's pull requests, and ones labelled `no-coderabbit`, such as those over its file limit and release pull requests, which change only versions and changelogs from changesets it has already reviewed. GitHub starts no workflow when a thread is resolved, so a schedule checks open pull requests every ten minutes, setting a status only when it changes. It reads the pull request through GitHub's API and runs none of its code, so it uses `pull_request_target`, `check_run` and `schedule`, which run the workflow as the default branch has it. It isn't a required check.
-- **Claude's review:** Claude Code's `/code-review` reviews pull requests too, through Anthropic's Claude Code action (`.github/workflows/claude-review.yml`), on the subscription of whoever made the `CLAUDE_CODE_OAUTH_TOKEN` secret with `claude setup-token`; without the secret it does nothing. CI's `claude-review` job calls it once every other job has passed, so it never reads code that's about to change to fix CI, and only the first time on a pull request that's ready for review, after which the pull request is labelled `claude-reviewed`; CI runs again when a draft is marked ready. A comment whose first line is `/claude-review`, in any case, asks again (`/claude-review high` at that level, for that review only), as does adding the `claude-review` label (the workflow takes it off afterwards); adding `claude-review:low`, `:high`, or `:xhigh` asks at that level, which then holds for every review of the pull request (the one added last, where several are on it), `medium` otherwise, taking off any other level label; `no-claude-review` skips CI's review. Every review runs the pull request's own copy of the workflow, which gets the repository's secrets only for a branch of this repository, whose authors can already push: a label's run is the pull request's own (`pull_request`), and a comment's run (`.github/workflows/claude-review-request.yml`, on `issue_comment`, the main branch's, with its secrets) only checks the request (the first line, the commenter's permission, a pull request from a branch here) and starts the pull request's own copy with `workflow_dispatch` on its branch, never checking out its code, in a file of its own so that `claude-review.yml`, which checks code out, has no comment trigger; a dispatch reviews only with the copy on the pull request's own branch, and the review step lets that dispatch's `github-actions[bot]` start it (`allowed_bots`, for dispatches only). Only someone who can push starts a review, since each uses the subscription, and only an exact `claude-review` or level label does (a level is one whole word). Claude runs in a job with only what reading needs (`review`), reading files only in the checkout (never `/proc`, `/sys`, `/dev`, or Claude Code's settings) and running git through a `git` the job puts first on its `PATH` (`Keep git to reading`), which refuses options that write files or read outside the repository, shortened ones too, and turns off every program the repository's config could start, which `claude-review.test.ts` tries; it answers with its findings as structured output (`--json-schema`: each one's file, line, and text), with anything shaped like a token withheld (`Withhold anything like a token`), which `finish` posts on those lines of the pull request it chose, or on the file where the line isn't part of the change, so every way a review starts publishes the same way; apart from choosing and announcing the review (`choose`, which reviews only the commit whose CI passed when CI starts it) and reporting, labelling, and refreshing the status (`finish`, which keeps only the level label added last of those on the pull request, read from its history, so reviews ending in any order leave the same one, leaving any request label someone added again since it read that history, and takes back the comment of a CI review that turned out unneeded: `review` checks again, once its turn comes, that no review ran meanwhile, either labelling the pull request or, with a comment posted before this one's, still `reviewing`, since its `finish` labels the pull request only after the slot is free); every step that could fail is caught (`continue-on-error`), in `choose` too, so a review never fails CI. It asks for the code-review skill in words rather than as the slash command, since a slash command's skill ends the session before Claude can return the findings, and allows the `Skill` tool. It runs Opus at Claude Code's default effort, with tools to read the pull request and run git, never to edit or run its code, reading the change at the commit it chose (`git diff` from its merge base with the branch it's merged into), never the pull request's live diff, which may have moved on while it waited, and only the runner's own settings (`--setting-sources user`), never the checkout's `.claude/` settings, whose hooks would run the pull request's commands, and never on pull requests from forks, whose runs get no secrets. Each review keeps one comment up to date, marked `<!-- claude-review sha=… outcome=reviewing|reviewed|noted|failed|replaced -->`: that it's reviewing a commit, then that it found nothing, or findings no comment on the change could hold (`noted`, listed in it: lines outside the change, and apart from those any GitHub didn't take after one more try, with a note that `no-claude-review` passes the status where they don't apply; a comment past GitHub's length limit is cut short, the run's summary keeping all of it), or why it couldn't (including a review that gave no findings to post, and a comment's request GitHub didn't start, which `claude-review-request.yml` marks `failed` too), or that GitHub dropped it while it waited (`replaced`: reviews of one pull request run one at a time, and GitHub keeps only the newest waiting one, so the comment says to ask again, and the status passes over it); CI's review, once its turn comes, skips itself only where one that ran meanwhile succeeded, waiting up to ten minutes for an earlier one's finish to say how it went, so one that failed never takes the next with it, with the tokens it used, any tool Claude Code refused it (by name only), and Claude Code's estimate of their cost at API prices, which is how its share of the plan's usage is followed, since the plan's usage page doesn't break it down. A review never fails CI; `.github/workflows/review-status.yml` reads the latest of those comments and sets the "Claude reviewed" status, which carries the review's result to later commits, naming the commit reviewed: it fails while the review couldn't run or didn't finish (one still `reviewing` after two hours) or listed findings in its comment (`noted`), and then until every review thread Claude (`github-actions`) started is resolved, pending until the first review, and passing drafts, Dependabot's and other bots' pull requests until one is reviewed (Claude Code's action doesn't run for a bot, so CI's review skips a run a bot started, and `/claude-review` still asks, after which its result counts as any other's), forks' and ones labelled `no-claude-review`; it reads each open pull request once, from the list, and stops after ten minutes rather than holding its group. It isn't a required check. Its findings are claims to check, like CodeRabbit's.
-- **Line endings:** files are LF everywhere, which Biome and the content files' canonical form expect. `.gitattributes` makes git check them out with LF on Windows too.
-- **Timeouts:** every package's `vitest.config.ts` uses `vitest.shared.ts` at the root, which gives tests 30 seconds and hooks 60, since Vitest's own 5 and 10 are too short on Windows while every package's tests run at once. A new package's tests use it too; tests that run git or Node processes set longer ones of their own.
-- **Order:** tests and typechecks use other workspace packages' built `dist/` folders, so Turborepo builds dependencies first. If you run Vitest directly inside one package, run `pnpm build` first.
-- **TypeScript 7:** tsdown warns that TypeScript 7's API is experimental. That warning is expected. The Next.js starter uses TypeScript 5.9, because `next build` type-checks through TypeScript's JavaScript API.
-- **Next.js:** `pnpm build` runs `next build` for `templates/next`, which writes `out/`. `next dev` and `next build` may rewrite its `tsconfig.json`; commit what they write. `@goodfellow-cms/next` embeds the theme's CSS and Tailwind for the browser as text (`scripts/embed.mjs`, into the ignored `src/generated/`), since Next.js can't import them as text.
-- **Trying a change in a real site:** run `pnpm build`, then `pnpm dev` in `templates/starter` (or `examples/parish`) and open http://localhost:4321 (or http://localhost:4321/admin). Pages re-render on every request, so content edits show up on reload. The dev server runs the built `dist/` of each package, so rebuild a package after changing it.
-- **End-to-end tests:** `pnpm test:e2e` runs Playwright against `goodfellow dev` serving a copy of the starter site in `e2e/.site` (reset before every test), against production builds of the starter with each git backend (`e2e/.site-github`, `e2e/.site-gitlab`, and `e2e/.site-bitbucket`, `bitbucket.spec.ts`), whose API calls go to the fakes, against `next dev` serving a copy of the Next.js starter (`e2e/.site-next`), against a static export of the Next.js starter served from `/site/` (`e2e/.site-next-base`), against a full-stack build of the Next.js starter run with `next start` (`e2e/.site-next-server`, see Full-stack Next.js sites), against the company example built into a Cloudflare Worker with vinext and served in workerd by `vite preview`, with a local D1 database holding an admin, an editor, a subscriber, and a reader who buys a subscription from a fake Stripe (`e2e/.site-company`, `start-company-site.mjs`, `company.spec.ts`, which fails where `vinext check` finds anything it doesn't fully support), against a production build of the starter as a demo (`e2e/.site-demo`, `demo.spec.ts`), against a production build of the starter with its content linked from a repository of its own (`e2e/.site-content`, `content-repository.spec.ts`), against a production build of the starter with an admin address, `localhost`, beside its Site address, `127.0.0.1` (`e2e/.site-admin`, `admin-domain.spec.ts`, also run in Firefox and WebKit, and `plugin-installs.spec.ts`), against a production build of the starter whose editors sign in at the built token broker (`e2e/.site-broker` and `e2e/.broker`, `broker.spec.ts`), against a production build of the starter with every registry block installed, whose islands run with Preact (`e2e/.site-preact`, `scripts/start-preact-site.mjs`, `preact.spec.ts`), and against the documentation site built and served from `/goodfellow-cms/` (`e2e/.site-docs`, `docs-site.spec.ts`, and `site-setup.spec.ts` for the setup page, against the fakes). The Next.js copies use the template's installed packages. Every copy but the subfolder export also has interactive test blocks from `e2e/fixtures/blocks`, which `islands.spec.ts` runs on each. `blocks.spec.ts` adds and removes registry blocks, with the built registry in place of jsDelivr; resetting a copy also resets its `blocks/installed/`, `components/`, `lib/`, and `hooks/`. A run that names spec files (`pnpm --filter @goodfellow-cms/e2e exec playwright test next islands`) starts only the `goodfellow dev` site and the servers those specs use, which `playwright.config.ts` finds by each server's `usedBy` pattern (its port, or the constant naming it), reading the run's filters as Playwright does (`testFilters()`, by `TEST_OPTIONS`, which `scripts/test-groups.mjs` checks against `playwright test --help` and `pnpm test` covers, so an option's value, such as `--trace off`'s, is never taken for a spec, and an option it doesn't know starts every server), since every server at once takes more memory than some computers have, CI's runners included; so `pnpm test:e2e` runs the specs in groups, one Playwright run after another (`scripts/test-groups.mjs`, with `specGroups()`, each group starting at most `GROUP_SERVERS` servers besides the `goodfellow dev` site, and naming its specs in `E2E_SPECS` (`SPECS_VARIABLE`), since the filters it gives Playwright are patterns, which the config never reads as such: other file filters are read as text), passing its options, such as `--project chromium`, to each. `playwright test` without files, or with `E2E_ALL_SERVERS=1`, starts them all. A new server needs a `usedBy` pattern its specs match. Install the browsers once with `pnpm --filter @goodfellow-cms/e2e exec playwright install chromium firefox webkit` (Firefox and WebKit only run `admin-domain.spec.ts` and `preact.spec.ts`; `--project chromium` runs without them), or point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a Chromium that's already installed.
+- **CI** runs these steps in Playwright's Docker image (`mcr.microsoft.com/playwright:v<version>-resolute` in
+  `.github/workflows/ci.yml`), which has the browsers and their system packages, since downloading those from Ubuntu's
+  mirror on every run took up to an hour. It has no jq, which GitHub's runners have and `review-status.test.ts` needs,
+  so a step installs a pinned release, checked against its published SHA-256; running `pnpm test` on your own computer
+  needs jq too, and that test says so rather than skipping. Its tag is `@playwright/test`'s version, so upgrade both
+  together; a step before the end-to-end tests fails when the image lacks that version's browsers. A newer push to a
+  pull request cancels its run (`concurrency`), never a run on `master`, which releases wait for, and the job stops
+  after 60 minutes (`timeout-minutes`, about one and a half times a normal run), with the end-to-end tests' output
+  streamed as they run (`--log-order=stream`), so a run stopped then still shows which test it was in. The release
+  workflow installs an exact npm release, which Dependabot can't update, so move it on by hand.
+- **Environment:** Turborepo passes `NODE_EXTRA_CA_CERTS` through to tasks (`globalPassThroughEnv`), so builds behind a
+  proxy that inspects TLS can still read Google Fonts' stylesheet for `fontPreloads()`.
+- **Overrides:** `pnpm-workspace.yaml`'s `overrides` leave out Puppeteer's browser downloader, which
+  `@cloudflare/puppeteer` depends on but Workers never run, since it brings in packages with security advisories, and
+  move packages with advisories to their fixed releases. Sites are installed with npm, which reads overrides only in
+  their own `package.json`, so the ones they need are `SITE_OVERRIDES` (core's `updates.ts`, keep it in step with the
+  workspace's, plus `@puckeditor/core`'s happy-dom, which Puck 0.24 asks for itself but a site going back to a release
+  with Puck 0.23 needs), which `sitePackageJson()` adds to new sites and `update()` to older ones
+  (`withSiteOverrides()`), leaving out the lockfile's copies of what an added override replaces, since npm keeps them
+  otherwise. The Claude Desktop extension is zipped with `fflate` rather than Anthropic's `mcpb` tool for the same
+  reason. Check `pnpm audit` before adding a dependency.
+- **Install scripts:** pnpm runs no package's install script unless `pnpm-workspace.yaml`'s `allowBuilds` names it
+  `true`. esbuild and workerd, which wrangler brings, are named `false`, since their programs come as packages for each
+  platform; a package added later whose install script is needed goes there as `true`, with why.
+- **Audit:** CI's `audit` job runs `pnpm audit` on every pull request and push, in a job of its own so a new advisory
+  doesn't hide the other checks. Fix an advisory with an override to its fixed release; only where there's none, list it
+  in `auditConfig.ignoreGhsas` with why it can't reach sites, editors, or visitors.
+- **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It
+  reads this file (and `CLAUDE.md`) as its guidelines by itself, so rules belong here, not there; the config only keeps
+  its reviews short, leaves out files written by tools (lockfiles, changelogs, `google-fonts.ts`, `icons.ts`, the shadcn
+  snapshot) and linters that repeat Biome, and adds a few path instructions, such as sites' workflows naming actions by
+  their major version on purpose; it also skips pull requests labelled `no-coderabbit` (`auto_review.labels`), so a push
+  to one never spends the hour's review. A file a tool starts writing goes in its `path_filters`. Its findings are
+  claims to check, like any reviewer's; `@coderabbitai configuration` on a pull request shows the settings it read. Its
+  own check ends neutral when it's rate limited, which looks like a pass in the list of pull requests, so
+  `.github/workflows/review-status.yml` sets a commit status, "CodeRabbit reviewed", that fails until CodeRabbit's check
+  on the head commit ends in success (`@coderabbitai review` asks again), then while its review of the head commit lists
+  findings outside the diff ("Outside diff range comments", which open no threads, so a newer commit's review clears
+  them, as Claude's findings outside the change are cleared; counted from whichever of its reviews of the commit lists
+  the most, since its replies in threads are reviews too, and never its nitpicks or duplicates, which are optional or
+  already have threads), and then until every review thread CodeRabbit started is resolved, outdated ones included
+  (CodeRabbit's own automatic approvals give a review, not a check), and passes drafts, Dependabot's pull requests, and
+  ones labelled `no-coderabbit`, such as those over its file limit and release pull requests, which change only versions
+  and changelogs from changesets it has already reviewed. GitHub starts no workflow when a thread is resolved, so a
+  schedule checks open pull requests every ten minutes, setting a status only when it changes. It reads the pull request
+  through GitHub's API and runs none of its code, so it uses `pull_request_target`, `check_run` and `schedule`, which
+  run the workflow as the default branch has it. It isn't a required check.
+- **Claude's review:** Claude Code's `/code-review` reviews pull requests too, through Anthropic's Claude Code action
+  (`.github/workflows/claude-review.yml`), on the subscription of whoever made the `CLAUDE_CODE_OAUTH_TOKEN` secret with
+  `claude setup-token`; without the secret it does nothing. CI's `claude-review` job calls it once every other job has
+  passed, so it never reads code that's about to change to fix CI, and only the first time on a pull request that's
+  ready for review, after which the pull request is labelled `claude-reviewed`; CI runs again when a draft is marked
+  ready. A comment whose first line is `/claude-review`, in any case, asks again (`/claude-review high` at that level,
+  for that review only), as does adding the `claude-review` label (the workflow takes it off afterwards); adding
+  `claude-review:low`, `:high`, or `:xhigh` asks at that level, which then holds for every review of the pull request
+  (the one added last, where several are on it), `medium` otherwise, taking off any other level label;
+  `no-claude-review` skips CI's review. Every review runs the pull request's own copy of the workflow, which gets the
+  repository's secrets only for a branch of this repository, whose authors can already push: a label's run is the pull
+  request's own (`pull_request`), and a comment's run (`.github/workflows/claude-review-request.yml`, on
+  `issue_comment`, the main branch's, with its secrets) only checks the request (the first line, the commenter's
+  permission, a pull request from a branch here) and starts the pull request's own copy with `workflow_dispatch` on its
+  branch, never checking out its code, in a file of its own so that `claude-review.yml`, which checks code out, has no
+  comment trigger; a dispatch reviews only with the copy on the pull request's own branch, and the review step lets that
+  dispatch's `github-actions[bot]` start it (`allowed_bots`, for dispatches only). Only someone who can push starts a
+  review, since each uses the subscription, and only an exact `claude-review` or level label does (a level is one whole
+  word). Claude runs in a job with only what reading needs (`review`), reading files only in the checkout (never
+  `/proc`, `/sys`, `/dev`, or Claude Code's settings) and running git through a `git` the job puts first on its `PATH`
+  (`Keep git to reading`), which refuses options that write files or read outside the repository, shortened ones too,
+  and turns off every program the repository's config could start, which `claude-review.test.ts` tries; it answers with
+  its findings as structured output (`--json-schema`: each one's file, line, and text), with anything shaped like a
+  token withheld (`Withhold anything like a token`), which `finish` posts on those lines of the pull request it chose,
+  or on the file where the line isn't part of the change, so every way a review starts publishes the same way; apart
+  from choosing and announcing the review (`choose`, which reviews only the commit whose CI passed when CI starts it)
+  and reporting, labelling, and refreshing the status (`finish`, which keeps only the level label added last of those on
+  the pull request, read from its history, so reviews ending in any order leave the same one, leaving any request label
+  someone added again since it read that history, and takes back the comment of a CI review that turned out unneeded:
+  `review` checks again, once its turn comes, that no review ran meanwhile, either labelling the pull request or, with a
+  comment posted before this one's, still `reviewing`, since its `finish` labels the pull request only after the slot is
+  free); every step that could fail is caught (`continue-on-error`), in `choose` too, so a review never fails CI. It
+  asks for the code-review skill in words rather than as the slash command, since a slash command's skill ends the
+  session before Claude can return the findings, and allows the `Skill` tool. It runs Opus at Claude Code's default
+  effort, with tools to read the pull request and run git, never to edit or run its code, reading the change at the
+  commit it chose (`git diff` from its merge base with the branch it's merged into), never the pull request's live diff,
+  which may have moved on while it waited, and only the runner's own settings (`--setting-sources user`), never the
+  checkout's `.claude/` settings, whose hooks would run the pull request's commands, and never on pull requests from
+  forks, whose runs get no secrets. Each review keeps one comment up to date, marked
+  `<!-- claude-review sha=… outcome=reviewing|reviewed|noted|failed|replaced -->`: that it's reviewing a commit, then
+  that it found nothing, or findings no comment on the change could hold (`noted`, listed in it: lines outside the
+  change, and apart from those any GitHub didn't take after one more try, with a note that `no-claude-review` passes the
+  status where they don't apply; a comment past GitHub's length limit is cut short, the run's summary keeping all of
+  it), or why it couldn't (including a review that gave no findings to post, and a comment's request GitHub didn't
+  start, which `claude-review-request.yml` marks `failed` too), or that GitHub dropped it while it waited (`replaced`:
+  reviews of one pull request run one at a time, and GitHub keeps only the newest waiting one, so the comment says to
+  ask again, and the status passes over it); CI's review, once its turn comes, skips itself only where one that ran
+  meanwhile succeeded, waiting up to ten minutes for an earlier one's finish to say how it went, so one that failed
+  never takes the next with it, with the tokens it used, any tool Claude Code refused it (by name only), and Claude
+  Code's estimate of their cost at API prices, which is how its share of the plan's usage is followed, since the plan's
+  usage page doesn't break it down. A review never fails CI; `.github/workflows/review-status.yml` reads the latest of
+  those comments and sets the "Claude reviewed" status, which carries the review's result to later commits, naming the
+  commit reviewed: it fails while the review couldn't run or didn't finish (one still `reviewing` after two hours) or
+  listed findings in its comment (`noted`), and then until every review thread Claude (`github-actions`) started is
+  resolved, pending until the first review, and passing drafts, Dependabot's and other bots' pull requests until one is
+  reviewed (Claude Code's action doesn't run for a bot, so CI's review skips a run a bot started, and `/claude-review`
+  still asks, after which its result counts as any other's), forks' and ones labelled `no-claude-review`; it reads each
+  open pull request once, from the list, and stops after ten minutes rather than holding its group. It isn't a required
+  check. Its findings are claims to check, like CodeRabbit's.
+- **Line endings:** files are LF everywhere, which Biome and the content files' canonical form expect. `.gitattributes`
+  makes git check them out with LF on Windows too.
+- **Timeouts:** every package's `vitest.config.ts` uses `vitest.shared.ts` at the root, which gives tests 30 seconds and
+  hooks 60, since Vitest's own 5 and 10 are too short on Windows while every package's tests run at once. A new
+  package's tests use it too; tests that run git or Node processes set longer ones of their own.
+- **Order:** tests and typechecks use other workspace packages' built `dist/` folders, so Turborepo builds dependencies
+  first. If you run Vitest directly inside one package, run `pnpm build` first.
+- **TypeScript 7:** tsdown warns that TypeScript 7's API is experimental. That warning is expected. The Next.js starter
+  uses TypeScript 5.9, because `next build` type-checks through TypeScript's JavaScript API.
+- **Next.js:** `pnpm build` runs `next build` for `templates/next`, which writes `out/`. `next dev` and `next build` may
+  rewrite its `tsconfig.json`; commit what they write. `@goodfellow-cms/next` embeds the theme's CSS and Tailwind for
+  the browser as text (`scripts/embed.mjs`, into the ignored `src/generated/`), since Next.js can't import them as text.
+- **Trying a change in a real site:** run `pnpm build`, then `pnpm dev` in `templates/starter` (or `examples/parish`)
+  and open http://localhost:4321 (or http://localhost:4321/admin). Pages re-render on every request, so content edits
+  show up on reload. The dev server runs the built `dist/` of each package, so rebuild a package after changing it.
+- **End-to-end tests:** `pnpm test:e2e` runs Playwright against `goodfellow dev` serving a copy of the starter site in
+  `e2e/.site` (reset before every test), against production builds of the starter with each git backend
+  (`e2e/.site-github`, `e2e/.site-gitlab`, and `e2e/.site-bitbucket`, `bitbucket.spec.ts`), whose API calls go to the
+  fakes, against `next dev` serving a copy of the Next.js starter (`e2e/.site-next`), against a static export of the
+  Next.js starter served from `/site/` (`e2e/.site-next-base`), against a full-stack build of the Next.js starter run
+  with `next start` (`e2e/.site-next-server`, see Full-stack Next.js sites), against the company example built into a
+  Cloudflare Worker with vinext and served in workerd by `vite preview`, with a local D1 database holding an admin, an
+  editor, a subscriber, and a reader who buys a subscription from a fake Stripe (`e2e/.site-company`,
+  `start-company-site.mjs`, `company.spec.ts`, which fails where `vinext check` finds anything it doesn't fully
+  support), against a production build of the starter as a demo (`e2e/.site-demo`, `demo.spec.ts`), against a production
+  build of the starter with its content linked from a repository of its own (`e2e/.site-content`,
+  `content-repository.spec.ts`), against a production build of the starter with an admin address, `localhost`, beside
+  its Site address, `127.0.0.1` (`e2e/.site-admin`, `admin-domain.spec.ts`, also run in Firefox and WebKit, and
+  `plugin-installs.spec.ts`), against a production build of the starter whose editors sign in at the built token broker
+  (`e2e/.site-broker` and `e2e/.broker`, `broker.spec.ts`), against a production build of the starter with every
+  registry block installed, whose islands run with Preact (`e2e/.site-preact`, `scripts/start-preact-site.mjs`,
+  `preact.spec.ts`), and against the documentation site built and served from `/goodfellow-cms/` (`e2e/.site-docs`,
+  `docs-site.spec.ts`, and `site-setup.spec.ts` for the setup page, against the fakes). The Next.js copies use the
+  template's installed packages. Every copy but the subfolder export also has interactive test blocks from
+  `e2e/fixtures/blocks`, which `islands.spec.ts` runs on each. `blocks.spec.ts` adds and removes registry blocks, with
+  the built registry in place of jsDelivr; resetting a copy also resets its `blocks/installed/`, `components/`, `lib/`,
+  and `hooks/`. A run that names spec files (`pnpm --filter @goodfellow-cms/e2e exec playwright test next islands`)
+  starts only the `goodfellow dev` site and the servers those specs use, which `playwright.config.ts` finds by each
+  server's `usedBy` pattern (its port, or the constant naming it), reading the run's filters as Playwright does
+  (`testFilters()`, by `TEST_OPTIONS`, which `scripts/test-groups.mjs` checks against `playwright test --help` and
+  `pnpm test` covers, so an option's value, such as `--trace off`'s, is never taken for a spec, and an option it doesn't
+  know starts every server), since every server at once takes more memory than some computers have, CI's runners
+  included; so `pnpm test:e2e` runs the specs in groups, one Playwright run after another (`scripts/test-groups.mjs`,
+  with `specGroups()`, each group starting at most `GROUP_SERVERS` servers besides the `goodfellow dev` site, and naming
+  its specs in `E2E_SPECS` (`SPECS_VARIABLE`), since the filters it gives Playwright are patterns, which the config
+  never reads as such: other file filters are read as text), passing its options, such as `--project chromium`, to each.
+  `playwright test` without files, or with `E2E_ALL_SERVERS=1`, starts them all. A new server needs a `usedBy` pattern
+  its specs match. Install the browsers once with
+  `pnpm --filter @goodfellow-cms/e2e exec playwright install chromium firefox webkit` (Firefox and WebKit only run
+  `admin-domain.spec.ts` and `preact.spec.ts`; `--project chromium` runs without them), or point
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a Chromium that's already installed.
 
 ## Starters and examples
 
-- **Documentation site:** `docs/` is a site of its own, built with `goodfellow build`, with blocks of its own (`DocsLayout`, the setup page's `SiteSetup`, and `SoftwareDetails`, the home page's schema.org `SoftwareApplication`). Before each build and `pnpm dev`, `docs/scripts/llms.mjs` writes what AI tools read (llmstxt.org): each docs page's Markdown at its address with `.md` after it, `llms.txt` listing them by section, and `llms-full.txt`, all ignored by git, at the domain's root, since the site is at https://goodfellowcms.com. It isn't a template, so `create-goodfellow` doesn't copy it. `.github/workflows/docs.yml` publishes it to Cloudflare Pages with each release, built from the release's commit, so it describes what's on npm, with the Site address `DOCS_URL` sets, whatever the release's `content/site.json` says; it has no admin panel online. Building runs the release's code, so a job of its own with no secrets builds it, and a job that runs none of it uploads the files with Cloudflare's token (`wrangler pages deploy`, at an exact release). The site was at `goodfellow-cms.github.io/goodfellow-cms`, so the same workflow keeps that on GitHub Pages as two pages, the home page and the `404.html` GitHub Pages serves for every other address there, whose script sends people to the same page at the new address. It also builds the demo at `/demo/` (`docs/scripts/demo.mjs`: the parish example as the release's create-goodfellow makes it, with the recommended blocks and the Gutenberg plugin, in demo mode, from npm, built without a plugin that can't be installed yet, with a warning), and runs every night so the demo's dates stay current; then `docs/scripts/screenshots.mjs` takes the docs' screenshots with the runner's Chrome (`playwright-core`) into `dist/screenshots/`, never the repository: the setup page, the demo's admin panel, and the sign-in screen of the same site stored on GitHub (`GOODFELLOW_SIGN_IN_PREVIEW`, which `demo.mjs` builds for it alone), which pages show as `/screenshots/<name>.png`; its home page and the README link to it.
-- **Sites:** `templates/starter` is the default site, `templates/next` the same site as a Next.js app, and `examples/parish` a complete example. `create-goodfellow` copies any of them, leaving out build output and `turbo.json`. Both are workspace packages, so they run against the workspace's packages, and their `package.json` files use `workspace:*`, which `create-goodfellow` replaces with published versions. It then runs `npm install` (`installPackages()`) and makes the new folder a git repository on `main`, the branch the deploy setups build from (`initGitRepository()`), with everything in a first commit (`commitAll()`), after the install so `package-lock.json`, which `npm ci` needs, is in it.
-- **Where editors sign in:** the setup page (`recommendedSignIn()`, with the `domain` choice) and `create-goodfellow` (`hasDomain()`, `chooseSignIn()`) ask whether the owner has a domain, start with an admin address where they do and `allowsAdminAddress()`, and otherwise mark the token broker recommended, leaving the admin panel at the site's address as the default. The admin panel says when editors' sign-in is within the site's pages' reach (`useSignInExposed()`) on the Security and Code tabs.
-- **Planning a site:** what a new site's files are (published versions, the backend line, the host's setup file, recommended blocks, an admin address where `allowsAdminAddress()`) is worked out by `planSite()` in `@goodfellow-cms/core` (`site-setup.ts`), with no disk access, so `create-goodfellow` and the setup page make the same sites. Cloudflare Pages (`HOSTS["cloudflare-pages"]`, whose `files` are empty) gets setup files written for it by `cloudflareSetupFiles()` (`cloudflare-setup.ts`) in place of the template's: a `deploy.yml` with the nightly `update` job and a `rebuild` job that calls `CLOUDFLARE_DEPLOY_HOOK` when no update was published, and a `scheduled.yml` that dispatches it, or a `.gitlab-ci.yml` whose job is `update`, never `pages`, which GitLab would take for GitLab Pages. Cloudflare's build settings (no preset, `npm run build`, `dist` or `out`) are in its dashboard, not a file, since a Wrangler file takes those settings over. `outsideHost()` (`OutsideHost`) tells Cloudflare, Netlify, and Vercel sites apart by their setup files. Netlify (`HOSTS.netlify`, GitHub and GitLab only, never with a content repository yet) gets `netlifySetupFiles()` (`netlify-setup.ts`): `netlify.toml` (`netlifyToml()`: the build command and folder, Node 22, an `ignore` command skipping `NETLIFY_SKIPPED_BRANCHES`, `GOODFELLOW_HOST`, and `NETLIFY_NEXT_PLUGIN_SKIP` for Next.js sites) and the same workflows or pipeline as Cloudflare's, which `hookHostSetupFiles()` writes for a `HookHost` (`CLOUDFLARE_HOOK_HOST`, `NETLIFY_HOOK_HOST`, with `NETLIFY_BUILD_HOOK`). Netlify's free plan counts each production deploy against a monthly credit limit that pauses every site when it runs out, which the docs' Hosts page says. `create-goodfellow` reads the template, plans it, and writes the files.
-- **Setup page:** the docs site's setup page creates sites in the browser, in two steps, both the docs' `SiteSetup` block with its `step`: `/new-site/` (`content/pages/new-site.json`, the Client Component `blocks/site-setup-form.tsx`) asks what the site is for, then the rest, mostly behind Advanced settings, and links to `/new-site/create/` (`content/pages/new-site/create.json`, `blocks/site-create-form.tsx`) with the choices in its query, where people sign in and create the site. `blocks/site-setup-choices.ts` holds the choices, their defaults (`withDefaults()`, which fills in only what people didn't choose), recommendations, warnings, and query (`choicesQuery()`, `parseChoices()`, which leaves values that aren't choices to the defaults), so both steps agree. Signing in keeps the choices in the tab's session storage, since GitLab comes back to its application's redirect URI without the query. `docs/scripts/starters.mjs` packs create-goodfellow's bundled templates, versions, and registry into `public/starters/` (ignored) before each docs build; with `GOODFELLOW_STARTER_LOCKFILES=1`, which `docs.yml` sets because it needs the versions on npm, it adds each starter's `package-lock.json`. The page plans the site with `planSite()`, then creates the repository through `githubSetup()` or `gitlabSetup()`. Full-stack sites have a page of their own (see Full-stack sites from the setup page below), for which `starters.mjs` packs the company example too.
-- **Bundling:** `create-goodfellow`'s build copies the sites into its `templates/` folder (`scripts/bundle-templates.mjs`), with every package's version in `templates/versions.json`. It also copies the built token broker to `templates/broker`, and the built block registry to `templates/registry`, which `--blocks recommended` (the default) installs from with `planInstall()`, so new sites need no download. It depends on them so Turborepo rebuilds it when they change. A new example needs adding there and to `TEMPLATES` in `scaffold.ts`.
-- **Safer builds:** every GitHub workflow the starters have or `planSite()` and `separateSetupFiles()` write (`github-workflows.ts` in core: `githubUpdateJobs()`, `githubScheduledJobs()`; `task-setup.ts`: `githubTaskWorkflow()`) sets `permissions: {}` and gives each job only what it needs: jobs that run the site's code get `contents: read` and check out with `persist-credentials: false`, and jobs that publish, dispatch, or call deploy hooks run none of it. Sites' `.npmrc` sets `ignore-scripts=true`, which `create-goodfellow` bundles as `_npmrc` (`BUNDLED_NAMES`), since npm leaves `.npmrc` out of packages. GitLab gives every job in a project the same token, so this holds on GitHub only.
-- **Full-stack sites:** `create-goodfellow --server cloudflare` (`createServerSite()` in `server-cli.ts`) makes a site from the company example, which `bundle-templates.mjs` copies into `templates/company/` from the files git tracks only, since its build and a developer's copy hold files that mustn't ship (`.dev.vars`). `planServerSite()` (core's `server-setup.ts`, with no disk access, for the setup page too) names its Worker, D1 database and KV namespace after the site (`workerName()`, replacing `TEMPLATE_WORKER`), puts its repositories in place of the example's placeholders everywhere but the README, whose first section lists them instead, and moves its content into `content-repository/`, which runs no workflows and holds no secrets: new photos reach the site with the code's nightly Deploy. In a terminal of the person's own, never in CI, it then offers `setUpCloudflare()` (`cloudflare-setup.ts`): wrangler's sign-in, the D1 database and KV namespace with their ids written into `wrangler.jsonc`, a build and deploy, `BETTER_AUTH_SECRET` made here and given on wrangler's standard input, `GOODFELLOW_GIT_TOKEN` typed into wrangler's own prompt, and `npm run new-admin`, each asked first, stopping at the first that fails. Programs run through a `Runner`, which tests replace. The docs' Full-stack sites on Cloudflare page describes it.
-- **Full-stack sites from the setup page:** `/new-site/full-stack/` (`content/pages/new-site/full-stack.json`, the `SiteSetup` block's `full-stack` step, `blocks/server-site-form.tsx`) is a page of its own, which `/new-site/` links to, never a choice in the static sites' steps. It signs in to GitHub as `/new-site/create/` does (sharing `TokenForm` and its messages from `site-create-form.tsx`), plans the site with `planServerSite()` from the packed `company.json` (`madeBy: "page"`, with the site's address, or none, for the Worker's own on workers.dev), and creates the code repository with `more`, then the content's with a `link` whose only read is the code reading the content (`GOODFELLOW_CONTENT_KEY`). It makes a setup code in the browser (`newSetupCode()`, 120 bits) and writes only its SHA-256 into `wrangler.jsonc`'s vars (`setupCodeHash()`, `SETUP_CODE_VARIABLE`), shows the code once, and puts the site online with the person (`PutOnline` in `blocks/server-site-online.tsx`): the site's **publishing app**, a GitHub App of its own made through GitHub's manifest flow in a new tab (`publishingAppManifest()`, `appManifestFormAction()`, `convertAppManifest()` from `@goodfellow-cms/github/app`, an entry of its own so only what signs the app's tokens loads `universal-github-app-jwt`), whose id and key it saves as the code's secrets (`SetupAccount.saveSecrets()`, sealed as deploy keys' are) and keeps only in the tab's memory until `checkPublishingApp()` finds it installed on the content repository alone; GitHub sends both steps back to `/new-site/full-stack/app/` (the `SiteSetup` block's `app-return` step, `blocks/app-return.tsx`), which tells the setup page's tab on a `BroadcastChannel` (`APP_CHANNEL`, `appReturnOf()`, `appReturnFor()` in `blocks/publishing-app.ts`, heard only with the tab's own `state`); Cloudflare's token, pasted, saved as `CLOUDFLARE_API_TOKEN` and forgotten; then `SetupAccount.startWorkflow()` starts the example's **Set up Cloudflare** workflow (`setup-cloudflare.yml`: a job with the Cloudflare token finds the account (`CLOUDFLARE_ACCOUNT_ID`, `wrangler.jsonc`'s `account_id`, or the one account the token reaches, refusing several), makes the D1 database and KV namespace and says their ids, checked by their form, and, where `wrangler.jsonc` still has the example's address, the account's workers.dev subdomain from Cloudflare's API; one that runs none of the site's code writes them into `wrangler.jsonc`, the address only as a `workers.dev` one, pushes, and dispatches Deploy), with a link where the sign-in can't (the setup token's Actions write, which the owners' app has already); the page reads the Worker's address back from `wrangler.jsonc` (`SetupAccount.readFile()`, `workersAddressIn()`), and links to `/setup/` with the code in the fragment (`setupLink()`), which the example's form reads and takes out of the address (`codeFromFragment()`). The example's `/setup/` (`lib/first-admin.ts`, `app/api/setup/`) makes one admin, ever, with the code: only from the site's own pages, `SETUP_LIMIT` tries a network address, while no admin exists, under a `SETUP_DONE` row only one request can write (`claimRow()`), given back only where making the admin failed, through `createAdmin()` (`lib/admins.ts`, which `npm run new-admin` uses too), which writes `SETUP_DONE` before every admin it makes, as `d1AdminSql()`'s SQL does where it's not there (`/setup/`'s by turning its own claim into `setupUsedBy()` only while the row still holds it, read back, so none is made beside an admin the command made meanwhile), so the code makes none once the site has had an admin, whoever made them and whatever became of them. Retrying with the same sign-in, after the content's repository failed before GitHub made it, carries on with the code's repository, its setup code, and the answers it was made with (`Begun`); a sign-in connects only repositories it created, so after a reload, another sign-in, or a repository whose setup stopped part way, the page can't finish the site, and says which repositories it made, which the tab keeps as soon as the host has made each (`createSite()`'s `onCreated`, which every backend calls straight after making the repository, and GitHub's from the sign-in worker's `created` where the worker made it but couldn't finish) (`UNFINISHED_KEY`, never the setup code), and as maybe made from just before it's asked for, so a reload while the host hasn't answered says it may be there (`Unfinished.maybe`). Admins are made as readers and given the admin role once their password is saved, so a half-made one never counts as the site's admin. Its Deploy workflow writes and publishes `package-lock.json` where `package.json` names what it doesn't, with the starters' jobs (`githubLockfileJobs()`), building and deploying with the one it published, and Set up Cloudflare writes one for its own run, so a site made without one, as from a copy of the docs without lockfiles, still sets up; it skips itself until `wrangler.jsonc` names the database and cache (its `ready` job), gives the Worker `BETTER_AUTH_SECRET`, the publishing app's `GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`, and `GOODFELLOW_GIT_TOKEN` from the repository's secrets where they're there, and makes a session key on the first deploy where neither the repository nor the Worker has one (stopping where it can't read the Worker's secrets, rather than replace one). It runs each night too, so new photos go live, puts only main's newest commit online (its `ready` job and `deploy`'s first step), and gives the Worker the site's domain where its zone is on the account (Cloudflare's Workers domains API), only warning where it can't, since a domain with DNS records would otherwise fail every deploy. The example's server publishes with `gitToken()` (`lib/git-token.ts`): `publishingAppToken()`, hour-long installation tokens narrowed to the content repository and Contents, each made only once `publishingToken()` finds the installation on that repository alone (not `all`, no others, by `/installation/repositories` with a token that can only see them, revoked at once) with no other permissions, or else `GOODFELLOW_GIT_TOKEN`.
-- **Setup lines:** `create-goodfellow` turns on the commented-out `backend` lines in `goodfellow.config.tsx` and removes other hosts' setup files, so keep those lines and file names as they are in every site.
-- **Shared files:** the examples' deploy setups, `.gitignore`, `.npmrc`, `src/styles.css`, `components.json`, `tsconfig.json`, `blocks/installed/index.ts`, and `plugins/installed/index.ts` must match the starter's; a test checks this. The Next.js starter has its own, which build with `next build` and publish `out/`.
-- **Made-up content only:** examples use invented names, addresses (`example.org` email addresses and 555-01xx phone numbers), events and text, and pictures drawn for the purpose. Never use a real organization's details, photos, or copyrighted text such as modern Bible translations. Scripture comes from the Douay-Rheims Bible (Challoner revision), a Catholic translation in the public domain, and in Spanish from Torres Amat's translation (1825), also in the public domain.
+- **Documentation site:** `docs/` is a site of its own, built with `goodfellow build`, with blocks of its own
+  (`DocsLayout`, the setup page's `SiteSetup`, and `SoftwareDetails`, the home page's schema.org `SoftwareApplication`).
+  Before each build and `pnpm dev`, `docs/scripts/llms.mjs` writes what AI tools read (llmstxt.org): each docs page's
+  Markdown at its address with `.md` after it, `llms.txt` listing them by section, and `llms-full.txt`, all ignored by
+  git, at the domain's root, since the site is at https://goodfellowcms.com. It isn't a template, so `create-goodfellow`
+  doesn't copy it. `.github/workflows/docs.yml` publishes it to Cloudflare Pages with each release, built from the
+  release's commit, so it describes what's on npm, with the Site address `DOCS_URL` sets, whatever the release's
+  `content/site.json` says; it has no admin panel online. Building runs the release's code, so a job of its own with no
+  secrets builds it, and a job that runs none of it uploads the files with Cloudflare's token (`wrangler pages deploy`,
+  at an exact release). The site was at `goodfellow-cms.github.io/goodfellow-cms`, so the same workflow keeps that on
+  GitHub Pages as two pages, the home page and the `404.html` GitHub Pages serves for every other address there, whose
+  script sends people to the same page at the new address. It also builds the demo at `/demo/` (`docs/scripts/demo.mjs`:
+  the parish example as the release's create-goodfellow makes it, with the recommended blocks and the Gutenberg plugin,
+  in demo mode, from npm, built without a plugin that can't be installed yet, with a warning), and runs every night so
+  the demo's dates stay current; then `docs/scripts/screenshots.mjs` takes the docs' screenshots with the runner's
+  Chrome (`playwright-core`) into `dist/screenshots/`, never the repository: the setup page, the demo's admin panel, and
+  the sign-in screen of the same site stored on GitHub (`GOODFELLOW_SIGN_IN_PREVIEW`, which `demo.mjs` builds for it
+  alone), which pages show as `/screenshots/<name>.png`; its home page and the README link to it.
+- **Sites:** `templates/starter` is the default site, `templates/next` the same site as a Next.js app, and
+  `examples/parish` a complete example. `create-goodfellow` copies any of them, leaving out build output and
+  `turbo.json`. Both are workspace packages, so they run against the workspace's packages, and their `package.json`
+  files use `workspace:*`, which `create-goodfellow` replaces with published versions. It then runs `npm install`
+  (`installPackages()`) and makes the new folder a git repository on `main`, the branch the deploy setups build from
+  (`initGitRepository()`), with everything in a first commit (`commitAll()`), after the install so `package-lock.json`,
+  which `npm ci` needs, is in it.
+- **Where editors sign in:** the setup page (`recommendedSignIn()`, with the `domain` choice) and `create-goodfellow`
+  (`hasDomain()`, `chooseSignIn()`) ask whether the owner has a domain, start with an admin address where they do and
+  `allowsAdminAddress()`, and otherwise mark the token broker recommended, leaving the admin panel at the site's address
+  as the default. The admin panel says when editors' sign-in is within the site's pages' reach (`useSignInExposed()`) on
+  the Security and Code tabs.
+- **Planning a site:** what a new site's files are (published versions, the backend line, the host's setup file,
+  recommended blocks, an admin address where `allowsAdminAddress()`) is worked out by `planSite()` in
+  `@goodfellow-cms/core` (`site-setup.ts`), with no disk access, so `create-goodfellow` and the setup page make the same
+  sites. Cloudflare Pages (`HOSTS["cloudflare-pages"]`, whose `files` are empty) gets setup files written for it by
+  `cloudflareSetupFiles()` (`cloudflare-setup.ts`) in place of the template's: a `deploy.yml` with the nightly `update`
+  job and a `rebuild` job that calls `CLOUDFLARE_DEPLOY_HOOK` when no update was published, and a `scheduled.yml` that
+  dispatches it, or a `.gitlab-ci.yml` whose job is `update`, never `pages`, which GitLab would take for GitLab Pages.
+  Cloudflare's build settings (no preset, `npm run build`, `dist` or `out`) are in its dashboard, not a file, since a
+  Wrangler file takes those settings over. `outsideHost()` (`OutsideHost`) tells Cloudflare, Netlify, and Vercel sites
+  apart by their setup files. Netlify (`HOSTS.netlify`, GitHub and GitLab only, never with a content repository yet)
+  gets `netlifySetupFiles()` (`netlify-setup.ts`): `netlify.toml` (`netlifyToml()`: the build command and folder, Node
+  22, an `ignore` command skipping `NETLIFY_SKIPPED_BRANCHES`, `GOODFELLOW_HOST`, and `NETLIFY_NEXT_PLUGIN_SKIP` for
+  Next.js sites) and the same workflows or pipeline as Cloudflare's, which `hookHostSetupFiles()` writes for a
+  `HookHost` (`CLOUDFLARE_HOOK_HOST`, `NETLIFY_HOOK_HOST`, with `NETLIFY_BUILD_HOOK`). Netlify's free plan counts each
+  production deploy against a monthly credit limit that pauses every site when it runs out, which the docs' Hosts page
+  says. `create-goodfellow` reads the template, plans it, and writes the files.
+- **Setup page:** the docs site's setup page creates sites in the browser, in two steps, both the docs' `SiteSetup`
+  block with its `step`: `/new-site/` (`content/pages/new-site.json`, the Client Component `blocks/site-setup-form.tsx`)
+  asks what the site is for, then the rest, mostly behind Advanced settings, and links to `/new-site/create/`
+  (`content/pages/new-site/create.json`, `blocks/site-create-form.tsx`) with the choices in its query, where people sign
+  in and create the site. `blocks/site-setup-choices.ts` holds the choices, their defaults (`withDefaults()`, which
+  fills in only what people didn't choose), recommendations, warnings, and query (`choicesQuery()`, `parseChoices()`,
+  which leaves values that aren't choices to the defaults), so both steps agree. Signing in keeps the choices in the
+  tab's session storage, since GitLab comes back to its application's redirect URI without the query.
+  `docs/scripts/starters.mjs` packs create-goodfellow's bundled templates, versions, and registry into
+  `public/starters/` (ignored) before each docs build; with `GOODFELLOW_STARTER_LOCKFILES=1`, which `docs.yml` sets
+  because it needs the versions on npm, it adds each starter's `package-lock.json`. The page plans the site with
+  `planSite()`, then creates the repository through `githubSetup()` or `gitlabSetup()`. Full-stack sites have a page of
+  their own (see Full-stack sites from the setup page below), for which `starters.mjs` packs the company example too.
+- **Bundling:** `create-goodfellow`'s build copies the sites into its `templates/` folder
+  (`scripts/bundle-templates.mjs`), with every package's version in `templates/versions.json`. It also copies the built
+  token broker to `templates/broker`, and the built block registry to `templates/registry`, which `--blocks recommended`
+  (the default) installs from with `planInstall()`, so new sites need no download. It depends on them so Turborepo
+  rebuilds it when they change. A new example needs adding there and to `TEMPLATES` in `scaffold.ts`.
+- **Safer builds:** every GitHub workflow the starters have or `planSite()` and `separateSetupFiles()` write
+  (`github-workflows.ts` in core: `githubUpdateJobs()`, `githubScheduledJobs()`; `task-setup.ts`:
+  `githubTaskWorkflow()`) sets `permissions: {}` and gives each job only what it needs: jobs that run the site's code
+  get `contents: read` and check out with `persist-credentials: false`, and jobs that publish, dispatch, or call deploy
+  hooks run none of it. Sites' `.npmrc` sets `ignore-scripts=true`, which `create-goodfellow` bundles as `_npmrc`
+  (`BUNDLED_NAMES`), since npm leaves `.npmrc` out of packages. GitLab gives every job in a project the same token, so
+  this holds on GitHub only.
+- **Full-stack sites:** `create-goodfellow --server cloudflare` (`createServerSite()` in `server-cli.ts`) makes a site
+  from the company example, which `bundle-templates.mjs` copies into `templates/company/` from the files git tracks
+  only, since its build and a developer's copy hold files that mustn't ship (`.dev.vars`). `planServerSite()` (core's
+  `server-setup.ts`, with no disk access, for the setup page too) names its Worker, D1 database and KV namespace after
+  the site (`workerName()`, replacing `TEMPLATE_WORKER`), puts its repositories in place of the example's placeholders
+  everywhere but the README, whose first section lists them instead, and moves its content into `content-repository/`,
+  which runs no workflows and holds no secrets: new photos reach the site with the code's nightly Deploy. In a terminal
+  of the person's own, never in CI, it then offers `setUpCloudflare()` (`cloudflare-setup.ts`): wrangler's sign-in, the
+  D1 database and KV namespace with their ids written into `wrangler.jsonc`, a build and deploy, `BETTER_AUTH_SECRET`
+  made here and given on wrangler's standard input, `GOODFELLOW_GIT_TOKEN` typed into wrangler's own prompt, and
+  `npm run new-admin`, each asked first, stopping at the first that fails. Programs run through a `Runner`, which tests
+  replace. The docs' Full-stack sites on Cloudflare page describes it.
+- **Full-stack sites from the setup page:** `/new-site/full-stack/` (`content/pages/new-site/full-stack.json`, the
+  `SiteSetup` block's `full-stack` step, `blocks/server-site-form.tsx`) is a page of its own, which `/new-site/` links
+  to, never a choice in the static sites' steps. It signs in to GitHub as `/new-site/create/` does (sharing `TokenForm`
+  and its messages from `site-create-form.tsx`), plans the site with `planServerSite()` from the packed `company.json`
+  (`madeBy: "page"`, with the site's address, or none, for the Worker's own on workers.dev), and creates the code
+  repository with `more`, then the content's with a `link` whose only read is the code reading the content
+  (`GOODFELLOW_CONTENT_KEY`). It makes a setup code in the browser (`newSetupCode()`, 120 bits) and writes only its
+  SHA-256 into `wrangler.jsonc`'s vars (`setupCodeHash()`, `SETUP_CODE_VARIABLE`), shows the code once, and puts the
+  site online with the person (`PutOnline` in `blocks/server-site-online.tsx`): the site's **publishing app**, a GitHub
+  App of its own made through GitHub's manifest flow in a new tab (`publishingAppManifest()`, `appManifestFormAction()`,
+  `convertAppManifest()` from `@goodfellow-cms/github/app`, an entry of its own so only what signs the app's tokens
+  loads `universal-github-app-jwt`), whose id and key it saves as the code's secrets (`SetupAccount.saveSecrets()`,
+  sealed as deploy keys' are) and keeps only in the tab's memory until `checkPublishingApp()` finds it installed on the
+  content repository alone; GitHub sends both steps back to `/new-site/full-stack/app/` (the `SiteSetup` block's
+  `app-return` step, `blocks/app-return.tsx`), which tells the setup page's tab on a `BroadcastChannel` (`APP_CHANNEL`,
+  `appReturnOf()`, `appReturnFor()` in `blocks/publishing-app.ts`, heard only with the tab's own `state`); Cloudflare's
+  token, pasted, saved as `CLOUDFLARE_API_TOKEN` and forgotten; then `SetupAccount.startWorkflow()` starts the example's
+  **Set up Cloudflare** workflow (`setup-cloudflare.yml`: a job with the Cloudflare token finds the account
+  (`CLOUDFLARE_ACCOUNT_ID`, `wrangler.jsonc`'s `account_id`, or the one account the token reaches, refusing several),
+  makes the D1 database and KV namespace and says their ids, checked by their form, and, where `wrangler.jsonc` still
+  has the example's address, the account's workers.dev subdomain from Cloudflare's API; one that runs none of the site's
+  code writes them into `wrangler.jsonc`, the address only as a `workers.dev` one, pushes, and dispatches Deploy), with
+  a link where the sign-in can't (the setup token's Actions write, which the owners' app has already); the page reads
+  the Worker's address back from `wrangler.jsonc` (`SetupAccount.readFile()`, `workersAddressIn()`), and links to
+  `/setup/` with the code in the fragment (`setupLink()`), which the example's form reads and takes out of the address
+  (`codeFromFragment()`). The example's `/setup/` (`lib/first-admin.ts`, `app/api/setup/`) makes one admin, ever, with
+  the code: only from the site's own pages, `SETUP_LIMIT` tries a network address, while no admin exists, under a
+  `SETUP_DONE` row only one request can write (`claimRow()`), given back only where making the admin failed, through
+  `createAdmin()` (`lib/admins.ts`, which `npm run new-admin` uses too), which writes `SETUP_DONE` before every admin it
+  makes, as `d1AdminSql()`'s SQL does where it's not there (`/setup/`'s by turning its own claim into `setupUsedBy()`
+  only while the row still holds it, read back, so none is made beside an admin the command made meanwhile), so the code
+  makes none once the site has had an admin, whoever made them and whatever became of them. Retrying with the same
+  sign-in, after the content's repository failed before GitHub made it, carries on with the code's repository, its setup
+  code, and the answers it was made with (`Begun`); a sign-in connects only repositories it created, so after a reload,
+  another sign-in, or a repository whose setup stopped part way, the page can't finish the site, and says which
+  repositories it made, which the tab keeps as soon as the host has made each (`createSite()`'s `onCreated`, which every
+  backend calls straight after making the repository, and GitHub's from the sign-in worker's `created` where the worker
+  made it but couldn't finish) (`UNFINISHED_KEY`, never the setup code), and as maybe made from just before it's asked
+  for, so a reload while the host hasn't answered says it may be there (`Unfinished.maybe`). Admins are made as readers
+  and given the admin role once their password is saved, so a half-made one never counts as the site's admin. Its Deploy
+  workflow writes and publishes `package-lock.json` where `package.json` names what it doesn't, with the starters' jobs
+  (`githubLockfileJobs()`), building and deploying with the one it published, and Set up Cloudflare writes one for its
+  own run, so a site made without one, as from a copy of the docs without lockfiles, still sets up; it skips itself
+  until `wrangler.jsonc` names the database and cache (its `ready` job), gives the Worker `BETTER_AUTH_SECRET`, the
+  publishing app's `GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`, and `GOODFELLOW_GIT_TOKEN` from the repository's
+  secrets where they're there, and makes a session key on the first deploy where neither the repository nor the Worker
+  has one (stopping where it can't read the Worker's secrets, rather than replace one). It runs each night too, so new
+  photos go live, puts only main's newest commit online (its `ready` job and `deploy`'s first step), and gives the
+  Worker the site's domain where its zone is on the account (Cloudflare's Workers domains API), only warning where it
+  can't, since a domain with DNS records would otherwise fail every deploy. The example's server publishes with
+  `gitToken()` (`lib/git-token.ts`): `publishingAppToken()`, hour-long installation tokens narrowed to the content
+  repository and Contents, each made only once `publishingToken()` finds the installation on that repository alone (not
+  `all`, no others, by `/installation/repositories` with a token that can only see them, revoked at once) with no other
+  permissions, or else `GOODFELLOW_GIT_TOKEN`.
+- **Setup lines:** `create-goodfellow` turns on the commented-out `backend` lines in `goodfellow.config.tsx` and removes
+  other hosts' setup files, so keep those lines and file names as they are in every site.
+- **Shared files:** the examples' deploy setups, `.gitignore`, `.npmrc`, `src/styles.css`, `components.json`,
+  `tsconfig.json`, `blocks/installed/index.ts`, and `plugins/installed/index.ts` must match the starter's; a test checks
+  this. The Next.js starter has its own, which build with `next build` and publish `out/`.
+- **Made-up content only:** examples use invented names, addresses (`example.org` email addresses and 555-01xx phone
+  numbers), events and text, and pictures drawn for the purpose. Never use a real organization's details, photos, or
+  copyrighted text such as modern Bible translations. Scripture comes from the Douay-Rheims Bible (Challoner revision),
+  a Catholic translation in the public domain, and in Spanish from Torres Amat's translation (1825), also in the public
+  domain.
 
 ## Sponsors
 
-- **Where people sponsor:** GitHub Sponsors, under the `goodfellow-cms` organization. the organization's `goodfellow-cms/.github` repository's `FUNDING.yml` shows GitHub's Sponsor button on every repository without one of its own (so none has), every published package's `package.json` has `funding`, the docs header has a Donate button labelled Sponsor (`givingPage()` names GitHub Sponsors for `github.com/sponsors/…`), and the docs footer and the README link there.
-- **The list:** `.github/workflows/sponsors.yml` runs `docs/scripts/sponsors.mjs` each day with the `SPONSORS_TOKEN` secret (a classic token with `read:org` and `read:user` from an owner of the organization), which reads GitHub Sponsors (`SPONSORS_QUERY`) and writes `.github/sponsors.json` and the README's section between `README_START` and `README_END`. `sponsorsList()` (`docs/scripts/sponsors-list.mjs`, no dependencies, so the workflow needs no install) sorts sponsors into `TIERS`: Patron ($500 a month, a large logo) and Organization ($100, a logo), both linking to their website, and Backer ($25, or a one-time gift of `ONE_TIME_BACKER` within `ONE_TIME_DAYS`) by name; Supporters ($5) get GitHub's badge only, and private sponsorships are never listed. Logos are GitHub profile pictures, and `.github/sponsor-overrides.json` changes a sponsor's name, address, or logo, or hides them. Neither the README section nor the docs' list shows until someone is listed. `master` takes changes only through pull requests, so the workflow opens one and merges it, which needs Actions allowed to create pull requests in the repository's settings.
-- **The docs site:** the home page's Sponsors block (`docs/blocks/sponsors.tsx`) shows `.github/sponsors.json` as `docs.yml` copies it from `master` over the release it builds, so the list is current while the rest matches npm, and `sponsorsScript()` brings it up to date from `SPONSORS_RAW_URL` as the page loads, drawing only what `cleanSponsors()` keeps. Change the file's shape only with `SPONSORS_VERSION`.
+- **Where people sponsor:** GitHub Sponsors, under the `goodfellow-cms` organization. the organization's
+  `goodfellow-cms/.github` repository's `FUNDING.yml` shows GitHub's Sponsor button on every repository without one of
+  its own (so none has), every published package's `package.json` has `funding`, the docs header has a Donate button
+  labelled Sponsor (`givingPage()` names GitHub Sponsors for `github.com/sponsors/…`), and the docs footer and the
+  README link there.
+- **The list:** `.github/workflows/sponsors.yml` runs `docs/scripts/sponsors.mjs` each day with the `SPONSORS_TOKEN`
+  secret (a classic token with `read:org` and `read:user` from an owner of the organization), which reads GitHub
+  Sponsors (`SPONSORS_QUERY`) and writes `.github/sponsors.json` and the README's section between `README_START` and
+  `README_END`. `sponsorsList()` (`docs/scripts/sponsors-list.mjs`, no dependencies, so the workflow needs no install)
+  sorts sponsors into `TIERS`: Patron ($500 a month, a large logo) and Organization ($100, a logo), both linking to
+  their website, and Backer ($25, or a one-time gift of `ONE_TIME_BACKER` within `ONE_TIME_DAYS`) by name; Supporters
+  ($5) get GitHub's badge only, and private sponsorships are never listed. Logos are GitHub profile pictures, and
+  `.github/sponsor-overrides.json` changes a sponsor's name, address, or logo, or hides them. Neither the README section
+  nor the docs' list shows until someone is listed. `master` takes changes only through pull requests, so the workflow
+  opens one and merges it, which needs Actions allowed to create pull requests in the repository's settings.
+- **The docs site:** the home page's Sponsors block (`docs/blocks/sponsors.tsx`) shows `.github/sponsors.json` as
+  `docs.yml` copies it from `master` over the release it builds, so the list is current while the rest matches npm, and
+  `sponsorsScript()` brings it up to date from `SPONSORS_RAW_URL` as the page loads, drawing only what `cleanSponsors()`
+  keeps. Change the file's shape only with `SPONSORS_VERSION`.
 
 ## Conventions
 
-- **Other programs:** start them with `commandToRun()` (`node-command.ts` in `@goodfellow-cms/core/node`), which runs npm and npx through cmd.exe on Windows with their arguments quoted (`cmdArgument()`) and everything else, git included, without a shell (where what npm is given comes from a site's files, run it with `npmCommand()` in `node-provenance.ts`, npm's own script under Node on Windows, so no shell reads it at all); never pass `shell: true` with an argument list, which Node joins unquoted. Globs given to Vite or watchers use forward slashes (`slashes()`), since they read `\` as an escape.
-- **Patterns on long text:** text from editors, other sites, WordPress, or a site's files can be any length, so never match it with a pattern that can try many ways at each place, such as `/\/+$/`, `/^-+|-+$/`, or `/<!--[\s\S]*?-->/`, which take time that grows with the square of the text's length on a long run that doesn't end as the pattern expects (CodeQL's "Polynomial regular expression"). Trim with `trimChars()`, take tags out with `withoutTags()`, and find where a comment or shortcode ends by searching on from its start (`withoutCssComments()` in `content/css-comments.ts`, `cssRegion()` in `themes.ts`, `prologEnd()` and `tagEnd()` in `admin-domain.ts`, `replaceEnclosing()` in `wordpress/convert.ts`, `tokens()` in `rendered-checks.ts`); `slow-patterns.test.ts` tries each with a long run. Values put into an inline script go through a helper that escapes `<`, `>`, U+2028 and U+2029 (`jsString()` in the CLI's `islands.ts`, `scriptString()` in `admin-domain.ts`, `scriptValue()` in `block-scripts.ts` and `consent.ts`), never `JSON.stringify()` alone.
-- **Exports:** use named exports. Each package exposes its public API from `src/index.ts`; anything not exported there is internal.
-- **Lists:** English uses the Oxford comma everywhere: the admin panel's strings, the docs, READMEs, this file, comments, what programs print, commit messages, and changesets ("pages, items, and media"; "GitHub, GitLab, or Bitbucket"). Code that writes a list for people does too (`a, b, c, and 2 more`, and a comma only from three items). Translations follow their own language's rules: Spanish never puts a comma before "y" or "o". Leave text that must match something outside Goodfellow as it is, such as another program's messages, WordPress's labels, Puck's own English, and past changelogs.
-- **Dependencies:** keep runtime dependencies small. Every package that ships to the browser counts against the editor's load time, and anything in `@goodfellow-cms/react` also ships to every visitor of every site.
-- **Actions:** this repository's workflows pin every action to a commit, with its version in a comment, which `.github/dependabot.yml` keeps up to date; pin new ones the same way. Sites' workflows (the starters', the example's, and every one core writes) do the opposite, naming GitHub's own actions by their major version (`actions/checkout@v5`): a site's update can't change its workflows and sites have no Dependabot, so a pinned commit would never move, missing the action's fixes until GitHub retires the Node.js it runs on and the site's builds stop. Tags are only safe for actions as trusted as GitHub's runners already are, so sites use no others; `site-actions.test.ts` checks both.
-- **Changesets:** any change to a published package needs one (`pnpm changeset`). Every package in `packages/` is in one `fixed` group, so they're released together with the same version; a new package goes in that group, and its first version is published from a maintainer's computer, since trusted publishing needs the package to exist on npm (RELEASING.md's "Adding a package"). Releases are made as RELEASING.md describes: `pnpm release:version` bumps the versions in a pull request, labelled `no-coderabbit` since it changes only versions and changelogs, and once it's merged and CI passes on `master`, `.github/workflows/release.yml` runs `scripts/release.mjs publish --ci`, which stages what npm doesn't have yet, only from the commit that set the version (`releaseCommit()`), so a later commit's run can't stage the release with code its tags don't describe (packed with `pnpm pack`, so `workspace:*` becomes the version, then staged with `npm stage publish`, which its trusted publishers are limited to). A maintainer approves the staged versions with two-factor authentication (`pnpm release:staged` and `pnpm release:approve`), while the workflow waits for them (`release.mjs wait`), then tags the release (`release.mjs tag`) and deploys the docs.
-- **Issues and pull requests:** `.github/ISSUE_TEMPLATE/` has forms for bug reports and feature requests, `.github/pull_request_template.md` is the checklist pull requests start from, `SECURITY.md` says how to report security problems privately, and `CONTRIBUTING.md` sends contributors here; keep it short. When a new part of Goodfellow arrives, add it to the bug form's "Where is the problem?" list.
-- **Pull request size:** keep each pull request to at most 100 files, the most CodeRabbit reviews on its free plan; it skips larger ones, which then go unreviewed. Split a larger change, such as one in wording across the repository, into pull requests that each pass on their own: keep each file with the tests that look for its words, and the files a test keeps the same together (the starters, the example, and the setup files core writes for them). Each part gets its own changeset.
-- **Review before pushing:** CodeRabbit also reviews only one push an hour across the whole organization, so a pull request that needs several rounds waits hours for each. Before every push, a fix for a review's finding included, review the whole diff as a reviewer would, and fix each problem's whole kind, not only the line a finding names: other spellings, encodings, and quotings of the same input; other routes to the same action (a library's own HTTP routes beside the site's, a second renderer, or a fake beside the real backend); requests that arrive at the same moment and the order they finish in, holding to an outcome with the database's own guarantees (a primary key, a conditional update) rather than check-then-write; what an answer's timing gives away; and what the fix's own new code opens. Give each code fix a test that fails without it, and run it against the code before the fix to see it fail; a fix to docs, workflows, or settings has no such test, so check it by reading or running what it changes. Read the output of every check you run for errors, never only its exit status. Write a trade-off you accept into the code's comments and the docs, so a reviewer finds it explained rather than missing.
-- **The name:** Goodfellow's official name is Goodfellow CMS, since many other things are called Goodfellow: use it where search engines and package registries look (the docs site's name and title template, the docs home page's title, heading text, and opening sentence, the README's first line, packages' npm descriptions, the Claude Desktop extension's name, and structured data, with `alternateName` Goodfellow). Everywhere else, the admin panel, its string table, and running text included, it's Goodfellow, and package and command names (`goodfellow`, `create-goodfellow`, `@goodfellow-cms/*`) never change. The logo says Goodfellow.
-- **Docs:** when a change affects what users see or do, update the documentation site's pages in `docs/content/collections/docs/` in the same change. The README is kept short: what Goodfellow is and how it works, with everything else in the docs or here. They're Markdown items (see `docs/README.md`); a test checks they're in canonical form and that every link between them, heading links included, goes somewhere.
-- **Checking the docs:** after adding or changing a feature, search the docs pages, README.md, AGENTS.md, and the packages' READMEs for every mention of it (its name, its settings, and the screens and commands it touches), and for promises about it ("will", "yet", "planned"), and update any that no longer match, including pages the change didn't otherwise touch. The pull request template asks human authors to confirm they have.
+- **Other programs:** start them with `commandToRun()` (`node-command.ts` in `@goodfellow-cms/core/node`), which runs
+  npm and npx through cmd.exe on Windows with their arguments quoted (`cmdArgument()`) and everything else, git
+  included, without a shell (where what npm is given comes from a site's files, run it with `npmCommand()` in
+  `node-provenance.ts`, npm's own script under Node on Windows, so no shell reads it at all); never pass `shell: true`
+  with an argument list, which Node joins unquoted. Globs given to Vite or watchers use forward slashes (`slashes()`),
+  since they read `\` as an escape.
+- **Patterns on long text:** text from editors, other sites, WordPress, or a site's files can be any length, so never
+  match it with a pattern that can try many ways at each place, such as `/\/+$/`, `/^-+|-+$/`, or `/<!--[\s\S]*?-->/`,
+  which take time that grows with the square of the text's length on a long run that doesn't end as the pattern expects
+  (CodeQL's "Polynomial regular expression"). Trim with `trimChars()`, take tags out with `withoutTags()`, and find
+  where a comment or shortcode ends by searching on from its start (`withoutCssComments()` in `content/css-comments.ts`,
+  `cssRegion()` in `themes.ts`, `prologEnd()` and `tagEnd()` in `admin-domain.ts`, `replaceEnclosing()` in
+  `wordpress/convert.ts`, `tokens()` in `rendered-checks.ts`); `slow-patterns.test.ts` tries each with a long run.
+  Values put into an inline script go through a helper that escapes `<`, `>`, U+2028 and U+2029 (`jsString()` in the
+  CLI's `islands.ts`, `scriptString()` in `admin-domain.ts`, `scriptValue()` in `block-scripts.ts` and `consent.ts`),
+  never `JSON.stringify()` alone.
+- **Exports:** use named exports. Each package exposes its public API from `src/index.ts`; anything not exported there
+  is internal.
+- **Lists:** English uses the Oxford comma everywhere: the admin panel's strings, the docs, READMEs, this file,
+  comments, what programs print, commit messages, and changesets ("pages, items, and media"; "GitHub, GitLab, or
+  Bitbucket"). Code that writes a list for people does too (`a, b, c, and 2 more`, and a comma only from three items).
+  Translations follow their own language's rules: Spanish never puts a comma before "y" or "o". Leave text that must
+  match something outside Goodfellow as it is, such as another program's messages, WordPress's labels, Puck's own
+  English, and past changelogs.
+- **Dependencies:** keep runtime dependencies small. Every package that ships to the browser counts against the editor's
+  load time, and anything in `@goodfellow-cms/react` also ships to every visitor of every site.
+- **Actions:** this repository's workflows pin every action to a commit, with its version in a comment, which
+  `.github/dependabot.yml` keeps up to date; pin new ones the same way. Sites' workflows (the starters', the example's,
+  and every one core writes) do the opposite, naming GitHub's own actions by their major version
+  (`actions/checkout@v5`): a site's update can't change its workflows and sites have no Dependabot, so a pinned commit
+  would never move, missing the action's fixes until GitHub retires the Node.js it runs on and the site's builds stop.
+  Tags are only safe for actions as trusted as GitHub's runners already are, so sites use no others;
+  `site-actions.test.ts` checks both.
+- **Changesets:** any change to a published package needs one (`pnpm changeset`). Every package in `packages/` is in one
+  `fixed` group, so they're released together with the same version; a new package goes in that group, and its first
+  version is published from a maintainer's computer, since trusted publishing needs the package to exist on npm
+  (RELEASING.md's "Adding a package"). Releases are made as RELEASING.md describes: `pnpm release:version` bumps the
+  versions in a pull request, labelled `no-coderabbit` since it changes only versions and changelogs, and once it's
+  merged and CI passes on `master`, `.github/workflows/release.yml` runs `scripts/release.mjs publish --ci`, which
+  stages what npm doesn't have yet, only from the commit that set the version (`releaseCommit()`), so a later commit's
+  run can't stage the release with code its tags don't describe (packed with `pnpm pack`, so `workspace:*` becomes the
+  version, then staged with `npm stage publish`, which its trusted publishers are limited to). A maintainer approves the
+  staged versions with two-factor authentication (`pnpm release:staged` and `pnpm release:approve`), while the workflow
+  waits for them (`release.mjs wait`), then tags the release (`release.mjs tag`) and deploys the docs.
+- **Issues and pull requests:** `.github/ISSUE_TEMPLATE/` has forms for bug reports and feature requests,
+  `.github/pull_request_template.md` is the checklist pull requests start from, `SECURITY.md` says how to report
+  security problems privately, and `CONTRIBUTING.md` sends contributors here; keep it short. When a new part of
+  Goodfellow arrives, add it to the bug form's "Where is the problem?" list.
+- **Pull request size:** keep each pull request to at most 100 files, the most CodeRabbit reviews on its free plan; it
+  skips larger ones, which then go unreviewed. Split a larger change, such as one in wording across the repository, into
+  pull requests that each pass on their own: keep each file with the tests that look for its words, and the files a test
+  keeps the same together (the starters, the example, and the setup files core writes for them). Each part gets its own
+  changeset.
+- **Review before pushing:** CodeRabbit also reviews only one push an hour across the whole organization, so a pull
+  request that needs several rounds waits hours for each. Before every push, a fix for a review's finding included,
+  review the whole diff as a reviewer would, and fix each problem's whole kind, not only the line a finding names: other
+  spellings, encodings, and quotings of the same input; other routes to the same action (a library's own HTTP routes
+  beside the site's, a second renderer, or a fake beside the real backend); requests that arrive at the same moment and
+  the order they finish in, holding to an outcome with the database's own guarantees (a primary key, a conditional
+  update) rather than check-then-write; what an answer's timing gives away; and what the fix's own new code opens. Give
+  each code fix a test that fails without it, and run it against the code before the fix to see it fail; a fix to docs,
+  workflows, or settings has no such test, so check it by reading or running what it changes. Read the output of every
+  check you run for errors, never only its exit status. Write a trade-off you accept into the code's comments and the
+  docs, so a reviewer finds it explained rather than missing.
+- **The name:** Goodfellow's official name is Goodfellow CMS, since many other things are called Goodfellow: use it
+  where search engines and package registries look (the docs site's name and title template, the docs home page's title,
+  heading text, and opening sentence, the README's first line, packages' npm descriptions, the Claude Desktop
+  extension's name, and structured data, with `alternateName` Goodfellow). Everywhere else, the admin panel, its string
+  table, and running text included, it's Goodfellow, and package and command names (`goodfellow`, `create-goodfellow`,
+  `@goodfellow-cms/*`) never change. The logo says Goodfellow.
+- **Docs:** when a change affects what users see or do, update the documentation site's pages in
+  `docs/content/collections/docs/` in the same change. The README is kept short: what Goodfellow is and how it works,
+  with everything else in the docs or here. They're Markdown items (see `docs/README.md`); a test checks they're in
+  canonical form and that every link between them, heading links included, goes somewhere.
+- **Checking the docs:** after adding or changing a feature, search the docs pages, README.md, AGENTS.md, and the
+  packages' READMEs for every mention of it (its name, its settings, and the screens and commands it touches), and for
+  promises about it ("will", "yet", "planned"), and update any that no longer match, including pages the change didn't
+  otherwise touch. The pull request template asks human authors to confirm they have.
 
 ## Terminology
 
