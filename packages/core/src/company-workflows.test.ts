@@ -47,12 +47,32 @@ case "$command" in
 esac
 `;
 
-/** A stand-in for curl, answering Cloudflare's question about the account's workers.dev subdomain as `$SUBDOMAIN` says. */
+/**
+ * A stand-in for curl, answering Cloudflare's API: the account's workers.dev subdomain as \`$SUBDOMAIN\` says, the
+ * accounts the token reaches as \`$ACCOUNTS\` lists them, the zone \`$ZONE\` names, the Worker's domains as
+ * \`$DOMAINS\` lists them, and connecting one (kept in \`$STATE/put\`) as \`$PUT\` answers.
+ */
 const FAKE_CURL = `#!/usr/bin/env bash
+echo "$*" >> "$STATE/curl"
 case "$*" in
-  *"/accounts/account-1/workers/subdomain"*)
+  *"/workers/subdomain"*)
     [ "$SUBDOMAIN" = none ] && { echo '{"success":false,"errors":[{"code":10007}]}'; exit 0; }
     printf '{"success":true,"result":{"subdomain":"%s"}}' "$SUBDOMAIN";;
+  *"-X PUT"*"/workers/domains"*)
+    while [ $# -gt 0 ]; do [ "$1" = --data ] && printf '%s' "$2" > "$STATE/put"; shift; done
+    if [ -n "$PUT" ]; then echo "$PUT"; else echo '{"success":true,"result":{}}'; fi;;
+  *"/workers/domains?hostname="*) printf '{"success":true,"result":%s}' "\${DOMAINS:-[]}";;
+  *"/zones?name=$ZONE&"*) echo '{"success":true,"result":[{"id":"9a7b5c3d1e0f2a4b6c8d0e1f2a3b4c5d"}]}';;
+  *"/zones?name="*) echo '{"success":true,"result":[]}';;
+  *"/client/v4/accounts") printf '{"success":true,"result":%s}' "\${ACCOUNTS:-[]}";;
+  *) echo "unexpected: $*" >&2; exit 1;;
+esac
+`;
+
+/** A stand-in for gh, saying main's newest commit is \`$HEAD\`. */
+const FAKE_GH = `#!/usr/bin/env bash
+case "$*" in
+  "api repos/someone/acme/commits/main --jq .sha") echo "$HEAD";;
   *) echo "unexpected: $*" >&2; exit 1;;
 esac
 `;
@@ -77,6 +97,7 @@ function run(text: string, env: Record<string, string> = {}, wrangler = wrangler
   for (const [name, fake] of [
     ["npx", FAKE_NPX],
     ["curl", FAKE_CURL],
+    ["gh", FAKE_GH],
   ] as const) {
     writeFileSync(join(bin, name), fake);
     chmodSync(join(bin, name), 0o755);
@@ -97,6 +118,7 @@ function run(text: string, env: Record<string, string> = {}, wrangler = wrangler
       GITHUB_STEP_SUMMARY: join(dir, "summary"),
       CLOUDFLARE_API_TOKEN: "cloudflare-token",
       CLOUDFLARE_ACCOUNT_ID: "account-1",
+      GITHUB_REPOSITORY: "someone/acme",
       ...env,
     },
   });
@@ -107,7 +129,20 @@ function run(text: string, env: Record<string, string> = {}, wrangler = wrangler
       return undefined;
     }
   })();
-  return { ...result, outputs: readFileSync(output, "utf8"), sent };
+  const kept = (name: string) => {
+    try {
+      return readFileSync(join(state, name), "utf8");
+    } catch {
+      return "";
+    }
+  };
+  let summary = "";
+  try {
+    summary = readFileSync(join(dir, "summary"), "utf8");
+  } catch {
+    summary = "";
+  }
+  return { ...result, outputs: readFileSync(output, "utf8"), sent, put: kept("put"), curl: kept("curl"), summary };
 }
 
 /** Runs a step with `npm` stood in for, in a folder with `site` as package.json and `lockfile` as package-lock.json. */
@@ -138,7 +173,7 @@ function runWith(text: string, check: string, npm: string, site: object, lockfil
 }
 
 describe.skipIf(process.platform === "win32")("the company example's workflows", () => {
-  const deploy = script("deploy.yml", "deploy");
+  const deploy = script("deploy.yml", "deploy", "Deploy");
 
   it("makes a session key on the first deploy, where the Worker doesn't exist yet, however wrangler says so", () => {
     for (const SECRETS of ["missing", "missing-code", '[{"name":"OTHER","type":"secret_text"}]']) {
@@ -155,6 +190,92 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
     const given = run(deploy, { SECRETS: "broken", BETTER_AUTH_SECRET: "the repository's", GOODFELLOW_GIT_TOKEN: "t" });
     expect(given.status).toBe(0);
     expect(given.sent).toEqual({ BETTER_AUTH_SECRET: "the repository's", GOODFELLOW_GIT_TOKEN: "t" });
+    // The publishing app's id and key go up with the rest.
+    const app = run(deploy, {
+      SECRETS: '[{"name":"BETTER_AUTH_SECRET","type":"secret_text"}]',
+      GOODFELLOW_APP_ID: "5001",
+      GOODFELLOW_APP_KEY: "-----BEGIN RSA PRIVATE KEY-----",
+    });
+    expect(app.status, app.stderr).toBe(0);
+    expect(app.sent).toEqual({ GOODFELLOW_APP_ID: "5001", GOODFELLOW_APP_KEY: "-----BEGIN RSA PRIVATE KEY-----" });
+  });
+
+  it("puts only the main branch's newest commit online", () => {
+    const ready = script("deploy.yml", "ready");
+    const site = wranglerJsonc().replace("your-database-id", "d").replace("your-kv-namespace-id", "k");
+    expect(run(ready, { GITHUB_REF: "refs/heads/main" }, site).outputs).toBe("ready=true\n");
+    const other = run(ready, { GITHUB_REF: "refs/heads/someone-else" }, site);
+    expect(other.outputs).toBe("ready=false\n");
+    expect(other.stdout).toContain("Only the main branch is put online");
+    // A run started again for an older commit deploys nothing.
+    const head = script("deploy.yml", "deploy", "Check it's main's newest commit");
+    expect(run(head, { HEAD: "abc123", DEPLOYING: "abc123" }).outputs).toBe("current=true\n");
+    const older = run(head, { HEAD: "def456", DEPLOYING: "abc123" });
+    expect(older.status).toBe(0);
+    expect(older.outputs).toBe("current=false\n");
+  });
+
+  const connect = script("deploy.yml", "deploy", "Connect the domain");
+  const ACCOUNT = "0123456789abcdef0123456789abcdef";
+
+  it("gives the Worker the site's domain, where its zone is on the account, once", () => {
+    const site = wranglerJsonc("https://www.acme.example");
+    const made = run(connect, { CLOUDFLARE_ACCOUNT_ID: ACCOUNT, ZONE: "acme.example" }, site);
+    expect(made.status, made.stderr).toBe(0);
+    expect(JSON.parse(made.put)).toEqual({
+      hostname: "www.acme.example",
+      service: "acme",
+      zone_id: "9a7b5c3d1e0f2a4b6c8d0e1f2a3b4c5d",
+      environment: "production",
+    });
+    expect(made.summary).toContain("The site is at https://www.acme.example.");
+    // The zone is looked for from the address's own name up.
+    expect(made.curl).toContain("/zones?name=www.acme.example&");
+    // Connected already: nothing is asked of Cloudflare but that.
+    const again = run(
+      connect,
+      {
+        CLOUDFLARE_ACCOUNT_ID: ACCOUNT,
+        ZONE: "acme.example",
+        DOMAINS: '[{"hostname":"www.acme.example","service":"acme"}]',
+      },
+      site,
+    );
+    expect(again.put).toBe("");
+    expect(again.curl).not.toContain("/zones");
+  });
+
+  it("only warns where the domain can't be connected, and leaves workers.dev addresses alone", () => {
+    const site = wranglerJsonc("https://www.acme.example");
+    const noZone = run(connect, { CLOUDFLARE_ACCOUNT_ID: ACCOUNT, ZONE: "other.example" }, site);
+    expect(noZone.status).toBe(0);
+    expect(noZone.stdout).toContain("::warning::www.acme.example's zone isn't on this Cloudflare account");
+    expect(noZone.put).toBe("");
+    const refused = run(
+      connect,
+      {
+        CLOUDFLARE_ACCOUNT_ID: ACCOUNT,
+        ZONE: "acme.example",
+        PUT: '{"success":false,"errors":[{"message":"Hostname already has externally managed DNS records"}]}',
+      },
+      site,
+    );
+    expect(refused.status).toBe(0);
+    expect(refused.stdout).toContain("(Hostname already has externally managed DNS records)");
+    const workersDev = run(
+      connect,
+      { CLOUDFLARE_ACCOUNT_ID: ACCOUNT },
+      wranglerJsonc("https://acme.acme-co.workers.dev"),
+    );
+    expect(workersDev.status).toBe(0);
+    expect(workersDev.curl).toBe("");
+    // The account from wrangler.jsonc, where there's no CLOUDFLARE_ACCOUNT_ID.
+    const fromFile = run(
+      connect,
+      { CLOUDFLARE_ACCOUNT_ID: "", ZONE: "acme.example" },
+      site.replace('"name": "acme",', `"name": "acme",\n  "account_id": "${ACCOUNT}",`),
+    );
+    expect(fromFile.curl).toContain(`/accounts/${ACCOUNT}/workers/domains`);
   });
 
   it("stops rather than replace a session key it couldn't see", () => {
@@ -199,6 +320,36 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
     expect(made.outputs).toBe("database=0f2b1c4e-6a1d-4c8e-9b5a-2d7e8f9a0b1c\nkv=0123456789abcdef0123456789abcdef\n");
   });
 
+  it("finds the account where only the token says it, and refuses to guess between several", () => {
+    const one = run(
+      create,
+      { CLOUDFLARE_ACCOUNT_ID: "", ACCOUNTS: '[{"id":"0123456789abcdef0123456789abcdef"}]' },
+      wranglerJsonc("https://www.acme.example"),
+    );
+    expect(one.status, one.stdout + one.stderr).toBe(0);
+    expect(one.outputs).toContain("account=0123456789abcdef0123456789abcdef\n");
+    // The subdomain is asked of that account.
+    const named = run(create, {
+      CLOUDFLARE_ACCOUNT_ID: "",
+      ACCOUNTS: '[{"id":"0123456789abcdef0123456789abcdef"}]',
+      SUBDOMAIN: "acme-co",
+    });
+    expect(named.curl).toContain("/accounts/0123456789abcdef0123456789abcdef/workers/subdomain");
+    for (const ACCOUNTS of [
+      "[]",
+      '[{"id":"0123456789abcdef0123456789abcdef"},{"id":"fedcba9876543210fedcba9876543210"}]',
+      '[{"id":"x y"}]',
+    ]) {
+      const refused = run(create, { CLOUDFLARE_ACCOUNT_ID: "", ACCOUNTS }, wranglerJsonc("https://www.acme.example"));
+      expect(refused.status, ACCOUNTS).not.toBe(0);
+      expect(refused.stdout).toContain("Make the token for one account only");
+    }
+    // Named already, by the secret or wrangler.jsonc: not asked, and not written again.
+    const given = run(create, {}, wranglerJsonc("https://www.acme.example"));
+    expect(given.outputs).not.toContain("account=");
+    expect(given.curl).toBe("");
+  });
+
   it("gives a site without an address the Worker's own, on the account's workers.dev subdomain", () => {
     const made = run(create, { SUBDOMAIN: "acme-co" });
     expect(made.status, made.stderr).toBe(0);
@@ -225,19 +376,21 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
       DATABASE: "0f2b1c4e-6a1d-4c8e-9b5a-2d7e8f9a0b1c",
       KV: "0123456789abcdef0123456789abcdef",
       ADDRESS: "https://acme.acme-co.workers.dev",
+      ACCOUNT: "0123456789abcdef0123456789abcdef",
       GITHUB_REF_NAME: "main",
     });
     expect(saved.status, saved.stderr).toBe(0);
     const log = spawnSync("git", ["--git-dir", join(dir, "remote.git"), "log", "--format=%s", "main"], {
       encoding: "utf8",
     }).stdout;
-    expect(log).toBe("Name the site's Cloudflare database and cache\nmeanwhile\nwrangler\nstart\n");
+    expect(log).toBe("Name the site's Cloudflare account, database, and cache\nmeanwhile\nwrangler\nstart\n");
     const pushed = spawnSync("git", ["--git-dir", join(dir, "remote.git"), "show", "main:wrangler.jsonc"], {
       encoding: "utf8",
     }).stdout;
     expect(pushed).toContain('"database_id": "0f2b1c4e-6a1d-4c8e-9b5a-2d7e8f9a0b1c"');
     expect(pushed).toContain('"id": "0123456789abcdef0123456789abcdef"');
     expect(pushed).toContain('"GOODFELLOW_SITE_URL": "https://acme.acme-co.workers.dev"');
+    expect(pushed).toContain('"name": "acme",\n  "account_id": "0123456789abcdef0123456789abcdef",\n');
     expect(readFileSync(join(dir, "summary"), "utf8")).toContain("https://acme.acme-co.workers.dev/setup/");
     // Anything but an address on workers.dev is refused, whatever the job before said.
     const refused = run(`${setUp}\n${save}`, {
@@ -246,5 +399,13 @@ describe.skipIf(process.platform === "win32")("the company example's workflows",
       ADDRESS: 'https://evil.example" x',
     });
     expect(refused.status).not.toBe(0);
+    const badAccount = run(`${setUp}\n${save}`, {
+      DATABASE: "0f2b1c4e-6a1d-4c8e-9b5a-2d7e8f9a0b1c",
+      KV: "0123456789abcdef0123456789abcdef",
+      ACCOUNT: 'x", "main": "evil',
+      GITHUB_REF_NAME: "main",
+    });
+    expect(badAccount.status).not.toBe(0);
+    expect(readFileSync(join(dir, "wrangler.jsonc"), "utf8")).not.toContain("evil");
   });
 });

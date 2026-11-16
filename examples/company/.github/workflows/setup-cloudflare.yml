@@ -1,11 +1,12 @@
 # Makes the site's D1 database and KV namespace on Cloudflare, writes their ids into wrangler.jsonc, and starts the
-# Deploy workflow, which puts the site online. Where wrangler.jsonc doesn't have the site's address yet, it gives it
-# the Worker's own, on the Cloudflare account's workers.dev subdomain, which a domain of the site's own can replace
-# later. A site made on Goodfellow's setup page runs it once, from Actions → Set
-# up Cloudflare → Run workflow, after adding the secrets deploy.yml lists; one made with create-goodfellow on a
-# computer has done this already. Running it again makes nothing that's made already.
+# Deploy workflow, which puts the site online. It writes the Cloudflare account's id into wrangler.jsonc too, where it
+# doesn't have one, from the only account the API token reaches. Where wrangler.jsonc doesn't have the site's address
+# yet, it gives it the Worker's own, on the account's workers.dev subdomain, which a domain of the site's own can
+# replace later (Deploy connects a domain to the Worker). A site made on Goodfellow's setup page runs it once, which
+# the page starts; one made with create-goodfellow on a computer has done this already. Running it again makes nothing that's made already.
 #
-# It needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, as deploy.yml does.
+# It needs CLOUDFLARE_API_TOKEN, as deploy.yml does, and CLOUDFLARE_ACCOUNT_ID where the token reaches more than one
+# account.
 name: Set up Cloudflare
 
 on:
@@ -20,6 +21,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      account: ${{ steps.ids.outputs.account }}
       database: ${{ steps.ids.outputs.database }}
       kv: ${{ steps.ids.outputs.kv }}
       address: ${{ steps.ids.outputs.address }}
@@ -45,6 +47,31 @@ jobs:
       - name: Make the database and the cache
         id: ids
         run: |
+          # What Cloudflare's API answers at $1, read with the token, or nothing where it can't be read.
+          ask() {
+            curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4$1" || true
+          }
+          # The account: the one wrangler.jsonc or CLOUDFLARE_ACCOUNT_ID names, or else the only one the token reaches,
+          # which the next job writes into wrangler.jsonc.
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            CLOUDFLARE_ACCOUNT_ID=$(sed -n 's/^ *"account_id": "\([0-9a-f]\{32\}\)".*/\1/p' wrangler.jsonc | head -n 1)
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            accounts=$(ask "/accounts" | node -e '
+              try {
+                const answer = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+                process.stdout.write((answer.result ?? []).map((account) => account.id).join(" "));
+              } catch {}
+            ')
+            read -r -a found <<< "$accounts"
+            if [ "${#found[@]}" -ne 1 ] || ! [[ "${found[0]}" =~ ^[0-9a-f]{32}$ ]]; then
+              echo "The Cloudflare API token reaches ${#found[@]} accounts, so this can't tell which is the site's. Make the token for one account only, or add the account's id as the CLOUDFLARE_ACCOUNT_ID secret, then run this again."
+              exit 1
+            fi
+            CLOUDFLARE_ACCOUNT_ID=${found[0]}
+            echo "account=$CLOUDFLARE_ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          fi
+          export CLOUDFLARE_ACCOUNT_ID
           # The id of the one named $2 in what `wrangler $1` lists as JSON, by its field $3, or nothing.
           find() {
             npx wrangler $1 | node -e '
@@ -72,9 +99,7 @@ jobs:
           # The Worker's own address, where wrangler.jsonc still has the example's: on the account's workers.dev
           # subdomain, which Cloudflare's API says.
           if grep -q '"GOODFELLOW_SITE_URL": "https://www.example.com"' wrangler.jsonc; then
-            answer=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" || true)
-            subdomain=$(printf '%s' "$answer" | node -e '
+            subdomain=$(ask "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | node -e '
               try {
                 const answer = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
                 process.stdout.write(answer.result?.subdomain ?? "");
@@ -109,10 +134,15 @@ jobs:
             [[ "$ADDRESS" =~ ^https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$ ]] || exit 1
             sed -i "s|\"GOODFELLOW_SITE_URL\": \"https://www.example.com\"|\"GOODFELLOW_SITE_URL\": \"$ADDRESS\"|" wrangler.jsonc
           fi
+          # The account, after the Worker's name, where wrangler.jsonc has none.
+          if [ -n "$ACCOUNT" ] && ! grep -q '"account_id"' wrangler.jsonc; then
+            [[ "$ACCOUNT" =~ ^[0-9a-f]{32}$ ]] || exit 1
+            sed -i "0,/^  \"name\": .*/s//&\n  \"account_id\": \"$ACCOUNT\",/" wrangler.jsonc
+          fi
           if ! git diff --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -qam "Name the site's Cloudflare database and cache"
+            git commit -qam "Name the site's Cloudflare account, database, and cache"
             # On top of whatever reached the branch while the first job ran.
             git pull -q --rebase origin "$GITHUB_REF_NAME"
             git push origin "HEAD:$GITHUB_REF_NAME"
@@ -121,6 +151,7 @@ jobs:
           address=$(sed -n 's/.*"GOODFELLOW_SITE_URL": "\([^"]*\)".*/\1/p' wrangler.jsonc | head -n 1)
           echo "The site will be at $address, once the Deploy workflow this starts has finished. Make its first admin at $address/setup/." >> "$GITHUB_STEP_SUMMARY"
         env:
+          ACCOUNT: ${{ needs.create.outputs.account }}
           DATABASE: ${{ needs.create.outputs.database }}
           KV: ${{ needs.create.outputs.kv }}
           ADDRESS: ${{ needs.create.outputs.address }}

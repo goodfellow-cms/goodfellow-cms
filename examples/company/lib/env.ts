@@ -28,7 +28,13 @@ export interface SiteEnv {
    * `/setup/` page makes the first admin with the code while the site has none (lib/first-admin.ts).
    */
   GOODFELLOW_SETUP_CODE_HASH?: string;
-  /** The token the server publishes to the content repository with. */
+  /**
+   * The site's publishing app, a GitHub App installed on the content repository alone (lib/git-token.ts): its id, and
+   * its private key, a secret, which the server makes hour-long tokens for that repository with.
+   */
+  GOODFELLOW_APP_ID?: string;
+  GOODFELLOW_APP_KEY?: string;
+  /** A token the server publishes to the content repository with, where it has no publishing app. */
   GOODFELLOW_GIT_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
   /**
