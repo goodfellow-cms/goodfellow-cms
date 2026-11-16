@@ -9,6 +9,7 @@ import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { twoFactor } from "better-auth/plugins/two-factor";
+import { MIN_PASSWORD_LENGTH } from "./account-limits.ts";
 import { dialectFor } from "./db/dialect.ts";
 import { canSendEmail, EmailNotSetUp, EmailRefused, passwordResetEmail, sendEmail } from "./email.ts";
 import { entitlements } from "./entitlements.ts";
@@ -71,8 +72,7 @@ export function isMemberRole(role: string | null | undefined): boolean {
 /** How long a password reset's link works, in minutes. */
 export const RESET_MINUTES = 30;
 
-/** The fewest characters a password may have. */
-export const MIN_PASSWORD_LENGTH = 12;
+export { MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH } from "./account-limits.ts";
 
 /** What authenticator apps call the site's accounts: its address's host, which only its developers can change. */
 export function issuerOf(siteEnv: SiteEnv): string {
@@ -406,9 +406,6 @@ function resetLinks(siteEnv: SiteEnv) {
     },
   };
 }
-
-/** The longest name an account may have, as invitations take (lib/editors.ts). */
-export const MAX_NAME_LENGTH = 100;
 
 /**
  * The paths of Better Auth's admin plugin, which only the server uses (lib/editors.ts, through `api`), never a

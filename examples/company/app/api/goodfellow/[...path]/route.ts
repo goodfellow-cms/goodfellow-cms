@@ -2,10 +2,10 @@ import { goodfellowApi } from "@goodfellow-cms/next/server";
 import { revalidatePath } from "next/cache";
 import config from "@/goodfellow.config";
 import { authorize } from "@/lib/auth";
-import { env } from "@/lib/env";
+import { gitToken } from "@/lib/git-token";
 
-// The admin panel's API: it reads and publishes through the server, which reaches the content repository with
-// GOODFELLOW_GIT_TOKEN, naming each editor as the author of what they publish.
+// The admin panel's API: it reads and publishes through the server, which reaches the content repository with the
+// site's publishing app or GOODFELLOW_GIT_TOKEN (lib/git-token.ts), naming each editor as the author of what they publish.
 export const { GET, POST } = goodfellowApi({
   config,
   authorize,
@@ -16,9 +16,5 @@ export const { GET, POST } = goodfellowApi({
   onPublish() {
     revalidatePath("/", "layout");
   },
-  async token() {
-    const token = (await env()).GOODFELLOW_GIT_TOKEN;
-    if (!token) throw new Error("Set GOODFELLOW_GIT_TOKEN to a token that can publish to the content repository.");
-    return token;
-  },
+  token: gitToken(config.backend),
 });

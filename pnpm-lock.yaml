@@ -955,6 +955,9 @@ importers:
       '@noble/hashes':
         specifier: 2.4.0
         version: 2.4.0
+      universal-github-app-jwt:
+        specifier: 2.2.2
+        version: 2.2.2
     devDependencies:
       '@puckeditor/core':
         specifier: 0.24.0
@@ -1132,6 +1135,9 @@ importers:
 
   packages/worker:
     dependencies:
+      '@goodfellow-cms/github':
+        specifier: workspace:*
+        version: link:../github
       universal-github-app-jwt:
         specifier: 2.2.2
         version: 2.2.2
@@ -1139,9 +1145,6 @@ importers:
       '@goodfellow-cms/core':
         specifier: workspace:*
         version: link:../core
-      '@goodfellow-cms/github':
-        specifier: workspace:*
-        version: link:../github
 
   templates/next:
     dependencies:

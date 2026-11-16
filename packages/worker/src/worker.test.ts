@@ -653,6 +653,30 @@ describe("setting up a site in two repositories", () => {
     return ((await signedIn.json()) as { session: string }).session;
   }
 
+  it("says a name is free only where GitHub says there's no such repository, never where it refuses to say", async () => {
+    for (const [status, available] of [
+      [404, true],
+      [403, undefined],
+      [500, undefined],
+    ] as const) {
+      const context = setup({
+        answer: (method, url) =>
+          method === "GET" && new URL(url).pathname === "/repos/maria/site"
+            ? Response.json({ message: "No" }, { status })
+            : undefined,
+      });
+      const session = await setupSession(context);
+      const response = await context.post(
+        "/github/setup/available",
+        { session, owner: "maria", name: "site" },
+        "https://setup.example",
+      );
+      const answer = (await response.json()) as { available?: boolean };
+      expect(answer.available, String(status)).toBe(available);
+      if (available === undefined) expect(response.ok, String(status)).toBe(false);
+    }
+  });
+
   it("keeps the person's token until the last repository is created", async () => {
     const context = setup();
     const session = await setupSession(context);
@@ -701,7 +725,8 @@ describe("setting up a site in two repositories", () => {
       "https://setup.example",
     );
     expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ problem: "unavailable" });
+    // Naming the repository it made, so the setup page can say it's there.
+    expect(await response.json()).toEqual({ problem: "unavailable", created: "maria/site" });
     expect(context.waits).toEqual(NEW_REPOSITORY_WAITS);
     expect(context.logged).toEqual([
       "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered 422: There is at least one repository that does not exist or is not accessible to the parent installation.",
@@ -770,7 +795,7 @@ describe("setting up a site in two repositories", () => {
     ]);
     const odd = await createWithTokenAnswers(() => Response.json({ message: { code: 1 } }, { status: 500 }));
     expect(odd.response.status).toBe(502);
-    expect(await odd.response.json()).toEqual({ problem: "unavailable" });
+    expect(await odd.response.json()).toEqual({ problem: "unavailable", created: "maria/site" });
     expect(odd.context.logged).toEqual([
       "/github/setup/repository stopped: POST /app/installations/22/access_tokens answered 500",
     ]);
@@ -788,7 +813,8 @@ describe("setting up a site in two repositories", () => {
       { session, owner: "maria", name: "site", private: true },
       "https://setup.example",
     );
-    expect(await response.json()).toEqual({ problem: "unavailable" });
+    // The repository was made before the key was needed, so the answer names it.
+    expect(await response.json()).toEqual({ problem: "unavailable", created: "maria/site" });
     expect(context.logged).toHaveLength(1);
     expect(context.logged[0]).toMatch(/^\/github\/setup\/repository stopped: Error: .*OpenSSH format/);
     expect(context.logged[0]).not.toContain("b3BlbnNzaA");

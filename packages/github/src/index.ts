@@ -321,7 +321,8 @@ export function github(options: GitHubOptions): GitHost {
 
   /** The repository through a token of the site's own, on a full-stack site's server. */
   function server({ token }: ServerGitOptions): ServerGit {
-    const api: ApiOptions = { apiUrl, token: typeof token === "string" ? token : () => token(), fetch: fetcher };
+    // A token that renews itself is asked for a new one where GitHub refuses it (`githubRequest()`'s retry).
+    const api: ApiOptions = { apiUrl, token, fetch: fetcher };
     let branch: Promise<string> | undefined;
     const liveBranch = () => {
       branch ??= options.branch

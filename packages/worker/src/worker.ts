@@ -28,6 +28,7 @@
  * whichever is first; then it's revoked.
  */
 
+import { pkcs8Key } from "@goodfellow-cms/github/app";
 import githubAppJwt from "universal-github-app-jwt";
 import { boundedText } from "./bounded.js";
 import {
@@ -43,7 +44,6 @@ import {
   type UserTokens,
   userTokens,
 } from "./github.js";
-import { pkcs8Key } from "./keys.js";
 import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "./seal.js";
 import { createSelfSetup } from "./self-setup.js";
 
@@ -173,6 +173,8 @@ export const PERMISSIONS: Record<Purpose, Permissions> = {
     workflows: "write",
     pages: "write",
     secrets: "write",
+    // Starting a full-stack site's first workflow, which puts it online. The owners' app has it already.
+    actions: "write",
     metadata: "read",
   },
 };
@@ -279,6 +281,19 @@ class Problem extends Error {
     readonly extra: Record<string, string> = {},
   ) {
     super(problem);
+  }
+}
+
+/**
+ * A failure after the setup page's repository was made, which the answer names (`created`), so the page can say the
+ * repository is there rather than offer a name that's taken now.
+ */
+class AfterCreated extends Error {
+  constructor(
+    readonly created: string,
+    readonly failure: unknown,
+  ) {
+    super("after-created");
   }
 }
 
@@ -1160,14 +1175,20 @@ export function createWorker(options: WorkerOptions = {}) {
       if (path.startsWith("/github/setup/")) {
         return await setupRoute(path, body).catch((error: unknown) => {
           // The person's own token is revoked once the site is created, or GitHub may have revoked it: sign in again.
-          if (error instanceof GitHubError && error.status === 401) throw new Problem("invalid", 401);
+          const invalid = (failure: unknown) => failure instanceof GitHubError && failure.status === 401;
+          if (invalid(error)) throw new Problem("invalid", 401);
+          if (error instanceof AfterCreated && invalid(error.failure)) {
+            throw new AfterCreated(error.created, new Problem("invalid", 401));
+          }
           throw error;
         });
       }
 
       return json({ problem: "bad-request" }, 404);
-    } catch (error) {
-      if (error instanceof Problem) return json({ problem: error.problem, ...error.extra }, error.status);
+    } catch (caught) {
+      const created = caught instanceof AfterCreated ? { created: caught.created } : {};
+      const error = caught instanceof AfterCreated ? caught.failure : caught;
+      if (error instanceof Problem) return json({ problem: error.problem, ...error.extra, ...created }, error.status);
       // GitHub couldn't be reached, or answered in a way the worker doesn't expect. The answer says nothing more, but
       // the worker's logs say which request and what GitHub said, its message cut short: never a token or a body.
       log(
@@ -1178,7 +1199,7 @@ export function createWorker(options: WorkerOptions = {}) {
           : // Errors of the worker's own and its libraries', such as a key it can't read: never the key itself.
             `${url.pathname} stopped: ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 200)}` : "an error"}`,
       );
-      return json({ problem: "unavailable" }, 502);
+      return json({ problem: "unavailable", ...created }, 502);
     }
 
     /** The setup page's requests, made with the person's own token, which its session keeps for half an hour. */
@@ -1227,9 +1248,9 @@ export function createWorker(options: WorkerOptions = {}) {
           await github(config, `/repos/${repoPath(`${owner}/${name}`)}`, { auth });
           return json({ session: renewed, available: false });
         } catch (error) {
-          if (error instanceof GitHubError && (error.status === 404 || error.status === 403)) {
-            return json({ session: renewed, available: true });
-          }
+          // Only GitHub saying there's no such repository makes the name free: a 403 can be a repository the
+          // person can't see, and the setup page takes a refused check as not knowing.
+          if (error instanceof GitHubError && error.status === 404) return json({ session: renewed, available: true });
           throw error;
         }
       }
@@ -1287,6 +1308,8 @@ export function createWorker(options: WorkerOptions = {}) {
             expiresAt: issued.expiresAt,
             ...(!editInstalled && editApp && { editInstallUrl: installUrl(editApp) }),
           });
+        } catch (error) {
+          throw new AfterCreated(repo.full_name, error);
         } finally {
           if (body.more !== true) await revokeUserToken(config, app, tokens.access).catch(() => {});
         }

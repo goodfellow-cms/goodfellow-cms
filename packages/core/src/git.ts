@@ -183,9 +183,10 @@ export interface ServerGitOptions {
   /**
    * A token that can read and publish to the site's repository, such as a
    * fine-grained GitHub token or a GitLab project access token, from an
-   * environment variable. A function is asked for it on each request, for tokens that renew.
+   * environment variable. A function is asked for it on each request, for tokens that renew, and with `refresh`
+   * where the host refused the one it gave, for one made again at once.
    */
-  token: string | (() => Promise<string>);
+  token: string | ((request?: { refresh?: boolean }) => Promise<string>);
 }
 
 /** The site's repository as a full-stack site's server reaches it: one token, for every editor. */

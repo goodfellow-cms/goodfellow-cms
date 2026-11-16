@@ -35,6 +35,46 @@ const TEMPLATE_REPOS = /your-name\/your-site-content|your-name\/your-site(?![\w-
 /** The example's placeholder for the site's address, in wrangler.jsonc's vars. */
 export const TEMPLATE_SITE_URL = "https://www.example.com";
 
+/**
+ * The variable in wrangler.jsonc that holds the SHA-256 of the site's setup code (`setupCodeHash()`), with which its
+ * `/setup/` page makes its first admin while it has none. Only the hash is kept, so the code can't be read from the
+ * repository, even where it's public.
+ */
+export const SETUP_CODE_VARIABLE = "GOODFELLOW_SETUP_CODE_HASH";
+
+/** The letters a setup code is made of: RFC 4648's base32, which has no 0, 1, 8, or 9 to mistake for letters. */
+const SETUP_CODE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+/** How many letters a setup code has: 120 random bits, five for each. */
+export const SETUP_CODE_LENGTH = 24;
+
+/**
+ * A setup code as people type it, in capitals and without spaces or dashes, so neither matters, with the digits a
+ * code never has read as the letters they look like (0 as O, 1 as I, 8 as B).
+ */
+export function setupCodeText(code: string): string {
+  return code
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .replaceAll("0", "O")
+    .replaceAll("1", "I")
+    .replaceAll("8", "B");
+}
+
+/** A new setup code, from the platform's random numbers, in groups of four to read: `ABCD-EFGH-…`. */
+export function newSetupCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(SETUP_CODE_LENGTH));
+  // Each byte gives one letter by its lowest five bits, so every letter is as likely as the others.
+  const letters = [...bytes].map((byte) => SETUP_CODE_LETTERS[byte & 31]).join("");
+  return letters.match(/.{4}/g)?.join("-") ?? letters;
+}
+
+/** The SHA-256 of a setup code as people type it (`setupCodeText()`), in lowercase hexadecimal, as wrangler.jsonc keeps it. */
+export async function setupCodeHash(code: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(setupCodeText(code)));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export interface ServerSiteOptions {
   /** The company example's files, as `readTemplate()` gives them. */
   template: SiteFiles;
@@ -48,6 +88,13 @@ export interface ServerSiteOptions {
   content?: string;
   /** The site's address, such as `https://www.example.org`, where it's known. */
   siteUrl?: string;
+  /** The SHA-256 of the site's setup code (`setupCodeHash()`), which its first admin is made with on `/setup/`. */
+  setupCodeHash?: string;
+  /**
+   * What made the site, which its README names: `create-goodfellow` on a computer (the default), or Goodfellow's setup
+   * page, which creates its repositories on GitHub itself.
+   */
+  madeBy?: "command" | "page";
 }
 
 /**
@@ -72,25 +119,12 @@ function textOf(file: SiteFile): string | undefined {
   }
 }
 
-/** The content repository's workflow, which asks the code's Deploy workflow to build the site after each publish. */
-export function deploySiteWorkflow(code: string): string {
-  return `# Asks the code repository to build the site and put it online after each publish, so new photos and other
-# files reach the site's own files. Pages show a publish without it, but a photo a page shows is missing until then.
-# It needs one secret (Settings → Secrets and variables → Actions): GOODFELLOW_DEPLOY_TOKEN, a fine-grained token for
-# the code repository with only Actions: Read and write, which can start its workflows but never change its code.
-name: Put the site online
-on:
-  push:
-    branches: [main]
-permissions: {}
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - run: gh workflow run deploy.yml --repo ${code}
-        env:
-          GH_TOKEN: \${{ secrets.GOODFELLOW_DEPLOY_TOKEN }}
-`;
+/** wrangler.jsonc with the setup code's hash first among its vars. */
+function withSetupCodeHash(wrangler: string, hash: string): string {
+  const vars = /("vars"\s*:\s*\{)/;
+  if (!vars.test(wrangler))
+    throw new Error("The template's wrangler.jsonc has no vars to put the setup code's hash in.");
+  return wrangler.replace(vars, `$1 "${SETUP_CODE_VARIABLE}": "${hash}",`);
 }
 
 /** The content repository's README. */
@@ -101,8 +135,9 @@ The pages, collections, settings, and media of ${name}, which its editors change
 site's server publishes their changes here, with a token that can change this repository only; the site's code is in
 [${code}](https://github.com/${code}).
 
-\`.github/workflows/deploy-site.yml\` asks the code repository to build the site after each publish, so new photos reach
-the site's own files. It needs the secret \`GOODFELLOW_DEPLOY_TOKEN\`, as the file says.
+Pages show a publish at once. New photos and other files reach the site with its next build, which the code
+repository runs each night, or sooner from its Actions tab (Deploy → Run workflow). This repository runs no workflows
+and holds no secrets, so whoever can change it can't change the site's code or reach its keys.
 `;
 }
 
@@ -121,17 +156,27 @@ export default defineConfig({
 `;
 
 /** What the code's README says first about the names this site was given. */
-function namesSection(worker: string, code: string, content: string): string {
+function namesSection(worker: string, code: string, content: string, madeBy: "command" | "page"): string {
+  const page = madeBy === "page";
   return `## This site's names
 
-\`create-goodfellow\` made this site with these names, already in \`goodfellow.config.tsx\`, \`wrangler.jsonc\`,
+${page ? "Goodfellow's setup page" : "`create-goodfellow`"} made this site with these names, already in \`goodfellow.config.tsx\`, \`wrangler.jsonc\`,
 \`package.json\`, and \`.github/workflows/deploy.yml\`, where the steps below say to put them:
 
-- The code's repository, **${code}**, and the content's, **${content}**, which is in \`${CONTENT_REPOSITORY_DIR}/\`, a
-  repository of its own that \`content/\` and \`public/media/\` link to, with its own README and the workflow that
-  asks this repository to build after each publish (\`.github/workflows/deploy-site.yml\`). Push each to GitHub as it
-  is, the content's first.
-- The Worker and its D1 database, **${worker}**, and its KV namespace, **${worker}-cache**.
+- The code's repository, **${code}**, and the content's, **${content}**, ${
+    page
+      ? `which developers clone into \`${CONTENT_REPOSITORY_DIR}/\`, where \`content/\` and \`public/media/\` link to it (\`npx goodfellow-next content link\`)`
+      : `which is in \`${CONTENT_REPOSITORY_DIR}/\`, a repository of its own that \`content/\` and \`public/media/\` link to`
+  }, with its own README. This repository's Deploy workflow builds the site each night, so new photos reach it.${
+    page ? "" : " Push each to GitHub as it is, the content's first."
+  }
+- The Worker and its D1 database, **${worker}**, and its KV namespace, **${worker}-cache**.${
+    page
+      ? `
+- The site's first admin is made at \`/setup/\` with the setup code the setup page showed once, whose SHA-256 is
+  \`${SETUP_CODE_VARIABLE}\` in \`wrangler.jsonc\`. Once the site has an admin, the code does nothing.`
+      : ""
+  }
 
 `;
 }
@@ -139,10 +184,21 @@ function namesSection(worker: string, code: string, content: string): string {
 /**
  * A full-stack site's files from the company example's: its Worker, database, and KV namespace named for the site,
  * its repositories and address filled in where they're known, and its content in `content-repository/`, a
- * repository of its own, as the example's Deploy workflow builds it, with a workflow that asks the code repository
- * to build after each publish.
+ * repository of its own, as the example's Deploy workflow builds it.
  */
-export function planServerSite({ template, name, versions, code, content, siteUrl }: ServerSiteOptions): SiteFiles {
+export function planServerSite({
+  template,
+  name,
+  versions,
+  code,
+  content,
+  siteUrl,
+  setupCodeHash: codeHash,
+  madeBy = "command",
+}: ServerSiteOptions): SiteFiles {
+  if (codeHash !== undefined && !/^[0-9a-f]{64}$/.test(codeHash)) {
+    throw new Error("A setup code's hash is 64 lowercase hexadecimal digits, as setupCodeHash() gives it.");
+  }
   const worker = workerName(name);
   const codeRepo = code ?? TEMPLATE_CODE_REPO;
   const contentRepo = content ?? TEMPLATE_CONTENT_REPO;
@@ -166,6 +222,7 @@ export function planServerSite({ template, name, versions, code, content, siteUr
       changed = changed.replace(TEMPLATE_REPOS, (found) => (found === TEMPLATE_CONTENT_REPO ? contentRepo : codeRepo));
     }
     if (path === "wrangler.jsonc" && siteUrl) changed = changed.replace(TEMPLATE_SITE_URL, siteUrl);
+    if (path === "wrangler.jsonc" && codeHash) changed = withSetupCodeHash(changed, codeHash);
     files.set(path, changed === text && typeof file !== "string" ? file : changed);
   }
   const pkg = files.get("package.json");
@@ -179,7 +236,6 @@ export function planServerSite({ template, name, versions, code, content, siteUr
     }
   }
   if (files.has("vitest.config.ts")) files.set("vitest.config.ts", SITE_VITEST_CONFIG);
-  files.set(`${CONTENT_REPOSITORY_DIR}/.github/workflows/deploy-site.yml`, deploySiteWorkflow(codeRepo));
   files.set(`${CONTENT_REPOSITORY_DIR}/README.md`, serverContentReadme(sitePackageName(name), codeRepo));
   const gitignore = files.get(".gitignore");
   files.set(".gitignore", `${gitignore === undefined ? "" : siteFileText(gitignore).trimEnd()}\n${CODE_GITIGNORE}`);
@@ -188,7 +244,7 @@ export function planServerSite({ template, name, versions, code, content, siteUr
     const text = withoutRepositoryNotes(siteFileText(readme));
     // Before the first section, where people setting the site up start reading.
     const at = text.indexOf("\n## ");
-    const section = namesSection(worker, codeRepo, contentRepo);
+    const section = namesSection(worker, codeRepo, contentRepo, madeBy);
     files.set(
       "README.md",
       at === -1 ? `${text.trimEnd()}\n\n${section}` : `${text.slice(0, at + 1)}${section}${text.slice(at + 1)}`,

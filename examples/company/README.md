@@ -28,34 +28,30 @@ On your own computer, the admin panel saves straight to the files in `content/`,
 
 ## Putting it online on Cloudflare
 
+A site made on [Goodfellow's setup page](https://goodfellowcms.com/new-site/full-stack/) is put online by the page: it makes the site's publishing app (see [Publishing](#publishing)), saves its key and your Cloudflare API token as the code repository's secrets, and starts **Set up Cloudflare** (`.github/workflows/setup-cloudflare.yml`), which does step 2, finds the Cloudflare account, gives a site without an address the Worker's own on workers.dev, and starts step 6. Then you make the first admin at `/setup/` with the setup code the page showed. The steps below are for setting a site up by hand.
+
 A publish shows the next time its pages are visited, without building the site (within about a minute at every Cloudflare location, as KV spreads it): a page renders from the content repository the first time it's visited after a publish, and a Workers KV namespace keeps it for every visit after, which costs one KV read. That first render reads every content file, which can take more than the free plan's 10 ms of CPU time on a large site, so plan on Workers Paid ($5 a month) unless your pages render within it. Pages already kept don't need GitHub to answer, but a page's first visit after a publish does.
 
 1. **The content repository.** Make it as the [content repository](https://goodfellowcms.com/docs/content-repository) page says, with `content/` and `public/media/`, and name it in `goodfellow.config.tsx`'s `backend` and in `.github/workflows/deploy.yml`, in place of `your-name/your-site-content`.
 2. **The database.** Sign in with `npx wrangler login`, run `npx wrangler d1 create goodfellow-company`, and put the `database_id` it gives in `wrangler.jsonc`. Then run `npx wrangler kv namespace create goodfellow-company-cache`, where rendered pages are kept, and put its `id` there too.
-3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in) and `npx wrangler secret put GOODFELLOW_GIT_TOKEN` (a fine-grained token that can publish to the content repository, and nothing else).
+3. **The site's settings.** In `wrangler.jsonc`, set `GOODFELLOW_SITE_URL` to the site's address. Then set its secrets: `npx wrangler secret put BETTER_AUTH_SECRET` (at least 32 random characters, such as `openssl rand -base64 32` makes; without it, the site signs nobody in, but the Deploy workflow makes one on the first deploy where the Worker has none) and what the site publishes with, as [Publishing](#publishing) says: `GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`, or `GOODFELLOW_GIT_TOKEN` (with `npx wrangler secret put`, or in the code repository's secrets, which each deploy gives the Worker).
 4. **Payments**, if the site sells subscriptions: set up Stripe as [Payments](#payments) says, all but putting the price in the Buy button, which a site owner does once they can sign in (step 7). The site works without Stripe, and admins can still give subscriptions by hand.
 5. **Email.** Choose a service for invitations and password resets, and give the code repository its settings, as [Email](#email) says. The site works without it: the editors page then shows each invitation's link for you to send yourself.
 6. **Putting it online.** Add the secrets `.github/workflows/deploy.yml` lists to the code repository and run its **Deploy** workflow (Actions → Deploy → Run workflow), which runs again after every change to the code. From your own computer, `npm run build && npm run deploy` does the same, except that it doesn't change the Worker's email settings.
 7. **The first admin.** Once the migrations are applied, `npm run new-admin -- you@example.org "Your Name" --remote` makes an admin, one of the site's owners, in the D1 database. It asks for their password, which it never shows or keeps, and runs only in a terminal of your own, never in CI. Run it again for each admin. Each admin then signs in and turns on two-factor sign-in at `/account/` straight away, without which they can edit pages but not change Site Settings or manage editors, and before which anyone with their password could turn it on with an app of their own.
 
-Pages show a publish without a build, but new photos and other files reach the site's own files only when it's built again, so the content repository still asks for a build after each publish. Until that build is online, which takes a few minutes, a page that shows a new photo shows it missing, so publish a photo a few minutes before the page that shows it, or wait for the build before sharing the page. Add this workflow to it as `.github/workflows/deploy-site.yml`, with a `GOODFELLOW_DEPLOY_TOKEN` secret: a fine-grained token for the code repository with only **Actions: Read and write**, which can start its workflows but never change its code.
+Pages show a publish without a build, but new photos and other files reach the site's own files only when it's built again, which the Deploy workflow does each night. Until then, a page that shows a new photo shows it missing, so publish a photo a day before the page that shows it, or run Deploy yourself (Actions → Deploy → Run workflow) before sharing the page. The content repository runs no workflows and holds no secrets, so whoever can change it can't start the code's workflows or reach its keys.
 
-```yaml
-name: Put the site online
-on:
-  push:
-    branches: [main]
-permissions: {}
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - run: gh workflow run deploy.yml --repo your-name/your-site
-        env:
-          GH_TOKEN: ${{ secrets.GOODFELLOW_DEPLOY_TOKEN }}
-```
+### Publishing
 
-Add the site's domain to the Worker in Cloudflare's dashboard (Workers & Pages → goodfellow-company → Settings → Domains & Routes). Photos are resized with Cloudflare Images, whose free allowance is 5,000 different sizes a month; to turn it off, remove `images` from `vite.config.ts` and `wrangler.jsonc`.
+The server publishes editors' changes to the content repository, and reads pages from it, with one of these, which `lib/git-token.ts` reads:
+
+- **The site's publishing app** (`GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`), a GitHub App of the site's own, with only **Contents: Read and write**, installed on the content repository alone, which Goodfellow's setup page makes. The server makes tokens from its key, each for the content repository only and lasting an hour, so nobody renews one by hand. Before each, it checks the app is installed on the content repository alone with no other permissions, and refuses to publish otherwise, saying what to change, since the key could then change those repositories too. To make one by hand, create a GitHub App in your account's (or organization's) Developer settings with no webhook and only that permission, generate a private key, install the app on the content repository (Only select repositories), and add its App ID and the key's text to the code repository's secrets.
+- **A fine-grained token** (`GOODFELLOW_GIT_TOKEN`) for the content repository only, with **Contents: Read and write**. It ends on the day you chose, after which nobody can publish until you make another.
+
+Where both are set, the app is used.
+
+The Deploy workflow connects the site's domain to the Worker once its zone is on the Cloudflare account. Where the domain is elsewhere, or already has DNS records, it only warns, and you add it in Cloudflare's dashboard instead (Workers & Pages → goodfellow-company → Settings → Domains & Routes), which offers to replace them. Photos are resized with Cloudflare Images, whose free allowance is 5,000 different sizes a month; to turn it off, remove `images` from `vite.config.ts` and `wrangler.jsonc`.
 
 ## Changing the database
 
@@ -150,7 +146,7 @@ What test cards buy on the site online stays in its database once it has the liv
 
 Every page is rendered once for each publish and served as it was, so a request costs the server almost nothing:
 
-- **Pages that look the same to everyone**, which is every page here, render from the content repository as it is now (`repositorySource()` in `lib/site.ts`, with `GOODFELLOW_GIT_TOKEN`) the first time they're visited, and the `VINEXT_KV_CACHE` namespace keeps them (vinext's `kvDataAdapter()` in `vite.config.ts`; Workers Cache would need no namespace, but nothing emulates it outside Cloudflare, so the tests couldn't check it). Each publish asks for every page to render again (`revalidatePath()` in `app/api/goodfellow/[...path]/route.ts`), since a change to the header, menus, or a collection can reach any page. A page also renders again once it's an hour old (`revalidate`), so a scheduled time coming, what a page shows by today's date, and changes that reach the content repository another way, such as from Claude or a merged review, show within the hour. In `npm run dev`, pages read the files on this computer.
+- **Pages that look the same to everyone**, which is every page here, render from the content repository as it is now (`repositorySource()` in `lib/site.ts`, with what it publishes with) the first time they're visited, and the `VINEXT_KV_CACHE` namespace keeps them (vinext's `kvDataAdapter()` in `vite.config.ts`; Workers Cache would need no namespace, but nothing emulates it outside Cloudflare, so the tests couldn't check it). Each publish asks for every page to render again (`revalidatePath()` in `app/api/goodfellow/[...path]/route.ts`), since a change to the header, menus, or a collection can reach any page. A page also renders again once it's an hour old (`revalidate`), so a scheduled time coming, what a page shows by today's date, and changes that reach the content repository another way, such as from Claude or a merged review, show within the hour. In `npm run dev`, pages read the files on this computer.
 - **Members-only pages render twice**, the same way: for everyone, where they're teasers, and for subscribers, which `proxy.ts` chooses between by a signed cookie (see [Subscribers](#subscribers)).
 - **What shows who's signed in** is filled in by the browser (`app/(site)/members/signed-in-as.tsx`), so the page around it stays static.
 - **Pages only for people who are signed in**, such as `/members`, are static too: `proxy.ts` checks the session in the database on every request, so a used reset link, a ban, or a removal takes effect at once, and sends everyone else to sign in before the page is served.
@@ -171,9 +167,11 @@ Every page is rendered once for each publish and served as it was, so a request 
 | `lib/stripe.ts`, `blocks/buy-button.tsx`, `app/api/checkout/`, `app/api/stripe/webhook/`, `app/api/billing/` | Payments: the Buy button, Stripe Checkout and its webhook, and the customer portal |
 | `blocks/account-links.tsx` | The Sign-in and account links block in the header, which reads who's signed in once the page has loaded, since pages are the same for everyone |
 | `lib/paywall.ts`, `blocks/paywall.tsx` | Which version of a page each request gets, by a signed cookie, and the Paywall block, where a page for members stops for everyone else |
-| `lib/db/new-admin.ts`, `scripts/new-admin.ts` | `npm run new-admin`, which makes an admin with Better Auth itself |
+| `lib/admins.ts`, `lib/db/new-admin.ts`, `scripts/new-admin.ts` | `npm run new-admin`, which makes an admin with Better Auth itself |
+| `app/setup/`, `app/api/setup/`, `lib/first-admin.ts` | The first admin of a site made on the setup page, with its one-time setup code, whose SHA-256 is `GOODFELLOW_SETUP_CODE_HASH` in `wrangler.jsonc` |
+| `.github/workflows/setup-cloudflare.yml` | Makes the D1 database and KV namespace, names them in `wrangler.jsonc`, and starts the Deploy workflow |
 | `app/api/auth/[...all]/route.ts` | Better Auth's routes |
-| `app/api/goodfellow/[...path]/route.ts` | The admin panel's API, which publishes to the content repository with `GOODFELLOW_GIT_TOKEN` |
+| `app/api/goodfellow/[...path]/route.ts` | The admin panel's API, which publishes to the content repository with the site's publishing app or `GOODFELLOW_GIT_TOKEN` (`lib/git-token.ts`) |
 | `app/sign-in/`, `app/sign-up/`, `app/sign-out/`, `lib/sign-up.ts`, `lib/sign-out.ts` | Signing in, up, and out |
 | `app/admin/subscribers/`, `lib/subscribers.ts` | The subscribers page: readers, their subscriptions, and giving one by hand |
 | `app/admin/payments/`, `lib/payments.ts` | The Payments page: payments' settings, and every Buy button with what Stripe says of its price |

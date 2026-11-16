@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "data": {
+    "content": [
+      {
+        "type": "Section",
+        "props": {
+          "id": "Section-app-return",
+          "background": "none",
+          "backgroundImage": "",
+          "className": "",
+          "content": [
+            {
+              "type": "Heading",
+              "props": {
+                "id": "Heading-app-return",
+                "align": "left",
+                "className": "mx-auto max-w-3xl",
+                "level": "h1",
+                "text": "Back from GitHub"
+              }
+            },
+            {
+              "type": "SiteSetup",
+              "props": {
+                "id": "SiteSetup-app-return",
+                "className": "mt-6",
+                "githubSignIn": "",
+                "gitlabClientId": "",
+                "step": "app-return"
+              }
+            }
+          ],
+          "padding": "lg",
+          "width": "normal"
+        }
+      }
+    ],
+    "root": {
+      "props": {
+        "className": "",
+        "description": "Where GitHub sends you back to while you set up a full-stack site's publishing app.",
+        "image": "",
+        "noIndex": true,
+        "title": "Back from GitHub"
+      }
+    }
+  }
+}

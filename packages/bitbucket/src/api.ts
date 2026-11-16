@@ -3,8 +3,13 @@ import { GitApiError, SignInError } from "@goodfellow-cms/core";
 export interface ApiOptions {
   /** The API root, `https://api.bitbucket.org/2.0`. */
   apiUrl: string;
-  /** The `Authorization` header's value, asked for on each request. */
-  authorization: () => Promise<string>;
+  /**
+   * The `Authorization` header's value, asked for on each request, and with `refresh` where Bitbucket refused the
+   * one it gave, when `canRefresh` says it can make another.
+   */
+  authorization: (request?: { refresh?: boolean }) => Promise<string>;
+  /** Whether `authorization` can give a new value after a 401, as a full-stack site's renewing token can. */
+  canRefresh?: boolean;
   fetch: typeof fetch;
 }
 
@@ -60,15 +65,19 @@ export async function bitbucketRequest(api: ApiOptions, path: string, init: Requ
     throw new GitApiError(0, "Bitbucket pointed to an address outside its API.");
   }
   const url = absolute ? path : `${api.apiUrl}${path}`;
-  const response = await api.fetch(url, {
-    method: init.method ?? (init.body !== undefined || init.form ? "POST" : "GET"),
-    headers: {
-      authorization: await api.authorization(),
-      ...(init.body !== undefined && { "content-type": "application/json" }),
-    },
-    body: init.form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
-    cache: "no-store",
-  });
+  const send = async (refresh: boolean) =>
+    api.fetch(url, {
+      method: init.method ?? (init.body !== undefined || init.form ? "POST" : "GET"),
+      headers: {
+        authorization: await api.authorization(refresh ? { refresh } : undefined),
+        ...(init.body !== undefined && { "content-type": "application/json" }),
+      },
+      body: init.form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
+      cache: "no-store",
+    });
+  let response = await send(false);
+  // Once, with a new token, where the sign-in can make one.
+  if (response.status === 401 && api.canRefresh && !init.allow?.includes(401)) response = await send(true);
   if (response.status === 401 && !init.allow?.includes(401)) {
     throw new SignInError("invalid", "Bitbucket didn't accept the sign-in. It may have expired.");
   }

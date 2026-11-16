@@ -29,6 +29,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "import": "./dist/app.js"
+    },
     "./testing": {
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
@@ -46,7 +50,8 @@
   "dependencies": {
     "@goodfellow-cms/core": "workspace:*",
     "@noble/ciphers": "2.4.0",
-    "@noble/hashes": "2.4.0"
+    "@noble/hashes": "2.4.0",
+    "universal-github-app-jwt": "2.2.2"
   },
   "devDependencies": {
     "@puckeditor/core": "0.24.0"

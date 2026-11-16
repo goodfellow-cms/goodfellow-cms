@@ -37,6 +37,8 @@ export interface IssuedToken {
 export interface WorkerProblem {
   problem?: string;
   installUrl?: string;
+  /** The setup page's repository, where the worker made it before the rest failed. */
+  created?: string;
 }
 
 /** The worker's problems, as the admin panel's sign-in problems. */

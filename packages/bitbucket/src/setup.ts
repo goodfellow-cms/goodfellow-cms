@@ -88,7 +88,7 @@ export function bitbucketSetup(options: BitbucketSetupOptions = {}): SetupHost {
         });
         return response.status === 404;
       },
-      async createSite(site: NewSiteRepository, onStep): Promise<CreatedSiteRepository> {
+      async createSite(site: NewSiteRepository, onStep, onCreated): Promise<CreatedSiteRepository> {
         const slug = site.name.toLowerCase();
         if (!SLUG.test(slug)) throw new SetupError("name-invalid", "That name can't be used for a repository.");
         const repo = `${site.owner.path}/${slug}`;
@@ -105,6 +105,7 @@ export function bitbucketSetup(options: BitbucketSetupOptions = {}): SetupHost {
         if (created.status === 403) {
           throw new SetupError("not-allowed", `This account can't create repositories in ${site.owner.name}.`);
         }
+        onCreated?.(repo);
 
         onStep?.("files");
         const form = new FormData();
