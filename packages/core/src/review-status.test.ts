@@ -1,5 +1,6 @@
 // The repository's own Review status workflow (.github/workflows/review-status.yml), run with bash against a stand-in
-// for gh that answers from fixtures and applies --jq with jq, as gh does, page by page.
+// for gh that answers from fixtures and applies --jq with jq, as gh does, page by page. The script uses jq too, as
+// GitHub's runners have it, so these need jq installed (CI's "Install jq" step).
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
