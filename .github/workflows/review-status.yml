@@ -4,8 +4,10 @@
 # - "CodeRabbit reviewed": whether CodeRabbit has reviewed the latest commit and every comment it left has been
 #   dealt with. CodeRabbit's own check ends neutral when it's rate limited, and a skipped or neutral check looks the
 #   same as a passing one in the list of pull requests, so this one fails until CodeRabbit's check on the head commit
-#   ends in success (ask for the review with a comment saying "@coderabbitai review"), and then until every review
-#   thread CodeRabbit started is resolved, outdated ones included. CodeRabbit can't say that itself: its automatic
+#   ends in success (ask for the review with a comment saying "@coderabbitai review"), then while its review of the
+#   head commit lists findings outside the diff, which open no threads, so only a newer commit's review clears them,
+#   as Claude's are, and then until every review thread CodeRabbit started is resolved, outdated ones included.
+#   CodeRabbit can't say that itself: its automatic
 #   approvals give a review, not a check. It passes drafts (CodeRabbit reviews them once they're ready), Dependabot's
 #   pull requests, and pull requests labelled no-coderabbit, such as ones over CodeRabbit's file limit.
 # - "Claude reviewed": how Claude's latest review of the pull request went (claude-review.yml), set only once the
@@ -142,6 +144,24 @@ jobs:
             if [ "$status" != completed ]; then
               printf '%s\n' pending "CodeRabbit is reviewing this commit" "$link"
             elif [ "$conclusion" = success ]; then
+              # Findings on lines the pull request didn't change are in the review's body, not on threads, so they'd
+              # pass unseen: CodeRabbit's latest review of this commit says how many, as "Outside diff range comments
+              # (N)".
+              local outside count review
+              outside=$(gh api --paginate "repos/$REPO/pulls/$number/reviews?per_page=100" --jq '.[]
+                | select(.user.login == "coderabbitai[bot]" and .commit_id == "'"$head"'")
+                | "\((.body | capture("Outside diff range comments \\((?<n>[0-9]+)\\)")? | .n) // "0") \(.html_url)"' |
+                tail -n 1)
+              read -r count review <<<"${outside:-0 $link}"
+              if [ "$count" -eq 1 ]; then
+                printf '%s\n' failure "CodeRabbit raised 1 finding outside the diff in this commit: see its review" \
+                  "$review"
+                return
+              elif [ "$count" -gt 1 ]; then
+                printf '%s\n' failure "CodeRabbit raised $count findings outside the diff in this commit: see its review" \
+                  "$review"
+                return
+              fi
               threads_result CodeRabbit "$number" coderabbitai \
                 "CodeRabbit reviewed this commit, and its comments are resolved" "$link"
             elif [ "$conclusion" = skipped ]; then
