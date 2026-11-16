@@ -128,6 +128,23 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
     expect(review("-c", "core.quotePath=false", "rev-parse", "HEAD").status).toBe(0);
   });
 
+  it("refuses to run in a repository other than the checkout, whose config would be its own", () => {
+    const { repo, reviewGit, marker } = setUp();
+    const nested = join(repo, "nested");
+    sh("git", ["init", "-q", nested], repo);
+    const program = join(repo, "..", "nested-filter.sh");
+    writeFileSync(program, `#!/bin/sh\ntouch '${marker}'\ncat\n`, { mode: 0o755 });
+    writeFileSync(join(nested, ".gitattributes"), "* filter=evil\n");
+    writeFileSync(join(nested, "b.txt"), "one\n");
+    sh("git", ["add", "."], nested);
+    sh("git", ["config", "filter.evil.clean", program], nested);
+    writeFileSync(join(nested, "b.txt"), "two\n");
+    const result = sh(reviewGit, ["diff"], nested);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("a repository other than the checkout");
+    expect(existsSync(marker)).toBe(false);
+  });
+
   it("never runs a filter driver the system's or the user's config names", () => {
     const { repo, reviewGit, marker } = setUp();
     const program = join(repo, "..", "filter.sh");
@@ -203,6 +220,8 @@ describe("the Claude review's findings", () => {
       `ghs_${"b".repeat(36)}`,
       `github_pat_${"C".repeat(40)}`,
       `eyJ${"d".repeat(30)}.${"e".repeat(30)}.${"f".repeat(20)}`,
+      // A header without a type, {"alg":"HS256"}, is as short as a JWT's gets.
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJlLWJ5dGVz",
     ];
     const found = withheld({
       findings: tokens.map((token, line) => ({ path: "a.ts", line: line + 1, body: `The token is ${token}.` })),

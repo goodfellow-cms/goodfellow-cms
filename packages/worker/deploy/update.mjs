@@ -31,18 +31,32 @@ function compare(a, b) {
 /**
  * The release to take, from npm's publish times: the highest version that's been out a day, no higher than the
  * `latest` tag where npm names one, and not deprecated, so a release Goodfellow takes back is never taken; never one
- * lower than `current`, the release this copy has, where it knows it. `undefined` where there's none to take.
+ * lower than `current`, the release this copy has, where it knows it. A `latest` that's a prerelease (`0.14.0-rc.1`)
+ * allows only what comes before it, and one that isn't a version at all allows nothing. `undefined` where there's
+ * none to take.
  */
 export function chooseRelease(time, current, now = Date.now(), { latest, deprecated = [] } = {}) {
   const takenBack = new Set(deprecated);
+  const ceiling = latest === undefined ? undefined : /^(\d+\.\d+\.\d+)(-[0-9A-Za-z.-]+)?$/.exec(latest);
+  if (latest !== undefined && !ceiling) return undefined;
+  const belowCeiling = (version) =>
+    !ceiling || (ceiling[2] ? compare(version, ceiling[1]) < 0 : compare(version, ceiling[1]) <= 0);
   const old = Object.entries(time ?? {})
     .filter(([version, at]) => parts(version) && now - Date.parse(at) > DAY && !takenBack.has(version))
-    .filter(([version]) => !parts(latest) || compare(version, latest) <= 0)
+    .filter(([version]) => belowCeiling(version))
     .map(([version]) => version)
     .sort(compare);
   const highest = old.at(-1);
   if (!highest) return undefined;
   return parts(current) && compare(highest, current) < 0 ? current : highest;
+}
+
+/**
+ * A copy's package.json text with the Goodfellow release it now has, which `chooseRelease()` never goes below:
+ * written by each update, and by create-goodfellow's build for the copy it carries, so a new copy starts with it.
+ */
+export function recordRelease(packageJson, release) {
+  return `${JSON.stringify({ ...JSON.parse(packageJson), goodfellowRelease: release }, null, 2)}\n`;
 }
 
 /**
@@ -150,8 +164,7 @@ function main() {
   }
   if (existsSync(join(from, "_npmrc"))) cpSync(join(from, "_npmrc"), join(here, ".npmrc"));
   // The release this copy has now, so a later run never goes back to an older one.
-  const updated = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
-  writeFileSync(join(here, "package.json"), `${JSON.stringify({ ...updated, goodfellowRelease: release }, null, 2)}\n`);
+  writeFileSync(join(here, "package.json"), recordRelease(readFileSync(join(here, "package.json"), "utf8"), release));
   // The release's settings, with the name you deployed it under.
   const mine = JSON.parse(readFileSync(join(here, "wrangler.json"), "utf8"));
   const theirs = JSON.parse(readFileSync(join(from, "wrangler.json"), "utf8"));

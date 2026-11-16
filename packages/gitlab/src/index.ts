@@ -195,6 +195,9 @@ export function gitlab(options: GitLabOptions): GitHost {
         `The GitLab account ${user.username} can see ${options.project} but can't publish to it.`,
       );
     }
+    // Another tab may have renewed this sign-in while the checks above ran: keep its newer tokens, since GitLab has
+    // ended the refresh token this one started with.
+    if (credentials.type === "oauth") credentials = savedNewer(credentials) ?? credentials;
     storage.save(JSON.stringify(credentials), remember);
     return new GitLabBackend({
       api,

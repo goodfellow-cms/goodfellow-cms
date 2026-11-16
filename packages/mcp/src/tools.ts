@@ -98,11 +98,13 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
  * color; `null` takes a setting out; anything else, lists included, replaces what was there.
  */
 export function mergeSettings(current: unknown, changes: unknown): unknown {
-  if (!isPlainObject(current) || !isPlainObject(changes)) return changes;
-  const merged: Record<string, unknown> = { ...current };
+  if (!isPlainObject(changes)) return changes;
+  // A part the site doesn't have yet starts empty, so a null in it still takes nothing in.
+  const base = isPlainObject(current) ? current : {};
+  const merged: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(changes)) {
     if (value === null) delete merged[key];
-    else merged[key] = mergeSettings(current[key], value);
+    else merged[key] = mergeSettings(base[key], value);
   }
   return merged;
 }

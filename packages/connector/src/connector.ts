@@ -20,7 +20,13 @@
 import type { GitBackend } from "@goodfellow-cms/core";
 import { createGoodfellowServer, type Screenshotter, ToolError } from "@goodfellow-cms/mcp";
 import { type App, type GitHubConfig, GitHubError } from "@goodfellow-cms/worker/github";
-import { base64UrlEncode, challengeFor, createSealer, type Sealer } from "@goodfellow-cms/worker/seal";
+import {
+  base64UrlEncode,
+  challengeFor,
+  createSealer,
+  MAX_SEALED_LENGTH,
+  type Sealer,
+} from "@goodfellow-cms/worker/seal";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import * as bb from "./bitbucket.js";
 import { ClientError, findClient, redirectMatches, registerClient } from "./clients.js";
@@ -444,6 +450,15 @@ export function createConnector(options: ConnectorOptions = {}) {
         } satisfies CodeData,
         CODE_LIFETIME,
       );
+      // The code, and the tokens made from it, carry the sites chosen, and are opened only up to a sealed value's
+      // usual length, so sites that won't fit are refused here rather than once Claude has the code.
+      if (code.length > MAX_SEALED_LENGTH) {
+        return page(
+          "Too many sites",
+          `<p>Those sites' names are too long to keep together in one connection. Go back and choose fewer.</p>`,
+          { status: 400 },
+        );
+      }
       const target = new URL(data.redirectUri);
       target.searchParams.set("code", code);
       if (data.state) target.searchParams.set("state", data.state);

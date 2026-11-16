@@ -5,6 +5,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writ
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { recordRelease } from "../../worker/deploy/update.mjs";
 import { copyTemplate } from "../dist/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -44,6 +45,10 @@ cpSync(join(repo, "packages/broker/site"), join(out, "broker"), { recursive: tru
 // The sign-in worker as the Deploy to Cloudflare button deploys it, which copies of it update themselves from.
 cpSync(join(repo, "packages/worker/deploy"), join(out, "sign-in"), { recursive: true });
 cpSync(join(repo, "packages/worker/dist/bundle/worker.js"), join(out, "sign-in", "worker.js"));
+// The release it comes from, so a new copy's first update never takes an older one.
+const signInPackage = join(out, "sign-in", "package.json");
+const ownVersion = JSON.parse(readFileSync(join(here, "../package.json"), "utf8")).version;
+writeFileSync(signInPackage, recordRelease(readFileSync(signInPackage, "utf8"), ownVersion));
 
 const versions = {};
 for (const dir of readdirSync(join(repo, "packages"))) {

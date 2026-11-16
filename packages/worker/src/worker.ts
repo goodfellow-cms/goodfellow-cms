@@ -361,6 +361,7 @@ const PAGE_MESSAGES: Partial<Record<SignInProblem, string>> = {
   "local-address":
     "Signing in with GitHub works only on the published site. Sign in with an access token here instead.",
   invalid: "Signing in took too long. Go back and try again.",
+  cancelled: "Signing in was cancelled. Go back to the admin panel and try again.",
   "bad-request": "This sign-in link isn't complete. Go back and try again.",
   unavailable: "Signing in with GitHub isn't working right now. Go back and sign in with an access token instead.",
 };
@@ -473,7 +474,9 @@ export function createWorker(options: WorkerOptions = {}) {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const log = options.log ?? ((line: string) => console.error(line));
   const sealers = new Map<string, Promise<Sealer>>();
-  const installations = new Map<string, { id: number | undefined; at: number }>();
+  // `turn` counts lookups as they start, so one that ends after a later one began never replaces what that one found.
+  const installations = new Map<string, { id: number | undefined; at: number; turn: number }>();
+  let lookups = 0;
   // Sites' addresses as the last check found them, so checks anyone can ask for don't each cost GitHub requests.
   const checkedAddresses = new Map<string, { addresses: SiteAddress[]; at: number }>();
 
@@ -566,15 +569,20 @@ export function createWorker(options: WorkerOptions = {}) {
       const cached = installations.get(key);
       const lifetime = cached?.id === undefined ? MISSED_INSTALLATION_MS : 5 * 60_000;
       if (!fresh && cached && now() - cached.at < lifetime) return cached.id;
+      const turn = ++lookups;
+      const keep = (id: number | undefined) => {
+        const latest = installations.get(key);
+        if (!latest || latest.turn < turn) remember(installations, key, { id, at: now(), turn });
+      };
       try {
         const { id } = await githubJson<{ id: number }>(config, `/repos/${repoPath(repo)}/installation`, {
           auth: { bearer: await jwtFor(app) },
         });
-        remember(installations, key, { id, at: now() });
+        keep(id);
         return id;
       } catch (error) {
         if (error instanceof GitHubError && error.status === 404) {
-          remember(installations, key, { id: undefined, at: now() });
+          keep(undefined);
           return undefined;
         }
         throw error;
@@ -1107,17 +1115,13 @@ export function createWorker(options: WorkerOptions = {}) {
           });
         }
         const origin = new URL(state.return).origin;
-        if (state.install && state.repo) {
-          // Coming back from installing: only now can the site's settings say where it may go back to.
-          try {
-            await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname, true);
-          } catch (error) {
-            // The return address isn't known to be the site's, so the answer is a page here, never a redirect.
-            if (error instanceof Problem) return page(error.problem, error.status);
-            throw error;
-          }
+        // Coming back from installing, the return address isn't known to be the site's until it's looked up afresh
+        // below, so whatever goes wrong before then is a page here, never a redirect.
+        const installing = Boolean(state.install && state.repo);
+        if (!code) {
+          if (installing) return page("cancelled");
+          return backTo(state, { goodfellow_sign_in_error: "cancelled" });
         }
-        if (!code) return backTo(state, { goodfellow_sign_in_error: "cancelled" });
         if (state.purpose === "setup") {
           const grant: SetupGrantData = {
             purpose: "setup",
@@ -1130,8 +1134,22 @@ export function createWorker(options: WorkerOptions = {}) {
           return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
         }
         let tokens: UserTokens | undefined;
+        // Whether the return address is known to be the site's, so a problem may be said there.
+        let checked = !installing;
         try {
           tokens = await userTokens(config, app, { code, redirectUri: `${url.origin}/github/callback` }, now());
+          if (installing && state.repo) {
+            // Only now can the site's settings say where it may go back to. Looked up only once GitHub has taken the
+            // code, which works once, so a replayed link can't make the app ask GitHub again and again.
+            try {
+              await checkSite(state.purpose, state.repo, origin, new URL(state.return).pathname, true);
+            } catch (error) {
+              if (!(error instanceof Problem)) throw error;
+              await revokeUserToken(config, app, tokens.access).catch(() => {});
+              return page(error.problem, error.status);
+            }
+            checked = true;
+          }
           const user = await signedInUser(tokens.access);
           if (state.repo) await checkAccess(state.purpose, state.repo, tokens.access);
           const grant: GrantData = {
@@ -1147,11 +1165,13 @@ export function createWorker(options: WorkerOptions = {}) {
           return backTo(state, { goodfellow_sign_in: await (await sealer()).seal("grant", grant, GRANT_LIFETIME) });
         } catch (error) {
           if (tokens) await revokeUserToken(config, app, tokens.access).catch(() => {});
-          if (error instanceof Problem) return backTo(state, { goodfellow_sign_in_error: error.problem });
-          if (error instanceof GitHubError && error.status === 401) {
-            return backTo(state, { goodfellow_sign_in_error: "invalid" });
-          }
-          return backTo(state, { goodfellow_sign_in_error: "unavailable" });
+          const problem: SignInProblem =
+            error instanceof Problem
+              ? error.problem
+              : error instanceof GitHubError && error.status === 401
+                ? "invalid"
+                : "unavailable";
+          return checked ? backTo(state, { goodfellow_sign_in_error: problem }) : page(problem);
         }
       }
 

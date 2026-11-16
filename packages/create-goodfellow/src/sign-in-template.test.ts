@@ -57,6 +57,7 @@ describe("the Deploy to Cloudflare copy's update", async () => {
       tags?: { latest?: string; deprecated?: string[] },
     ): string | undefined;
     provenanceProblem(answer: unknown, integrity: string): string | undefined;
+    recordRelease(packageJson: string, release: string): string;
   };
   const now = Date.parse("2026-11-16T12:00:00Z");
   const days = (n: number) => new Date(now - n * 86_400_000).toISOString();
@@ -85,6 +86,9 @@ describe("the Deploy to Cloudflare copy's update", async () => {
     expect(update.chooseRelease(time, "0.13.0", now, { latest: "0.13.0", deprecated: ["0.14.0"] })).toBe("0.13.0");
     // Once the fix is latest it's taken, never the deprecated release before it.
     expect(update.chooseRelease(time, "0.13.0", now, { latest: "0.14.1", deprecated: ["0.14.0"] })).toBe("0.14.1");
+    // A prerelease as latest allows only what comes before it, and a tag that isn't a version allows nothing.
+    expect(update.chooseRelease(time, undefined, now, { latest: "0.14.0-rc.1" })).toBe("0.13.0");
+    expect(update.chooseRelease(time, undefined, now, { latest: "next" })).toBeUndefined();
     const fixless = { "0.13.0": days(5), "0.14.0": days(3) };
     expect(update.chooseRelease(fixless, undefined, now, { deprecated: ["0.14.0"] })).toBe("0.13.0");
   });
@@ -128,5 +132,18 @@ describe("the Deploy to Cloudflare copy's update", async () => {
     expect(update.provenanceProblem(answer(ours, "00"), integrity)).toBe("its provenance is for another file");
     expect(update.provenanceProblem({ attestations: [] }, integrity)).toBe("it has no provenance");
     expect(update.provenanceProblem(undefined, integrity)).toBe("it has no provenance");
+  });
+});
+
+describe("create-goodfellow's copy of the sign-in service", () => {
+  it("records the release it comes from, so a new copy's first update never goes back", async () => {
+    const update = (await import(new URL("../../worker/deploy/update.mjs", import.meta.url).href)) as {
+      recordRelease(packageJson: string, release: string): string;
+    };
+    const written = update.recordRelease('{"name":"goodfellow-sign-in","private":true}', "0.13.0");
+    expect(JSON.parse(written)).toEqual({ name: "goodfellow-sign-in", private: true, goodfellowRelease: "0.13.0" });
+    expect(written.endsWith("}\n")).toBe(true);
+    const bundling = readFileSync(new URL("../scripts/bundle-templates.mjs", import.meta.url), "utf8");
+    expect(bundling).toMatch(/writeFileSync\(signInPackage, recordRelease\(/);
   });
 });

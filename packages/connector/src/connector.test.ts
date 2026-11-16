@@ -45,6 +45,8 @@ function setup(
     push?: boolean;
     /** The projects GitLab lists for the person, where the test gives more than the fake's one. */
     gitlabProjects?: string[];
+    /** The default branch of every one of them, `main` unless it says. */
+    gitlabBranch?: string;
   } = {},
 ) {
   const app: FakeGitHubApp = {
@@ -108,7 +110,10 @@ function setup(
     if (host === "api.github.com" || host === "github.com") return github.fetch(request);
     if (host === "gitlab.example" && options.gitlabProjects && pathname === "/api/v4/projects") {
       return Response.json(
-        options.gitlabProjects.map((project) => ({ path_with_namespace: project, default_branch: "main" })),
+        options.gitlabProjects.map((project) => ({
+          path_with_namespace: project,
+          default_branch: options.gitlabBranch ?? "main",
+        })),
       );
     }
     if (host === "gitlab.example") return gitlab.fetch(request);
@@ -408,7 +413,7 @@ describe("connecting with GitHub", () => {
       { length: 100 },
       (_, i) => `parish/${"subgroup-".repeat(28)}${String(i).padStart(3, "0")}`,
     );
-    const context = setup({ gitlabProjects: ["parish/site", ...projects] });
+    const context = setup({ gitlabProjects: ["parish/site", ...projects], gitlabBranch: `release/${"a".repeat(100)}` });
     const clientId = await context.register();
     const started = await context.startAuthorize(clientId);
     const authorize = new URL((await context.visit(started.link("gitlab"))).headers.get("location") ?? "");
@@ -417,6 +422,10 @@ describe("connecting with GitHub", () => {
     expect(listed).toBeGreaterThan(1);
     expect(listed).toBeLessThan(100);
     expect(page).toContain(`These are the first ${listed} of your 100 sites`);
+    // As many as a connection may have, with names this long, can't all be carried in its code and tokens.
+    const many = await context.allow(page, projects.slice(0, 20));
+    expect(many.status).toBe(400);
+    expect(await many.text()).toContain("choose fewer");
     const allowed = await context.allow(page, ["parish/site"]);
     expect(allowed.status).toBe(303);
   });

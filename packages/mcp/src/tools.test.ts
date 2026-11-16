@@ -491,6 +491,18 @@ describe("changing a site", () => {
     expect(saved.contact).toEqual({ phone: "555-0199" });
   });
 
+  it("takes nulls out of a part the site doesn't have yet", async () => {
+    const files = starterFiles();
+    const { contact: _contact, ...site } = JSON.parse(files["content/site.json"] ?? "{}");
+    files["content/site.json"] = JSON.stringify(site);
+    const { call, fake } = await connect({ files });
+    const changed = await call("update_settings", { settings: { contact: { phone: "555-0199", email: null } } });
+    expect(changed.isError, changed.text).toBe(false);
+    const { draft } = changed.json();
+    const saved = JSON.parse(String(fake.repo.files(`goodfellow-draft-${draft}`).get("content/site.json") ?? "{}"));
+    expect(saved.contact).toEqual({ phone: "555-0199" });
+  });
+
   it("keeps the site's own fonts, which only owners add, whatever theme Claude gives", async () => {
     const files = starterFiles();
     const custom = [{ family: "Mine", files: [{ src: "/media/fonts/mine-400.woff2", weight: 400 }] }];
