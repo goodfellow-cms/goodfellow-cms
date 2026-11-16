@@ -81,6 +81,9 @@ describe("the Deploy to Cloudflare copy's update", async () => {
     // A copy that's further on stays where it is.
     expect(update.chooseRelease(time, "0.13.1", now)).toBe("0.13.1");
     expect(update.chooseRelease({ "1.0.0": days(0.1) }, undefined, now)).toBeUndefined();
+    // A copy made from a prerelease never goes back below it, and takes its release once it's out.
+    expect(update.chooseRelease(time, "0.14.0-rc.1", now)).toBe("0.14.0-rc.1");
+    expect(update.chooseRelease({ ...time, "0.14.0": days(2) }, "0.14.0-rc.1", now)).toBe("0.14.0");
   });
 
   it("takes nothing past npm's latest tag, nor a deprecated release", () => {

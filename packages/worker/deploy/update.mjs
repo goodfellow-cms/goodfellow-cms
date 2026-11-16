@@ -63,9 +63,9 @@ function compare(a, b) {
 /**
  * The release to take, from npm's publish times: the highest version that's been out a day, no higher than the
  * `latest` tag where npm names one, and not deprecated, so a release Goodfellow takes back is never taken; never one
- * lower than `current`, the release this copy has, where it knows it. A `latest` that's a prerelease (`0.14.0-rc.1`)
- * allows only what comes before it, and one that isn't a version at all allows nothing. `undefined` where there's
- * none to take.
+ * lower than `current`, the release this copy has, where it knows it, a prerelease included. A `latest` that's a
+ * prerelease (`0.14.0-rc.1`) allows only what comes before it, and one that isn't a version at all allows nothing.
+ * `undefined` where there's none to take.
  */
 export function chooseRelease(time, current, now = Date.now(), { latest, deprecated = [] } = {}) {
   const takenBack = new Set(deprecated);
@@ -80,7 +80,9 @@ export function chooseRelease(time, current, now = Date.now(), { latest, depreca
     .sort(compare);
   const highest = old.at(-1);
   if (!highest) return undefined;
-  return parts(current) && compare(highest, current) < 0 ? current : highest;
+  // A copy made from a prerelease (`0.14.0-rc.1`) comes before its release, and after every release below it.
+  const floor = /^(\d+\.\d+\.\d+)(-[0-9A-Za-z.-]+)?$/.exec(current ?? "");
+  return floor && compare(highest, floor[1]) < 0 ? current : highest;
 }
 
 /**
