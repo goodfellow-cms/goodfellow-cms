@@ -102,12 +102,20 @@ describe("the starters' workflows", () => {
     expect(deploy).toContain(githubLockfileJobs());
     const jobs = parse(deploy).jobs as Record<
       string,
-      { needs?: string[]; if?: string; steps: { with?: { ref?: string } }[] }
+      {
+        needs?: string[];
+        if?: string;
+        steps: { uses?: string; with?: { ref?: string }; env?: Record<string, string> }[];
+      }
     >;
+    const published = `\${{ needs.publish-lockfile.outputs.sha || github.sha }}`;
     for (const job of ["build", "deploy"]) {
       expect(jobs[job]?.needs).toContain("publish-lockfile");
-      expect(jobs[job]?.steps[0]?.with?.ref).toBe(`\${{ needs.publish-lockfile.outputs.sha || github.sha }}`);
+      const checkout = jobs[job]?.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+      expect(checkout?.with?.ref).toBe(published);
     }
+    // Deploy checks that commit is main's newest before it checks it out.
+    expect(jobs.deploy?.steps[0]?.env?.DEPLOYING).toBe(published);
     // Never after the lockfile job failed.
     expect(jobs.build?.if).toContain("needs.lockfile.result == 'success'");
   });
