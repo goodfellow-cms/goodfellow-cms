@@ -156,6 +156,78 @@ describe("signing in with GitLab (OAuth with PKCE)", () => {
     expect(refreshes() - before).toBe(1);
   });
 
+  it("keeps a sign-in remembered in two tabs working when one of them renews it", async () => {
+    const { fake, host, location, local, session } = setup(
+      { oauth: { clientId: "app-1", user: { username: "u" } } },
+      "app-1",
+    );
+    await host.startRedirect(true);
+    location.current = fake.authorize(location.assigned[0] ?? "");
+    const first = await host.restore();
+    // Another tab, which reads the same remembered sign-in.
+    const tab = () =>
+      gitlab({
+        project: "parish/web/site",
+        clientId: "app-1",
+        fetch: fake.fetch,
+        storage: { local, session: memoryStorage() },
+        location: fakeLocation("https://parish.example/admin/"),
+      });
+    const second = await tab().restore();
+    // GitLab ends both tabs' access token; the first renews, which ends the refresh token the second still holds.
+    const refreshes = () => fake.requests.filter((request) => request.url.endsWith("/oauth/token")).length;
+    fake.expireAccessTokens();
+    await first?.revision();
+    const renewed = refreshes();
+    // The second takes what the first saved, without asking GitLab with the refresh token it ended.
+    expect(await second?.revision()).toMatch(/^[0-9a-f]{40}$/);
+    expect(refreshes()).toBe(renewed);
+    expect(session.items.size + local.items.size).toBe(1);
+
+    // And where the other tab renews while this one is renewing, with the same refresh token.
+    const key = "goodfellow:gitlab:https://gitlab.com:parish/web/site";
+    let raced = false;
+    const racing = gitlab({
+      project: "parish/web/site",
+      clientId: "app-1",
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        if (!raced && request.url.endsWith("/oauth/token")) {
+          raced = true;
+          // Another tab renews first, with the refresh token this one is about to send, and saves what it got.
+          const stored = JSON.parse(local.getItem(key) ?? "{}");
+          const response = await fake.fetch("https://gitlab.com/oauth/token", {
+            method: "POST",
+            body: new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: stored.refresh,
+              client_id: "app-1",
+              redirect_uri: "https://parish.example/admin/",
+              code_verifier: stored.verifier,
+            }),
+          });
+          const answer = (await response.json()) as { access_token: string; refresh_token: string };
+          local.setItem(
+            key,
+            JSON.stringify({
+              ...stored,
+              access: answer.access_token,
+              refresh: answer.refresh_token,
+              expiresAt: Date.now() + 7_200_000,
+            }),
+          );
+        }
+        return fake.fetch(request);
+      },
+      storage: { local, session: memoryStorage() },
+      location: fakeLocation("https://parish.example/admin/"),
+    });
+    const third = await racing.restore();
+    fake.expireAccessTokens();
+    expect(await third?.revision()).toMatch(/^[0-9a-f]{40}$/);
+    expect(raced).toBe(true);
+  });
+
   it("takes the code out of the address even in a tab that didn't start signing in", async () => {
     const { host, location } = setup({ oauth: { clientId: "app-1", user: { username: "u" } } }, "app-1");
     location.current = "https://parish.example/admin/?code=one-time&state=s#/pages";
