@@ -128,6 +128,24 @@ describe.skipIf(process.platform === "win32")("the Claude review's git", () => {
     expect(review("-c", "core.quotePath=false", "rev-parse", "HEAD").status).toBe(0);
   });
 
+  it("never passes on an alias, nor a command it took from an option's value", () => {
+    const { repo, review, marker } = setUp();
+    const out = join(repo, "..", "out.txt");
+    for (const args of [
+      ["-c", "alias.d=diff", "d", `--output=${out}`],
+      ["-c", `alias.d=!touch '${marker}'`, "d"],
+      ["--attr-source", "HEAD", "diff", `--output=${out}`],
+      ["--shallow-file", "HEAD", "diff", `--output=${out}`],
+    ]) {
+      const result = review(...args);
+      expect(result.status, args.join(" ")).toBe(2);
+    }
+    expect(existsSync(out)).toBe(false);
+    expect(existsSync(marker)).toBe(false);
+    // Git's own commands still go to it, with git's options first too.
+    expect(review("--attr-source", "HEAD", "rev-parse", "HEAD").status).toBe(0);
+  });
+
   it("refuses to run in a repository other than the checkout, whose config would be its own", () => {
     const { repo, reviewGit, marker } = setUp();
     const nested = join(repo, "nested");
