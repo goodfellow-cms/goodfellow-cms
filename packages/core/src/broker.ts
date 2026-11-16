@@ -497,9 +497,14 @@ export function serveBackend(port: BrokerPort, backend: GitBackend, options: Ser
       const inner = shape.sync[method];
       const [then, thenArgs] = call.then ?? ["", []];
       if (!inner.methods?.includes(then)) throw new BrokerRefusedError("not-here", "The broker doesn't offer that.");
-      await options.check?.({ path: `${name}.${then}`, args: [...args, ...thenArgs], target });
-      const made = (target[method] as (...a: unknown[]) => Record<string, unknown>).apply(target, args);
-      return (made[then] as (...a: unknown[]) => unknown).apply(made, thenArgs);
+      // Checked as one call, the factory's arguments then its method's, and made with what the check gives back.
+      const checked = await options.check?.({ path: `${name}.${then}`, args: [...args, ...thenArgs], target });
+      const all = checked?.args ?? [...args, ...thenArgs];
+      const made = (target[method] as (...a: unknown[]) => Record<string, unknown>).apply(
+        target,
+        all.slice(0, args.length),
+      );
+      return (made[then] as (...a: unknown[]) => unknown).apply(made, all.slice(args.length));
     }
     const checked = await options.check?.({ path: name, args: [...args], target });
     const callArgs = checked?.args ?? args;

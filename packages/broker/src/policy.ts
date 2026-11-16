@@ -124,7 +124,7 @@ const UNASKED: Record<string, readonly ArgKind[]> = {
   ...Object.fromEntries(Object.entries(READS).map(([name, kinds]) => [`draft.store.${name}`, kinds])),
   "scheduledBuilds.timing": [],
   // Schedules follow what's published, whoever asks.
-  "scheduledBuilds.sync": ["value"],
+  "scheduledBuilds.sync": ["value", "value"],
   "tasks.supported": [],
   "tasks.secretsPlace": [],
   // Comments: finding their repository, reading them, and moderating in ways that can be undone, by GraphQL's ids.
@@ -145,8 +145,12 @@ function isRepository(value: unknown): boolean {
   return parts.length === 2 && parts.every((part) => /^[\w.-]+$/.test(part) && part !== "." && part !== "..");
 }
 
-/** Whether an unasked call's arguments are what its backend may put in an address. */
+/**
+ * Whether an unasked call's arguments are what its backend may put in an address: no more than it lists, so none can
+ * move another into a checked place, as an extra argument to `filesAt()` would move its method's path.
+ */
 function argsFit(kinds: readonly ArgKind[], args: unknown[]): boolean {
+  if (args.length > kinds.length) return false;
   return kinds.every((kind, index) => {
     const value = args[index];
     switch (kind) {
