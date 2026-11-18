@@ -70,8 +70,9 @@ function codePoint(hex: string): string {
 export function cssImageSetStrings(text: string): string[] {
   const values: string[] = [];
   const imageSet = /image-set\(/iy;
-  // The lookahead takes the spaces too, or `url( "…")` would read as unquoted after none of them.
-  const url = /url\((?!\s*["'])\s*/iy;
+  // The lookahead takes the spaces too, or `url( "…")` would read as unquoted after none of them. CSS's whitespace is
+  // only these five, so a non-breaking space starts an unquoted address, as browsers read it.
+  const url = /url\((?![ \t\r\n\f]*["'])[ \t\r\n\f]*/iy;
   /**
    * Where the string starting at `at` ends: after its closing quote, or at a
    * line break that isn't escaped, which ends a string in CSS too.
@@ -83,7 +84,8 @@ export function cssImageSetStrings(text: string): string[] {
       const char = text.charAt(end);
       if (char === quote) return end + 1;
       if (char === "\n" || char === "\r" || char === "\f") return end;
-      end += char === "\\" ? 2 : 1;
+      // An escaped line break continues the string, and CSS reads "\r\n" as one.
+      end += char === "\\" ? (text.startsWith("\r\n", end + 1) ? 3 : 2) : 1;
     }
     return end;
   };

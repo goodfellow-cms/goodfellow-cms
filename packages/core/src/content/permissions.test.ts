@@ -123,6 +123,26 @@ describe("editors' permissions", () => {
     ]);
     const first = [write("content/pages/es/2026.json", page("2026", { translationOf: "/news/2026" }))];
     expect(outsideLimits(await limitsContent(source, first), news, first)).toEqual([]);
+    // Deleting a translation reads the page it translated, as the page was.
+    const deleted = [{ path: "content/pages/es/noticias.json", delete: true as const }];
+    expect(outsideLimits(await limitsContent(source, deleted), news, deleted)).toEqual([]);
+    expect(outsideLimits(content, news, deleted)).toEqual([]);
+  });
+
+  it("find the page a translation names in either of its files, and a regional language's pages", async () => {
+    const regional = memorySource({
+      "content/site.json": { version: 1, title: "Parish", language: "en", languages: [{ code: "pt-BR" }] },
+      "content/pages/index.json": page("Home"),
+      "content/pages/events/index.json": page("Events"),
+      "content/pages/pt-br/eventos.json": page("Eventos", { translationOf: "/events" }),
+    });
+    const events = { pages: ["/events"] };
+    const again = [write("content/pages/pt-br/outros.json", page("Outros", { translationOf: "/events" }))];
+    expect(outsideLimits(await limitsContent(regional, again), events, again)).toEqual([
+      { path: "content/pages/pt-br/outros.json", kind: "page", address: "/pt-br/outros" },
+    ]);
+    const edited = [write("content/pages/pt-br/eventos.json", page("Eventos!", { translationOf: "/events" }))];
+    expect(outsideLimits(await limitsContent(regional, edited), events, edited)).toEqual([]);
   });
 
   it("find each change outside someone's limits", async () => {

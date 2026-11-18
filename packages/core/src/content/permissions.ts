@@ -370,30 +370,46 @@ async function translationFiles(
   source: ContentSource,
   settings: SiteSettings,
   changes: readonly FileChange[],
-  read: ReadonlySet<string>,
+  stored: ReadonlyMap<string, string>,
 ): Promise<string[]> {
   const main = mainLanguage(settings);
   const files = new Set<string>();
   const languages = new Set<string>();
   for (const change of changes) {
     if (!change.path.startsWith(`${PAGES_DIR}/`) || !change.path.endsWith(".json")) continue;
-    const translationOf = parsedJson(changedText(change))?.translationOf;
-    if (typeof translationOf !== "string") continue;
     let language: string;
     try {
       language = pathLanguage(settings, pageFileToPath(change.path));
-      if (language === main) continue;
-      files.add(pagePathToFile(translationOf));
-      files.add(pagePathToFile(languagePrefix(language)));
     } catch {
       continue;
     }
-    languages.add(language);
+    if (language === main) continue;
+    // The page as it is and as the change leaves it, since either may translate one: a deletion is checked as it was.
+    for (const text of [stored.get(change.path), changedText(change)]) {
+      const translationOf = parsedJson(text)?.translationOf;
+      if (typeof translationOf !== "string") continue;
+      for (const file of pageFiles(translationOf)) files.add(file);
+      languages.add(language);
+    }
   }
   for (const language of languages) {
-    for (const file of await source.list(`${PAGES_DIR}/${language}`)) if (file.endsWith(".json")) files.add(file);
+    // Page folders are named by the language's address, which is in lower case, as `pt-br` for `pt-BR`.
+    const prefix = languagePrefix(language);
+    for (const file of pageFiles(prefix)) files.add(file);
+    for (const file of await source.list(`${PAGES_DIR}${prefix}`)) if (file.endsWith(".json")) files.add(file);
   }
-  return [...files].filter((file) => !read.has(file));
+  return [...files].filter((file) => !stored.has(file));
+}
+
+/** The files a page at `path` can be in: `news.json`, or `news/index.json`. */
+function pageFiles(path: string): string[] {
+  let file: string;
+  try {
+    file = pagePathToFile(path);
+  } catch {
+    return [];
+  }
+  return path === "/" || file === `${PAGES_DIR}/index.json` ? [file] : [file, file.replace(/\.json$/, "/index.json")];
 }
 
 /**
@@ -426,7 +442,12 @@ export async function limitsContent(source: ContentSource, changes: readonly Fil
     (siteText !== undefined && read(parseContentFile("site", siteSettingsSchema, SITE_FILE, siteText))) ||
     siteSettingsSchema.parse({ version: 1 });
   // A translation counts only where the page it names is there and no other page in its language names it.
-  const translated = await translationFiles(source, settings, changes, new Set(pageFiles));
+  const translated = await translationFiles(
+    source,
+    settings,
+    changes,
+    new Map(pageFiles.flatMap((file) => (texts.has(file) ? [[file, texts.get(file) ?? ""] as const] : []))),
+  );
   const more = translated.length === 0 ? new Map<string, string>() : await readTextFiles(source, translated);
   const pages = [...pageFiles, ...translated].flatMap((file): Page[] => {
     const text = texts.get(file) ?? more.get(file);

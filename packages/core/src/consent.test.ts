@@ -328,6 +328,7 @@ describe("held-back head code", () => {
     expect(held(`<style>a { background: url(/media/x'y.png) } ${later}</style>`)).toBe(true);
     expect(held(`<style>a { content: 'x\n} ${later} c { content: '}</style>`)).toBe(true);
     expect(held(`<style>a { background: url( "/media/x)y.png") } ${later}</style>`)).toBe(true);
+    expect(held(`<style>a { background: url(\u00a0'/media/x.png) } ${later}</style>`)).toBe(true);
     expect(held('<base href="https://elsewhere.example.com/">')).toBe(true);
     expect(held('<meta http-equiv="Refresh" content="0; url=https://elsewhere.example.com/">')).toBe(true);
     // What loads only from the site, or nothing, stays.
