@@ -302,13 +302,17 @@ function fillHtml(text: string, values: Values): string {
       case "attribute":
         if (char === ">") endTag();
         else if (char === "=") state = "beforeValue";
-        else if (isHtmlSpace(char) || char === "/") state = "after";
+        // A `/` ends the tag only before its `>`; anything else after it starts an attribute's name, even an `=`, as
+        // in `<img x /="…">`, whose `="…` is an attribute's name, not `x`'s value.
+        else if (char === "/") state = "before";
+        else if (isHtmlSpace(char)) state = "after";
         else attribute += char;
         break;
       case "after":
         if (char === ">") endTag();
         else if (char === "=") state = "beforeValue";
-        else if (!isHtmlSpace(char) && char !== "/") {
+        else if (char === "/") state = "before";
+        else if (!isHtmlSpace(char)) {
           attribute = char;
           state = "attribute";
         }

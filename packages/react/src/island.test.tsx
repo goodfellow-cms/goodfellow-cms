@@ -265,7 +265,8 @@ describe("fillSlots", () => {
       expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
     }
     // Straight before the template, where a tag read too far would take its start tag.
-    for (const code of [`<p title=x=">`, `</div title="><template>">`]) {
+    // After a /, an = starts an attribute's name, so `="` is a name, not a value, and the tag ends at its >.
+    for (const code of [`<p title=x=">`, `</div title="><template>">`, `<p x /=">`, `<p x/=">`]) {
       const before = `<gf-island>${slot("a.0")}</gf-island>${code}<template data-gf-slot="a.0"><b>Passed</b></template>`;
       expect(fillSlots(before), code).toBe(`${filled}${code}`);
     }

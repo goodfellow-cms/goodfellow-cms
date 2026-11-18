@@ -186,6 +186,11 @@ describe("filling in an item's values", () => {
     expect(fill(joined, { base: "T", path: "alert(1)" })).toBe(
       "<script><!--<script>\n// </script>\n\n</script><p>alert(1)</p>",
     );
+    // After a /, even an = starts an attribute's name, so here onerror is an attribute of its own.
+    expect(fill('<img src=x x /=" onerror={path} ">', { path: "alert(1)" })).toBe('<img src=x x /=" onerror= ">');
+    expect(fill('<img src=x x/=" onerror={path} ">', { path: "alert(1)" })).toBe('<img src=x x/=" onerror= ">');
+    // And in an end tag, which ends at its first > here, after which a value is text.
+    expect(fill('<script></script x /=">{path}">', { path: "&" })).toBe('<script></script x /=">&amp;">');
     // And its end tag written with a value left out of it is read whole, so nothing in it is read again as text.
     expect(fill("<script>/* <{base}/script> */{path}</script><p>{path}</p>", { base: "", path: "alert(1)" })).toBe(
       "<script>/* </script> */alert(1)</script><p>alert(1)</p>",

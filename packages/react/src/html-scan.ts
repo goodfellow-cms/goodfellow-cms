@@ -111,12 +111,15 @@ export function tagEnd(html: string, from: number): number {
       case "name":
         if (char === ">") return j;
         if (char === "=") state = "beforeValue";
-        else if (isHtmlSpace(char) || char === "/") state = "after";
+        // After a `/`, even an `=` starts an attribute's name.
+        else if (char === "/") state = "before";
+        else if (isHtmlSpace(char)) state = "after";
         break;
       case "after":
         if (char === ">") return j;
         if (char === "=") state = "beforeValue";
-        else if (!isHtmlSpace(char) && char !== "/") state = "name";
+        else if (char === "/") state = "before";
+        else if (!isHtmlSpace(char)) state = "name";
         break;
       case "beforeValue":
         if (isHtmlSpace(char)) break;
