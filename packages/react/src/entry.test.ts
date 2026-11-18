@@ -145,9 +145,20 @@ describe("filling in an item's values", () => {
     expect(fill('<a href="webcal://example.org/{path}.ics">Add</a>', { path: "events" })).toBe(
       '<a href="webcal://example.org/events.ics">Add</a>',
     );
-    // Straight after a `<`, a value would be the tag's name, or start a comment.
-    expect(fill("<p>1<{path}></p>", { path: "img src=x onerror=alert(1)" })).toBe("<p>1<></p>");
-    expect(fill("<p><!{path}</p>", { path: "--" })).toBe("<p><!</p>");
+    // Straight after a `<`, a value would be the tag's name, or start a comment, and so would leaving it out: it's
+    // left out, and the `<` written as text.
+    expect(fill("<p>1<{path}></p>", { path: "img src=x onerror=alert(1)" })).toBe("<p>1&lt;></p>");
+    expect(fill("<p><!{path}</p>", { path: "--" })).toBe("<p>&lt;!</p>");
+    expect(fill("<{path}img src=x onerror={path}>", { path: "alert(1)" })).toBe("&lt;img src=x onerror=alert(1)>");
+    expect(fill('<!-{path}- > <a title="--> <img src=x onerror={path}> ">', { path: "-" })).toBe(
+      // The value goes in the title, as a browser reads it: the <img> is the title's text.
+      '&lt;!-- > <a title="--> <img src=x onerror=-> ">',
+    );
+    // Once the `<` is text, what follows is read as text too, never as the comment it no longer starts.
+    expect(fill('<!{path}<a href="{path}">Go</a>', { path: "javascript:alert(1)" })).toBe('&lt;!<a href="">Go</a>');
+    expect(fill('</{path}a title="> <img src=x onerror={path}>">', { path: "alert(1)" })).toBe(
+      '&lt;/a title="> <img src=x onerror=>">',
+    );
     expect(fill("<p>{path} < 2</p>", { path: "1" })).toBe("<p>1 < 2</p>");
     // A comment ends at --!>, and at a > straight after <!-- or <!---, so what follows is markup again.
     for (const comment of ["<!-- x --!>", "<!-->", "<!--->", "<!----!>"]) {
@@ -170,6 +181,15 @@ describe("filling in an item's values", () => {
     // A script's end tag inside a comment's <script> is still the script's text.
     const escaped = "<script><!--<script>\n// </script>\n{path}\n</script>";
     expect(fill(escaped, { path: "alert(1)" })).toBe(escaped.replace("{path}", ""));
+    // Where a script ends is read from the text as written: leaving a value out here writes that <script>.
+    const joined = "<script><!--<scr{base}ipt>\n// </script>\n{path}\n</script><p>{path}</p>";
+    expect(fill(joined, { base: "T", path: "alert(1)" })).toBe(
+      "<script><!--<script>\n// </script>\n\n</script><p>alert(1)</p>",
+    );
+    // And a text area's: its end tag written with a value left out of it is still its end.
+    expect(fill('<textarea></text{base}area><a href="{path}">x</a>', { base: "", path: "javascript:alert(1)" })).toBe(
+      '<textarea></textarea><a href="">x</a>',
+    );
     expect(fill("<script><!-- x --></script><p>{path}</p>", { path: "it's" })).toBe(
       "<script><!-- x --></script><p>it&#39;s</p>",
     );

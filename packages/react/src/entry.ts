@@ -111,19 +111,21 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
  * HTML a block shows as it is, such as Custom HTML's, with an item's values put in where its placeholders are, each
  * by where it sits in the owners' HTML: escaped between tags and in attributes' values, and in an address that's
  * followed or loaded only where the whole address is a safe one. Where no escaping would keep a value from being
- * markup or script, in a tag outside an attribute's value, just after a `<`, an `on…` handler, `srcdoc`, the address of
- * a script, or a script or style, it's left out, as is every value after an `<svg>` or `<math>`, whose markup browsers
- * read by rules of their own.
+ * markup or script, in a tag outside an attribute's value, just after a `<` (written as text), an `on…` handler,
+ * `srcdoc`, the address of a script, or a script or style, it's left out, as is every value after an `<svg>` or
+ * `<math>`, whose markup browsers read by rules of their own.
  */
 function fillHtml(text: string, values: Values): string {
   type State = "text" | "comment" | "bogus" | "tag" | "before" | "attribute" | "after" | "beforeValue" | "value";
-  const lower = asciiLower(text);
   let state: State = "text";
   let out = "";
   let tag = "";
   let closing = false;
   let attribute = "";
   let quote = "";
+  // Where in `out` the `<` that ends the text before it is, until a browser has read enough after it to know what it
+  // starts: a tag, an end tag, a comment, or text.
+  let opener = -1;
   // Where the comment being read starts, past its `<!--`, since `--!>` ends it only with dashes of its own.
   let commentBody = 0;
   // Once SVG or MathML starts, whose markup browsers read by other rules, such as `<title>` holding tags and
@@ -143,17 +145,39 @@ function fillHtml(text: string, values: Values): string {
     out += attributeValue(tag, attribute, parts);
     parts = [];
   };
-  /** The text of a raw-text element, straight after its start tag: values escaped in a text area or title, else none. */
+  /**
+   * The text of a raw-text element, straight after its start tag: values escaped in a text area or title, else none.
+   * It ends where a browser ends it in the text as written, values in, not as the owners wrote it: leaving `{x}` out of
+   * `<!--<scr{x}ipt>` writes the `<script>` that keeps a script's next `</script>` in it.
+   */
   const rawText = () => {
     const name = tag.toLowerCase();
-    const end = rawTextEnd(lower, name, i);
-    const content = text.slice(i, end === -1 ? text.length : end);
-    out += content.replace(PLACEHOLDER, (whole, key: string) => {
-      const value = values.get(key);
-      if (value === undefined) return whole;
-      return name === "textarea" || name === "title" ? escapeHtml(value) : "";
-    });
-    i = end === -1 ? text.length : end;
+    const escapes = name === "textarea" || name === "title";
+    let filled = "";
+    // Where each run of the text as written starts, and where in the owners' text it came from.
+    const runs: [number, number][] = [];
+    let from = i;
+    for (const match of text.slice(i).matchAll(PLACEHOLDER)) {
+      const value = values.get(match[1] ?? "");
+      if (value === undefined) continue;
+      const start = i + (match.index ?? 0);
+      runs.push([filled.length, from]);
+      filled += text.slice(from, start) + (escapes ? escapeHtml(value) : "");
+      from = start + match[0].length;
+    }
+    runs.push([filled.length, from]);
+    filled += text.slice(from);
+    const end = rawTextEnd(asciiLower(filled), name, 0);
+    if (end === -1) {
+      out += filled;
+      i = text.length;
+      return;
+    }
+    out += filled.slice(0, end);
+    // The end tag's `<` is the owners' own, since no value written here holds one: it's in the last run starting by it.
+    let run: [number, number] = [0, from];
+    for (const candidate of runs) if (candidate[0] <= end) run = candidate;
+    i = run[1] + (end - run[0]);
   };
   const endTag = () => {
     state = "text";
@@ -172,10 +196,14 @@ function fillHtml(text: string, values: Values): string {
     }
     if (match && value !== undefined) {
       if (state === "beforeValue") startValue("");
-      // Just after a `<`, `<!`, `<?` or `</`, a value would name a tag, or start a comment.
-      const opensTag = (state === "text" || state === "bogus") && /<[!?/]?$/.test(out);
-      if (inValue()) parts.push({ text: value, value: true });
-      else if (!opensTag && (state === "text" || state === "comment" || state === "bogus")) out += escapeHtml(value);
+      // Just after a `<`, `<!`, `<!-`, `<?` or `</`, a value, or leaving it out, would decide what the `<` starts, such
+      // as `<{x}img` an image's tag, or `<!-{x}-` a comment where the owners' HTML reads as one ending at the next `>`.
+      // So it's left out, and the `<` written as text.
+      if ((state === "text" || state === "bogus") && opener >= 0 && /^<(?:[?/]|!-?)?$/.test(out.slice(opener))) {
+        out = `${out.slice(0, opener)}&lt;${out.slice(opener + 1)}`;
+        state = "text";
+      } else if (inValue()) parts.push({ text: value, value: true });
+      else if (state === "text" || state === "comment" || state === "bogus") out += escapeHtml(value);
       i += match[0].length;
       continue;
     }
@@ -203,6 +231,7 @@ function fillHtml(text: string, values: Values): string {
     switch (state) {
       case "text":
         if (char !== "<") break;
+        opener = out.length - 1;
         if (text.startsWith("!--", i)) {
           out += "!--";
           i += 3;
@@ -222,8 +251,8 @@ function fillHtml(text: string, values: Values): string {
         }
         break;
       case "comment":
-        // `-->` ends a comment, as does a `>` straight after `<!--` or `<!---`, which ends in `-->` too; `--!>` does only
-        // with dashes after the `<!--`, so `<!--!>` and `<!---!>` go on.
+        // `-->` ends a comment, as does a `>` straight after `<!--` or `<!---`, which ends in `-->` too; `--!>` does
+        // only with dashes after the `<!--`, so `<!--!>` and `<!---!>` go on.
         if (char === ">" && (out.endsWith("-->") || (out.endsWith("--!>") && out.length - 4 >= commentBody))) {
           state = "text";
         }
