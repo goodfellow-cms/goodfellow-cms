@@ -61,6 +61,10 @@ const NAMED: Record<string, string> = {
   quest: "?",
   num: "#",
   amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
   Tab: "\t",
   NewLine: "\n",
 };
@@ -93,12 +97,18 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
   if (name.startsWith("on") || name === "srcdoc") return owners();
   if (CODE_ADDRESSES.has(`${tag.toLowerCase()} ${name}`)) return owners();
   if (ADDRESS_ATTRIBUTES.has(name)) {
-    let address = "";
+    // Read as the browser reads what's written, all of it at once, since a reference the owners start can end in a
+    // value, as `javascript&#5` and `8;…` write `&#58;`, a colon.
+    let written = "";
     let firstValue = -1;
     for (const part of parts) {
-      if (part.value && part.text !== "" && firstValue === -1) firstValue = address.length;
-      address += part.value ? part.text : decodeAttribute(part.text);
+      if (part.value && part.text !== "" && firstValue === -1) {
+        // A value straight after a reference that may not have ended yet helps spell it.
+        firstValue = decodeAttribute(written.replace(/&[#a-z0-9]*$/i, "")).length;
+      }
+      written += part.value ? escapeAttribute(part.text) : part.text;
     }
+    const address = decodeAttribute(written);
     // The scheme is settled by the first character that ends it; a value before then helps spell it.
     const settled = address.search(/[:/?#]/);
     const spells = firstValue !== -1 && (settled === -1 || firstValue <= settled);
@@ -142,7 +152,9 @@ function fillHtml(text: string, values: Values): string {
     parts = [];
   };
   const endValue = () => {
-    out += attributeValue(tag, attribute, parts);
+    const value = attributeValue(tag, attribute, parts);
+    // An unquoted value left empty is written `""`, or the browser would take what follows it for the value.
+    out += !quote && value === "" ? '""' : value;
     parts = [];
   };
   /**
@@ -151,6 +163,21 @@ function fillHtml(text: string, values: Values): string {
    * leaving `{x}` out of `<!--<scr{x}ipt>` writes the `<script>` that keeps a script's next `</script>` in it, and
    * leaving it out of `</scr{x}ipt>` writes the end tag, which is read whole here, so none of it is read again as text.
    */
+  // The next placeholder with a value at or after `aheadFrom`, kept between raw-text elements, so a page of many of
+  // them, with its next value far after them, isn't searched to that value again for each one.
+  const ahead = new RegExp(PLACEHOLDER.source, "g");
+  let aheadFrom = -1;
+  let aheadMatch: RegExpExecArray | null = null;
+  const valueAfter = (from: number): RegExpExecArray | null => {
+    if (aheadFrom !== -1 && aheadFrom <= from && (aheadMatch === null || aheadMatch.index >= from)) return aheadMatch;
+    ahead.lastIndex = from;
+    let found: RegExpExecArray | null;
+    do found = ahead.exec(text);
+    while (found && values.get(found[1] ?? "") === undefined);
+    aheadFrom = from;
+    aheadMatch = found;
+    return found;
+  };
   const rawText = () => {
     const name = tag.toLowerCase();
     const escapes = name === "textarea" || name === "title";
@@ -158,12 +185,9 @@ function fillHtml(text: string, values: Values): string {
     // Where each run of the text as written starts, and where in the owners' text it came from.
     const runs: [number, number][] = [];
     let from = i;
-    const next = new RegExp(PLACEHOLDER.source, "g");
     let match: RegExpExecArray | null = null;
     const nextValue = () => {
-      next.lastIndex = from;
-      do match = next.exec(text);
-      while (match && values.get(match[1] ?? "") === undefined);
+      match = valueAfter(from);
     };
     nextValue();
     // Filled a little at a time, twice as much each time, so a long document's text isn't filled once for each

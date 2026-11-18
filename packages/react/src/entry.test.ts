@@ -85,7 +85,7 @@ describe("filling in an item's values", () => {
       "data:text/html,x",
     ]) {
       expect(fill('<iframe src="{title}"></iframe>', address)).toBe('<iframe src=""></iframe>');
-      expect(fill("<a href={title}>Go</a>", address)).toBe("<a href=>Go</a>");
+      expect(fill("<a href={title}>Go</a>", address)).toBe('<a href="">Go</a>');
     }
     expect(fill('<iframe src="{title}"></iframe>', "https://www.youtube-nocookie.com/embed/x")).toBe(
       '<iframe src="https://www.youtube-nocookie.com/embed/x"></iframe>',
@@ -132,7 +132,17 @@ describe("filling in an item's values", () => {
       }).content[0]?.props.html;
     // Two values, or a value and the owners' text, can spell a scheme neither does alone.
     expect(fill('<a href="{base}{path}">Go</a>', { base: "java", path: "script:alert(1)" })).toBe('<a href="">Go</a>');
-    expect(fill("<a href={base}{path}>Go</a>", { base: "java", path: "script:alert(1)" })).toBe("<a href=>Go</a>");
+    expect(fill("<a href={base}{path}>Go</a>", { base: "java", path: "script:alert(1)" })).toBe('<a href="">Go</a>');
+    // An unquoted value left empty is written "", so what follows it stays an attribute of its own.
+    expect(fill('<a href={path} class="card" title={path}>Go</a>', { path: "custom:example" })).toBe(
+      '<a href="" class="card" title=custom:example>Go</a>',
+    );
+    // A reference the owners start and a value ends is read as the browser reads it, as one.
+    expect(fill('<a href="javascript&#5{path}">Go</a>', { path: "8;alert(1)" })).toBe('<a href="javascript&#5">Go</a>');
+    expect(fill('<a href="javascript&colo{path}">Go</a>', { path: "n;alert(1)" })).toBe(
+      '<a href="javascript&colo">Go</a>',
+    );
+    expect(fill('<a href="/news&#5{path}">Go</a>', { path: "8;x" })).toBe('<a href="/news&#58;x">Go</a>');
     expect(fill('<a href="{base}script:alert(1)">Go</a>', { base: "java" })).toBe('<a href="script:alert(1)">Go</a>');
     expect(fill('<a href="{base}&#58;alert(1)">Go</a>', { base: "javascript" })).toBe('<a href="&#58;alert(1)">Go</a>');
     expect(fill('<a href="{base}&colon;alert(1)">Go</a>', { base: "javascript" })).toBe(
@@ -157,7 +167,7 @@ describe("filling in an item's values", () => {
     // Once the `<` is text, what follows is read as text too, never as the comment it no longer starts.
     expect(fill('<!{path}<a href="{path}">Go</a>', { path: "javascript:alert(1)" })).toBe('&lt;!<a href="">Go</a>');
     expect(fill('</{path}a title="> <img src=x onerror={path}>">', { path: "alert(1)" })).toBe(
-      '&lt;/a title="> <img src=x onerror=>">',
+      '&lt;/a title="> <img src=x onerror="">">',
     );
     expect(fill("<p>{path} < 2</p>", { path: "1" })).toBe("<p>1 < 2</p>");
     // A comment ends at --!>, and at a > straight after <!-- or <!---, so what follows is markup again.
@@ -169,7 +179,7 @@ describe("filling in an item's values", () => {
     // But <!--!> and <!---!> don't end one: their --!> takes the opening's dashes, so the next --> does.
     for (const comment of ["<!--!>", "<!---!>"]) {
       expect(fill(`${comment} <a title="--> <img src=x onerror={path}> ">`, { path: "alert(1)" })).toBe(
-        `${comment} <a title="--> <img src=x onerror=> ">`,
+        `${comment} <a title="--> <img src=x onerror=""> ">`,
       );
     }
     // Only HTML's whitespace ends an unquoted value: U+00A0 doesn't, so this is still the handler.
@@ -187,8 +197,8 @@ describe("filling in an item's values", () => {
       "<script><!--<script>\n// </script>\n\n</script><p>alert(1)</p>",
     );
     // After a /, even an = starts an attribute's name, so here onerror is an attribute of its own.
-    expect(fill('<img src=x x /=" onerror={path} ">', { path: "alert(1)" })).toBe('<img src=x x /=" onerror= ">');
-    expect(fill('<img src=x x/=" onerror={path} ">', { path: "alert(1)" })).toBe('<img src=x x/=" onerror= ">');
+    expect(fill('<img src=x x /=" onerror={path} ">', { path: "alert(1)" })).toBe('<img src=x x /=" onerror="" ">');
+    expect(fill('<img src=x x/=" onerror={path} ">', { path: "alert(1)" })).toBe('<img src=x x/=" onerror="" ">');
     // And in an end tag, which ends at its first > here, after which a value is text.
     expect(fill('<script></script x /=">{path}">', { path: "&" })).toBe('<script></script x /=">&amp;">');
     // And its end tag written with a value left out of it is read whole, so nothing in it is read again as text.
@@ -198,6 +208,9 @@ describe("filling in an item's values", () => {
     expect(fill("<script></scr{base}ipt>{path}</script>", { base: "", path: "<b>" })).toBe(
       "<script></script>&lt;b&gt;</script>",
     );
+    // Many raw-text elements before a page's only value are each read once.
+    const many = `${"<script>x</script>".repeat(20000)}<p>{path}</p>`;
+    expect(fill(many, { path: "&" })).toBe(`${"<script>x</script>".repeat(20000)}<p>&amp;</p>`);
     // A long document is read, a little more at a time, through each element's end.
     const long = `${"<script>x</script><p>{path}</p>".repeat(3000)}<script>${"y".repeat(5000)}{path}</script>{path}`;
     expect(fill(long, { path: "&" })).toBe(
@@ -217,7 +230,7 @@ describe("filling in an item's values", () => {
     expect(fill("<title>{path}</title>", { path: "<b>&" })).toBe("<title>&lt;b&gt;&amp;</title>");
     // A bogus comment ends at its first >, so what follows is markup again.
     expect(fill('<!x <a title="> <a href={path}>Go</a>', { path: "javascript:alert(1)" })).toBe(
-      '<!x <a title="> <a href=>Go</a>',
+      '<!x <a title="> <a href="">Go</a>',
     );
     expect(fill('<? x > <a href="{path}">', { path: "javascript:alert(1)" })).toBe('<? x > <a href="">');
     // Straight after a value, an = starts another attribute's name, not this one's value.

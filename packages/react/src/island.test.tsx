@@ -261,6 +261,14 @@ describe("fillSlots", () => {
       `<p title=x=">`,
       // A letter whose lowercase is longer, which mustn't move what comes after it.
       "<p>İ</p>",
+      // In SVG and MathML a title or text area is an element like any other, unless an integration point or a tag
+      // that ends them makes it HTML's again.
+      "<svg><title/></svg>",
+      "<math><textarea></math>",
+      "<svg><foreignObject><textarea><template></textarea></foreignObject></svg>",
+      "<svg><foreignObject><textarea></foreignObject></svg><template></textarea>",
+      "<svg><desc><title><template></title></desc></svg>",
+      "<svg><p><title><template></title>",
     ]) {
       expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
     }

@@ -226,6 +226,20 @@ export function island<T>(component: T, module: string, name: string): T {
   return Island as T;
 }
 
+/** Where in SVG and MathML a browser reads the content by HTML's rules again: their HTML integration points. */
+const INTEGRATION_POINTS: Record<string, Set<string>> = {
+  svg: new Set(["foreignobject", "desc", "title"]),
+  math: new Set(["mi", "mo", "mn", "ms", "mtext"]),
+};
+
+/** Start tags that end SVG and MathML where they're met in them, as the standard's foreign content rules say. */
+const BREAKS_OUT = new Set(
+  (
+    "b big blockquote body br center code dd div dl dt em embed h1 h2 h3 h4 h5 h6 head hr i img li listing menu " +
+    "meta nobr ol p pre ruby s small span strong strike sub sup table tt u ul var"
+  ).split(" "),
+);
+
 /** A template React wrote for an island's content: exactly this, as `island()` renders it. */
 const SLOT_TEMPLATE = /^<template data-gf-slot="([^"]+)">$/;
 
@@ -242,6 +256,13 @@ function topLevelSlots(html: string) {
   const lower = asciiLower(html);
   let depth = 0;
   let open: { id: string; start: number; innerStart: number } | undefined;
+  // The SVG and MathML open, and the integration points open in them, innermost last: in SVG or MathML, a `<title>`
+  // or `<textarea>` is an element like any other, whose content is markup.
+  const foreign: Array<{ kind: "svg" | "math" | "html"; name: string }> = [];
+  const inForeign = () => {
+    const top = foreign.at(-1);
+    return top !== undefined && top.kind !== "html";
+  };
   let i = html.indexOf("<");
   while (i !== -1) {
     if (html.startsWith("<!--", i)) {
@@ -269,6 +290,8 @@ function topLevelSlots(html: string) {
     if (close === -1) break;
     const end = close + 1;
     if (closing) {
+      const at = foreign.findLastIndex((frame) => frame.name === name);
+      if (at !== -1) foreign.length = at;
       if (name === "template" && depth > 0) {
         depth--;
         if (depth === 0 && open) {
@@ -276,6 +299,22 @@ function topLevelSlots(html: string) {
           open = undefined;
         }
       }
+      i = html.indexOf("<", end);
+      continue;
+    }
+    const selfClosing = html[close - 1] === "/";
+    if (inForeign() && BREAKS_OUT.has(name)) {
+      while (inForeign()) foreign.pop();
+    }
+    if (inForeign()) {
+      const top = foreign.at(-1);
+      if (!selfClosing && (name === "svg" || name === "math")) foreign.push({ kind: name, name });
+      else if (!selfClosing && top && INTEGRATION_POINTS[top.kind]?.has(name)) foreign.push({ kind: "html", name });
+      i = html.indexOf("<", end);
+      continue;
+    }
+    if (name === "svg" || name === "math") {
+      if (!selfClosing) foreign.push({ kind: name, name });
       i = html.indexOf("<", end);
       continue;
     }
