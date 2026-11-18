@@ -1,5 +1,22 @@
 # @goodfellow-cms/ai
 
+## 0.14.0
+
+### Patch Changes
+
+- fd47ba6: Claude works through the token broker again. The broker sends the AI assistant's requests from its own page, which is a browser, and Anthropic's API answers browsers only when a request says it comes from one, which `aiServer()` left out. `aiServer()` takes a `browser` option, which the broker sets.
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/core@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes

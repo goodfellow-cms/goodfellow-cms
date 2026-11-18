@@ -1,5 +1,23 @@
 # @goodfellow-cms/bitbucket
 
+## 0.14.0
+
+### Patch Changes
+
+- 31abc4e: Editors' ids, file paths, and revisions are checked before they go into GitHub's, GitLab's, and Bitbucket's addresses, so `..` can't reach another of the host's addresses. The token broker names the editor the site's own list gives an id, and makes reads only with plain paths at commits.
+- 28469ad: A full-stack site's server asks its token for a new one where GitHub, GitLab, or Bitbucket refuses the one it has, as once it's been revoked, and tries the request again, as the admin panel's sign-in already does: `GitHost.server({ token })` and `goodfellowApi({ token })` take a function that's given `{ refresh: true }` then. A token given as text is still tried once.
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/core@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # goodfellow
 
+## 0.14.0
+
+### Patch Changes
+
+- 8d24eda: A theme's list of what it loads from other sites, and the head code a site that asks visitors first holds back, now see `@import` written with no space after it, CSS escapes and `image-set()`. Editors' limits count what a page translates only for a page in another language translating one the main language has, and only one such page in each language. `goodfellow preview` answers requests only by `localhost` or an IP address, as `goodfellow dev` does, so a website can't point its own name at this computer to read it, `--network` or not; only this computer can open it, as before, unless `--network` is given, when other computers open it by this computer's IP address. WordPress exports write a Heading's alignment only where it's one WordPress has. WordPress exports, imports and pastes no longer stop at a linked file whose address has a stray `%` in it: they name it by its address as written.
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [36833de]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [7fd0470]
+- Updated dependencies [8a0f8bc]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/core@0.14.0
+  - @goodfellow-cms/admin@0.14.0
+  - @goodfellow-cms/react@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes
