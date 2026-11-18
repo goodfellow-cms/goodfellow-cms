@@ -6,7 +6,7 @@ import {
   type SiteContent,
   siteSettingsSchema,
 } from "@goodfellow-cms/core";
-import type { ComponentConfig } from "@puckeditor/core";
+import type { ComponentConfig, Slot } from "@puckeditor/core";
 import { lazy, type ReactNode, Suspense } from "react";
 import { describe, expect, it } from "vitest";
 import { ConsentFrame } from "./consent.js";
@@ -493,5 +493,93 @@ describe("renderPage", () => {
     expect(html).toContain("<h1>Easter &lt;Vigil&gt; {unknown}</h1>");
     expect(html).toContain("<p>Watch Easter &lt;Vigil&gt;</p>");
     expect(html).toContain("<time>2026-04-04</time>");
+  });
+
+  it("gives blocks saved without some settings their defaults, in slots too", async () => {
+    const Label: ComponentConfig<{ text: string; tone: string; kept?: string }> = {
+      fields: {
+        text: { type: "text" },
+        tone: { type: "text" },
+        kept: { type: "text", metadata: { noDefault: true } },
+      },
+      defaultProps: { text: "Default text", tone: "quiet", kept: "filled in" },
+      render: ({ text, tone, kept }) => <p data-tone={tone.toUpperCase()}>{`${text}|${kept ?? "left out"}`}</p>,
+    };
+    const Box: ComponentConfig<{ items: Slot; title: string }> = {
+      fields: { items: { type: "slot" }, title: { type: "text" } },
+      defaultProps: {
+        items: [{ type: "Label", props: { id: "from-defaults", text: "A default's block" } }],
+        title: "Box",
+      },
+      render: ({ items: Items, title }) => (
+        <section>
+          <h2>{title}</h2>
+          <Items />
+        </section>
+      ),
+    };
+    const render = createPageRenderer({ blocks: { ...config.blocks, Label, Box } });
+    const page = makePage([
+      { type: "Box", props: { id: "box" } },
+      { type: "Box", props: { id: "full", title: "Full", items: [{ type: "Label", props: { id: "in-slot" } }] } },
+    ]);
+    const html = await render(makeContent(), page);
+    expect(html).toContain("<h2>Box</h2>");
+    // A missing slot is empty, never the default's blocks, which have no ids of their own.
+    expect(html).not.toContain("A default&#x27;s block");
+    expect(html).not.toContain("A default's block");
+    expect(html).toContain('<p data-tone="QUIET">Default text|left out</p>');
+  });
+
+  it("leaves a block the site no longer has out, filling in its neighbours' defaults, and empties slots in defaults", async () => {
+    const Label: ComponentConfig<{ text: string }> = {
+      fields: { text: { type: "text" } },
+      defaultProps: { text: "Known" },
+      render: ({ text }) => <p>{text}</p>,
+    };
+    const Box: ComponentConfig<{ items: Slot }> = {
+      fields: { items: { type: "slot" } },
+      render: ({ items: Items }) => (
+        <section>
+          <Items />
+        </section>
+      ),
+    };
+    const Panel: ComponentConfig<{ inner: { body: Slot; note: string } }> = {
+      fields: { inner: { type: "object", objectFields: { body: { type: "slot" }, note: { type: "text" } } } },
+      defaultProps: {
+        inner: { body: [{ type: "Label", props: { id: "in-default", text: "Inside a default" } }], note: "A note" },
+      },
+      render: ({ inner }) => {
+        const Body = inner.body as unknown as () => ReactNode;
+        return (
+          <aside>
+            {inner.note}
+            <Body />
+          </aside>
+        );
+      },
+    };
+    const render = createPageRenderer({ blocks: { ...config.blocks, Label, Box, Panel } });
+    const html = await render(
+      makeContent(),
+      makePage([
+        {
+          type: "Box",
+          props: {
+            id: "b",
+            items: [
+              { type: "Gone", props: { id: "g" } },
+              { type: "Label", props: { id: "l" } },
+            ],
+          },
+        },
+        { type: "Gone", props: { id: "top" } },
+        { type: "Panel", props: { id: "p" } },
+      ]),
+    );
+    expect(html).toContain("<section><div><p>Known</p></div></section>");
+    expect(html).toContain("<aside>A note");
+    expect(html).not.toContain("Inside a default");
   });
 });

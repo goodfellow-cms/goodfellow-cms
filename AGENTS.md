@@ -1262,12 +1262,14 @@ Content files are the product's data format; treat changes to them like API chan
   custom CSS and code, collections' `_collection.json`, installed blocks' code). Editors also may not change blocks'
   settings marked `metadata: { owners: true }` (`isOwnersOnlyField()`, such as Custom HTML's `sanitize`):
   `goodfellowApi()` passes `ownersOnlyFields(config.blocks)` as `AppApiOptions.ownersOnly`, and `ownersOnlyChanges()`
-  refuses a write where such a value changed on a block, by id, or a new block's isn't its default; the editor's frame
-  shows them read-only (`withOwnersOnlyLocked()`, `EditorOpen.ownersOnlyLocked`). An owners-only setting that isn't its
-  starting value makes the block the owners' whole (any other change to it is refused), two blocks with one id count as
-  a change (`checkPuckData()` refuses them too), and pages sent as bytes are read as text (`toFileChange()`). The server
-  checks every write, and `review` the same way for settings and owners-only settings; the admin panel only hides what
-  editors can't do (`useCanChangeSettings()`).
+  refuses a write where such a value changed on a block, by id, as pages draw it (its starting value where it's left
+  out, since `preparePage()` fills defaults in, and `null` a value of its own), a new block's isn't its default, or a
+  block with no id that has one set otherwise and wasn't in the file before (Custom HTML uses its HTML as written only
+  where `sanitize` is `false`); the editor's frame shows them read-only (`withOwnersOnlyLocked()`,
+  `EditorOpen.ownersOnlyLocked`). An owners-only setting that isn't its starting value makes the block the owners' whole
+  (any other change to it is refused), two blocks with one id count as a change (`checkPuckData()` refuses them too),
+  and pages sent as bytes are read as text (`toFileChange()`). The server checks every write, and `review` the same way
+  for settings and owners-only settings; the admin panel only hides what editors can't do (`useCanChangeSettings()`).
 - **Never trusting the browser:** every request needs `APP_API_HEADER` and must be same-origin (`Sec-Fetch-Site`, or
   else `Origin`). Media is checked as `safeMediaChanges()` would (`unsafeMediaChanges()` in
   `@goodfellow-cms/core/server`'s `svg-check.ts`: a kind `mediaKind()` allows, and SVGs already clean by `isCleanSvg()`,
@@ -1612,6 +1614,12 @@ Content files are the product's data format; treat changes to them like API chan
 
 - **Never rename** a block's key in a site's `blocks` or any of its props. Content files refer to blocks and props by
   name, so a rename needs a content migration.
+- **Default settings:** `preparePage()` and `prepareLayout()` put each block's `defaultProps` under its saved props
+  (`withDefaultProps()` in `prepare.ts`, in slots too, in objects and lists as well, with a default's own slots empty,
+  and leaving a block the site doesn't have as it is, for Puck to leave out, where Puck's `walkTree()` would throw),
+  since Puck fills them in only when the editor adds a block, and a page written by hand, by a script or before a
+  setting existed can leave some out; blocks can count on every setting. A setting whose absence says something is
+  marked `metadata: { noDefault: true }`, such as the Table block's `format` and the Gallery's `lightbox`.
 - **CSS classes:** every block has a `className` prop. Declare `className: classNameField` and apply it to the block's
   outermost element. A block that doesn't declare it gets wrapped in a `<div>` that carries the classes.
 - **Style:** `classNameField` is the block's Style setting: a text field marked `metadata: { style: true }`
@@ -1678,9 +1686,10 @@ Content files are the product's data format; treat changes to them like API chan
   every new table's is. Tables from before have none, and their cells are plain text: `render` escapes them
   (`escapeCellText()`), and `resolveData` makes them formatted once they change or where pages are built, never on the
   editor's `load`, which would count as an unpublished change. `format` is a custom field that draws nothing, so the AI
-  assistant and the connector keep it. The editor's grid edits each cell as formatted text (`RichCell` in
-  `frame/table-field.tsx`); the content API gives the cells as rich text by `cells.<row>.<column>`, which apps draw;
-  WordPress imports and exports keep their links and formatting.
+  assistant and the connector keep it, marked `noDefault`, so pages don't give tables from before the default. The
+  editor's grid edits each cell as formatted text (`RichCell` in `frame/table-field.tsx`); the content API gives the
+  cells as rich text by `cells.<row>.<column>`, which apps draw; WordPress imports and exports keep their links and
+  formatting.
 - **Breadcrumbs:** the Breadcrumbs block's way to the page comes from `breadcrumbs()` in core's `content/page-links.ts`
   (the home page of the page's language, then each of `pages` whose address is above it, then the page, an item by its
   title, a page a block adds after the page it's on), through `pageBreadcrumbs()` in `links.ts`, which its native

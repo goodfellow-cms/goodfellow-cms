@@ -67,13 +67,16 @@ const CustomHtml: ComponentConfig<CustomHtmlProps> = withParts(
     },
     defaultProps: { html: "<p>Your HTML goes here.</p>", sanitize: true, className: "" },
     render: ({ html, sanitize, className: chosen, puck }) => {
+      // Used as written only where an owner chose it: a block saved without the setting, or with anything else in it,
+      // is made safe, as its starting value says.
+      const asWritten = sanitize === false;
       const part = useParts();
       const { settings } = useSite();
       const className = part("gf-custom-html", undefined, chosen);
-      if (!sanitize && puck.isEditing) return <HtmlPreview html={html} className={className} />;
+      if (asWritten && puck.isEditing) return <HtmlPreview html={html} className={className} />;
       // Where pages are built: the admin panel's previews render in the browser and show it at once.
       const consent = typeof document === "undefined" ? settings.consent : undefined;
-      if (!sanitize && consent && LOADS.test(html)) {
+      if (asWritten && consent && LOADS.test(html)) {
         // HTML that would end the template early would run before the visitor agrees, so it's made safe instead.
         if (endsHeldTemplate(html)) {
           // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized
@@ -88,12 +91,12 @@ const CustomHtml: ComponentConfig<CustomHtmlProps> = withParts(
         );
       }
       // Only HTML with scripts needs the browser's help, which loads React on the page.
-      if (!sanitize && /<script[\s>]/i.test(html)) return <HtmlWithScripts html={html} className={className} />;
+      if (asWritten && /<script[\s>]/i.test(html)) return <HtmlWithScripts html={html} className={className} />;
       return (
         <div
           className={className}
           // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized unless the editor chose to use it as written
-          dangerouslySetInnerHTML={{ __html: sanitize ? sanitizeHtml(html) : html }}
+          dangerouslySetInnerHTML={{ __html: asWritten ? html : sanitizeHtml(html) }}
         />
       );
     },
