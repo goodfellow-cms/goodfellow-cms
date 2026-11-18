@@ -321,6 +321,12 @@ describe("held-back head code", () => {
     // `image-set()` loads a plain string.
     expect(held('<style>body { background: image-set("https://tracker.example.com/p.png" 1x) }</style>')).toBe(true);
     expect(held('<style>body { background: -webkit-image-set("/media/a.png" 1x) }</style>')).toBe(false);
+    // As browsers read it: `image-set(` in a string opens nothing, an unquoted `url()` holds its quotes, and a
+    // string ends at a line break.
+    const later = 'b { background: image-set("https://tracker.example.com/p.png" 1x) }';
+    expect(held(`<style>a::before { content: "image-set(" } ${later}</style>`)).toBe(true);
+    expect(held(`<style>a { background: url(/media/x'y.png) } ${later}</style>`)).toBe(true);
+    expect(held(`<style>a { content: 'x\n} ${later} c { content: '}</style>`)).toBe(true);
     expect(held('<base href="https://elsewhere.example.com/">')).toBe(true);
     expect(held('<meta http-equiv="Refresh" content="0; url=https://elsewhere.example.com/">')).toBe(true);
     // What loads only from the site, or nothing, stays.

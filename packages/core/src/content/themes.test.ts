@@ -148,6 +148,24 @@ describe("the theme's CSS", () => {
     // Addresses are listed as browsers read them: an escaped ")" doesn't end one.
     expect(loads("a{background:url(https://other.example/a\\29 b.png)}")).toEqual(["https://other.example/a)b.png"]);
     expect(loads("a{background:url(https://other.example/\\\\61)}")).toEqual(["https://other.example/\\61"]);
+    // A kept escape can't join a letter or digit written out after it: `\22\62` is `"b`, not U+022B.
+    expect(loads('a{background:url("https://other.example/a\\22\\62.png")}')).toEqual([
+      'https://other.example/a"b.png',
+    ]);
+    // Read as browsers read CSS's tokens: `image-set(` in a string opens nothing, an unquoted `url()` holds its
+    // quotes and escaped parentheses, and a string ends at a line break.
+    const tracker = ["https://tracker.example/p.png"];
+    const later = 'b{background:image-set("https://tracker.example/p.png" 1x)}';
+    expect(loads(`a::before{content:"image-set("} ${later}`)).toEqual(tracker);
+    expect(loads(`a{background:url(x'y)} ${later}`)).toEqual([...tracker, "x'y"]);
+    expect(loads(`a{content:'x\n} ${later} c{content:'}`)).toEqual(tracker);
+    expect(loads('a{background:image-set(url(/media/a\\(b.png) 1x, "https://tracker.example/p.png" 2x)}')).toEqual(
+      tracker,
+    );
+    expect(loads(`a{background:image-set(url(/media/x'y.png) 1x, "https://tracker.example/p.png" 2x)}`)).toEqual(
+      tracker,
+    );
+    expect(loads('a{background:image-set(type(a\\)b) "https://tracker.example/p.png" 2x)}')).toEqual(tracker);
   });
 });
 

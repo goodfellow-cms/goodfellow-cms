@@ -257,7 +257,7 @@ describe("WordPress export files", () => {
     expect(xml).not.toContain("onerror");
     expect(xml).toContain('<h2 class="wp-block-heading">Hello</h2>');
     expect(xml).toContain('<h2 class="wp-block-heading has-text-align-right">Right</h2>');
-    expect(xml).toContain("50%off.pdf");
+    expect(xml).toContain(">50%off.pdf</a>");
   });
 
   it("comes back as it went when imported again", async () => {
