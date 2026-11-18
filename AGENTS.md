@@ -1312,6 +1312,143 @@ Content files are the product's data format; treat changes to them like API chan
   `next start`, its own made-up sign-in, and fakes of GitHub and an AI service served over HTTP by
   `start-next-server-site.mjs`, which only its server calls.
 
+## The company example
+
+- **What it is:** a full-stack example for a made-up company, on its own server: sign-in of its own (Better Auth) and a
+  database (Kysely, over Cloudflare D1 or Postgres), with pages rendered from its content repository as they're visited
+  and kept in Workers KV until a publish (see the docs' full-stack Next.js page). Built into a Cloudflare Worker with
+  vinext (`vite.config.ts`, `wrangler.jsonc`), whose React must be 19.3.1 or later; `next dev` reads its D1 database
+  through wrangler's `getPlatformProxy()`. Postgres goes through node-postgres (`pg`), which runs in Node and, through
+  its `workerd` build, in Workers; CI's `postgres` job builds the example with `next build` alone against a Postgres
+  service, applies its migrations (`npm run migrate`, `lib/db/migrate.ts`), and runs its tests, whose sign-in tests run
+  on Postgres too where `DATABASE_URL` is set, so nothing outside `lib/env.ts` and `lib/db/` can come to depend on
+  Cloudflare.
+- **Signing in:** sign-in tries are limited in the database (`SIGN_IN_LIMIT`, Better Auth's `rateLimit` table), by the
+  address `CLIENT_IP_HEADER` names (`cf-connecting-ip` on Workers), `proxy.ts` checks sessions in the database rather
+  than seeing a cookie or its cached copy, impersonated sessions can't edit, signing out takes the site's own pages
+  (`lib/sign-out.ts`), and `npm run new-admin` makes admins with Better Auth itself (`lib/db/new-admin.ts`, over
+  `createAdmin()` in `lib/admins.ts`), in D1 through wrangler or in Postgres; a site made on the setup page makes its
+  first admin at `/setup/` with its setup code instead (`lib/first-admin.ts`, see Starters and examples).
+- **Readers' sign-up:** readers sign up at `/sign-up/` (`lib/sign-up.ts`, its own route, since Better Auth's sign-up,
+  which takes a password before the address is confirmed, is `disableSignUp`, and its confirmation routes are
+  `disabledPaths`): as invitations are, an account with a password nobody knows (`MEMBER_ROLE`, in `lib/roles.ts` so the
+  browser's pages can name it, `isMemberRole()` counting an account with none) and a `passwordLink()` (lib/editors.ts)
+  to choose one, carrying the page to go on to (`sitePath()`, `lib/site-path.ts`, which the sign-in page's `nextPath()`
+  uses too), so nobody signs in with an address until a password has been chosen from a link sent to it; signing up
+  again before then sends a new link and takes the name just typed, so a stranger who asked first doesn't choose the
+  owner's (and reset emails greet nobody by name), an invitation takes such an account over, and an address with a
+  password, or an editor's, is sent nothing, with the same answer; `SIGN_UP_LIMIT` a network address
+  (`SIGN_UP_FROM_IDENTIFIER` slots) and `VERIFY_ACCOUNT_LIMIT` an account (`VERIFY_SENT_IDENTIFIER` slots, given back
+  where no link was made), names of `MAX_NAME_LENGTH` as sent, and the work after the answer (`inBackground()`).
+- **Subscribers:** admins see readers, and give or take back subscriptions by hand (`BY_HAND`, to the end of the day
+  chosen, UTC, one a reader at most, which a partial unique index holds, `giveByHand()` changing the one given before in
+  place, or another admin's added meanwhile, so a failed write takes nothing away), at `/admin/subscribers/`
+  (`lib/subscribers.ts`, reading only current subscriptions, `currentSubscriptions()`, and the accounts they're for
+  together); the editors page lists and changes only editors and admins (`usersWithRole()`, `editorById()`).
+- **Editors:** admins invite editors from `/admin/editors/` (`lib/editors.ts`, through Better Auth's admin plugin, with
+  the site's three roles declared): an account with a password nobody knows and a single-use link, Better Auth's own
+  `reset-password:` verification, at `GOODFELLOW_SITE_URL`, never the request's address, to `/accept-invite/`, which
+  marks the address verified (`joined`); a new link, or a password chosen from any, retires the account's other links
+  (`retireResetLinks()`; each link is a row of its own, never rewritten with a new token, since Better Auth consumes a
+  link by its row's id; an account's links are written and used under its lock, `lockLinks()`, a `link-lock:` row only
+  one request can write, since Better Auth finds a link by its token and consumes it by its id and nothing on D1 holds
+  the two together: `invitationLink()` takes it, and a `before` hook on `/reset-password` takes it for the link's
+  account, the token read from the body or the query as Better Auth reads it, expired ones left alone, and read again
+  once the lock is held, so a link replaced meanwhile takes nothing, and the `after` hook lets it go, by the request's
+  own context, so `acceptInvitation()` is held too; a lock past `LINK_LOCK_SECONDS` can be taken by another request, so
+  `unlockLinks()` lets go only of the holder's own; whoever finds it taken is asked to try again, `LINKS_BUSY`;
+  `onPasswordReset` retires the account's other links and marks it joined); people are found by id, and listed a page at
+  a time; an admin can't change or remove themselves. Better Auth's admin routes are `disabledPaths`, and closed to the
+  browser however their path is spelled (`authRoute()`, `isAdminPluginPath()`), so only the server calls them and people
+  are managed only through `lib/editors.ts`.
+- **Owners:** admins are owners only with two-factor sign-in on (`isOwner()`, Better Auth's two-factor plugin, turned on
+  at `/account/`, with backup codes stored encrypted, its tries limited as signing in is, `TWO_FACTOR_LIMIT`); with a
+  password alone they're editors, and the editors API refuses them.
+- **Forgotten passwords:** forgotten passwords go through Better Auth's reset (`sendResetPassword`, limited per network
+  address, `RESET_LIMIT`, and per account, `RESET_ACCOUNT_LIMIT`, in slots of their own (`takeEmailSlot()`,
+  `RESET_SENT_IDENTIFIER`: rows whose ids are the slots, taken with `claimRow()`, since an id only one request can write
+  is the database's own lock, and given back, that slot only, where the email service refused the email with a 4xx,
+  `EmailRefused`), and none to someone who hasn't joined, so an account never holds an invitation and a reset link at
+  once, with the same answer as any other, `RESET_UNAVAILABLE` for every address where the site can't send email,
+  sessions revoked once it's used, passwords at least `MIN_PASSWORD_LENGTH`), sent after the answer (`inBackground()`,
+  the Worker's `waitUntil`) so how long it takes says nothing about whether the address has an account.
+- **Email:** email goes only through `lib/email.ts`, which escapes what people typed, through Upyo (`@upyo/core` and a
+  transport package for each of `EMAIL_PROVIDERS`, loaded only when named, with link tracking turned off in each message
+  where the service allows it (Mailgun and SendGrid) and the README saying where the others set it, since links let
+  people into accounts, and `EmailRefused` only where the service answered every try with a 4xx), so nothing names a
+  service: `EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_API_KEY` and, where a service needs them, `EMAIL_DOMAIN`,
+  `EMAIL_REGION`, and `EMAIL_KEY_ID` choose it, which owners change as GitHub repository variables and a secret that the
+  example's Deploy workflow gives the Worker (`wrangler deploy --var` and `--secrets-file`), as its README says; without
+  them (`missingEmailSettings()`), the editors page shows the link instead.
+- **Members' pages:** every page has a version for everyone and a members' version, each rendered from the repository
+  and kept as every page is: `proxy.ts` sends subscribers' page requests to `app/(site)/members/pages/`
+  (`MEMBERS_VERSION_PATH`, `membersVersionUrl()`) with `Cache-Control: private`, by a cookie `lib/paywall.ts` signs with
+  `BETTER_AUTH_SECRET` (`sealReader()`, `openReader()`: who it's for, until when, and a hash of the session token, so it
+  stops counting at sign-out), read again from the database only once it runs out (`PAYWALL_SECONDS`, or the
+  subscription's end), and loads sign-in at all only for requests with a session cookie (`readerFor()`); it answers
+  "Page not found" to the members' version's own address in any spelling (`routedPath()`, which every check in
+  `proxy.ts` uses). Subscriptions and purchases are Better Auth's `entitlement` model (`lib/entitlements.ts`, the only
+  file that reads it: `can()`, `subscribedUntil()`, `grant()`, `giveByHand()`, `currentSubscriptions()`), and the
+  Paywall block is `blocks/paywall.tsx`. The header's Sign-in and account links block (`blocks/account-links.tsx`) reads
+  who's signed in in the browser (`AccountLinksView`, a Client Component), since every page is the same for everyone.
+- **Payments:** readers pay through Stripe Checkout (`lib/stripe.ts`, the `stripe` SDK with its fetch client and Web
+  Crypto, `stripeFor()`): the Buy button block (`blocks/buy-button.tsx`, `BUY_BUTTON_BLOCK`, whose editor note,
+  `priceNote()`, says what's wrong with a price that isn't a price's id) is a form naming its page and its own id, never
+  the price, an owners-only setting the server reads from the page as published, or its header or footer, in the page's
+  language, and only a members-only page's teaser for someone who isn't a member (`findButton()` in `lib/site.ts`,
+  `buttonOn()` in `lib/buttons.ts`, through `expandSyncedBlocks()` and `teaserData()`; a layout's button, which knows no
+  page, names the page the browser came from, `placeFrom()` and `refererPath()`, every path read as a browser reads it,
+  `sitePath()`, so no spelling of another site's address gets through, and one on a page a block adds names that page's,
+  coming back to the page pressed on, `ButtonPlace.back`), so `checkoutAddress()` sells only what owners chose, to
+  someone signed in, from the site's own pages; `returnFromCheckout()` and the webhook (`webhookResponse()`, signed
+  events only, each acted on once by a `STRIPE_EVENT_IDENTIFIER` row, `claimRow()`, `handling:` and the request's own id
+  while it's acted on, which another request may take over only after `STRIPE_EVENT_LEASE_SECONDS`, answering 409 until
+  then, a request that fails letting go only of its own, and `handled` once done) both re-read what they write from
+  Stripe, one request at a time for each subscription and Checkout Session (`withStripeLock()`, a
+  `STRIPE_LOCK_IDENTIFIER` row taken before reading (an expired one cleared only where it's in the way), which a webhook
+  finding it taken answers 409 for, and one past `STRIPE_LOCK_SECONDS` is taken over, its holder renewing it right
+  before writing, its `fence`, and writing nothing where it was taken over; D1 has no transactions, so a holder whose
+  lock was taken over while it wrote finds out when it lets go, takes back what it wrote where its fence was given an
+  `undo`, as a subscription's is, only its own row (by when it wrote it, `grant()`'s `createdAt`), while a
+  subscription's write first removes every row for it, by the subscription alone, whoever it was for, whatever clock
+  wrote them, and throws `StripeBusy`, for Stripe to send the event again and `returnFromCheckout()` to write it once
+  more), so a stale read never writes over a newer one (`applySession()`, `applySubscription()`, which gives access only
+  while a subscription is `SUBSCRIBED`, active or trialing, never `past_due` or `unpaid`, whose period Stripe has
+  already moved on, by its status alone, never by refunds or disputes of its payments (the maintainer's decision: a
+  subscription cancelled at once ends access, refunded or not, and one refunded in full that stays active keeps it), and
+  nothing for a subscription, Session, or payment Stripe no longer has (`isMissing()`), keyed by
+  `subscriptionReference()`, which is also its row's id, and something bought once by its payment, `purchaseId()`, which
+  `applySession()` takes away and doesn't give again while `takenBack()` finds the payment's charge refunded, even in
+  part, or disputed, unless the site won the dispute (`KEPT_DISPUTE`), and which refunds' and disputes' events,
+  `refund.failed`, `refund.updated` and `charge.refund.updated` for a refund that failed included, all write again
+  through `applySession()`, in whatever order they arrive), never from the event, and nothing for an account deleted
+  since; someone who already has a subscription to a product, at any of its prices, that hasn't ended (`ENDED`) is sent
+  to the customer portal rather than to Checkout, and one with a Checkout open for it at that price back to that one
+  (found by the product and price the site puts in its Sessions' metadata, expiring one open for another of its prices,
+  and going on where that one finished meanwhile, to the portal where it was paid for), one request at a time for each
+  person and product (`checkout:` lock, held for `CHECKOUT_LOCK_SECONDS`, 409 while it's held, renewed by its fence just
+  before a Checkout starts, so a press that took longer to look starts none, and a Checkout started past it kept, since
+  starting one writes nothing here; `subscribed()` lists only subscriptions that aren't cancelled, Stripe's default);
+  coming back from Checkout while another request writes the same Session waits for it (`RETURN_WAITS_MS`) and writes
+  once more, at once where it took this one's lock over (`StripeBusy`'s `takenOver`), going on after the waits; a
+  customer Stripe no longer has is replaced (`accountCustomer()`'s `stale`) before Checkout; payments' routes answer
+  through `paymentsProblem()`, with a page linking back for a browser's form; each account pays as one Stripe customer,
+  made before its first Checkout (`accountCustomer()`, with an idempotency key for the account, so Checkouts started at
+  once share it, and kept in `user.stripeCustomerId` by the first to write it, which each reads back, `customerOf()`),
+  which `billingAddress()` opens Stripe's customer portal for, whether or not anything it paid for still holds.
+- **Prices:** owners see every Buy button on the site as visitors see it (`buttonsOn()`, a language's header and footer
+  once with the main language's, unless a synced block in them has a version of its own in that language) with what
+  Stripe says of its price (`checkPrices()`, a `PriceCheck`, `PRICE_CHECKS_AT_ONCE` prices at a time, worded by
+  `checkWords()` in `lib/price-words.ts`, a price with no amount of its own by its `pricing`, tiers or the buyer's
+  choice, missing as checkout's `isMissing()` finds it (`orMissing()`), and a metered price, `isMetered()`, which
+  checkout refuses, as one a button can't sell; amounts by Stripe's own units, `stripeAmount()` in
+  `lib/stripe-amounts.ts`), read only once the person is an owner at `/admin/payments/` (`lib/payments.ts`,
+  `paymentsOverview()`, owners only), and the Deploy workflow gives the Worker `STRIPE_SECRET_KEY` and
+  `STRIPE_WEBHOOK_SECRET` from the repository's secrets, as it does the email key.
+- **Tests and bundling:** tests use `fakeStripe()` and `signEvent()` from `lib/testing/stripe.ts`. `company.spec.ts`
+  runs the built Worker (see Tooling's End-to-end tests). `create-goodfellow` bundles it for `--server cloudflare`
+  (`planServerSite()`, see Full-stack sites)
+
 ## Content in a repository of its own
 
 - **What it is:** a site can keep `content/` and `public/media/` in a repository of its own, so the tokens editors and
@@ -2697,11 +2834,11 @@ registries in the same format, which `packages/registry/README.md` documents for
   (see Comments), and escaped.
 - **Releases:** the admin panel installs from the `@goodfellow-cms/registry` release it was built with
   (`__GOODFELLOW_REGISTRY_VERSION__`), through jsDelivr, so a version always means the same files, and takes each item
-  only where its text has the SHA-256 that release's build wrote (`r/digests.json`, `REGISTRY_DIGESTS_FILE`, embedded
-  as `__GOODFELLOW_REGISTRY_DIGESTS__` and checked by `checkedFetchJson()` in `registry-fetch.ts`, refusing others as
+  only where its text has the SHA-256 that release's build wrote (`r/digests.json`, `REGISTRY_DIGESTS_FILE`, embedded as
+  `__GOODFELLOW_REGISTRY_DIGESTS__` and checked by `checkedFetchJson()` in `registry-fetch.ts`, refusing others as
   `changed`), whatever the address answers; `goodfellow update --blocks` checks what it fetched against the digests of
-  the registry npm installed (a dependency of the admin panel) before the site builds. Its `registry` prop
-  points elsewhere; the dev servers serve the site's installed copy at `/__goodfellow/api/registry/{name}.json`
+  the registry npm installed (a dependency of the admin panel) before the site builds. Its `registry` prop points
+  elsewhere; the dev servers serve the site's installed copy at `/__goodfellow/api/registry/{name}.json`
   (`localRegistryDir()`).
 - **Snapshot:** the registry's shadcn components in `packages/registry/site/components/ui/` are copied from shadcn/ui by
   `pnpm --filter @goodfellow-cms/registry update-shadcn`, since shadcn's registry isn't versioned. Never edit them by
@@ -2780,7 +2917,7 @@ A pnpm workspace managed with Turborepo. Each package's README describes it for 
 | `templates/starter` | | The default site |
 | `templates/next` | | The starter as a Next.js app |
 | `examples/parish` | | A complete example for a made-up parish, with collections and blocks of its own |
-| `examples/company` | | A full-stack example for a made-up company, on its own server: sign-in of its own (Better Auth) and a database (Kysely, over Cloudflare D1 or Postgres), with pages rendered from its content repository as they're visited and kept in Workers KV until a publish (see the docs' full-stack Next.js page). Sign-in tries are limited in the database (`SIGN_IN_LIMIT`, Better Auth's `rateLimit` table), by the address `CLIENT_IP_HEADER` names (`cf-connecting-ip` on Workers), `proxy.ts` checks sessions in the database rather than seeing a cookie or its cached copy, impersonated sessions can't edit, signing out takes the site's own pages (`lib/sign-out.ts`), and `npm run new-admin` makes admins with Better Auth itself (`lib/db/new-admin.ts`, over `createAdmin()` in `lib/admins.ts`), in D1 through wrangler or in Postgres; a site made on the setup page makes its first admin at `/setup/` with its setup code instead (`lib/first-admin.ts`, see Starters and examples). Readers sign up at `/sign-up/` (`lib/sign-up.ts`, its own route, since Better Auth's sign-up, which takes a password before the address is confirmed, is `disableSignUp`, and its confirmation routes are `disabledPaths`): as invitations are, an account with a password nobody knows (`MEMBER_ROLE`, in `lib/roles.ts` so the browser's pages can name it, `isMemberRole()` counting an account with none) and a `passwordLink()` (lib/editors.ts) to choose one, carrying the page to go on to (`sitePath()`, `lib/site-path.ts`, which the sign-in page's `nextPath()` uses too), so nobody signs in with an address until a password has been chosen from a link sent to it; signing up again before then sends a new link and takes the name just typed, so a stranger who asked first doesn't choose the owner's (and reset emails greet nobody by name), an invitation takes such an account over, and an address with a password, or an editor's, is sent nothing, with the same answer; `SIGN_UP_LIMIT` a network address (`SIGN_UP_FROM_IDENTIFIER` slots) and `VERIFY_ACCOUNT_LIMIT` an account (`VERIFY_SENT_IDENTIFIER` slots, given back where no link was made), names of `MAX_NAME_LENGTH` as sent, and the work after the answer (`inBackground()`). Admins see readers, and give or take back subscriptions by hand (`BY_HAND`, to the end of the day chosen, UTC, one a reader at most, which a partial unique index holds, `giveByHand()` changing the one given before in place, or another admin's added meanwhile, so a failed write takes nothing away), at `/admin/subscribers/` (`lib/subscribers.ts`, reading only current subscriptions, `currentSubscriptions()`, and the accounts they're for together); the editors page lists and changes only editors and admins (`usersWithRole()`, `editorById()`). Admins invite editors from `/admin/editors/` (`lib/editors.ts`, through Better Auth's admin plugin, with the site's three roles declared): an account with a password nobody knows and a single-use link, Better Auth's own `reset-password:` verification, at `GOODFELLOW_SITE_URL`, never the request's address, to `/accept-invite/`, which marks the address verified (`joined`); a new link, or a password chosen from any, retires the account's other links (`retireResetLinks()`; each link is a row of its own, never rewritten with a new token, since Better Auth consumes a link by its row's id; an account's links are written and used under its lock, `lockLinks()`, a `link-lock:` row only one request can write, since Better Auth finds a link by its token and consumes it by its id and nothing on D1 holds the two together: `invitationLink()` takes it, and a `before` hook on `/reset-password` takes it for the link's account, the token read from the body or the query as Better Auth reads it, expired ones left alone, and read again once the lock is held, so a link replaced meanwhile takes nothing, and the `after` hook lets it go, by the request's own context, so `acceptInvitation()` is held too; a lock past `LINK_LOCK_SECONDS` can be taken by another request, so `unlockLinks()` lets go only of the holder's own; whoever finds it taken is asked to try again, `LINKS_BUSY`; `onPasswordReset` retires the account's other links and marks it joined); people are found by id, and listed a page at a time; an admin can't change or remove themselves. Admins are owners only with two-factor sign-in on (`isOwner()`, Better Auth's two-factor plugin, turned on at `/account/`, with backup codes stored encrypted, its tries limited as signing in is, `TWO_FACTOR_LIMIT`); with a password alone they're editors, and the editors API refuses them. Better Auth's admin routes are `disabledPaths`, and closed to the browser however their path is spelled (`authRoute()`, `isAdminPluginPath()`), so only the server calls them and people are managed only through `lib/editors.ts`. Forgotten passwords go through Better Auth's reset (`sendResetPassword`, limited per network address, `RESET_LIMIT`, and per account, `RESET_ACCOUNT_LIMIT`, in slots of their own (`takeEmailSlot()`, `RESET_SENT_IDENTIFIER`: rows whose ids are the slots, taken with `claimRow()`, since an id only one request can write is the database's own lock, and given back, that slot only, where the email service refused the email with a 4xx, `EmailRefused`), and none to someone who hasn't joined, so an account never holds an invitation and a reset link at once, with the same answer as any other, `RESET_UNAVAILABLE` for every address where the site can't send email, sessions revoked once it's used, passwords at least `MIN_PASSWORD_LENGTH`), sent after the answer (`inBackground()`, the Worker's `waitUntil`) so how long it takes says nothing about whether the address has an account. Email goes only through `lib/email.ts`, which escapes what people typed, through Upyo (`@upyo/core` and a transport package for each of `EMAIL_PROVIDERS`, loaded only when named, with link tracking turned off in each message where the service allows it (Mailgun and SendGrid) and the README saying where the others set it, since links let people into accounts, and `EmailRefused` only where the service answered every try with a 4xx), so nothing names a service: `EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_API_KEY` and, where a service needs them, `EMAIL_DOMAIN`, `EMAIL_REGION`, and `EMAIL_KEY_ID` choose it, which owners change as GitHub repository variables and a secret that the example's Deploy workflow gives the Worker (`wrangler deploy --var` and `--secrets-file`), as its README says; without them (`missingEmailSettings()`), the editors page shows the link instead. Built into a Cloudflare Worker with vinext (`vite.config.ts`, `wrangler.jsonc`), whose React must be 19.3.1 or later; `next dev` reads its D1 database through wrangler's `getPlatformProxy()`. Postgres goes through node-postgres (`pg`), which runs in Node and, through its `workerd` build, in Workers; CI's `postgres` job builds the example with `next build` alone against a Postgres service, applies its migrations (`npm run migrate`, `lib/db/migrate.ts`), and runs its tests, whose sign-in tests run on Postgres too where `DATABASE_URL` is set, so nothing outside `lib/env.ts` and `lib/db/` can come to depend on Cloudflare. Every page has a version for everyone and a members' version, each rendered from the repository and kept as every page is: `proxy.ts` sends subscribers' page requests to `app/(site)/members/pages/` (`MEMBERS_VERSION_PATH`, `membersVersionUrl()`) with `Cache-Control: private`, by a cookie `lib/paywall.ts` signs with `BETTER_AUTH_SECRET` (`sealReader()`, `openReader()`: who it's for, until when, and a hash of the session token, so it stops counting at sign-out), read again from the database only once it runs out (`PAYWALL_SECONDS`, or the subscription's end), and loads sign-in at all only for requests with a session cookie (`readerFor()`); it answers "Page not found" to the members' version's own address in any spelling (`routedPath()`, which every check in `proxy.ts` uses). Subscriptions and purchases are Better Auth's `entitlement` model (`lib/entitlements.ts`, the only file that reads it: `can()`, `subscribedUntil()`, `grant()`, `giveByHand()`, `currentSubscriptions()`), and the Paywall block is `blocks/paywall.tsx`. The header's Sign-in and account links block (`blocks/account-links.tsx`) reads who's signed in in the browser (`AccountLinksView`, a Client Component), since every page is the same for everyone. Readers pay through Stripe Checkout (`lib/stripe.ts`, the `stripe` SDK with its fetch client and Web Crypto, `stripeFor()`): the Buy button block (`blocks/buy-button.tsx`, `BUY_BUTTON_BLOCK`, whose editor note, `priceNote()`, says what's wrong with a price that isn't a price's id) is a form naming its page and its own id, never the price, an owners-only setting the server reads from the page as published, or its header or footer, in the page's language, and only a members-only page's teaser for someone who isn't a member (`findButton()` in `lib/site.ts`, `buttonOn()` in `lib/buttons.ts`, through `expandSyncedBlocks()` and `teaserData()`; a layout's button, which knows no page, names the page the browser came from, `placeFrom()` and `refererPath()`, every path read as a browser reads it, `sitePath()`, so no spelling of another site's address gets through, and one on a page a block adds names that page's, coming back to the page pressed on, `ButtonPlace.back`), so `checkoutAddress()` sells only what owners chose, to someone signed in, from the site's own pages; `returnFromCheckout()` and the webhook (`webhookResponse()`, signed events only, each acted on once by a `STRIPE_EVENT_IDENTIFIER` row, `claimRow()`, `handling:` and the request's own id while it's acted on, which another request may take over only after `STRIPE_EVENT_LEASE_SECONDS`, answering 409 until then, a request that fails letting go only of its own, and `handled` once done) both re-read what they write from Stripe, one request at a time for each subscription and Checkout Session (`withStripeLock()`, a `STRIPE_LOCK_IDENTIFIER` row taken before reading (an expired one cleared only where it's in the way), which a webhook finding it taken answers 409 for, and one past `STRIPE_LOCK_SECONDS` is taken over, its holder renewing it right before writing, its `fence`, and writing nothing where it was taken over; D1 has no transactions, so a holder whose lock was taken over while it wrote finds out when it lets go, takes back what it wrote where its fence was given an `undo`, as a subscription's is, only its own row (by when it wrote it, `grant()`'s `createdAt`), while a subscription's write first removes every row for it, by the subscription alone, whoever it was for, whatever clock wrote them, and throws `StripeBusy`, for Stripe to send the event again and `returnFromCheckout()` to write it once more), so a stale read never writes over a newer one (`applySession()`, `applySubscription()`, which gives access only while a subscription is `SUBSCRIBED`, active or trialing, never `past_due` or `unpaid`, whose period Stripe has already moved on, by its status alone, never by refunds or disputes of its payments (the maintainer's decision: a subscription cancelled at once ends access, refunded or not, and one refunded in full that stays active keeps it), and nothing for a subscription, Session, or payment Stripe no longer has (`isMissing()`), keyed by `subscriptionReference()`, which is also its row's id, and something bought once by its payment, `purchaseId()`, which `applySession()` takes away and doesn't give again while `takenBack()` finds the payment's charge refunded, even in part, or disputed, unless the site won the dispute (`KEPT_DISPUTE`), and which refunds' and disputes' events, `refund.failed`, `refund.updated` and `charge.refund.updated` for a refund that failed included, all write again through `applySession()`, in whatever order they arrive), never from the event, and nothing for an account deleted since; someone who already has a subscription to a product, at any of its prices, that hasn't ended (`ENDED`) is sent to the customer portal rather than to Checkout, and one with a Checkout open for it at that price back to that one (found by the product and price the site puts in its Sessions' metadata, expiring one open for another of its prices, and going on where that one finished meanwhile, to the portal where it was paid for), one request at a time for each person and product (`checkout:` lock, held for `CHECKOUT_LOCK_SECONDS`, 409 while it's held, renewed by its fence just before a Checkout starts, so a press that took longer to look starts none, and a Checkout started past it kept, since starting one writes nothing here; `subscribed()` lists only subscriptions that aren't cancelled, Stripe's default); coming back from Checkout while another request writes the same Session waits for it (`RETURN_WAITS_MS`) and writes once more, at once where it took this one's lock over (`StripeBusy`'s `takenOver`), going on after the waits; a customer Stripe no longer has is replaced (`accountCustomer()`'s `stale`) before Checkout; payments' routes answer through `paymentsProblem()`, with a page linking back for a browser's form; each account pays as one Stripe customer, made before its first Checkout (`accountCustomer()`, with an idempotency key for the account, so Checkouts started at once share it, and kept in `user.stripeCustomerId` by the first to write it, which each reads back, `customerOf()`), which `billingAddress()` opens Stripe's customer portal for, whether or not anything it paid for still holds. Owners see every Buy button on the site as visitors see it (`buttonsOn()`, a language's header and footer once with the main language's, unless a synced block in them has a version of its own in that language) with what Stripe says of its price (`checkPrices()`, a `PriceCheck`, `PRICE_CHECKS_AT_ONCE` prices at a time, worded by `checkWords()` in `lib/price-words.ts`, a price with no amount of its own by its `pricing`, tiers or the buyer's choice, missing as checkout's `isMissing()` finds it (`orMissing()`), and a metered price, `isMetered()`, which checkout refuses, as one a button can't sell; amounts by Stripe's own units, `stripeAmount()` in `lib/stripe-amounts.ts`), read only once the person is an owner at `/admin/payments/` (`lib/payments.ts`, `paymentsOverview()`, owners only), and the Deploy workflow gives the Worker `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` from the repository's secrets, as it does the email key. Tests use `fakeStripe()` and `signEvent()` from `lib/testing/stripe.ts`. `company.spec.ts` runs the built Worker (see Tooling's End-to-end tests). `create-goodfellow` bundles it for `--server cloudflare` (`planServerSite()`, see Full-stack sites) |
+| `examples/company` | | A full-stack example for a made-up company, on its own server (see The company example) |
 | `docs` | | The documentation site, built with Goodfellow |
 | `e2e` | | End-to-end tests (see Tooling) |
 
@@ -3044,10 +3181,10 @@ pnpm test:e2e
 - **Bundling:** `create-goodfellow`'s build copies the sites into its `templates/` folder
   (`scripts/bundle-templates.mjs`), only the files git keeps (`bundleTemplate()`), never the folder as it is, since a
   developer's copy holds secrets `.gitignore` leaves out, and stops where one still looks like a secret
-  (`secretFiles()`), with every package's version in `templates/versions.json`. It also copies the built
-  token broker to `templates/broker`, and the built block registry to `templates/registry`, which `--blocks recommended`
-  (the default) installs from with `planInstall()`, so new sites need no download. It depends on them so Turborepo
-  rebuilds it when they change. A new example needs adding there and to `TEMPLATES` in `scaffold.ts`.
+  (`secretFiles()`), with every package's version in `templates/versions.json`. It also copies the built token broker to
+  `templates/broker`, and the built block registry to `templates/registry`, which `--blocks recommended` (the default)
+  installs from with `planInstall()`, so new sites need no download. It depends on them so Turborepo rebuilds it when
+  they change. A new example needs adding there and to `TEMPLATES` in `scaffold.ts`.
 - **Safer builds:** every GitHub workflow the starters have or `planSite()` and `separateSetupFiles()` write
   (`github-workflows.ts` in core: `githubUpdateJobs()`, `githubScheduledJobs()`; `task-setup.ts`:
   `githubTaskWorkflow()`) sets `permissions: {}` and gives each job only what it needs: jobs that run the site's code
@@ -3156,6 +3293,10 @@ pnpm test:e2e
 
 ## Conventions
 
+- **Line length:** wrap AGENTS.md's prose at 120 characters, counting characters rather than bytes, as Biome does
+  code: rewrap a bullet or paragraph you change as a whole, so it neither runs past the limit nor leaves short lines
+  behind. A table row can't wrap, so keep its cells to a phrase or two and put the rest in a section of its own, as The
+  company example does. The block `turbo` writes at the end of the file is its own.
 - **Other programs:** start them with `commandToRun()` (`node-command.ts` in `@goodfellow-cms/core/node`), which runs
   npm and npx through cmd.exe on Windows with their arguments quoted (`cmdArgument()`) and everything else, git
   included, without a shell (where what npm is given comes from a site's files, run it with `npmCommand()` in
