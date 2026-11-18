@@ -90,27 +90,44 @@ function changedText(change: FileChange): string | undefined {
   }
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** A value as JSON with its objects' keys in order, so two values that differ only in their keys' order compare equal. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (typeof value === "object" && value !== null) {
+    const object = value as Record<string, unknown>;
+    const keys = Object.keys(object).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
 
-/** A setting a block's props leave out, which is never any value a block could be given. */
-const MISSING = Symbol("missing");
+const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 
-/** A setting as it's written: a block draws its props as saved, so one left out isn't its starting value. */
-const written = (props: Record<string, unknown>, field: string) =>
-  Object.hasOwn(props, field) ? props[field] : MISSING;
+type Owned = OwnersOnlyFields[string];
 
-const sameSetting = (a: unknown, b: unknown) => (a === MISSING || b === MISSING ? a === b : same(a, b));
+/**
+ * A block's props as pages draw them: its starting values under what it's
+ * saved with (`withDefaultProps()` in `@goodfellow-cms/react`'s
+ * `preparePage()`), so a setting left out is its starting value here too.
+ */
+const drawn = (owned: Owned, props: Record<string, unknown>) => ({ ...owned.defaults, ...props });
+
+/** Whether a block's owners-only settings, as pages draw them, are all their starting values. */
+const startsAsDefault = (owned: Owned, props: Record<string, unknown>) =>
+  owned.fields.every((field) => same(drawn(owned, props)[field], owned.defaults[field]));
 
 /**
  * The files in `changes` where an owners-only setting changed: a block that
- * was there keeps its value as it's written, left out or `null` too, and a new
- * one holds its block's starting value, since blocks draw their props as saved
- * and nothing fills a left-out one in. A block whose owners-only setting isn't
- * its starting value, such as Custom HTML used exactly as written, is the
- * owners' whole: none of its settings may change, since its HTML would run as
- * written. Two blocks with one id, which Puck would draw both of, and a block
- * with owners-only settings that has no id, which nothing could compare, count
- * as a change. `read` gives a file as it was before the changes.
+ * was there keeps its value, and a new one holds its block's starting value,
+ * each read as pages draw them, with a block's starting values under what
+ * it's saved with, so a setting left out is its starting value and `null` is
+ * a value of its own. A block whose owners-only setting isn't its starting
+ * value, such as Custom HTML used exactly as written, is the owners' whole:
+ * none of its settings may change, since its HTML would run as written. Two
+ * blocks with one id, which Puck would draw both of, count as a change, as
+ * does a block with no id, which nothing could compare by id, unless its
+ * owners-only settings are their starting values or the file had the same
+ * block before. `read` gives a file as it was before the changes.
  */
 export async function ownersOnlyChanges(
   changes: readonly FileChange[],
@@ -124,34 +141,30 @@ export async function ownersOnlyChanges(
     const text = changedText(change);
     if (text === undefined) continue;
     const after = blocksOf(text);
-    if (after.unnamed.some((block) => Object.hasOwn(fields, block.type))) {
-      changed.push(change.path);
-      continue;
-    }
     const marked = [...after.blocks.entries()].filter(([, block]) => Object.hasOwn(fields, block.type));
-    if (marked.length === 0) continue;
-    const before = blocksOf(await read(change.path)).blocks;
+    const unnamed = after.unnamed.filter((block) => Object.hasOwn(fields, block.type));
+    if (marked.length === 0 && unnamed.length === 0) continue;
+    const earlier = blocksOf(await read(change.path));
+    const before = earlier.blocks;
     const breaks = marked.some(([id, block]) => {
-      const owned = fields[block.type];
-      if (!owned) return false;
+      const owned = fields[block.type] as Owned;
       if (after.repeated.has(id)) return true;
       const was = before.get(id);
       const previous = was?.type === block.type ? was.props : undefined;
-      const changes = (field: string) =>
-        previous
-          ? !sameSetting(written(block.props, field), written(previous, field))
-          : !sameSetting(written(block.props, field), owned.defaults[field]);
-      if (owned.fields.some(changes)) return true;
-      if (!previous) return false;
-      // An owner's block as they set it stays as they left it, every setting of it. A setting left out of a block
-      // saved before it existed counts as its starting value here, which the block must draw it as.
-      const owners = owned.fields.some((field) => {
-        const value = written(previous, field);
-        return value !== MISSING && !same(value, owned.defaults[field]);
-      });
-      return owners && !same(block.props, previous);
+      if (!previous) return !startsAsDefault(owned, block.props);
+      const now = drawn(owned, block.props);
+      const then = drawn(owned, previous);
+      if (owned.fields.some((field) => !same(now[field], then[field]))) return true;
+      // An owner's block as they set it stays as they left it, every setting of it.
+      return !startsAsDefault(owned, previous) && !same(now, then);
     });
-    if (breaks) changed.push(change.path);
+    const unnamedBreaks = unnamed.some((block) => {
+      const owned = fields[block.type] as Owned;
+      if (startsAsDefault(owned, block.props)) return false;
+      const now = drawn(owned, block.props);
+      return !earlier.unnamed.some((was) => was.type === block.type && same(drawn(owned, was.props), now));
+    });
+    if (breaks || unnamedBreaks) changed.push(change.path);
   }
   return changed;
 }

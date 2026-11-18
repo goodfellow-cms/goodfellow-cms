@@ -555,9 +555,11 @@ describe("appApi", () => {
     };
 
     expect((await write(page())).status).toBe(200);
-    expect((await write(page(undefined, "<p>Hello</p>"))).status).toBe(200);
-    // Left out or null, the setting isn't its starting value: the block is drawn with its props as saved.
-    expect((await write(page("left out", "<script>alert(1)</script>"))).status).toBe(403);
+    expect((await write(page(true, "<p>Hello</p>"))).status).toBe(200);
+    // Left out, the setting is its starting value, as pages draw it, so a block saved without it can be edited.
+    expect((await write(page("left out", "<p>Saved without it</p>"))).status).toBe(200);
+    expect((await write(page("left out", "<p>Edited without it</p>"))).status).toBe(200);
+    // null is a value of its own, which pages draw as it's saved.
     expect((await write(page(null, "<script>alert(1)</script>"))).status).toBe(403);
     const refused = await write(page(false, "<script>alert(1)</script>"));
     expect(refused.status).toBe(403);
@@ -569,6 +571,7 @@ describe("appApi", () => {
     // The owner's block used as written is theirs whole: its HTML would run as the editor wrote it.
     expect((await write(page(false, "<p>Changed</p>"))).status).toBe(403);
     expect((await write(page(true))).status).toBe(403);
+    expect((await write(page("left out", "<p>Changed</p>"))).status).toBe(403);
     // Sent as bytes, the page is read all the same.
     signIn(OWEN);
     expect((await write(page())).status).toBe(200);

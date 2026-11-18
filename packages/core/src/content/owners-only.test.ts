@@ -49,15 +49,15 @@ describe("owners-only settings", () => {
     ).toEqual(["content/layout/header.json"]);
   });
 
-  it("read a setting as it's written, so a block that leaves it out or sets it to null isn't its starting value", async () => {
+  it("read a setting left out as its starting value, as pages draw it, and null as a value of its own", async () => {
     const read = async () => page(block("a"));
     const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
     const without = (id: string) => ({ type: "custom-html", props: { id, html: "<script>x</script>" } });
-    // A new block that leaves the setting out, or sets it to null.
-    expect(await check(page(block("a"), without("new")))).toEqual(["content/pages/a.json"]);
+    // A new block that leaves the setting out is drawn with its starting value; one with null isn't.
+    expect(await check(page(block("a"), without("new")))).toEqual([]);
     expect(await check(page(block("a"), block("new", { sanitize: null })))).toEqual(["content/pages/a.json"]);
     // A block that was there, its setting taken out or set to null.
-    expect(await check(page(without("a")))).toEqual(["content/pages/a.json"]);
+    expect(await check(page(without("a")))).toEqual([]);
     expect(await check(page(block("a", { sanitize: null })))).toEqual(["content/pages/a.json"]);
   });
 
@@ -69,19 +69,47 @@ describe("owners-only settings", () => {
     expect(await check(page(block("a", { sanitize: false })))).toEqual(["content/pages/a.json"]);
   });
 
-  it("count a block with owners-only settings and no id as a change, wherever it is", async () => {
-    const read = async () => undefined;
-    const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
-    const section = (inside: unknown) => ({ type: "Section", props: { id: "s", content: [inside] } });
-    expect(await check(page(section({ type: "custom-html", props: { html: "x", sanitize: false } })))).toEqual([
+  it("let a new block hold a setting with no starting value by leaving it out", async () => {
+    const noDefault = ownersOnlyFields({ Embed: { fields: { code: { type: "text", metadata: { owners: true } } } } });
+    const check = (content: string) =>
+      ownersOnlyChanges([{ path: "content/pages/a.json", content }], noDefault, async () => undefined);
+    expect(await check(page({ type: "Embed", props: { id: "e" } }))).toEqual([]);
+    expect(await check(page({ type: "Embed", props: { id: "e", code: "<script>x</script>" } }))).toEqual([
       "content/pages/a.json",
     ]);
+  });
+
+  it("compare an owner's block whatever order its settings are saved in", async () => {
+    const owners = { type: "custom-html", props: { id: "a", html: "<b>x</b>", sanitize: false, className: "" } };
+    const read = async () => page(owners);
+    const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
+    const reordered = { type: "custom-html", props: { className: "", sanitize: false, id: "a", html: "<b>x</b>" } };
+    expect(await check(page(reordered))).toEqual([]);
+    expect(await check(page({ ...reordered, props: { ...reordered.props, html: "<i>x</i>" } }))).toEqual([
+      "content/pages/a.json",
+    ]);
+  });
+
+  it("count a block with owners-only settings and no id as a change, unless it starts as its default or was there", async () => {
+    const owners = { type: "custom-html", props: { html: "x", sanitize: false } };
+    const section = (inside: unknown) => ({ type: "Section", props: { id: "s", content: [inside] } });
+    const check = (content: string, before?: string) =>
+      ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, async () => before);
+    expect(await check(page(section(owners)))).toEqual(["content/pages/a.json"]);
     expect(await check(page(section({ type: "custom-html", props: { id: 7, html: "x", sanitize: false } })))).toEqual([
       "content/pages/a.json",
     ]);
-    expect(await check(page({ type: "custom-html", props: { html: "x", sanitize: true } }))).toEqual([
-      "content/pages/a.json",
-    ]);
+    // Nothing is gained by one that's made safe, nor by one that was already in the file.
+    expect(await check(page({ type: "custom-html", props: { html: "x", sanitize: true } }))).toEqual([]);
+    expect(
+      await check(page(section(owners), { type: "Text", props: { id: "t", text: "Edited" } }), page(section(owners))),
+    ).toEqual([]);
+    expect(
+      await check(
+        page(section({ ...owners, props: { ...owners.props, html: "<script>y</script>" } })),
+        page(section(owners)),
+      ),
+    ).toEqual(["content/pages/a.json"]);
     // Blocks with nothing owners-only may have none.
     expect(await check(page({ type: "Text", props: { text: "x" } }))).toEqual([]);
   });

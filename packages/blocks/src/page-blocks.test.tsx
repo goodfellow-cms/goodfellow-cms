@@ -172,3 +172,16 @@ describe("Table", () => {
     expect((await call(old, "force", null)).props).toMatchObject({ format: "html", cells: [["A &amp; B", "&lt;1"]] });
   });
 });
+
+describe("Blocks saved without their settings", () => {
+  it("draw every built-in block given only an id, as a page written by hand can leave the rest out", async () => {
+    for (const type of Object.keys(blocks) as Array<keyof typeof blocks>) {
+      await expect(render([{ type, props: { id: `only-${type}` } }]), type).resolves.toContain("Visit us");
+    }
+  });
+
+  it("keep a table saved before its cells could be formatted as plain text", async () => {
+    const html = await render([{ type: "Table", props: { id: "t", cells: [["a <b>bold</b> claim", "x"]] } }]);
+    expect(html).toContain("a &lt;b&gt;bold&lt;/b&gt; claim");
+  });
+});
