@@ -25,7 +25,7 @@ import {
 } from "./lockfile-setup.js";
 import { RELEASE_AGE_DAYS } from "./npm-packages.js";
 import { TASK_BRANCH_PREFIX, TASK_JOB, TASK_RESULT_FILE } from "./plugin-tasks.js";
-import { type SiteCli, TASK_DESCRIPTION, taskRunner, taskRunnerInstall } from "./task-setup.js";
+import { type SiteCli, TASK_DESCRIPTION, taskRunner, taskRunnerInstallLines, yamlItems } from "./task-setup.js";
 
 /** Bitbucket Pipelines' setup file. */
 export const BITBUCKET_PIPELINES = "bitbucket-pipelines.yml";
@@ -116,7 +116,7 @@ export const BITBUCKET_PUBLISHES = `auth:
 
 /** The end of a step that commits what the site's code made, for the next step to check and publish. */
 const LEAVE_PATCH = `            # What this step committed, for the next to check and publish: this one ran the site's code, so it can't.
-            - git format-patch --binary --stdout "$BITBUCKET_COMMIT..HEAD" > ${PUBLISH_PATCH}`;
+${yamlItems([`git format-patch --binary --stdout "$BITBUCKET_COMMIT..HEAD" > ${PUBLISH_PATCH}`], "            ")}`;
 
 /**
  * A step that publishes what the step before it committed, running none of
@@ -241,7 +241,7 @@ ${publishStep("Publish the lockfile", PACKAGE_CHANGED)}
                 [ -d node_modules ] || npm ci --prefer-offline
                 npx ${cli} update --commit --to "\${GOODFELLOW_UPDATE:-automatic}" || echo "The update wasn't made; rebuilding the site as it is."
               fi
-            - echo "$build" > ${BUILD_DECISION}
+${yamlItems([`echo "$build" > ${BUILD_DECISION}`], "            ")}
 ${LEAVE_PATCH}
           artifacts:
             - ${PUBLISH_PATCH}
@@ -279,18 +279,22 @@ ${bitbucketRebuildStep("Scheduled change")}
           ${BITBUCKET_READ_ONLY}
           caches: [npm]
           script:
-            - npm ci --prefer-offline || true
-            - npx ${cli} task --describe --out ${TASK_DESCRIPTION} || true
+${yamlItems(["npm ci --prefer-offline || true", `npx ${cli} task --describe --out ${TASK_DESCRIPTION} || true`], "            ")}
           artifacts:
             - ${TASK_DESCRIPTION}
       - step:
           name: Plugin task
           ${BITBUCKET_READ_ONLY}
           script:
-${taskRunnerInstall("/tmp/goodfellow-runner", "            ", "list")}
-            - npm ci --ignore-scripts
-            - ${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" || true
-            - cp "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" ${TASK_RESULT_FILE} || echo '{"version":1,"failed":true}' > ${TASK_RESULT_FILE}
+${yamlItems(
+  [
+    ...taskRunnerInstallLines("/tmp/goodfellow-runner"),
+    "npm ci --ignore-scripts",
+    `${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" || true`,
+    `cp "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" ${TASK_RESULT_FILE} || echo '{"version":1,"failed":true}' > ${TASK_RESULT_FILE}`,
+  ],
+  "            ",
+)}
           artifacts:
             - ${TASK_RESULT_FILE}
       - step:

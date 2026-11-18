@@ -4,12 +4,32 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { bitbucketPipelines } from "./bitbucket-setup.js";
+import {
+  BITBUCKET_PIPELINE_NAMES,
+  bitbucketCodeRebuildPipelines,
+  bitbucketContentPipelines,
+  bitbucketPipelines,
+} from "./bitbucket-setup.js";
+import { cloudflareSetupFiles } from "./cloudflare-setup.js";
+import { contentBuildsFor, separateSetupFiles } from "./content-repository-setup.js";
 import { CORE_RELEASE, LOCKFILE_REGISTRY_CHECK } from "./lockfile-setup.js";
-import { GITLAB_TASK_RULE, githubTaskWorkflow, gitlabTaskJob, TASK_CORE_RELEASE } from "./task-setup.js";
+import { netlifySetupFiles } from "./netlify-setup.js";
+import { HOSTS, type Host } from "./site-setup.js";
+import {
+  GITLAB_TASK_RULE,
+  githubTaskWorkflow,
+  gitlabTaskJob,
+  TASK_CORE_RELEASE,
+  taskRunnerInstall,
+  yamlItems,
+} from "./task-setup.js";
 
 const ROOT = join(import.meta.dirname, "../../..");
 const read = (path: string) => readFile(join(ROOT, path), "utf8");
+
+/** Where GitLab's jobs and Bitbucket's steps take commands. */
+const SCRIPT_KEYS = new Set(["script", "before_script", "after_script", "after-script"]);
+const PIPELINE = /(^|\/)(\.gitlab-ci|bitbucket-pipelines)\.yml$/;
 
 describe("the starters' task setup", () => {
   it("runs plugins' tasks as the setups planned for new sites do", async () => {
@@ -54,28 +74,77 @@ describe("the starters' task setup", () => {
     }
   });
 
-  it("writes every script line as a string YAML reads back as written, so GitLab and Bitbucket take the pipeline", () => {
+  it("writes every script line of every GitLab and Bitbucket pipeline as a string YAML reads back as written", async () => {
     const install = `release=$(node -e '${TASK_CORE_RELEASE}') || exit 1`;
-    const scripts: unknown[][] = [];
-    const visit = (value: unknown) => {
-      if (Array.isArray(value)) for (const item of value) visit(item);
+    const pipelines = new Map<string, string>();
+    for (const site of ["templates/starter", "templates/next", "examples/parish"]) {
+      pipelines.set(`${site}/.gitlab-ci.yml`, await read(`${site}/.gitlab-ci.yml`));
+    }
+    for (const cli of ["goodfellow", "goodfellow-next"] as const) {
+      pipelines.set(`gitlabTaskJob(${cli})`, gitlabTaskJob(cli));
+      pipelines.set(`bitbucketPipelines(${cli})`, bitbucketPipelines(cli));
+    }
+    for (const build of ["code", "content"] as const) {
+      pipelines.set(`bitbucketContentPipelines(${build})`, bitbucketContentPipelines(build));
+    }
+    pipelines.set("bitbucketCodeRebuildPipelines", bitbucketCodeRebuildPipelines("parish/content"));
+    for (const next of [false, true]) {
+      for (const files of [cloudflareSetupFiles({ git: "gitlab", next }), netlifySetupFiles({ git: "gitlab", next })]) {
+        for (const [path, text] of files) if (PIPELINE.test(path)) pipelines.set(`${path} (next: ${next})`, text);
+      }
+      for (const git of ["github", "gitlab", "bitbucket"] as const) {
+        for (const host of Object.keys(HOSTS) as Host[]) {
+          if (host === "netlify" || (git === "bitbucket" && host !== "vercel")) continue;
+          if ((git === "github" && host === "gitlab-pages") || (git === "gitlab" && host === "github-pages")) continue;
+          for (const build of contentBuildsFor(host)) {
+            const setup = separateSetupFiles({
+              git,
+              host,
+              build,
+              code: "parish/site",
+              content: "parish/content",
+              next,
+            });
+            for (const [side, files] of Object.entries(setup)) {
+              for (const [path, text] of files) {
+                if (PIPELINE.test(path)) pipelines.set(`${git} ${host} ${build} ${side} ${path} (next: ${next})`, text);
+              }
+            }
+          }
+        }
+      }
+    }
+    const scripts: [string, unknown][] = [];
+    const visit = (name: string, value: unknown) => {
+      if (Array.isArray(value)) for (const item of value) visit(name, item);
       else if (value && typeof value === "object") {
         for (const [key, inner] of Object.entries(value)) {
-          if (key === "script" && Array.isArray(inner)) scripts.push(inner);
-          else visit(inner);
+          if (SCRIPT_KEYS.has(key)) scripts.push([name, inner]);
+          else visit(name, inner);
         }
       }
     };
-    for (const cli of ["goodfellow", "goodfellow-next"] as const) {
-      visit(parse(gitlabTaskJob(cli)));
-      visit(parse(bitbucketPipelines(cli)));
+    for (const [name, text] of pipelines) visit(name, parse(text));
+    expect(scripts.length).toBeGreaterThan(40);
+    for (const [name, script] of scripts) {
+      // GitLab takes a string too; every pipeline here writes a list.
+      expect(Array.isArray(script), `${name}: ${JSON.stringify(script)}`).toBe(true);
+      for (const line of script as unknown[]) expect(typeof line, `${name}: ${JSON.stringify(line)}`).toBe("string");
     }
-    expect(scripts.length).toBeGreaterThan(5);
-    for (const script of scripts) for (const line of script) expect(typeof line, JSON.stringify(line)).toBe("string");
     // The line with `: ` in it, which GitLab refused as a key and its value.
     expect(parse(gitlabTaskJob("goodfellow"))["plugin-task"].script).toContain(install);
-    const task = parse(bitbucketPipelines("goodfellow")).pipelines.custom["plugin-task"][2].step;
-    expect(task.script).toContain(install);
+    const steps = parse(bitbucketPipelines("goodfellow")).pipelines.custom[BITBUCKET_PIPELINE_NAMES.task] as {
+      step?: { name: string; script: string[] };
+    }[];
+    expect(steps.find((entry) => entry.step?.name === "Plugin task")?.step?.script).toContain(install);
+  });
+
+  it("writes YAML list items only at an indent of spaces", () => {
+    expect(yamlItems(["a: b", `it's "here"`, "a\\b"], "  ")).toBe(`  - "a: b"\n  - 'it''s "here"'\n  - 'a\\b'`);
+    for (const line of ["a: b # c", `it's "here": now`, "a\\nb", "'x'", `a\n"b"\n  c`, "a\nb", " lead", "end "])
+      expect(parse(yamlItems([line], ""))).toEqual([line]);
+    expect(() => yamlItems(["a"], "  - ")).toThrow();
+    expect(() => taskRunnerInstall("/tmp/runner", "  - ")).toThrow();
   });
 
   it("keeps the GitLab task jobs to the pipelines the admin panel starts for tasks, the task's in its environment", () => {

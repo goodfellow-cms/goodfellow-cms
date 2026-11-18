@@ -216,8 +216,8 @@ plugin-task:
     - 'core="${release% *}"; before="${release#* }"'
     - 'mkdir -p "/tmp/goodfellow-runner"'
     - '(cd "/tmp/goodfellow-runner" && npm install --prefix . --no-save --no-package-lock --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ --before="$before" "@goodfellow-cms/core@$core")'
-    - npm ci --ignore-scripts
-    - node "/tmp/goodfellow-runner/node_modules/@goodfellow-cms/core/bin/goodfellow-task.js" --description goodfellow-task.json --out goodfellow-task-result.json
+    - "npm ci --ignore-scripts"
+    - 'node "/tmp/goodfellow-runner/node_modules/@goodfellow-cms/core/bin/goodfellow-task.js" --description goodfellow-task.json --out goodfellow-task-result.json'
   artifacts:
     paths: [goodfellow-task-result.json]
     expire_in: 1 hour
