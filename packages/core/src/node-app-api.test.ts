@@ -534,13 +534,14 @@ describe("appApi", () => {
   it("lets only owners change settings blocks mark as theirs", async () => {
     const ownersOnly: OwnersOnlyFields = { "custom-html": { fields: ["sanitize"], defaults: { sanitize: true } } };
     const { call, post, signIn } = setup(ALICE, { ownersOnly });
-    const page = (sanitize?: boolean, html = "<p>Hi</p>") =>
+    // As the admin panel saves it: with the block's starting value, unless a test says it's left out.
+    const page = (sanitize: boolean | null | "left out" = true, html = "<p>Hi</p>") =>
       JSON.stringify({
         version: 1,
         data: {
           root: { props: { title: "About" } },
           content: [
-            { type: "custom-html", props: { id: "html-1", html, ...(sanitize !== undefined && { sanitize }) } },
+            { type: "custom-html", props: { id: "html-1", html, ...(sanitize !== "left out" && { sanitize }) } },
           ],
         },
       });
@@ -555,6 +556,9 @@ describe("appApi", () => {
 
     expect((await write(page())).status).toBe(200);
     expect((await write(page(undefined, "<p>Hello</p>"))).status).toBe(200);
+    // Left out or null, the setting isn't its starting value: the block is drawn with its props as saved.
+    expect((await write(page("left out", "<script>alert(1)</script>"))).status).toBe(403);
+    expect((await write(page(null, "<script>alert(1)</script>"))).status).toBe(403);
     const refused = await write(page(false, "<script>alert(1)</script>"));
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: "owners-only", paths: ["content/pages/about.json"] });

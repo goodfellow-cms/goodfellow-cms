@@ -1258,7 +1258,10 @@ Content files are the product's data format; treat changes to them like API chan
   custom CSS and code, collections' `_collection.json`, installed blocks' code). Editors also may not change blocks'
   settings marked `metadata: { owners: true }` (`isOwnersOnlyField()`, such as Custom HTML's `sanitize`):
   `goodfellowApi()` passes `ownersOnlyFields(config.blocks)` as `AppApiOptions.ownersOnly`, and `ownersOnlyChanges()`
-  refuses a write where such a value changed on a block, by id, or a new block's isn't its default; the editor's frame
+  refuses a write where such a value changed on a block, by id, as it's written (left out and `null` are values of their
+  own, since blocks draw their props as saved), a new block's isn't its default, or a block that has one has no id; such
+  a block reads a left-out setting as its starting value (Custom HTML uses its HTML as written only where `sanitize` is
+  `false`); the editor's frame
   shows them read-only (`withOwnersOnlyLocked()`, `EditorOpen.ownersOnlyLocked`). An owners-only setting that isn't its
   starting value makes the block the owners' whole (any other change to it is refused), two blocks with one id count as
   a change (`checkPuckData()` refuses them too), and pages sent as bytes are read as text (`toFileChange()`). The server

@@ -50,18 +50,19 @@ function isBlock(value: unknown): value is Block {
 
 /**
  * Every block anywhere in a content file, by id (pages' blocks, slots, drop
- * zones, headers' and footers'), and the ids more than one block has, which
- * Puck would draw every one of.
+ * zones, headers' and footers'), the ids more than one block has, which Puck
+ * would draw every one of, and the blocks with no id, which it draws too.
  */
-function blocksOf(text: string | undefined): { blocks: Map<string, Block>; repeated: Set<string> } {
+function blocksOf(text: string | undefined): { blocks: Map<string, Block>; repeated: Set<string>; unnamed: Block[] } {
   const blocks = new Map<string, Block>();
   const repeated = new Set<string>();
-  if (text === undefined) return { blocks, repeated };
+  const unnamed: Block[] = [];
+  if (text === undefined) return { blocks, repeated, unnamed };
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return { blocks, repeated };
+    return { blocks, repeated, unnamed };
   }
   const visit = (value: unknown) => {
     if (Array.isArray(value)) {
@@ -70,12 +71,12 @@ function blocksOf(text: string | undefined): { blocks: Map<string, Block>; repea
       if (isBlock(value) && typeof value.props.id === "string") {
         if (blocks.has(value.props.id)) repeated.add(value.props.id);
         blocks.set(value.props.id, value);
-      }
+      } else if (isBlock(value)) unnamed.push(value);
       for (const item of Object.values(value)) visit(item);
     }
   };
   visit(parsed);
-  return { blocks, repeated };
+  return { blocks, repeated, unnamed };
 }
 
 /** A change's text, for a file sent as bytes too, so sending a page as bytes never skips the check. */
@@ -91,14 +92,25 @@ function changedText(change: FileChange): string | undefined {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** A setting a block's props leave out, which is never any value a block could be given. */
+const MISSING = Symbol("missing");
+
+/** A setting as it's written: a block draws its props as saved, so one left out isn't its starting value. */
+const written = (props: Record<string, unknown>, field: string) =>
+  Object.hasOwn(props, field) ? props[field] : MISSING;
+
+const sameSetting = (a: unknown, b: unknown) => (a === MISSING || b === MISSING ? a === b : same(a, b));
+
 /**
  * The files in `changes` where an owners-only setting changed: a block that
- * was there keeps its value, and a new one keeps its block's starting value.
- * A block whose owners-only setting isn't its starting value, such as Custom
- * HTML used exactly as written, is the owners' whole: none of its settings may
- * change, since its HTML would run as written. Two blocks with one id, which
- * Puck would draw both of, count as a change. `read` gives a file as it was
- * before the changes.
+ * was there keeps its value as it's written, left out or `null` too, and a new
+ * one holds its block's starting value, since blocks draw their props as saved
+ * and nothing fills a left-out one in. A block whose owners-only setting isn't
+ * its starting value, such as Custom HTML used exactly as written, is the
+ * owners' whole: none of its settings may change, since its HTML would run as
+ * written. Two blocks with one id, which Puck would draw both of, and a block
+ * with owners-only settings that has no id, which nothing could compare, count
+ * as a change. `read` gives a file as it was before the changes.
  */
 export async function ownersOnlyChanges(
   changes: readonly FileChange[],
@@ -112,6 +124,10 @@ export async function ownersOnlyChanges(
     const text = changedText(change);
     if (text === undefined) continue;
     const after = blocksOf(text);
+    if (after.unnamed.some((block) => Object.hasOwn(fields, block.type))) {
+      changed.push(change.path);
+      continue;
+    }
     const marked = [...after.blocks.entries()].filter(([, block]) => Object.hasOwn(fields, block.type));
     if (marked.length === 0) continue;
     const before = blocksOf(await read(change.path)).blocks;
@@ -120,11 +136,19 @@ export async function ownersOnlyChanges(
       if (!owned) return false;
       if (after.repeated.has(id)) return true;
       const was = before.get(id);
-      const previous = was?.type === block.type ? was.props : {};
-      const value = (props: Record<string, unknown>, field: string) => props[field] ?? owned.defaults[field];
-      if (owned.fields.some((field) => !same(value(block.props, field), value(previous, field)))) return true;
-      // An owner's block as they set it stays as they left it, every setting of it.
-      const owners = owned.fields.some((field) => !same(value(previous, field), owned.defaults[field]));
+      const previous = was?.type === block.type ? was.props : undefined;
+      const changes = (field: string) =>
+        previous
+          ? !sameSetting(written(block.props, field), written(previous, field))
+          : !sameSetting(written(block.props, field), owned.defaults[field]);
+      if (owned.fields.some(changes)) return true;
+      if (!previous) return false;
+      // An owner's block as they set it stays as they left it, every setting of it. A setting left out of a block
+      // saved before it existed counts as its starting value here, which the block must draw it as.
+      const owners = owned.fields.some((field) => {
+        const value = written(previous, field);
+        return value !== MISSING && !same(value, owned.defaults[field]);
+      });
       return owners && !same(block.props, previous);
     });
     if (breaks) changed.push(change.path);

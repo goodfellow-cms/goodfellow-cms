@@ -12,7 +12,7 @@ const fields = ownersOnlyFields(blocks);
 
 const block = (id: string, props: Record<string, unknown> = {}) => ({
   type: "custom-html",
-  props: { id, html: "<p>Hi</p>", ...props },
+  props: { id, html: "<p>Hi</p>", sanitize: true, ...props },
 });
 const page = (...content: unknown[]) => JSON.stringify({ version: 1, data: { root: { props: {} }, content } });
 
@@ -47,6 +47,43 @@ describe("owners-only settings", () => {
         page({ type: "Section", props: { id: "s", content: [block("b", { sanitize: false })] } }),
       ),
     ).toEqual(["content/layout/header.json"]);
+  });
+
+  it("read a setting as it's written, so a block that leaves it out or sets it to null isn't its starting value", async () => {
+    const read = async () => page(block("a"));
+    const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
+    const without = (id: string) => ({ type: "custom-html", props: { id, html: "<script>x</script>" } });
+    // A new block that leaves the setting out, or sets it to null.
+    expect(await check(page(block("a"), without("new")))).toEqual(["content/pages/a.json"]);
+    expect(await check(page(block("a"), block("new", { sanitize: null })))).toEqual(["content/pages/a.json"]);
+    // A block that was there, its setting taken out or set to null.
+    expect(await check(page(without("a")))).toEqual(["content/pages/a.json"]);
+    expect(await check(page(block("a", { sanitize: null })))).toEqual(["content/pages/a.json"]);
+  });
+
+  it("keep a block saved before its setting existed as it was, and let editors change the rest of it", async () => {
+    const old = { type: "custom-html", props: { id: "a", html: "<p>Old</p>" } };
+    const read = async () => page(old);
+    const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
+    expect(await check(page({ ...old, props: { ...old.props, html: "<p>New</p>" } }))).toEqual([]);
+    expect(await check(page(block("a", { sanitize: false })))).toEqual(["content/pages/a.json"]);
+  });
+
+  it("count a block with owners-only settings and no id as a change, wherever it is", async () => {
+    const read = async () => undefined;
+    const check = (content: string) => ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, read);
+    const section = (inside: unknown) => ({ type: "Section", props: { id: "s", content: [inside] } });
+    expect(await check(page(section({ type: "custom-html", props: { html: "x", sanitize: false } })))).toEqual([
+      "content/pages/a.json",
+    ]);
+    expect(await check(page(section({ type: "custom-html", props: { id: 7, html: "x", sanitize: false } })))).toEqual([
+      "content/pages/a.json",
+    ]);
+    expect(await check(page({ type: "custom-html", props: { html: "x", sanitize: true } }))).toEqual([
+      "content/pages/a.json",
+    ]);
+    // Blocks with nothing owners-only may have none.
+    expect(await check(page({ type: "Text", props: { text: "x" } }))).toEqual([]);
   });
 
   it("leave other files and blocks alone", async () => {

@@ -143,6 +143,17 @@ describe("blocks", () => {
     expect(safe).not.toContain("window.ran");
     const asWritten = await render({ html, sanitize: false });
     expect(asWritten).toContain(`<div class="gf-custom-html">${html}</div>`);
+    // Saved without the setting, or with anything but false in it, it's made safe: nothing fills a block's starting
+    // settings in before it's drawn.
+    for (const props of [{ html }, { html, sanitize: null }, { html, sanitize: "false" }]) {
+      const saved = await createPageRenderer({ blocks: { "custom-html": block } })(content, {
+        path: "/",
+        file: "content/pages/index.json",
+        content: { version: 1, data: { root: { props: {} }, content: [{ type: name, props: { id: "b", ...props } }] } },
+      });
+      expect(saved, JSON.stringify(props)).not.toContain("window.ran");
+      expect(saved).not.toContain("steal()");
+    }
   });
 
   it("holds custom HTML used as written back until visitors agree, on a site that asks", async () => {
