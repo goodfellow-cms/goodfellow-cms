@@ -107,6 +107,13 @@ describe("themeCssLoads", () => {
   it("reads CSS with many comments that never end quickly", () => {
     expect(themeCssLoads(`/*${"a/*".repeat(LONG)}`)).toEqual([]);
   });
+
+  it("reads image-set(), url() and strings that never end quickly", () => {
+    expect(themeCssLoads("image-set(".repeat(LONG))).toEqual([]);
+    expect(themeCssLoads("url(".repeat(LONG))).toEqual([]);
+    expect(themeCssLoads(`image-set(${'"\\'.repeat(LONG)}`)).toHaveLength(1);
+    expect(themeCssLoads(`${"(".repeat(LONG)}${"url( '".repeat(LONG)}`)).toEqual([]);
+  });
 });
 
 describe("trimming", () => {

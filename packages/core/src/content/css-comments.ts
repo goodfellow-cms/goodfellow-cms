@@ -57,17 +57,19 @@ function codePoint(hex: string): string {
 /**
  * The strings `image-set()` (and `-webkit-image-set()`) loads, which it reads
  * as addresses without a `url(`. Strings inside its own functions, such as
- * `type("image/avif")`, aren't addresses, and `url()`s are read elsewhere.
- * It reads the CSS once, as browsers' tokens do: a string or an escape
- * outside `image-set()` is passed over whole, so `content: "image-set("`
- * opens nothing (a string ends at its quote or at a line break), an unquoted `url(…)` is one token to its `)`, quotes and
- * all, and an escaped parenthesis, as in `url(a\(b)`, opens and closes
- * nothing. Reading never goes back, so the time it takes grows with the
+ * `type("image/avif")`, aren't addresses, and `url()`s are read elsewhere;
+ * one nested in another function, or in another `image-set()`, is read too.
+ * It reads the CSS once, as browsers' tokens do: a string (which ends at its
+ * quote or at a line break) or an escape is passed over whole, so
+ * `content: "image-set("` opens nothing, an unquoted `url(…)` is one token to
+ * its `)`, quotes and all, and an escaped parenthesis, as in `url(a\(b)`,
+ * opens and closes nothing. Reading never goes back, and a pattern is tried
+ * only at a letter that could start one, so the time it takes grows with the
  * CSS's length alone.
  */
 export function cssImageSetStrings(text: string): string[] {
   const values: string[] = [];
-  const start = /image-set\(/iy;
+  const imageSet = /image-set\(/iy;
   // The lookahead takes the spaces too, or `url( "…")` would read as unquoted after none of them.
   const url = /url\((?!\s*["'])\s*/iy;
   /**
@@ -85,61 +87,44 @@ export function cssImageSetStrings(text: string): string[] {
     }
     return end;
   };
-  /** Where an unquoted `url(` at `at` ends, after its `)`, or `undefined` where none starts there. */
-  const urlEnd = (at: number) => {
-    url.lastIndex = at;
-    if (!url.test(text)) return undefined;
-    let end = url.lastIndex;
-    while (end < text.length && text.charAt(end) !== ")") end += text.charAt(end) === "\\" ? 2 : 1;
-    return end + 1;
+  /** Where `pattern` matches at `at`, the position after it, or `undefined`. */
+  const matchAt = (pattern: RegExp, at: number) => {
+    pattern.lastIndex = at;
+    return pattern.test(text) ? pattern.lastIndex : undefined;
   };
+  // For each parenthesis open, whether `image-set(` opened it, so its strings are addresses.
+  const open: boolean[] = [];
   let at = 0;
   while (at < text.length) {
     const char = text.charAt(at);
     if (char === '"' || char === "'") {
-      at = stringEnd(at);
+      const end = stringEnd(at);
+      if (open.at(-1) === true) values.push(text.slice(at + 1, text.charAt(end - 1) === char ? end - 1 : end));
+      at = end;
       continue;
     }
     if (char === "\\") {
       at += 2;
       continue;
     }
-    const outerUrl = urlEnd(at);
-    if (outerUrl !== undefined) {
-      at = outerUrl;
+    const letter = char.toLowerCase();
+    const afterUrl = letter === "u" ? matchAt(url, at) : undefined;
+    if (afterUrl !== undefined) {
+      // An unquoted address is one token to its ")".
+      let end = afterUrl;
+      while (end < text.length && text.charAt(end) !== ")") end += text.charAt(end) === "\\" ? 2 : 1;
+      at = end + 1;
       continue;
     }
-    start.lastIndex = at;
-    if (!start.test(text)) {
-      at += 1;
+    const afterImageSet = letter === "i" ? matchAt(imageSet, at) : undefined;
+    if (afterImageSet !== undefined) {
+      open.push(true);
+      at = afterImageSet;
       continue;
     }
-    at = start.lastIndex;
-    let depth = 0;
-    while (at < text.length) {
-      const inner = text.charAt(at);
-      if (inner === '"' || inner === "'") {
-        const end = stringEnd(at);
-        if (depth === 0) values.push(text.slice(at + 1, text.charAt(end - 1) === inner ? end - 1 : end));
-        at = end;
-        continue;
-      }
-      if (inner === "\\") {
-        at += 2;
-        continue;
-      }
-      const innerUrl = urlEnd(at);
-      if (innerUrl !== undefined) {
-        at = innerUrl;
-        continue;
-      }
-      at += 1;
-      if (inner === "(") depth += 1;
-      else if (inner === ")") {
-        if (depth === 0) break;
-        depth -= 1;
-      }
-    }
+    if (char === "(") open.push(false);
+    else if (char === ")") open.pop();
+    at += 1;
   }
   return values;
 }

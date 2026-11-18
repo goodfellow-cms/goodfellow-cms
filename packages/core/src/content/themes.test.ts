@@ -168,6 +168,9 @@ describe("the theme's CSS", () => {
     expect(loads('a{background:image-set(type(a\\)b) "https://tracker.example/p.png" 2x)}')).toEqual(tracker);
     // A quoted address with spaces before it isn't read as an unquoted one ending at a ")" inside the string.
     expect(loads(`a{background:url( "/media/x)y.png")} ${later}`)).toEqual(tracker);
+    // An image-set() is read wherever it is, in another function or another image-set().
+    expect(loads('a{background:image-set(image-set("https://tracker.example/p.png" 1x) 1x)}')).toEqual(tracker);
+    expect(loads('a{background:cross-fade(image-set("https://tracker.example/p.png" 1x), red)}')).toEqual(tracker);
   });
 });
 
