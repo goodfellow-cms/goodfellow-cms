@@ -109,8 +109,9 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
   if (!parts.some((part) => part.value)) return owners();
   if (name.startsWith("on") || name === "srcdoc") return owners();
   if (CODE_ADDRESSES.has(`${tag.toLowerCase()} ${name}`)) return owners();
-  // A script's type or language decides whether and how it runs, so one a value goes in never runs: `text/plain`
-  // isn't script, and a language of `none` makes a script without a type `text/none`, which isn't either.
+  // A script's type or language decides whether and how it runs, so no value does: a type a value goes in is
+  // `text/plain`, which isn't script, and such a language `none`, which makes a script without a type `text/none`,
+  // which isn't either; a type the owners wrote still decides, as it does over any language.
   if (tag.toLowerCase() === "script" && name === "type") return "text/plain";
   if (tag.toLowerCase() === "script" && name === "language") return "none";
   if (ADDRESS_ATTRIBUTES.has(name)) {
@@ -146,7 +147,7 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
  * followed or loaded only where the whole address is a safe one. Where no escaping would keep a value from being
  * markup or script, in a tag outside an attribute's value, just after a `<` (written as text), an `on…` handler,
  * `srcdoc`, the address of a script, or a script or style, it's left out, as is every value after an `<svg>` or
- * `<math>`, whose markup browsers read by rules of their own, and a script whose type or language holds one never runs.
+ * `<math>`, whose markup browsers read by rules of their own; and no value decides whether a script runs.
  */
 function fillHtml(text: string, values: Values): string {
   type State = "text" | "comment" | "bogus" | "tag" | "before" | "attribute" | "after" | "beforeValue" | "value";
@@ -272,7 +273,7 @@ function fillHtml(text: string, values: Values): string {
       continue;
     }
     if (match && value !== undefined) {
-      // Not in a script's type or language, where any value, empty too, keeps the script from running.
+      // Not in a script's type or language, where any value, empty too, is written so it doesn't decide how it runs.
       const runs = tag.toLowerCase() === "script" && /^(?:type|language)$/i.test(attribute);
       if (state === "beforeValue" && value === "" && !runs) {
         deferred = true;

@@ -150,12 +150,16 @@ describe("filling in an item's values", () => {
     expect(fill('<a href="web{path}cal://example.org/e.ics">Go</a>', { path: "-x-" })).toBe(
       '<a href="webcal://example.org/e.ics">Go</a>',
     );
-    // A script whose type or language holds a value never runs, whatever the value.
+    // No value decides whether a script runs: one in its type or language makes them say it doesn't, and the owners'
+    // own type still decides over a language.
     expect(fill('<script type="{title}">0</script>', { title: "module" })).toBe('<script type="text/plain">0</script>');
     expect(fill("<script type={title}>0</script>", { title: "" })).toBe("<script type=text/plain>0</script>");
     expect(fill('<script type={title}"module">0</script>', { title: "" })).toBe("<script type=text/plain>0</script>");
     expect(fill('<script language="{title}">0</script>', { title: "javascript" })).toBe(
       '<script language="none">0</script>',
+    );
+    expect(fill('<script type="module" language="{title}">0</script>', { title: "x" })).toBe(
+      '<script type="module" language="none">0</script>',
     );
     // A reference the owners start and a value ends is read as the browser reads it, as one.
     expect(fill('<a href="javascript&#5{path}">Go</a>', { path: "8;alert(1)" })).toBe('<a href="javascript&#5">Go</a>');
