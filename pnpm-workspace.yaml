@@ -44,6 +44,11 @@ auditConfig:
     # deepmerge has no fixed release; Expo's config tools merge only the
     # app's own settings with it.
     - GHSA-gcqx-w48m-w2h4
+    # picomatch has no fixed release, and its ReDoS needs an attacker-written
+    # glob: only build and development tools (Vite, Tailwind, Metro, fast-glob)
+    # compile globs, from the site's own config, never from content, editors or
+    # visitors, and no package Goodfellow ships bundles it.
+    - GHSA-fc5q-39xc-vjpf
 
 peerDependencyRules:
   allowedVersions:
