@@ -89,8 +89,11 @@ describe("the starters' task setup", () => {
     }
     pipelines.set("bitbucketCodeRebuildPipelines", bitbucketCodeRebuildPipelines("parish/content"));
     for (const next of [false, true]) {
-      for (const files of [cloudflareSetupFiles({ git: "gitlab", next }), netlifySetupFiles({ git: "gitlab", next })]) {
-        for (const [path, text] of files) if (PIPELINE.test(path)) pipelines.set(`${path} (next: ${next})`, text);
+      const hosts = { cloudflare: cloudflareSetupFiles, netlify: netlifySetupFiles };
+      for (const [host, setupFiles] of Object.entries(hosts)) {
+        for (const [path, text] of setupFiles({ git: "gitlab", next })) {
+          if (PIPELINE.test(path)) pipelines.set(`${host} ${path} (next: ${next})`, text);
+        }
       }
       for (const git of ["github", "gitlab", "bitbucket"] as const) {
         for (const host of Object.keys(HOSTS) as Host[]) {
@@ -125,6 +128,7 @@ describe("the starters' task setup", () => {
       }
     };
     for (const [name, text] of pipelines) visit(name, parse(text));
+    expect([...pipelines.keys()].filter((name) => /^(cloudflare|netlify) /.test(name))).toHaveLength(4);
     expect(scripts.length).toBeGreaterThan(40);
     for (const [name, script] of scripts) {
       // GitLab takes a string too; every pipeline here writes a list.
