@@ -350,6 +350,8 @@ describe("the Stripe customer", () => {
     const { stripe, buying, checkout, customer, readerId, reader, close } = await payments();
     try {
       stripe.settings.idempotency = false;
+      // Both ask Stripe before either has kept its customer, as they would arriving at the same moment.
+      stripe.settings.customersAtOnce = 2;
       await Promise.all([
         checkout(buying(reader, { page: "/subscribe", block: "monthly" })),
         checkout(buying(reader, { page: "/subscribe", block: "report" })),
