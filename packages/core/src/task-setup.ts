@@ -11,6 +11,8 @@
  * running none of the site's code but the task itself, held to what its
  * plugin declared.
  */
+
+import { Scalar, stringify } from "yaml";
 import { GITHUB_INSTALL_STEPS } from "./github-workflows.js";
 import { TASK_BRANCH_PREFIX, TASK_EVENT, TASK_JOB, TASK_RESULT_FILE } from "./plugin-tasks.js";
 
@@ -37,24 +39,60 @@ export const TASK_ENVIRONMENT = "goodfellow-tasks";
 export const TASK_CORE_RELEASE = String.raw`const fs = require("fs"); let lock; try { lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8")); } catch { console.error("package-lock.json cannot be read, so the release of @goodfellow-cms/core the site uses is not known."); process.exit(1); } const release = ((lock.packages || {})["node_modules/@goodfellow-cms/core"] || (lock.dependencies || {})["@goodfellow-cms/core"] || {}).version; if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(release || "")) { console.error("package-lock.json names @goodfellow-cms/core as " + JSON.stringify(release) + ", which is not a release from npm."); process.exit(1); } fetch("https://registry.npmjs.org/@goodfellow-cms%2fcore", { signal: AbortSignal.timeout(30000) }).then((response) => { if (!response.ok) throw new Error("npm answered " + response.status + " for @goodfellow-cms/core."); return response.json(); }).then((packument) => { const published = Date.parse(((packument || {}).time || {})[release]); if (Number.isNaN(published)) throw new Error("npm gives no publish time for @goodfellow-cms/core " + release + "."); console.log(release + " " + new Date(published + 24 * 60 * 60 * 1000).toISOString()); }).catch((error) => { console.error(error.message); process.exit(1); });`;
 
 /**
- * Installs Goodfellow's task runner into `dir`, outside the site, from
- * npm's own registry, at the exact release of `@goodfellow-cms/core` the
- * site's lockfile installs, taking nothing npm published more than a day
- * after it (`TASK_CORE_RELEASE`), running no install scripts, with none of
- * the site's npm settings: script lines, each starting at `indent`.
+ * A YAML string in quotes, which YAML reads as it's written: a command in a
+ * list as plain text would be read as a key and its value wherever it holds
+ * `: `, as `TASK_CORE_RELEASE` does, or cut short at ` #`. The `yaml` package
+ * writes it, on one line however long, in double quotes where it has no `"`
+ * or `\\`, and otherwise in single quotes, as Biome formats YAML.
  */
-export function taskRunnerInstall(dir: string, indent: string): string {
+export function yamlQuoted(text: string): string {
+  const scalar = new Scalar(text);
+  scalar.type = /["\\]/.test(text) ? Scalar.QUOTE_SINGLE : Scalar.QUOTE_DOUBLE;
+  return stringify(scalar, { lineWidth: 0 }).replace(/\n$/, "");
+}
+
+/**
+ * YAML list items, one for each line, each quoted with `yamlQuoted()`, starting
+ * at `indent`, the spaces before each item's `- `, for GitLab's and Bitbucket's
+ * `script`.
+ */
+export function yamlItems(lines: readonly string[], indent: string): string {
+  return lines.map((line) => `${spaces(indent)}- ${yamlQuoted(line)}`).join("\n");
+}
+
+/** `indent`, where it's only spaces, as YAML's indents are. */
+function spaces(indent: string): string {
+  if (!/^ *$/.test(indent)) throw new Error(`An indent is spaces only, not ${JSON.stringify(indent)}.`);
+  return indent;
+}
+
+/**
+ * The commands that install Goodfellow's task runner into `dir`, outside the
+ * site, from npm's own registry, at the exact release of `@goodfellow-cms/core`
+ * the site's lockfile installs, taking nothing npm published more than a day
+ * after it (`TASK_CORE_RELEASE`), running no install scripts, with none of the
+ * site's npm settings. GitLab and Bitbucket take them as `yamlItems()`.
+ */
+export function taskRunnerInstallLines(dir: string): string[] {
   return [
     `release=$(node -e '${TASK_CORE_RELEASE}') || exit 1`,
     `core="\${release% *}"; before="\${release#* }"`,
     `mkdir -p "${dir}"`,
     `(cd "${dir}" && npm install --prefix . --no-save --no-package-lock --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ --before="$before" "@goodfellow-cms/core@$core")`,
-  ]
-    .map((line) => `${indent}${line}`)
+  ];
+}
+
+/**
+ * `taskRunnerInstallLines()` as a shell script's lines, each starting at
+ * `indent`, for a block such as GitHub's `run: |`.
+ */
+export function taskRunnerInstall(dir: string, indent: string): string {
+  return taskRunnerInstallLines(dir)
+    .map((line) => `${spaces(indent)}${line}`)
     .join("\n");
 }
 
-/** The task runner's bin, as `taskRunnerInstall()` installs it into `dir`. */
+/** The task runner's bin, as `taskRunnerInstallLines()` install it into `dir`. */
 export function taskRunner(dir: string): string {
   return `node "${dir}/node_modules/@goodfellow-cms/core/bin/goodfellow-task.js"`;
 }
@@ -215,9 +253,14 @@ ${TASK_JOB}:
     name: ${TASK_ENVIRONMENT}
     action: prepare
   script:
-${taskRunnerInstall("/tmp/goodfellow-runner", "    - ")}
-    - npm ci --ignore-scripts
-    - ${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out ${TASK_RESULT_FILE}
+${yamlItems(
+  [
+    ...taskRunnerInstallLines("/tmp/goodfellow-runner"),
+    "npm ci --ignore-scripts",
+    `${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out ${TASK_RESULT_FILE}`,
+  ],
+  "    ",
+)}
   artifacts:
     paths: [${TASK_RESULT_FILE}]
     expire_in: 1 hour
