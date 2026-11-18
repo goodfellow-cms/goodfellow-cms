@@ -287,7 +287,7 @@ ${bitbucketRebuildStep("Scheduled change")}
           name: Plugin task
           ${BITBUCKET_READ_ONLY}
           script:
-${taskRunnerInstall("/tmp/goodfellow-runner", "            - ")}
+${taskRunnerInstall("/tmp/goodfellow-runner", "            ", "list")}
             - npm ci --ignore-scripts
             - ${taskRunner("/tmp/goodfellow-runner")} --description ${TASK_DESCRIPTION} --out "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" || true
             - cp "$BITBUCKET_CLONE_DIR/../${TASK_RESULT_FILE}" ${TASK_RESULT_FILE} || echo '{"version":1,"failed":true}' > ${TASK_RESULT_FILE}

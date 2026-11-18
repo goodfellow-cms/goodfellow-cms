@@ -54,6 +54,30 @@ describe("the starters' task setup", () => {
     }
   });
 
+  it("writes every script line as a string YAML reads back as written, so GitLab and Bitbucket take the pipeline", () => {
+    const install = `release=$(node -e '${TASK_CORE_RELEASE}') || exit 1`;
+    const scripts: unknown[][] = [];
+    const visit = (value: unknown) => {
+      if (Array.isArray(value)) for (const item of value) visit(item);
+      else if (value && typeof value === "object") {
+        for (const [key, inner] of Object.entries(value)) {
+          if (key === "script" && Array.isArray(inner)) scripts.push(inner);
+          else visit(inner);
+        }
+      }
+    };
+    for (const cli of ["goodfellow", "goodfellow-next"] as const) {
+      visit(parse(gitlabTaskJob(cli)));
+      visit(parse(bitbucketPipelines(cli)));
+    }
+    expect(scripts.length).toBeGreaterThan(5);
+    for (const script of scripts) for (const line of script) expect(typeof line, JSON.stringify(line)).toBe("string");
+    // The line with `: ` in it, which GitLab refused as a key and its value.
+    expect(parse(gitlabTaskJob("goodfellow"))["plugin-task"].script).toContain(install);
+    const task = parse(bitbucketPipelines("goodfellow")).pipelines.custom["plugin-task"][2].step;
+    expect(task.script).toContain(install);
+  });
+
   it("keeps the GitLab task jobs to the pipelines the admin panel starts for tasks, the task's in its environment", () => {
     const jobs = parse(gitlabTaskJob("goodfellow"));
     expect(jobs["plugin-task-describe"].rules).toEqual([{ if: "$GOODFELLOW_TASK_PLUGIN" }]);
