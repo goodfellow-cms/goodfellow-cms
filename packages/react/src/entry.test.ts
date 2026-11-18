@@ -186,6 +186,18 @@ describe("filling in an item's values", () => {
     expect(fill(joined, { base: "T", path: "alert(1)" })).toBe(
       "<script><!--<script>\n// </script>\n\n</script><p>alert(1)</p>",
     );
+    // And its end tag written with a value left out of it is read whole, so nothing in it is read again as text.
+    expect(fill("<script>/* <{base}/script> */{path}</script><p>{path}</p>", { base: "", path: "alert(1)" })).toBe(
+      "<script>/* </script> */alert(1)</script><p>alert(1)</p>",
+    );
+    expect(fill("<script></scr{base}ipt>{path}</script>", { base: "", path: "<b>" })).toBe(
+      "<script></script>&lt;b&gt;</script>",
+    );
+    // A long document is read, a little more at a time, through each element's end.
+    const long = `${"<script>x</script><p>{path}</p>".repeat(3000)}<script>${"y".repeat(5000)}{path}</script>{path}`;
+    expect(fill(long, { path: "&" })).toBe(
+      `${"<script>x</script><p>&amp;</p>".repeat(3000)}<script>${"y".repeat(5000)}</script>&amp;`,
+    );
     // And a text area's: its end tag written with a value left out of it is still its end.
     expect(fill('<textarea></text{base}area><a href="{path}">x</a>', { base: "", path: "javascript:alert(1)" })).toBe(
       '<textarea></textarea><a href="">x</a>',

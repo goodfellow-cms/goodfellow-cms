@@ -8,7 +8,7 @@ import {
   itemTitleIn,
 } from "@goodfellow-cms/core";
 import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
-import { asciiLower, isHtmlSpace, RAW_TEXT, rawTextEnd } from "./html-scan.js";
+import { asciiLower, isHtmlSpace, RAW_TEXT, rawTextEnd, tagEnd } from "./html-scan.js";
 import type { SiteContextValue } from "./site-types.js";
 
 /** `{title}`, `{event-date}`: a field's name in braces. */
@@ -146,9 +146,10 @@ function fillHtml(text: string, values: Values): string {
     parts = [];
   };
   /**
-   * The text of a raw-text element, straight after its start tag: values escaped in a text area or title, else none.
-   * It ends where a browser ends it in the text as written, values in, not as the owners wrote it: leaving `{x}` out of
-   * `<!--<scr{x}ipt>` writes the `<script>` that keeps a script's next `</script>` in it.
+   * The text of a raw-text element, straight after its start tag, and its end tag: values escaped in a text area or
+   * title, else none. It ends where a browser ends it in the text as written, values in, not as the owners wrote it:
+   * leaving `{x}` out of `<!--<scr{x}ipt>` writes the `<script>` that keeps a script's next `</script>` in it, and
+   * leaving it out of `</scr{x}ipt>` writes the end tag, which is read whole here, so none of it is read again as text.
    */
   const rawText = () => {
     const name = tag.toLowerCase();
@@ -157,27 +158,51 @@ function fillHtml(text: string, values: Values): string {
     // Where each run of the text as written starts, and where in the owners' text it came from.
     const runs: [number, number][] = [];
     let from = i;
-    for (const match of text.slice(i).matchAll(PLACEHOLDER)) {
-      const value = values.get(match[1] ?? "");
-      if (value === undefined) continue;
-      const start = i + (match.index ?? 0);
-      runs.push([filled.length, from]);
-      filled += text.slice(from, start) + (escapes ? escapeHtml(value) : "");
-      from = start + match[0].length;
+    const next = new RegExp(PLACEHOLDER.source, "g");
+    let match: RegExpExecArray | null = null;
+    const nextValue = () => {
+      next.lastIndex = from;
+      do match = next.exec(text);
+      while (match && values.get(match[1] ?? "") === undefined);
+    };
+    nextValue();
+    // Filled a little at a time, twice as much each time, so a long document's text isn't filled once for each
+    // element: what's written up to an end tag doesn't change with what's written after it.
+    const fillTo = (length: number) => {
+      while (filled.length < length && from < text.length) {
+        const start = match ? match.index : text.length;
+        const stop = Math.min(start, from + (length - filled.length));
+        if (stop > from) {
+          runs.push([filled.length, from]);
+          filled += text.slice(from, stop);
+          from = stop;
+        }
+        if (match && from === start) {
+          const value = values.get(match[1] ?? "") ?? "";
+          if (escapes) filled += escapeHtml(value);
+          from = start + match[0].length;
+          nextValue();
+        }
+      }
+    };
+    let close = -1;
+    for (let length = 1024; ; length *= 2) {
+      fillTo(length);
+      const lower = asciiLower(filled);
+      const end = rawTextEnd(lower, name, 0);
+      if (end !== -1) close = tagEnd(lower, end + 2 + name.length);
+      if (close !== -1 || from >= text.length) break;
     }
-    runs.push([filled.length, from]);
-    filled += text.slice(from);
-    const end = rawTextEnd(asciiLower(filled), name, 0);
-    if (end === -1) {
+    if (close === -1) {
       out += filled;
       i = text.length;
       return;
     }
-    out += filled.slice(0, end);
-    // The end tag's `<` is the owners' own, since no value written here holds one: it's in the last run starting by it.
-    let run: [number, number] = [0, from];
-    for (const candidate of runs) if (candidate[0] <= end) run = candidate;
-    i = run[1] + (end - run[0]);
+    out += filled.slice(0, close + 1);
+    // The end tag's `>` is the owners' own, since no value written here holds one: it's in the last run starting by it.
+    let run: [number, number] = [0, i];
+    for (const candidate of runs) if (candidate[0] <= close) run = candidate;
+    i = run[1] + (close + 1 - run[0]);
   };
   const endTag = () => {
     state = "text";
