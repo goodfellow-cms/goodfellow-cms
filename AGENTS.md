@@ -1474,10 +1474,11 @@ Content files are the product's data format; treat changes to them like API chan
 - **Never rename** a block's key in a site's `blocks` or any of its props. Content files refer to blocks and props by
   name, so a rename needs a content migration.
 - **Default settings:** `preparePage()` and `prepareLayout()` put each block's `defaultProps` under its saved props
-  (`withDefaultProps()` in `prepare.ts`, by Puck's `walkTree()`, so blocks in slots too), since Puck fills them in only
-  when the editor adds a block, and a page written by hand, by a script or before a setting existed can leave some
-  out; blocks can count on every setting. A setting whose absence says something is marked
-  `metadata: { noDefault: true }`, such as the Table block's `format` and the Gallery's `lightbox`.
+  (`withDefaultProps()` in `prepare.ts`, in slots too, in objects and lists as well, with a default's own slots empty,
+  and leaving a block the site doesn't have as it is, for Puck to leave out, where Puck's `walkTree()` would throw),
+  since Puck fills them in only when the editor adds a block, and a page written by hand, by a script or before a
+  setting existed can leave some out; blocks can count on every setting. A setting whose absence says something is
+  marked `metadata: { noDefault: true }`, such as the Table block's `format` and the Gallery's `lightbox`.
 - **CSS classes:** every block has a `className` prop. Declare `className: classNameField` and apply it to the block's
   outermost element. A block that doesn't declare it gets wrapped in a `<div>` that carries the classes.
 - **Style:** `classNameField` is the block's Style setting: a text field marked `metadata: { style: true }`

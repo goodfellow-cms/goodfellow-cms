@@ -530,4 +530,56 @@ describe("renderPage", () => {
     expect(html).not.toContain("A default's block");
     expect(html).toContain('<p data-tone="QUIET">Default text|left out</p>');
   });
+
+  it("leaves a block the site no longer has out, filling in its neighbours' defaults, and empties slots in defaults", async () => {
+    const Label: ComponentConfig<{ text: string }> = {
+      fields: { text: { type: "text" } },
+      defaultProps: { text: "Known" },
+      render: ({ text }) => <p>{text}</p>,
+    };
+    const Box: ComponentConfig<{ items: Slot }> = {
+      fields: { items: { type: "slot" } },
+      render: ({ items: Items }) => (
+        <section>
+          <Items />
+        </section>
+      ),
+    };
+    const Panel: ComponentConfig<{ inner: { body: Slot; note: string } }> = {
+      fields: { inner: { type: "object", objectFields: { body: { type: "slot" }, note: { type: "text" } } } },
+      defaultProps: {
+        inner: { body: [{ type: "Label", props: { id: "in-default", text: "Inside a default" } }], note: "A note" },
+      },
+      render: ({ inner }) => {
+        const Body = inner.body as unknown as () => ReactNode;
+        return (
+          <aside>
+            {inner.note}
+            <Body />
+          </aside>
+        );
+      },
+    };
+    const render = createPageRenderer({ blocks: { ...config.blocks, Label, Box, Panel } });
+    const html = await render(
+      makeContent(),
+      makePage([
+        {
+          type: "Box",
+          props: {
+            id: "b",
+            items: [
+              { type: "Gone", props: { id: "g" } },
+              { type: "Label", props: { id: "l" } },
+            ],
+          },
+        },
+        { type: "Gone", props: { id: "top" } },
+        { type: "Panel", props: { id: "p" } },
+      ]),
+    );
+    expect(html).toContain("<section><div><p>Known</p></div></section>");
+    expect(html).toContain("<aside>A note");
+    expect(html).not.toContain("Inside a default");
+  });
 });

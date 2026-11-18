@@ -21,6 +21,12 @@ export function isOwnersOnlyField(field: unknown): boolean {
   return typeof metadata === "object" && metadata !== null && (metadata as { owners?: unknown }).owners === true;
 }
 
+/** Whether pages leave a setting out where a block's saved props do, rather than give it its default. */
+function hasNoDefault(field: unknown): boolean {
+  const metadata = (field as FieldLike | null)?.metadata;
+  return typeof metadata === "object" && metadata !== null && (metadata as { noDefault?: unknown }).noDefault === true;
+}
+
 /** The owners-only settings of a config's blocks, such as `config.blocks`. */
 export function ownersOnlyFields(blocks: Readonly<Record<string, BlockLike>>): OwnersOnlyFields {
   const found: OwnersOnlyFields = {};
@@ -29,8 +35,12 @@ export function ownersOnlyFields(blocks: Readonly<Record<string, BlockLike>>): O
       .filter(([, field]) => isOwnersOnlyField(field))
       .map(([field]) => field);
     if (fields.length === 0) continue;
-    const defaults = typeof block.defaultProps === "object" && block.defaultProps !== null ? block.defaultProps : {};
-    found[name] = { fields, defaults: defaults as Record<string, unknown> };
+    const given = typeof block.defaultProps === "object" && block.defaultProps !== null ? block.defaultProps : {};
+    // A setting pages don't give its default (`metadata: { noDefault: true }`) has none here either.
+    const defaults = Object.fromEntries(
+      Object.entries(given).filter(([field]) => !hasNoDefault(block.fields?.[field])),
+    );
+    found[name] = { fields, defaults };
   }
   return found;
 }
@@ -50,12 +60,17 @@ function isBlock(value: unknown): value is Block {
 
 /**
  * Every block anywhere in a content file, by id (pages' blocks, slots, drop
- * zones, headers' and footers'), the ids more than one block has, which Puck
- * would draw every one of, and the blocks with no id, which it draws too.
+ * zones, headers' and footers'), the ids more than one block has, with every
+ * block that has each, which Puck would draw every one of, and the blocks
+ * with no id, which it draws too.
  */
-function blocksOf(text: string | undefined): { blocks: Map<string, Block>; repeated: Set<string>; unnamed: Block[] } {
+function blocksOf(text: string | undefined): {
+  blocks: Map<string, Block>;
+  repeated: Map<string, Block[]>;
+  unnamed: Block[];
+} {
   const blocks = new Map<string, Block>();
-  const repeated = new Set<string>();
+  const repeated = new Map<string, Block[]>();
   const unnamed: Block[] = [];
   if (text === undefined) return { blocks, repeated, unnamed };
   let parsed: unknown;
@@ -69,8 +84,10 @@ function blocksOf(text: string | undefined): { blocks: Map<string, Block>; repea
       for (const item of value) visit(item);
     } else if (typeof value === "object" && value !== null) {
       if (isBlock(value) && typeof value.props.id === "string") {
-        if (blocks.has(value.props.id)) repeated.add(value.props.id);
-        blocks.set(value.props.id, value);
+        const id = value.props.id;
+        const earlier = blocks.get(id);
+        if (earlier) repeated.set(id, [...(repeated.get(id) ?? [earlier]), value]);
+        blocks.set(id, value);
       } else if (isBlock(value)) unnamed.push(value);
       for (const item of Object.values(value)) visit(item);
     }
@@ -141,14 +158,19 @@ export async function ownersOnlyChanges(
     const text = changedText(change);
     if (text === undefined) continue;
     const after = blocksOf(text);
-    const marked = [...after.blocks.entries()].filter(([, block]) => Object.hasOwn(fields, block.type));
-    const unnamed = after.unnamed.filter((block) => Object.hasOwn(fields, block.type));
+    const protectedBlock = (block: Block) => Object.hasOwn(fields, block.type);
+    // Any block of a repeated id counts, not only the last, which another block's type could otherwise hide.
+    if ([...after.repeated.values()].some((all) => all.some(protectedBlock))) {
+      changed.push(change.path);
+      continue;
+    }
+    const marked = [...after.blocks.entries()].filter(([, block]) => protectedBlock(block));
+    const unnamed = after.unnamed.filter(protectedBlock);
     if (marked.length === 0 && unnamed.length === 0) continue;
     const earlier = blocksOf(await read(change.path));
     const before = earlier.blocks;
     const breaks = marked.some(([id, block]) => {
       const owned = fields[block.type] as Owned;
-      if (after.repeated.has(id)) return true;
       const was = before.get(id);
       const previous = was?.type === block.type ? was.props : undefined;
       if (!previous) return !startsAsDefault(owned, block.props);
@@ -158,11 +180,16 @@ export async function ownersOnlyChanges(
       // An owner's block as they set it stays as they left it, every setting of it.
       return !startsAsDefault(owned, previous) && !same(now, then);
     });
+    // Each block the file had before stands for one block now, so a copy of an owner's block is a new block.
+    const unmatched = [...earlier.unnamed];
     const unnamedBreaks = unnamed.some((block) => {
       const owned = fields[block.type] as Owned;
       if (startsAsDefault(owned, block.props)) return false;
       const now = drawn(owned, block.props);
-      return !earlier.unnamed.some((was) => was.type === block.type && same(drawn(owned, was.props), now));
+      const match = unmatched.findIndex((was) => was.type === block.type && same(drawn(owned, was.props), now));
+      if (match === -1) return true;
+      unmatched.splice(match, 1);
+      return false;
     });
     if (breaks || unnamedBreaks) changed.push(change.path);
   }

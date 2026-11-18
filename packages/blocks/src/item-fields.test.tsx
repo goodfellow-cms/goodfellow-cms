@@ -162,3 +162,26 @@ describe("collection fields in blocks", () => {
     expect(html).not.toContain("gf-entry-field");
   });
 });
+
+describe("Blocks only for templates, saved without their settings", () => {
+  it("draw on an item's page given only an id", async () => {
+    const html = await main({
+      path: "/talks/advent",
+      file: "content/collections/talks/advent.json",
+      content: {
+        version: 1,
+        data: {
+          root: { props: { title: "{title}" } },
+          content: [
+            { type: "EntryField", props: { id: "f" } },
+            { type: "EntryPager", props: { id: "p" } },
+            { type: "AddToCalendar", props: { id: "c" } },
+          ],
+        } as never,
+      },
+      entry: { collection: "talks", slug: "advent" },
+    });
+    // Entry field's starting field is the item's title.
+    expect(html).toMatch(/<p class="gf-entry-field[^"]*">Advent<\/p>/);
+  });
+});

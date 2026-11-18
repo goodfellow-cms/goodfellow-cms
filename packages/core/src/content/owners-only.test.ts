@@ -114,6 +114,36 @@ describe("owners-only settings", () => {
     expect(await check(page({ type: "Text", props: { text: "x" } }))).toEqual([]);
   });
 
+  it("count any block of a repeated id, whichever comes last", async () => {
+    const check = (content: string) =>
+      ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, async () => undefined);
+    const hidden = { ...block("a", { sanitize: false }) };
+    expect(await check(page(hidden, { type: "Text", props: { id: "a", text: "x" } }))).toEqual([
+      "content/pages/a.json",
+    ]);
+    expect(
+      await check(page({ type: "Text", props: { id: "t", text: "x" } }, { type: "Text", props: { id: "t" } })),
+    ).toEqual([]);
+  });
+
+  it("let each block the file had with no id stand for one block now", async () => {
+    const owners = { type: "custom-html", props: { html: "x", sanitize: false } };
+    const check = (content: string) =>
+      ownersOnlyChanges([{ path: "content/pages/a.json", content }], fields, async () => page(owners));
+    expect(await check(page(owners))).toEqual([]);
+    expect(await check(page(owners, owners))).toEqual(["content/pages/a.json"]);
+  });
+
+  it("give a setting pages leave out where it's missing no starting value", () => {
+    const noDefault = ownersOnlyFields({
+      Embed: {
+        fields: { code: { type: "text", metadata: { owners: true, noDefault: true } } },
+        defaultProps: { code: "<p>Hi</p>", height: 300 },
+      },
+    });
+    expect(noDefault).toEqual({ Embed: { fields: ["code"], defaults: { height: 300 } } });
+  });
+
   it("leave other files and blocks alone", async () => {
     const read = async () => undefined;
     expect(await ownersOnlyChanges([{ path: "content/pages/a.json", content: page(block("a")) }], {}, read)).toEqual(
