@@ -88,11 +88,13 @@ describe("the starters' task setup", () => {
       pipelines.set(`bitbucketContentPipelines(${build})`, bitbucketContentPipelines(build));
     }
     pipelines.set("bitbucketCodeRebuildPipelines", bitbucketCodeRebuildPipelines("parish/content"));
-    for (const next of [false, true]) {
-      const hosts = { cloudflare: cloudflareSetupFiles, netlify: netlifySetupFiles };
-      for (const [host, setupFiles] of Object.entries(hosts)) {
+    // Hosts that build the site themselves, whose GitLab setup is a pipeline of its own: one file each.
+    const hookHosts = { cloudflare: cloudflareSetupFiles, netlify: netlifySetupFiles };
+    const nexts = [false, true];
+    for (const next of nexts) {
+      for (const [hookHost, setupFiles] of Object.entries(hookHosts)) {
         for (const [path, text] of setupFiles({ git: "gitlab", next })) {
-          if (PIPELINE.test(path)) pipelines.set(`${host} ${path} (next: ${next})`, text);
+          if (PIPELINE.test(path)) pipelines.set(`${hookHost} ${path} (next: ${next})`, text);
         }
       }
       for (const git of ["github", "gitlab", "bitbucket"] as const) {
@@ -128,7 +130,10 @@ describe("the starters' task setup", () => {
       }
     };
     for (const [name, text] of pipelines) visit(name, parse(text));
-    expect([...pipelines.keys()].filter((name) => /^(cloudflare|netlify) /.test(name))).toHaveLength(4);
+    const hookPipelines = [...pipelines.keys()].filter((name) =>
+      Object.keys(hookHosts).some((hookHost) => name.startsWith(`${hookHost} `)),
+    );
+    expect(hookPipelines).toHaveLength(Object.keys(hookHosts).length * nexts.length);
     expect(scripts.length).toBeGreaterThan(40);
     for (const [name, script] of scripts) {
       // GitLab takes a string too; every pipeline here writes a list.
