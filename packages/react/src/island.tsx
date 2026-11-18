@@ -11,8 +11,8 @@ import {
 import { prerender } from "react-dom/static";
 import {
   asciiLower,
+  attributeText,
   commentEnd,
-  decodeAttribute,
   isHtmlSpace,
   RAW_TEXT,
   rawTextEnd,
@@ -276,20 +276,33 @@ function topLevelSlots(html: string) {
   let open: { id: string; start: number; innerStart: number } | undefined;
   // The elements open from the first `<svg>` or `<math>` on, innermost last, as the standard's foreign content rules
   // keep them: in SVG or MathML a `<title>` or `<textarea>` is an element like any other, whose content is markup, and
-  // its end tags close only what they name. Empty, the page is read by HTML's rules. `named` counts each name in it,
-  // so an end tag that closes nothing is passed over without reading it all.
+  // its end tags close only what they name. Empty, the page is read by HTML's rules.
   const stack: Frame[] = [];
-  const named = new Map<string, number>();
+  // Where in it each name is, and each HTML element and HTML template, innermost last, so an end tag finds what it
+  // closes without reading it all.
+  const positions = new Map<string, number[]>();
+  const htmlFrames: number[] = [];
+  const htmlTemplates: number[] = [];
   const push = (frame: Frame) => {
+    const at = stack.length;
     stack.push(frame);
-    named.set(frame.name, (named.get(frame.name) ?? 0) + 1);
+    const named = positions.get(frame.name);
+    if (named) named.push(at);
+    else positions.set(frame.name, [at]);
+    if (frame.ns === "html") htmlFrames.push(at);
+    if (frame.ns === "html" && frame.name === "template") htmlTemplates.push(at);
   };
   const pop = () => {
     const frame = stack.pop();
     if (!frame) return;
-    const count = (named.get(frame.name) ?? 1) - 1;
-    if (count === 0) named.delete(frame.name);
-    else named.set(frame.name, count);
+    const named = positions.get(frame.name);
+    named?.pop();
+    if (named?.length === 0) positions.delete(frame.name);
+    if (frame.ns === "html") htmlFrames.pop();
+    if (frame.ns === "html" && frame.name === "template") htmlTemplates.pop();
+  };
+  const popTo = (at: number) => {
+    while (stack.length > at) pop();
   };
   const top = () => stack.at(-1);
   // Pops what SVG or MathML a tag that ends them closes, back to HTML or an integration point.
@@ -340,22 +353,27 @@ function topLevelSlots(html: string) {
     if (closing) {
       // Whether an HTML template is what a `</template>` closes, not SVG's or MathML's element of that name.
       let closesHtml = true;
-      if (stack.length > 0) {
-        const current = top();
-        // `</p>` and `</br>` end SVG and MathML too; any other end tag closes the latest element it names, and one
-        // naming none closes nothing, but for a `</template>`, which closes the HTML template they're in.
-        if (current && current.ns !== "html" && (name === "p" || name === "br")) breakOut();
-        else if (named.has(name)) {
-          let closed = top();
-          while (closed && closed.name !== name) {
-            pop();
-            closed = top();
-          }
-          pop();
-          closesHtml = closed?.ns === "html";
-        } else if (name === "template" && depth > 0) {
-          // An HTML template is open around them; with none, a browser passes the end tag over.
-          while (stack.length > 0) pop();
+      const current = top();
+      if (current) {
+        const latest = positions.get(name)?.at(-1);
+        const nearestHtml = htmlFrames.at(-1) ?? -1;
+        if (current.ns !== "html" && (name === "p" || name === "br")) {
+          // `</p>` and `</br>` end SVG and MathML too.
+          breakOut();
+        } else if (current.ns !== "html" && latest !== undefined && latest > nearestHtml) {
+          // In SVG or MathML, an end tag closes the latest element it names, as far back as the nearest HTML element;
+          // past that, HTML's rules read it.
+          popTo(latest);
+          closesHtml = false;
+        } else if (name === "template") {
+          // By HTML's rules, a `</template>` closes the nearest HTML template, in an integration point or around all
+          // of them; with none open, a browser passes it over.
+          const template = htmlTemplates.at(-1);
+          if (template !== undefined) popTo(template);
+          else if (depth > 0) popTo(0);
+          else closesHtml = false;
+        } else if (latest !== undefined && stack[latest]?.ns === "html") {
+          popTo(latest);
         }
       }
       if (closesHtml && name === "template" && depth > 0) {
@@ -378,7 +396,7 @@ function topLevelSlots(html: string) {
         if (ns === "svg" && SVG_HTML_POINTS.has(name)) point = "html";
         else if (ns === "math" && MATH_TEXT_POINTS.has(name)) point = "text";
         else if (ns === "math" && name === "annotation-xml") {
-          const encoding = asciiLower(decodeAttribute(tagAttributes(html, j, close).get("encoding") ?? ""));
+          const encoding = asciiLower(attributeText(tagAttributes(html, j, close).get("encoding") ?? ""));
           if (encoding === "text/html" || encoding === "application/xhtml+xml") point = "html";
         }
         if (!selfClosing) push({ ns, name, point });

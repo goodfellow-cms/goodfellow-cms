@@ -214,3 +214,18 @@ export function decodeAttribute(text: string): string {
     return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "\ufffd";
   });
 }
+
+/** Named references that spell the plain characters a value such as MathML's `encoding` holds, with their `;`. */
+const PLAIN_NAMED: Record<string, string> = { ...NAMED, plus: "+", period: ".", lowbar: "_", hyphen: "\u2010" };
+
+/**
+ * An attribute's value as a browser reads it, as far as plain characters go: numeric references, and named ones that
+ * end in `;`, since no reference such a value could hold is read without one (`&sol` is text).
+ */
+export function attributeText(text: string): string {
+  return text.replace(/&(?:#x([0-9a-f]+);?|#(\d+);?|([a-z][a-z0-9]*);)/gi, (whole, hex, decimal, name) => {
+    if (name !== undefined) return PLAIN_NAMED[name] ?? whole;
+    const code = hex !== undefined ? Number.parseInt(hex, 16) : Number(decimal);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "\ufffd";
+  });
+}

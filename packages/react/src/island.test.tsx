@@ -277,6 +277,7 @@ describe("fillSlots", () => {
       // MathML annotated with HTML is HTML's.
       '<math><annotation-xml encoding="text/html"><textarea><p><template></textarea></annotation-xml></math>',
       '<math><annotation-xml encoding="text&#47;html"><textarea><p><template></textarea></annotation-xml></math>',
+      '<math><annotation-xml encoding="application&sol;xhtml&plus;xml"><textarea><p><template></textarea></annotation-xml></math>',
       // A </template> with no HTML template open is passed over, as browsers do, and leaves SVG open.
       "<svg></template><textarea/></svg>",
       // A / that's an unquoted value's doesn't make a tag self-closing.
@@ -329,6 +330,15 @@ describe("fillSlots", () => {
     const content = "<svg><template>Label</template></svg>Tail";
     const html = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">${content}</template>`;
     expect(fillSlots(html)).toBe(`<gf-island>${slot("a.0", content)}</gf-island>`);
+  });
+
+  it("ends a slot's content where a </template> past an HTML element in SVG ends it", () => {
+    // In SVG, an end tag closes only what's above the nearest HTML element; past that, HTML's rules read it, and a
+    // </template> closes the HTML template around them, here the slot's, not the SVG template it names.
+    for (const inside of ["<svg><template><foreignObject><div>", "<svg><template><foreignObject><div><svg><g>"]) {
+      const html = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">${inside}</template><p>After</p>`;
+      expect(fillSlots(html), inside).toBe(`<gf-island>${slot("a.0", inside)}</gf-island><p>After</p>`);
+    }
   });
 
   it("keeps templates whose slots weren't rendered", () => {

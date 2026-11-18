@@ -1,6 +1,6 @@
 import { type Collection, collectionFileSchema } from "@goodfellow-cms/core";
 import type { Config } from "@puckeditor/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { applyEntry, isHtmlField } from "./entry.js";
 
 const config = {
@@ -238,10 +238,17 @@ describe("filling in an item's values", () => {
       "<script></script>&lt;b&gt;</script>",
     );
     // Many raw-text elements before a page's only value are each read once.
-    const many = `${"<script>x</script>".repeat(100_000)}<p>{path}</p>`;
-    const started = performance.now();
-    expect(fill(many, { path: "&" })).toBe(`${"<script>x</script>".repeat(100_000)}<p>&amp;</p>`);
-    expect(performance.now() - started).toBeLessThan(2000);
+    // Counted by the values looked up, which searching on to the page's value from each element does once for each, so
+    // twice the elements would look up as many more: read once, the count stays the same.
+    const lookupsFor = (count: number) => {
+      const lookups = vi.spyOn(Map.prototype, "get");
+      const filled = fill(`${"<script>x</script>".repeat(count)}<p>{path}</p>`, { path: "&" });
+      const looked = lookups.mock.calls.length;
+      lookups.mockRestore();
+      expect(filled).toBe(`${"<script>x</script>".repeat(count)}<p>&amp;</p>`);
+      return looked;
+    };
+    expect(lookupsFor(2000) - lookupsFor(1000)).toBeLessThan(10);
     // A long document is read, a little more at a time, through each element's end.
     const long = `${"<script>x</script><p>{path}</p>".repeat(3000)}<script>${"y".repeat(5000)}{path}</script>{path}`;
     expect(fill(long, { path: "&" })).toBe(
