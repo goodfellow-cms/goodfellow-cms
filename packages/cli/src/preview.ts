@@ -3,13 +3,14 @@ import { stat } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { normalizeBase } from "@goodfellow-cms/core";
+import { isAllowedDevHost } from "@goodfellow-cms/core/node";
 
 export interface PreviewOptions {
   root?: string;
   outDir?: string;
   base?: string;
   port?: number;
-  /** Let other computers on the network see the preview, which by default only this one can. */
+  /** Let other computers on the network see the preview, by this computer's IP address, which by default only this one can. */
   network?: boolean;
 }
 
@@ -56,8 +57,11 @@ export async function preview(options: PreviewOptions = {}): Promise<Server> {
   const port = options.port ?? 4322;
 
   const server = createServer(async (req, res) => {
-    // A preview may show what isn't published yet, so others on the network see it only when asked.
-    if (!options.network && !fromThisComputer(req.socket.remoteAddress)) {
+    // A preview may show what isn't published yet, so others on the network see it only when asked. Nor, even
+    // with --network, does it answer a website that points its own name at this computer (DNS rebinding), which the
+    // developer's own browser then opens with that name, as goodfellow dev refuses it: other computers open it by
+    // this computer's IP address.
+    if ((!options.network && !fromThisComputer(req.socket.remoteAddress)) || !isAllowedDevHost(req.headers.host)) {
       res.writeHead(403, { "Content-Type": "text/plain" }).end("This preview is only for this computer.");
       return;
     }

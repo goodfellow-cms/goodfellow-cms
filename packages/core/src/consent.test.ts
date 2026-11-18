@@ -314,6 +314,21 @@ describe("held-back head code", () => {
     expect(held('<style>@import "//tracker.example.com/a.css";</style>')).toBe(true);
     expect(held("<style>body { background: url('https://tracker.example.com/p.gif') }</style>")).toBe(true);
     expect(held("<style>body { background: u\\72l(https://tracker.example.com/p.gif) }</style>")).toBe(true);
+    // Minified CSS writes `@import` with no space after it, as taking a comment out can leave it.
+    expect(held('<style>@import"https://tracker.example.com/a.css";</style>')).toBe(true);
+    expect(held("<style>@import/**/'https://tracker.example.com/a.css';</style>")).toBe(true);
+    expect(held('<style>@\\69mport "https://tracker.example.com/a.css";</style>')).toBe(true);
+    // `image-set()` loads a plain string.
+    expect(held('<style>body { background: image-set("https://tracker.example.com/p.png" 1x) }</style>')).toBe(true);
+    expect(held('<style>body { background: -webkit-image-set("/media/a.png" 1x) }</style>')).toBe(false);
+    // As browsers read it: `image-set(` in a string opens nothing, an unquoted `url()` holds its quotes, and a
+    // string ends at a line break.
+    const later = 'b { background: image-set("https://tracker.example.com/p.png" 1x) }';
+    expect(held(`<style>a::before { content: "image-set(" } ${later}</style>`)).toBe(true);
+    expect(held(`<style>a { background: url(/media/x'y.png) } ${later}</style>`)).toBe(true);
+    expect(held(`<style>a { content: 'x\n} ${later} c { content: '}</style>`)).toBe(true);
+    expect(held(`<style>a { background: url( "/media/x)y.png") } ${later}</style>`)).toBe(true);
+    expect(held(`<style>a { background: url(\u00a0'/media/x.png) } ${later}</style>`)).toBe(true);
     expect(held('<base href="https://elsewhere.example.com/">')).toBe(true);
     expect(held('<meta http-equiv="Refresh" content="0; url=https://elsewhere.example.com/">')).toBe(true);
     // What loads only from the site, or nothing, stays.

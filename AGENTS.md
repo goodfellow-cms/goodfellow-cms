@@ -1560,10 +1560,12 @@ Content files are the product's data format; treat changes to them like API chan
 - **The file:** `content/permissions.json` (`PERMISSIONS_FILE`, `permissionsFileSchema` in core's
   `content/permissions.ts`, content kind `permissions`, loaded into `SiteContent.permissions`) gives each limited
   person, by sign-in name compared without case (`limitsFor()`), their `EditorLimits`: page sections by address (`/news`
-  with what's under it and pages whose `translationOf` is in it; `/` every page), collections' items, `media`, `layout`,
-  `menus`, and `languages`. People it doesn't name have no limits. `reviewers` names who reviews the rest, else every
-  owner (`reviewersFor()`, never the person themselves). `isSettingsPath()` covers it; the Editors screen's Limits
-  section (`permissions-section.tsx`) writes it with `permissionsFileChange()`.
+  with what's under it and another language's page whose `translationOf` names a main language's page in it, where
+  that page exists and no other page in its language translates it, never a page in the main language or one naming
+  another language's; `/` every page), collections' items, `media`, `layout`, `menus`, and `languages`. People it
+  doesn't name have no limits. `reviewers` names who reviews the rest, else every owner (`reviewersFor()`, never the
+  person themselves). `isSettingsPath()` covers it; the Editors screen's Limits section (`permissions-section.tsx`)
+  writes it with `permissionsFileChange()`.
 - **The check:** `outsideLimits(content, limits, changes)` gives a `LimitProblem` for each file outside them, checking
   pages and items as they were and as the change leaves them, menus by the languages a change touches, and anything
   limits don't name (settings, redirects, collections' settings, the file itself) as `other`, so a move that relinks

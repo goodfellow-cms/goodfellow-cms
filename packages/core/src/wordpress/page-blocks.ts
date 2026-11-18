@@ -8,6 +8,7 @@
 import { tableCellHtml } from "../content/sanitize.js";
 import { vimeoVideo, youtubeVideo } from "../video.js";
 import type { CoverLook, ImagePart, Part, TableRow } from "./convert.js";
+import { fileName } from "./model.js";
 import { inlineRichText, richTextHtml } from "./rich-text.js";
 
 /** A Puck block as content files store it. */
@@ -231,11 +232,11 @@ export function partBlocks(parts: Part[], writer: BlockWriter, options: PageBloc
       continue;
     }
     if (part.kind === "file" && !has("File")) {
-      text += link(part.href, part.label || decodeURIComponent(part.href.split("/").pop() ?? part.href));
+      text += link(part.href, part.label || fileName(part.href));
       continue;
     }
     if (part.kind === "audio" && !has("Audio")) {
-      text += link(part.url, part.caption || decodeURIComponent(part.url.split("/").pop() ?? part.url));
+      text += link(part.url, part.caption || fileName(part.url));
       continue;
     }
     if (part.kind === "post" && !has("Embed")) {

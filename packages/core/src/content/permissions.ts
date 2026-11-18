@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import type { Collection, Entry } from "./collections.js";
-import { entryLanguage, mainLanguage, pathLanguage } from "./languages.js";
+import { entryLanguage, languagePrefix, mainLanguage, pathLanguage } from "./languages.js";
 import {
   type ContentSource,
   type Page,
@@ -34,9 +34,16 @@ import {
   PAGES_DIR,
   PERMISSIONS_FILE,
   pageFileToPath,
+  pagePathToFile,
   SITE_FILE,
 } from "./paths.js";
-import { collectionFileSchema, menusFileSchema, pageFileSchema, siteSettingsSchema } from "./schemas.js";
+import {
+  collectionFileSchema,
+  menusFileSchema,
+  pageFileSchema,
+  type SiteSettings,
+  siteSettingsSchema,
+} from "./schemas.js";
 import { serializeContent } from "./serialize.js";
 import type { FileChange } from "./store.js";
 
@@ -96,19 +103,41 @@ function inLanguages(limits: EditorLimits, language: string): boolean {
   return !limits.languages || limits.languages.includes(language);
 }
 
+/** What `mayChangePage()` reads of the site's pages: their addresses, and what each translates. */
+export interface TranslatingPage {
+  path: string;
+  content: { translationOf?: string | undefined };
+}
+
 /**
- * Whether someone may change a page: its address, or the address of the main
- * language's page it translates, is in one of their sections, in one of their languages.
+ * Whether someone may change a page: its address, or, for a page in another
+ * language, the address of the main language's page it translates, is in one
+ * of their sections, in one of their languages. A translation counts only
+ * where the page it names is one of `content.pages` and no other page in its
+ * language names it, so naming a page of one's own doesn't make every page in
+ * a language one's own.
  */
 export function mayChangePage(
-  content: Pick<SiteContent, "settings">,
+  content: Pick<SiteContent, "settings"> & { pages: readonly TranslatingPage[] },
   limits: EditorLimits | undefined,
   page: { path: string; content?: { translationOf?: string | undefined } },
 ): boolean {
   if (!limits) return true;
-  if (!inLanguages(limits, pathLanguage(content.settings, page.path))) return false;
+  const language = pathLanguage(content.settings, page.path);
+  if (!inLanguages(limits, language)) return false;
+  if (inSection(limits.pages, page.path)) return true;
+  // Only a page in another language translates, and only a main language's page is translated.
+  const main = mainLanguage(content.settings);
   const source = page.content?.translationOf;
-  return inSection(limits.pages, page.path) || (source !== undefined && inSection(limits.pages, source));
+  if (source === undefined || language === main || pathLanguage(content.settings, source) !== main) return false;
+  if (!inSection(limits.pages, source)) return false;
+  if (!content.pages.some((found) => found.path === source)) return false;
+  return !content.pages.some(
+    (found) =>
+      found.path !== page.path &&
+      found.content.translationOf === source &&
+      pathLanguage(content.settings, found.path) === language,
+  );
 }
 
 /** Whether someone may change a collection's items at all. */
@@ -227,6 +256,28 @@ function changedEntry(
   return parsed.ok ? { content: parsed.value } : undefined;
 }
 
+/** The pages `content` has, with what `changes` write or delete in place of theirs, for the translations they name. */
+function pagesAfter(content: LimitsContent, changes: readonly FileChange[]): TranslatingPage[] {
+  const changed = new Map<string, FileChange>();
+  for (const change of changes) {
+    if (change.path.startsWith(`${PAGES_DIR}/`) && change.path.endsWith(".json")) changed.set(change.path, change);
+  }
+  const pages: TranslatingPage[] = content.pages.filter((page) => !changed.has(page.file));
+  for (const [file, change] of changed) {
+    if ("delete" in change) continue;
+    let path: string;
+    try {
+      path = pageFileToPath(file);
+    } catch {
+      continue;
+    }
+    const written = parsedJson(changedText(change));
+    const translationOf = typeof written?.translationOf === "string" ? written.translationOf : undefined;
+    pages.push({ path, content: { translationOf } });
+  }
+  return pages;
+}
+
 /**
  * The changes outside someone's limits, one problem for each file. Each file
  * is checked as it was and as the change leaves it, so moving a page out of
@@ -243,6 +294,8 @@ export function outsideLimits(
 ): LimitProblem[] {
   if (!limits) return [];
   const problems: LimitProblem[] = [];
+  // The pages as the changes leave them, so two new pages in one publish can't both translate the same one.
+  const after = { settings: content.settings, pages: pagesAfter(content, changes) };
   for (const change of changes) {
     const { path } = change;
     if (path.startsWith(`${PAGES_DIR}/`) && path.endsWith(".json")) {
@@ -254,13 +307,13 @@ export function outsideLimits(
         continue;
       }
       const before = content.pages.find((page) => page.file === path);
-      const after = parsedJson(changedText(change));
+      const written = parsedJson(changedText(change));
       const allowed =
         (!before || mayChangePage(content, limits, before)) &&
         ("delete" in change ||
-          mayChangePage(content, limits, {
+          mayChangePage(after, limits, {
             path: address,
-            content: { translationOf: typeof after?.translationOf === "string" ? after.translationOf : undefined },
+            content: { translationOf: typeof written?.translationOf === "string" ? written.translationOf : undefined },
           }));
       if (!allowed) problems.push({ path, kind: "page", address });
       continue;
@@ -308,6 +361,58 @@ export async function readPermissions(source: ContentSource): Promise<Permission
 }
 
 /**
+ * The page files `limitsContent()` reads besides the ones `changes` touch, for
+ * each page they write that translates another: the page it names, and every
+ * page in its language, which `mayChangePage()` checks for another
+ * translation of the same page.
+ */
+async function translationFiles(
+  source: ContentSource,
+  settings: SiteSettings,
+  changes: readonly FileChange[],
+  stored: ReadonlyMap<string, string>,
+): Promise<string[]> {
+  const main = mainLanguage(settings);
+  const files = new Set<string>();
+  const languages = new Set<string>();
+  for (const change of changes) {
+    if (!change.path.startsWith(`${PAGES_DIR}/`) || !change.path.endsWith(".json")) continue;
+    let language: string;
+    try {
+      language = pathLanguage(settings, pageFileToPath(change.path));
+    } catch {
+      continue;
+    }
+    if (language === main) continue;
+    // The page as it is and as the change leaves it, since either may translate one: a deletion is checked as it was.
+    for (const text of [stored.get(change.path), changedText(change)]) {
+      const translationOf = parsedJson(text)?.translationOf;
+      if (typeof translationOf !== "string") continue;
+      for (const file of pageFiles(translationOf)) files.add(file);
+      languages.add(language);
+    }
+  }
+  for (const language of languages) {
+    // Page folders are named by the language's address, which is in lower case, as `pt-br` for `pt-BR`.
+    const prefix = languagePrefix(language);
+    for (const file of pageFiles(prefix)) files.add(file);
+    for (const file of await source.list(`${PAGES_DIR}${prefix}`)) if (file.endsWith(".json")) files.add(file);
+  }
+  return [...files].filter((file) => !stored.has(file));
+}
+
+/** The files a page at `path` can be in: `news.json`, or `news/index.json`. */
+function pageFiles(path: string): string[] {
+  let file: string;
+  try {
+    file = pagePathToFile(path);
+  } catch {
+    return [];
+  }
+  return path === "/" || file === `${PAGES_DIR}/index.json` ? [file] : [file, file.replace(/\.json$/, "/index.json")];
+}
+
+/**
  * The part of the site `outsideLimits()` reads for `changes`: its settings,
  * the pages and items they change as they are now, those items' collections'
  * settings and the menus, read in one go where the source can, so checking a
@@ -336,8 +441,16 @@ export async function limitsContent(source: ContentSource, changes: readonly Fil
   const settings =
     (siteText !== undefined && read(parseContentFile("site", siteSettingsSchema, SITE_FILE, siteText))) ||
     siteSettingsSchema.parse({ version: 1 });
-  const pages = pageFiles.flatMap((file): Page[] => {
-    const text = texts.get(file);
+  // A translation counts only where the page it names is there and no other page in its language names it.
+  const translated = await translationFiles(
+    source,
+    settings,
+    changes,
+    new Map(pageFiles.flatMap((file) => (texts.has(file) ? [[file, texts.get(file) ?? ""] as const] : []))),
+  );
+  const more = translated.length === 0 ? new Map<string, string>() : await readTextFiles(source, translated);
+  const pages = [...pageFiles, ...translated].flatMap((file): Page[] => {
+    const text = texts.get(file) ?? more.get(file);
     const content = text === undefined ? undefined : read(parseContentFile("page", pageFileSchema, file, text));
     return content ? [{ path: pageFileToPath(file), file, content }] : [];
   });

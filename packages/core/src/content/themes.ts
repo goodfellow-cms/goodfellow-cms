@@ -12,7 +12,7 @@ import { earlyInstallSchema, type ProvenanceSource, provenanceSourceSchema } fro
 import { hashText } from "../registry.js";
 import { trimChars } from "../trim.js";
 import { customCssFileChange, layoutFileChange, siteSettingsFileChange, storedCss } from "./changes.js";
-import { withoutCssComments } from "./css-comments.js";
+import { cssImageSetStrings, cssUnescaped, withCssEscapesWritten, withoutCssComments } from "./css-comments.js";
 import { ContentError } from "./errors.js";
 import { parseContentFile } from "./load.js";
 import { FOOTER_FILE, HEADER_FILE, THEME_FILE } from "./paths.js";
@@ -238,11 +238,14 @@ function cssUrls(text: string): string[] {
  * then ask those sites for. The admin panel lists them before installing it.
  */
 export function themeCssLoads(css: string): string[] {
-  const text = withoutCssComments(css);
+  // Escapes can spell `@import` and `url(`, as `@\\69mport`, so they're written out first.
+  const text = withCssEscapesWritten(withoutCssComments(css));
   const found = new Set<string>();
-  const unescaped = (value: string) => value.replace(/\\(.)/g, "$1").trim();
+  const unescaped = (value: string) => cssUnescaped(value).trim();
   for (const address of cssUrls(text)) found.add(unescaped(address));
-  for (const match of text.matchAll(/@import\s+(?:"([^"]*)"|'([^']*)')/gi)) {
+  for (const address of cssImageSetStrings(text)) found.add(unescaped(address));
+  // A string may follow `@import` with no space between, as minified CSS writes it.
+  for (const match of text.matchAll(/@import\s*(?:"([^"]*)"|'([^']*)')/gi)) {
     found.add(unescaped(match[1] ?? match[2] ?? ""));
   }
   return [...found].filter((address) => address !== "" && !allowedLoad(address)).sort();

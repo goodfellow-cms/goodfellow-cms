@@ -126,6 +126,56 @@ describe("the theme's CSS", () => {
       "other.png",
     ]);
   });
+
+  it("lists what it loads however its CSS spells it", () => {
+    const loads = (css: string) => themeCssLoads(css);
+    expect(loads('@import"https://other.example/a.css";')).toEqual(["https://other.example/a.css"]);
+    expect(loads("@import/**/'https://other.example/a.css';")).toEqual(["https://other.example/a.css"]);
+    expect(loads('@\\69mport "https://other.example/a.css";')).toEqual(["https://other.example/a.css"]);
+    expect(loads('@\\000069 mport "https://other.example/a.css";')).toEqual(["https://other.example/a.css"]);
+    expect(loads("body{background:u\\72l(https://other.example/a.png)}")).toEqual(["https://other.example/a.png"]);
+    expect(loads("body{background:\\u\\r\\l(https://other.example/a.png)}")).toEqual(["https://other.example/a.png"]);
+    expect(loads('a{background:image-set("https://other.example/a.png" 1x, type("image/avif") url(b.avif))}')).toEqual([
+      "b.avif",
+      "https://other.example/a.png",
+    ]);
+    expect(loads('a{background:-webkit-image-set("https:\\2f\\2fother.example/b.png" 2x)}')).toEqual([
+      "https://other.example/b.png",
+    ]);
+    // An escaped backslash stays one, so what follows it isn't read as an escape.
+    expect(loads('a::after{content:"\\\\69"} b{background:url("/media/a.png")}')).toEqual([]);
+    expect(loads('a{background:image-set("/media/a.png" 1x)}')).toEqual([]);
+    // Addresses are listed as browsers read them: an escaped ")" doesn't end one.
+    expect(loads("a{background:url(https://other.example/a\\29 b.png)}")).toEqual(["https://other.example/a)b.png"]);
+    expect(loads("a{background:url(https://other.example/\\\\61)}")).toEqual(["https://other.example/\\61"]);
+    // A kept escape can't join a letter or digit written out after it: `\22\62` is `"b`, not U+022B.
+    expect(loads('a{background:url("https://other.example/a\\22\\62.png")}')).toEqual([
+      'https://other.example/a"b.png',
+    ]);
+    // Read as browsers read CSS's tokens: `image-set(` in a string opens nothing, an unquoted `url()` holds its
+    // quotes and escaped parentheses, and a string ends at a line break.
+    const tracker = ["https://tracker.example/p.png"];
+    const later = 'b{background:image-set("https://tracker.example/p.png" 1x)}';
+    expect(loads(`a::before{content:"image-set("} ${later}`)).toEqual(tracker);
+    expect(loads(`a{background:url(x'y)} ${later}`)).toEqual([...tracker, "x'y"]);
+    expect(loads(`a{content:'x\n} ${later} c{content:'}`)).toEqual(tracker);
+    expect(loads('a{background:image-set(url(/media/a\\(b.png) 1x, "https://tracker.example/p.png" 2x)}')).toEqual(
+      tracker,
+    );
+    expect(loads(`a{background:image-set(url(/media/x'y.png) 1x, "https://tracker.example/p.png" 2x)}`)).toEqual(
+      tracker,
+    );
+    expect(loads('a{background:image-set(type(a\\)b) "https://tracker.example/p.png" 2x)}')).toEqual(tracker);
+    // A quoted address with spaces before it isn't read as an unquoted one ending at a ")" inside the string.
+    expect(loads(`a{background:url( "/media/x)y.png")} ${later}`)).toEqual(tracker);
+    // A non-breaking space isn't CSS's whitespace, so the quote after it is in an unquoted address.
+    expect(loads(`a{background:url(\u00a0'x)} ${later}`)).toContain(tracker[0]);
+    // An escaped "\r\n" continues a string as one line break.
+    expect(loads(`a{content:"x\\\r\ny"} ${later}`)).toEqual(tracker);
+    // An image-set() is read wherever it is, in another function or another image-set().
+    expect(loads('a{background:image-set(image-set("https://tracker.example/p.png" 1x) 1x)}')).toEqual(tracker);
+    expect(loads('a{background:cross-fade(image-set("https://tracker.example/p.png" 1x), red)}')).toEqual(tracker);
+  });
 });
 
 describe("planTheme", () => {

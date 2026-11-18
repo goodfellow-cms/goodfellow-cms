@@ -82,6 +82,69 @@ describe("editors' permissions", () => {
     expect(mayChangeLayout(content, { layout: true })).toBe(true);
   });
 
+  it("count what a page translates only for a translation of a main language's page", async () => {
+    const content = await site();
+    const news = { pages: ["/news"] };
+    const spanishNews = { pages: ["/es/noticias"] };
+    // A page in the main language translates nothing, whatever it says.
+    expect(mayChangePage(content, news, { path: "/about", content: { translationOf: "/news" } })).toBe(false);
+    // Nor does naming another language's page make it one's own.
+    expect(mayChangePage(content, spanishNews, { path: "/es/sobre", content: { translationOf: "/es/noticias" } })).toBe(
+      false,
+    );
+    expect(mayChangePage(content, news, { path: "/es/2026", content: { translationOf: "/news/2026" } })).toBe(true);
+    expect(
+      outsideLimits(content, news, [write("content/pages/about.json", page("About", { translationOf: "/news" }))]),
+    ).toEqual([{ path: "content/pages/about.json", kind: "page", address: "/about" }]);
+  });
+
+  it("count a translation only of a page the site has, and only one in each language", async () => {
+    const content = await site();
+    const news = { pages: ["/news"] };
+    // /es/noticias translates /news, so another Spanish page saying so is outside, wherever it is.
+    expect(mayChangePage(content, news, { path: "/es/noticias", content: { translationOf: "/news" } })).toBe(true);
+    expect(mayChangePage(content, news, { path: "/es/admisiones", content: { translationOf: "/news" } })).toBe(false);
+    expect(mayChangePage(content, news, { path: "/es/x", content: { translationOf: "/news/nothing" } })).toBe(false);
+    // Two new pages in one publish can't both be the translation.
+    const twice = [
+      write("content/pages/es/a.json", page("A", { translationOf: "/news/2026" })),
+      write("content/pages/es/b.json", page("B", { translationOf: "/news/2026" })),
+    ];
+    expect(outsideLimits(content, news, twice).map((problem) => problem.path)).toEqual([
+      "content/pages/es/a.json",
+      "content/pages/es/b.json",
+    ]);
+    expect(outsideLimits(content, news, twice.slice(0, 1))).toEqual([]);
+    // Reading only what the changes need finds the page translated and its other translations.
+    const source = memorySource(FILES);
+    const another = [write("content/pages/es/admisiones.json", page("Admisiones", { translationOf: "/news" }))];
+    expect(outsideLimits(await limitsContent(source, another), news, another)).toEqual([
+      { path: "content/pages/es/admisiones.json", kind: "page", address: "/es/admisiones" },
+    ]);
+    const first = [write("content/pages/es/2026.json", page("2026", { translationOf: "/news/2026" }))];
+    expect(outsideLimits(await limitsContent(source, first), news, first)).toEqual([]);
+    // Deleting a translation reads the page it translated, as the page was.
+    const deleted = [{ path: "content/pages/es/noticias.json", delete: true as const }];
+    expect(outsideLimits(await limitsContent(source, deleted), news, deleted)).toEqual([]);
+    expect(outsideLimits(content, news, deleted)).toEqual([]);
+  });
+
+  it("find the page a translation names in either of its files, and a regional language's pages", async () => {
+    const regional = memorySource({
+      "content/site.json": { version: 1, title: "Parish", language: "en", languages: [{ code: "pt-BR" }] },
+      "content/pages/index.json": page("Home"),
+      "content/pages/events/index.json": page("Events"),
+      "content/pages/pt-br/eventos.json": page("Eventos", { translationOf: "/events" }),
+    });
+    const events = { pages: ["/events"] };
+    const again = [write("content/pages/pt-br/outros.json", page("Outros", { translationOf: "/events" }))];
+    expect(outsideLimits(await limitsContent(regional, again), events, again)).toEqual([
+      { path: "content/pages/pt-br/outros.json", kind: "page", address: "/pt-br/outros" },
+    ]);
+    const edited = [write("content/pages/pt-br/eventos.json", page("Eventos!", { translationOf: "/events" }))];
+    expect(outsideLimits(await limitsContent(regional, edited), events, edited)).toEqual([]);
+  });
+
   it("find each change outside someone's limits", async () => {
     const content = await site();
     const maria = limitsFor(content.permissions, "maria");

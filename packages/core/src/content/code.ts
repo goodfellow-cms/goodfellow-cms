@@ -5,7 +5,7 @@
  * `parseHeadCode`), since a React document can't take raw HTML in its head.
  */
 import { isExternalLink } from "../external-links.js";
-import { withoutCssComments } from "./css-comments.js";
+import { cssImageSetStrings, withoutCssComments } from "./css-comments.js";
 
 /** An element of the head's code: its tag, its attributes in order, and the text inside it. */
 export interface HeadElement {
@@ -129,12 +129,17 @@ function isOtherSite(href: string, siteUrl: string | undefined): boolean {
   return isExternalLink(address, siteUrl);
 }
 
-/** The addresses CSS loads: `@import "…"` and `url(…)`, unquoted or not, with CSS's escapes left as they are. */
+/**
+ * The addresses CSS loads: `@import "…"` (with or without a space after it,
+ * as minified CSS writes it), `url(…)`, unquoted or not, and `image-set()`'s
+ * strings, with CSS's escapes left as they are.
+ */
 function cssAddresses(css: string): string[] {
   const text = withoutCssComments(css);
   return [
-    ...[...text.matchAll(/@import\s+(?:url\(\s*)?["']?([^"')\s;]+)/gi)].map((match) => match[1] ?? ""),
+    ...[...text.matchAll(/@import\s*(?:url\(\s*)?["']?([^"')\s;]+)/gi)].map((match) => match[1] ?? ""),
     ...[...text.matchAll(/url\(\s*["']?([^"')\s]+)/gi)].map((match) => match[1] ?? ""),
+    ...cssImageSetStrings(text).map((address) => address.trim()),
   ];
 }
 
@@ -142,7 +147,7 @@ function cssAddresses(css: string): string[] {
  * Whether a head element waits for visitors' agreement on a site that asks:
  * scripts and `noscript`, which could load anything; links to other sites,
  * such as another site's stylesheet; styles that load from other sites
- * (`@import` or `url()`, or any CSS escape, which could spell one); a `base`,
+ * (`@import`, `url()` or `image-set()`, or any CSS escape, which could spell one); a `base`,
  * which would send the page's own addresses elsewhere; and a `meta` refresh.
  * Links on the site itself (its own stylesheet, manifest, or icons, by a
  * root-relative address or the Site address, `siteUrl`), styles that load
