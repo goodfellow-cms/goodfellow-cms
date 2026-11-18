@@ -71,14 +71,91 @@ export interface PreparedPage {
 }
 
 /**
- * Brings stored Puck data up to date with the installed Puck version, then runs
- * every block's `resolveData`, so blocks can fetch or compute content at build time.
+ * Whether a block's setting is left out where its saved props don't have it,
+ * rather than given its default: `metadata: { noDefault: true }`, for a
+ * setting whose absence says something, such as a Table saved before its
+ * cells could be formatted, which has no `format`.
+ */
+function keepsMissing(field: unknown): boolean {
+  return (field as { metadata?: { noDefault?: unknown } } | undefined)?.metadata?.noDefault === true;
+}
+
+type FieldLike = { type?: string; objectFields?: FieldsLike; arrayFields?: FieldsLike } | undefined;
+type FieldsLike = Record<string, FieldLike>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** An object's values, each changed by `change` with the field that describes it. */
+function mapFields(
+  value: Record<string, unknown>,
+  fields: FieldsLike | undefined,
+  change: (value: unknown, field: FieldLike) => unknown,
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, change(item, fields?.[name])]));
+}
+
+/** A field's value with every slot in it, in objects and lists too, changed by `slot`. */
+function mapSlots(value: unknown, field: FieldLike, slot: (value: unknown) => unknown): unknown {
+  if (field?.type === "slot") return slot(value);
+  const each = (item: unknown, inner: FieldLike) => mapSlots(item, inner, slot);
+  if (field?.type === "object" && isRecord(value)) return mapFields(value, field.objectFields, each);
+  if (field?.type === "array" && Array.isArray(value)) {
+    return value.map((item) => (isRecord(item) ? mapFields(item, field.arrayFields, each) : item));
+  }
+  return value;
+}
+
+/**
+ * Data with each block's default settings under its saved ones, in slots too
+ * (`migrate()` has made any zones slots by then). Puck fills defaults in only
+ * when the editor adds a block, so a page written by hand, by a script or
+ * before a setting existed can leave some out, and every block can then count
+ * on having all of them, as the content API's blocks do. A slot a default
+ * holds is empty, since its blocks have no ids of their own (Puck empties a
+ * missing one as it draws the page); a block the site doesn't have is left as
+ * it is, for Puck to leave out.
+ */
+function withDefaultProps(data: Data, config: Config): Data {
+  const fill = (content: unknown): unknown =>
+    Array.isArray(content) ? content.map((item) => (isRecord(item) ? fillBlock(item) : item)) : [];
+  const saved = (value: unknown, field: FieldLike) => mapSlots(value, field, fill);
+  const fillBlock = (item: Record<string, unknown>) => {
+    const component = typeof item.type === "string" ? config.components[item.type] : undefined;
+    if (!component || !isRecord(item.props)) return item;
+    const props = item.props;
+    const fields = (component.fields ?? {}) as FieldsLike;
+    const defaults = Object.entries(component.defaultProps ?? {})
+      .filter(([name]) => !Object.hasOwn(props, name) && !keepsMissing(fields[name]))
+      .map(([name, value]) => [name, mapSlots(value, fields[name], () => [])]);
+    return {
+      ...item,
+      props: { ...Object.fromEntries(defaults), ...mapFields(props, fields, saved) },
+    };
+  };
+  const rootFields = (config.root?.fields ?? {}) as FieldsLike;
+  const root = data.root as { props?: unknown };
+  return {
+    ...data,
+    root: isRecord(root?.props) ? { ...root, props: mapFields(root.props, rootFields, saved) } : data.root,
+    content: fill(data.content) as Data["content"],
+    ...(data.zones && {
+      zones: Object.fromEntries(Object.entries(data.zones).map(([zone, items]) => [zone, fill(items)])),
+    }),
+  } as Data;
+}
+
+/**
+ * Brings stored Puck data up to date with the installed Puck version, fills
+ * in blocks' default settings, then runs every block's `resolveData`, so
+ * blocks can fetch or compute content at build time.
  */
 async function prepareData(data: unknown, config: Config, site: SiteContextValue): Promise<Data> {
   const stored = data as Data;
   // Puck's DropZone-to-slot migration needs the config and logs on every call, so only run it on data that has zones.
   const migrated = migrate(stored, stored.zones && Object.keys(stored.zones).length > 0 ? config : undefined);
-  return resolveAllData(expandEntryLoops(migrated, config, site), config, siteMetadata(site));
+  return resolveAllData(expandEntryLoops(withDefaultProps(migrated, config), config, site), config, siteMetadata(site));
 }
 
 /** The entry a page shows, if it's an entry's page. */

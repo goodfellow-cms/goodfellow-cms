@@ -302,6 +302,329 @@ describe("goodfellow update", () => {
     expect(ran.some((line) => line.startsWith("git push"))).toBe(false);
   });
 
+  describe("from Goodfellow's registry on jsDelivr", () => {
+    const released = `${JSON.stringify({
+      name: "shadcn-faq",
+      type: "registry:block",
+      title: "FAQ",
+      files: [{ path: "blocks/shadcn-faq/block.tsx", type: "registry:block", content: "export default { v: 2 };\n" }],
+      meta: { goodfellow: { category: "Sections", version: "1.1.0" } },
+    })}\n`;
+    /** jsDelivr, answering `text` for the block of `release`. */
+    const jsDelivr =
+      (text: string, release = "0.4.2") =>
+      async (url: string) => {
+        if (url !== `https://cdn.jsdelivr.net/npm/@goodfellow-cms/registry@${release}/r/shadcn-faq.json`) {
+          throw new Error(`404 ${url}`);
+        }
+        return text;
+      };
+    /**
+     * The registry release npm installed, as a dependency of the admin panel, beside it or in the admin panel's own
+     * folder, with its blocks' digests, none, or a file that isn't digests.
+     */
+    const installRegistry = async (
+      version: string,
+      digests: Record<string, string> | string | undefined,
+      where: "beside" | "admin" = "beside",
+    ) => {
+      const admin = join(root, "node_modules/@goodfellow-cms/admin");
+      await mkdir(admin, { recursive: true });
+      await writeFile(join(admin, "package.json"), JSON.stringify({ name: "@goodfellow-cms/admin", version }));
+      const folder = join(where === "admin" ? admin : root, "node_modules/@goodfellow-cms/registry");
+      await rm(folder, { recursive: true, force: true });
+      await mkdir(join(folder, "r"), { recursive: true });
+      await writeFile(join(folder, "package.json"), JSON.stringify({ name: "@goodfellow-cms/registry", version }));
+      if (digests !== undefined) {
+        await writeFile(
+          join(folder, "r/digests.json"),
+          typeof digests === "string" ? digests : JSON.stringify(digests),
+        );
+      }
+    };
+
+    it("takes blocks only as the release npm installed says they were built", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) });
+      const options = { root, fetchJson, blocks: true, log: () => {}, env: {} };
+      // Something else answered for the block: nothing is written, and the site isn't built with it.
+      const changed = commands();
+      const result = await update({
+        ...options,
+        run: changed.run,
+        fetchText: jsDelivr(released.replace("v: 2", "v: 666")),
+      });
+      expect(result).toMatchObject({ state: "failed", from: "0.4.2", step: "blocks" });
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+      expect(changed.ran).not.toContain("npm run build");
+      // The block as it was released.
+      const same = commands();
+      expect(await update({ ...options, run: same.run, fetchText: jsDelivr(released) })).toEqual({
+        state: "up-to-date",
+        from: "0.4.2",
+      });
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("finds the registry as the admin panel does, and refuses blocks it can't check", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      const options = { root, fetchJson, blocks: true, log: () => {}, env: {}, fetchText: jsDelivr(released) };
+      const refused = async () => {
+        const { ran, run } = commands();
+        expect(await update({ ...options, run })).toMatchObject({ state: "failed", step: "blocks" });
+        expect(ran).not.toContain("npm run build");
+        expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+      };
+      // Without the admin panel, or its registry, nothing says what the release built.
+      await refused();
+      // A release that has digests but whose file is missing or isn't digests.
+      await installRegistry("0.4.2", undefined, "admin");
+      await refused();
+      await installRegistry("0.4.2", "[]", "admin");
+      await refused();
+      // The admin panel's own copy is the release's, whatever another copy beside it says.
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) }, "admin");
+      await installRegistry("0.4.0", { "shadcn-faq": "something else" }, "beside");
+      expect(await update({ ...options, run: commands().run })).toEqual({ state: "up-to-date", from: "0.4.2" });
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("refuses anything at the release's address but an item's own", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      const asking = JSON.parse(released) as Record<string, unknown>;
+      asking.registryDependencies = ["https://cdn.jsdelivr.net/npm/@goodfellow-cms/registry@0.4.2/r/accordion.json?x"];
+      const text = `${JSON.stringify(asking)}\n`;
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(text) }, "admin");
+      const result = await update({
+        root,
+        fetchJson: async (url) =>
+          url.includes("accordion") ? { name: "accordion", type: "registry:ui" } : fetchJson(url),
+        fetchText: jsDelivr(text),
+        run: commands().run,
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "failed", step: "blocks" });
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+    });
+
+    it("checks each item once, however many blocks share it", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      // Two blocks that both need the same component.
+      const second = "blocks/installed/shadcn-faq-2/block.tsx";
+      await writeFile(
+        join(root, "blocks/installed/installed.json"),
+        serializeContent({
+          version: 1,
+          blocks: Object.fromEntries(
+            await Promise.all(
+              ["shadcn-faq", "shadcn-faq-2"].map(async (name) => {
+                const entry = `blocks/installed/${name}/block.tsx`;
+                const record = { source: `@goodfellow/${name}`, title: "FAQ", category: "Sections", version: "1.0.0" };
+                return [name, { ...record, entry, files: { [entry]: await hashText("export default { v: 1 };\n") } }];
+              }),
+            ),
+          ),
+        }),
+      );
+      await mkdir(join(root, "blocks/installed/shadcn-faq-2"), { recursive: true });
+      await writeFile(join(root, second), "export default { v: 1 };\n");
+      const block = (name: string) =>
+        `${JSON.stringify({
+          ...JSON.parse(released),
+          name,
+          files: [{ path: `blocks/${name}/block.tsx`, type: "registry:block", content: "export default { v: 2 };\n" }],
+          registryDependencies: ["@goodfellow/accordion"],
+        })}\n`;
+      const accordion = (content: string) =>
+        `${JSON.stringify({
+          name: "accordion",
+          type: "registry:ui",
+          files: [{ path: "components/ui/accordion.tsx", type: "registry:ui", content }],
+        })}\n`;
+      const genuine = accordion("export const Accordion = 1;\n");
+      await installRegistry(
+        "0.4.2",
+        {
+          "shadcn-faq": await hashText(block("shadcn-faq")),
+          "shadcn-faq-2": await hashText(block("shadcn-faq-2")),
+          accordion: await hashText(genuine),
+        },
+        "admin",
+      );
+      // The first answer for the component isn't the release's; a second, if it were asked for, would be.
+      let asked = 0;
+      const fetchText = async (url: string) => {
+        const name = /\/r\/([^/]+)\.json$/.exec(url)?.[1] ?? "";
+        if (name !== "accordion") return block(name);
+        asked++;
+        return asked === 1 ? accordion("export const Accordion = 666;\n") : genuine;
+      };
+      const { ran, run } = commands();
+      const result = await update({ root, fetchJson, fetchText, run, blocks: true, log: () => {}, env: {} });
+      expect(result).toMatchObject({ state: "failed", step: "blocks" });
+      expect(asked).toBe(1);
+      expect(ran).not.toContain("npm run build");
+      await expect(readFile(join(root, "components/ui/accordion.tsx"), "utf8")).rejects.toThrow();
+    });
+
+    it("goes back to a release from before digests with its blocks as they come, and says so", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      await installRegistry("0.4.1", undefined);
+      const lines: string[] = [];
+      const back = {
+        root,
+        fetchJson,
+        to: "0.4.1",
+        blocks: true,
+        log: (line: string) => lines.push(line),
+        env: {},
+        fetchText: jsDelivr(released, "0.4.1"),
+      };
+      // A release from since registries had digests, installed without them, isn't what npm published.
+      expect(await update({ ...back, run: commands().run, digestsSince: "0.4.1" })).toMatchObject({
+        state: "failed",
+        step: "blocks",
+      });
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+      lines.length = 0;
+      const result = await update({ ...back, run: commands().run });
+      expect(result).toMatchObject({ state: "updated", to: "0.4.1", rollback: true });
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+      expect(lines.join("\n")).toContain("0.4.1's blocks can't be checked");
+    });
+
+    it("checks the blocks of a release it installs against it before building, and puts everything back", async () => {
+      await site();
+      const before = await read("package.json");
+      // What npm install would leave: the release's registry, which doesn't have what jsDelivr answered.
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) });
+      const { ran, run } = commands();
+      const result = await update({
+        root,
+        fetchJson,
+        fetchText: jsDelivr(released.replace("v: 2", "v: 666")),
+        run,
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "failed", from: "0.4.1", to: "0.4.2", step: "blocks" });
+      expect(ran.some((line) => line.startsWith("npm install "))).toBe(true);
+      expect(ran).not.toContain("npm run build");
+      expect(await read("package.json")).toBe(before);
+      expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
+    });
+
+    it("writes a release's blocks only once they're checked, so no install script can run them first", async () => {
+      await site();
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) });
+      // A manual update runs install scripts, the site's own `prepare` among them, as the site's `.npmrc` allows.
+      const { ran, run } = commands();
+      const seen: string[] = [];
+      const result = await update({
+        root,
+        fetchJson,
+        fetchText: jsDelivr(released),
+        run: async (command, args, cwd) => {
+          if (args[0] === "install") seen.push(await read(BLOCK));
+          return run(command, args, cwd);
+        },
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "updated", to: "0.4.2" });
+      expect(ran.some((line) => line.startsWith("npm install ") && !line.includes("--ignore-scripts"))).toBe(true);
+      expect(seen).toEqual(["export default { v: 1 };\n"]);
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("plans each block with what the blocks before it would write, though nothing's written yet", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      const shared = "components/ui/accordion.tsx";
+      const old = "export const Accordion = 1;\n";
+      const entryOf = (name: string) => `blocks/installed/${name}/block.tsx`;
+      const recorded = async (name: string, files: Record<string, string>) => [
+        name,
+        {
+          source: `@goodfellow/${name}`,
+          title: "FAQ",
+          category: "Sections",
+          version: "1.0.0",
+          entry: entryOf(name),
+          files,
+        },
+      ];
+      const v1 = await hashText("export default { v: 1 };\n");
+      // The first block came with the component; the second needs it only from this release on.
+      await writeFile(
+        join(root, "blocks/installed/installed.json"),
+        serializeContent({
+          version: 1,
+          blocks: Object.fromEntries([
+            await recorded("shadcn-faq", { [entryOf("shadcn-faq")]: v1, [shared]: await hashText(old) }),
+            await recorded("shadcn-faq-2", { [entryOf("shadcn-faq-2")]: v1 }),
+          ]),
+        }),
+      );
+      await mkdir(join(root, "blocks/installed/shadcn-faq-2"), { recursive: true });
+      await writeFile(join(root, entryOf("shadcn-faq-2")), "export default { v: 1 };\n");
+      await mkdir(join(root, "components/ui"), { recursive: true });
+      await writeFile(join(root, shared), old);
+      const block = (name: string) =>
+        `${JSON.stringify({
+          ...JSON.parse(released),
+          name,
+          files: [{ path: `blocks/${name}/block.tsx`, type: "registry:block", content: "export default { v: 2 };\n" }],
+          registryDependencies: ["@goodfellow/accordion"],
+        })}\n`;
+      const accordion = `${JSON.stringify({
+        name: "accordion",
+        type: "registry:ui",
+        files: [{ path: shared, type: "registry:ui", content: "export const Accordion = 2;\n" }],
+      })}\n`;
+      await installRegistry(
+        "0.4.2",
+        {
+          "shadcn-faq": await hashText(block("shadcn-faq")),
+          "shadcn-faq-2": await hashText(block("shadcn-faq-2")),
+          accordion: await hashText(accordion),
+        },
+        "admin",
+      );
+      const fetchText = async (url: string) => {
+        const name = /\/r\/([^/]+)\.json$/.exec(url)?.[1] ?? "";
+        return name === "accordion" ? accordion : block(name);
+      };
+      const result = await update({
+        root,
+        fetchJson,
+        fetchText,
+        run: commands().run,
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "up-to-date" });
+      expect(await read(shared)).toBe("export const Accordion = 2;\n");
+      // The second block's plan saw the component as the first's would leave it, so it's the second's too now.
+      const blocks = (
+        JSON.parse(await read("blocks/installed/installed.json")) as {
+          blocks: Record<string, { files: Record<string, string> }>;
+        }
+      ).blocks;
+      expect(blocks["shadcn-faq-2"]?.files[shared]).toBe(await hashText("export const Accordion = 2;\n"));
+    });
+  });
+
   it("updates to a newer release only when asked, and says when there's nothing newer", async () => {
     await site();
     const { run } = commands();

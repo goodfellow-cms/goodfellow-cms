@@ -123,11 +123,68 @@ describe("signing up", () => {
       await expect(choose(auth, first)).rejects.toThrow(EditorsError);
       await choose(auth, second, "rita's very own password");
       expect((await signIn("rita@example.org", "rita's very own password")).response.status).toBe(200);
+      // Her account has the name she typed, not the stranger's, and a reset email greets nobody by name.
+      expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.name).toBe("Rita");
+      await auth.handler(
+        new Request(`${SITE}/api/auth/request-password-reset/`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.9" },
+          body: JSON.stringify({ email: "rita@example.org" }),
+        }),
+      );
+      await vi.waitFor(() => expect(sent).toHaveLength(3), SENT);
+      expect(sent[2]?.subject).toMatch(/^Choose a new password/);
+      expect(sent[2]?.text).toMatch(/^Hello,/);
+      expect(sent[2]?.text).not.toContain("Mallory");
+      sent.pop();
       // Once she has a password, signing up with her address sends nothing more.
       await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }, "203.0.113.8"));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(sent).toHaveLength(2);
       expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.emailVerified).toBe(true);
+    } finally {
+      close();
+    }
+  });
+
+  it("names a new account after the sign-up whose link works, though another's was sent first", async () => {
+    const sent = fakeResend();
+    const { auth, context, close } = await site();
+    try {
+      // The first sign-up makes the account, then waits, just before it takes its share of emails…
+      let made = false;
+      let held = false;
+      let release = () => {};
+      const go = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const createUser = context.internalAdapter.createUser.bind(context.internalAdapter);
+      vi.spyOn(context.internalAdapter, "createUser").mockImplementation(async (...args) => {
+        const user = await createUser(...args);
+        made = true;
+        return user;
+      });
+      const deleteMany = context.adapter.deleteMany.bind(context.adapter);
+      vi.spyOn(context.adapter, "deleteMany").mockImplementation(async (...args) => {
+        if (made && !held) {
+          held = true;
+          await go;
+        }
+        return deleteMany(...args);
+      });
+      await signUp(auth, SITE_ENV, signingUp({ name: "Ann", email: "ann@example.org" }));
+      await vi.waitFor(() => expect(held).toBe(true), SENT);
+      // …while a second, with another name, is sent its link.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Bea", email: "ann@example.org" }, "198.51.100.7"));
+      await vi.waitFor(() => expect(sent).toHaveLength(1), SENT);
+      release();
+      await vi.waitFor(() => expect(sent).toHaveLength(2), SENT);
+      // The first's link is the one that works, so the account has the first's name.
+      const second = linkIn(sent[0]?.text).searchParams.get("token") ?? "";
+      const first = linkIn(sent[1]?.text).searchParams.get("token") ?? "";
+      await expect(choose(auth, second)).rejects.toThrow(EditorsError);
+      await choose(auth, first);
+      expect((await context.internalAdapter.findUserByEmail("ann@example.org"))?.user.name).toBe("Ann");
     } finally {
       close();
     }
@@ -164,14 +221,19 @@ describe("signing up", () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
       expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max);
+      // A sign-up past the account's share, which sends nothing, doesn't change its name either.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "rita@example.org" }, "198.51.100.99"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect((await context.internalAdapter.findUserByEmail("rita@example.org"))?.user.name).toBe("Rita");
       // A sign-up that made no link, as while another of the account's is being sent or used, uses none of its share.
       await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.50"));
       await vi.waitFor(() => expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1), SENT);
       const paul = (await context.internalAdapter.findUserByEmail("paul@example.org"))?.user.id ?? "";
       const holder = await lockLinks(context.adapter, paul);
-      await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, "192.0.2.51"));
+      await signUp(auth, SITE_ENV, signingUp({ name: "Mallory", email: "paul@example.org" }, "192.0.2.51"));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(sent).toHaveLength(VERIFY_ACCOUNT_LIMIT.max + 1);
+      expect((await context.internalAdapter.findUserByEmail("paul@example.org"))?.user.name).toBe("Paul");
       await unlockLinks(context.adapter, paul, holder ?? "");
       for (let index = 1; index < VERIFY_ACCOUNT_LIMIT.max; index++) {
         await signUp(auth, SITE_ENV, signingUp({ name: "Paul", email: "paul@example.org" }, `192.0.2.${60 + index}`));

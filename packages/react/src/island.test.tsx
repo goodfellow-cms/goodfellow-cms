@@ -223,6 +223,124 @@ describe("fillSlots", () => {
     );
   });
 
+  it("counts only templates, never text that looks like one in the site's own code", () => {
+    const filled = `<gf-island>${slot("a.0", "<b>Passed</b>")}</gf-island>`;
+    const page = (code: string) =>
+      `<head>${code}</head><gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0"><b>Passed</b></template>`;
+    for (const code of [
+      `<script>var t = "<template>";</script>`,
+      `<script>document.write("</template>")</script>`,
+      "<style>/* <template> */</style>",
+      "<!-- <template> -->",
+      `<meta name="x" content="a > <template>">`,
+      "</template>",
+      // Every element whose content is text, which ends only at its own end tag.
+      "<xmp><template></xmp>",
+      "<noscript><template></noscript>",
+      "<iframe><template></iframe>",
+      "<noembed><template></noembed>",
+      "<noframes><template></noframes>",
+      "<textarea></template></textarea>",
+      `<script>var t = "</scriptx><template>";</script>`,
+      // A quote opens a value only just after an =; elsewhere it's part of the name or value.
+      `<p title=it"s>`,
+      `<p a"b>`,
+      // Comments end at --!>, and at a > straight after <!-- or <!---, but not at <!--!> or <!---!>.
+      "<!-- a --!>",
+      "<!-->",
+      "<!--->",
+      "<!----!>",
+      "<!--!> <template> -->",
+      "<!---!> <template> -->",
+      // A script's end tag inside a comment's <script> is still the script's text.
+      "<script><!--<script>\n// </script>\n// <template>\n</script>",
+      // End tags' attributes, bogus comments, and an = in an unquoted value.
+      `</div title="<template>">`,
+      "<!x <template>>",
+      "<?x <template>?>",
+      `<p title=x=">`,
+      // A letter whose lowercase is longer, which mustn't move what comes after it.
+      "<p>İ</p>",
+      // In SVG and MathML a title or text area is an element like any other, unless an integration point or a tag
+      // that ends them makes it HTML's again.
+      "<svg><title/></svg>",
+      "<math><textarea></math>",
+      "<svg><foreignObject><textarea><template></textarea></foreignObject></svg>",
+      "<svg><foreignObject><textarea></foreignObject></svg><template></textarea>",
+      "<svg><desc><title><template></title></desc></svg>",
+      "<svg><p><title><template></title>",
+      // An HTML title's end tag inside SVG's title is the text's, and leaves SVG's title open.
+      "<svg><title><title>Caption</title><textarea><p><template></textarea></title></svg>",
+      // In MathML's text points, mglyph and malignmark are MathML's; in SVG, a math element is SVG's.
+      "<math><mtext><mglyph><textarea/></mglyph></mtext></math>",
+      "<svg><math><mi><textarea/></mi></math></svg>",
+      // MathML annotated with HTML is HTML's.
+      '<math><annotation-xml encoding="text/html"><textarea><p><template></textarea></annotation-xml></math>',
+      '<math><annotation-xml encoding="text&#47;html"><textarea><p><template></textarea></annotation-xml></math>',
+      '<math><annotation-xml encoding="application&sol;xhtml&plus;xml"><textarea><p><template></textarea></annotation-xml></math>',
+      // A </template> with no HTML template open is passed over, as browsers do, and leaves SVG open.
+      "<svg></template><textarea/></svg>",
+      // A / that's an unquoted value's doesn't make a tag self-closing.
+      "<svg data-label=x/><textarea/></svg>",
+      // A font with color, face or size, and </p> and </br>, end SVG.
+      "<svg><font color=red>Label</font>",
+      "<svg></p>",
+      "<svg></br>",
+      // In SVG, <![CDATA[ is text to ]]>.
+      "<svg><![CDATA[ > </svg><template> ]]></svg>",
+    ]) {
+      expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
+    }
+    // Straight before the template, where a tag read too far would take its start tag.
+    // After a /, an = starts an attribute's name, so `="` is a name, not a value, and the tag ends at its >.
+    for (const code of [`<p title=x=">`, `</div title="><template>">`, `<p x /=">`, `<p x/=">`]) {
+      const before = `<gf-island>${slot("a.0")}</gf-island>${code}<template data-gf-slot="a.0"><b>Passed</b></template>`;
+      expect(fillSlots(before), code).toBe(`${filled}${code}`);
+    }
+    // Everything after <plaintext> is text.
+    const plain = `<plaintext><gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">x</template>`;
+    expect(fillSlots(plain)).toBe(plain);
+  });
+
+  it("reads any page in one pass, however its tags are written", () => {
+    const filled = `<gf-island>${slot("a.0", "<b>Passed</b>")}</gf-island>`;
+    const island = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0"><b>Passed</b></template>`;
+    expect(fillSlots(`${island}<p title="${"<a ".repeat(20)}"></p>`)).toBe(
+      `${filled}<p title="${"<a ".repeat(20)}"></p>`,
+    );
+    // Tags, comments and quotes that never end, which a backtracking pattern takes far longer than this to read.
+    for (const rest of [
+      `<a${"!".repeat(200_000)}`,
+      "<a".repeat(100_000),
+      "<!--".repeat(100_000),
+      `<a "${"'".repeat(100_000)}`,
+      // Comments that each end, read each once.
+      "<!-- x -->".repeat(50_000),
+      // SVG opened many times, then end tags that close nothing, or what was just opened, each read once.
+      `${"<svg>".repeat(50_000)}${"</x>".repeat(50_000)}`,
+      `${"<svg>".repeat(50_000)}${"<g></g>".repeat(50_000)}`,
+    ]) {
+      const started = performance.now();
+      expect(fillSlots(`${island}${rest}`)).toBe(`${filled}${rest}`);
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+  });
+
+  it("moves all of a slot's content, SVG's own templates in it too", () => {
+    const content = "<svg><template>Label</template></svg>Tail";
+    const html = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">${content}</template>`;
+    expect(fillSlots(html)).toBe(`<gf-island>${slot("a.0", content)}</gf-island>`);
+  });
+
+  it("ends a slot's content where a </template> past an HTML element in SVG ends it", () => {
+    // In SVG, an end tag closes only what's above the nearest HTML element; past that, HTML's rules read it, and a
+    // </template> closes the HTML template around them, here the slot's, not the SVG template it names.
+    for (const inside of ["<svg><template><foreignObject><div>", "<svg><template><foreignObject><div><svg><g>"]) {
+      const html = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">${inside}</template><p>After</p>`;
+      expect(fillSlots(html), inside).toBe(`<gf-island>${slot("a.0", inside)}</gf-island><p>After</p>`);
+    }
+  });
+
   it("keeps templates whose slots weren't rendered", () => {
     const html = `<gf-island></gf-island><template data-gf-slot="a.0">Later</template><p>After</p>`;
     expect(fillSlots(html)).toBe(html);

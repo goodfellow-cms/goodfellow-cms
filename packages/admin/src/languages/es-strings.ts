@@ -661,6 +661,8 @@ export const strings: Strings = {
     "No se pudieron cargar los bloques que puedes añadir. Comprueba tu conexión a internet e inténtalo de nuevo.",
   "blocks.error.invalid":
     "La lista de bloques que puedes añadir tiene un problema, así que no se pudo leer. Inténtalo más tarde.",
+  "blocks.error.changed":
+    "Los archivos de este bloque no son los que publicó Goodfellow, así que no se puede añadir. Inténtalo más tarde y, si sigue pasando, avisa a quien se ocupa del sitio.",
   "blocks.error.untrusted": "Este bloque viene de un lugar en el que este sitio no confía, así que no se puede añadir.",
   "blocks.error.not-a-block": "Esto no se puede añadir al editor como bloque.",
   "blocks.error.already-installed": "{name} ya está añadido.",

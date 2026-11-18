@@ -4,6 +4,7 @@ import type { FileChange } from "./content/store.js";
 import {
   availableBlocks,
   blockUses,
+  checkedFetchJson,
   EMPTY_RECORD,
   type FetchJson,
   hashText,
@@ -280,6 +281,76 @@ describe("planInstall", () => {
         }),
       ),
     ).toEqual({ code: "name-taken", name: "shadcn-faq" });
+  });
+});
+
+describe("checkedFetchJson", () => {
+  /** The registry's items as text, as its build writes them, which the address answers with `served`'s changes. */
+  const text = (url: string) => `${JSON.stringify(items[url], null, 2)}\n`;
+  async function checked(served: Record<string, string> = {}) {
+    const digests: Record<string, string> = {};
+    for (const url of Object.keys(items))
+      digests[url.slice("https://registry.example/r/".length, -".json".length)] = await hashText(text(url));
+    const fetched: string[] = [];
+    const fetchText = async (url: string) => {
+      fetched.push(url);
+      if (!(url in items)) throw new Error(`404 ${url}`);
+      return served[url] ?? text(url);
+    };
+    const others: FetchJson = async (url) => ({ other: url });
+    return { fetch: checkedFetchJson(REGISTRY, digests, fetchText, others), fetched };
+  }
+
+  it("takes a release's items only as it built them, before reading them", async () => {
+    const { fetch } = await checked();
+    const site = siteFiles();
+    const plan = await planInstall({
+      ref: "@goodfellow/shadcn-faq",
+      registries,
+      fetchJson: fetch,
+      readFile: site.readFile,
+      record: EMPTY_RECORD,
+      blocks: [],
+    });
+    expect(plan.item.name).toBe("shadcn-faq");
+    // Anything else, such as a registry the site's config names, is fetched as it is.
+    expect(await fetch("https://other.example/r/x.json")).toEqual({ other: "https://other.example/r/x.json" });
+  });
+
+  it("refuses an item the address answers for with anything else, or one the release didn't have", async () => {
+    const url = "https://registry.example/r/accordion.json";
+    const changed = await checked({
+      [url]: text(url).replace("accordion\\n", "accordion\\nexport const evil = true;\\n"),
+    });
+    expect(
+      await problem(
+        planInstall({
+          ref: "@goodfellow/shadcn-faq",
+          registries,
+          fetchJson: changed.fetch,
+          readFile: siteFiles().readFile,
+          record: EMPTY_RECORD,
+          blocks: [],
+        }),
+      ),
+    ).toEqual({ code: "changed", url });
+    // The same item, spelled differently, is still another file.
+    const respaced = await checked({ [url]: JSON.stringify(items[url]) });
+    await expect(respaced.fetch(url)).rejects.toMatchObject({ problem: { code: "changed", url } });
+    const { fetch, fetched } = await checked();
+    await expect(fetch("https://registry.example/r/unreleased.json")).rejects.toMatchObject({
+      problem: { code: "changed" },
+    });
+    // So is anything else in the release's folder, such as an item with a query or a fragment.
+    for (const other of [`${url}?x=1`, `${url}#x`, "https://registry.example/r/sub/accordion.json"]) {
+      await expect(fetch(other)).rejects.toMatchObject({ problem: { code: "changed", url: other } });
+    }
+    // Refused before anything is fetched.
+    expect(fetched).toEqual([]);
+    // The list of blocks is checked too, and says so when it's changed.
+    const index = "https://registry.example/r/registry.json";
+    const relisted = await checked({ [index]: text(index).replace("shadcn-faq", "shadcn-faq-2") });
+    expect(await problem(availableBlocks(registries, relisted.fetch))).toEqual({ code: "changed", url: index });
   });
 });
 

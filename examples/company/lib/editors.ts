@@ -168,14 +168,14 @@ export function invitationFrom(body: unknown): Invitation {
 /**
  * A new single-use link that lets someone who hasn't joined choose a password, as Better Auth's password reset reads
  * it, at the site's own address, never the request's, which a visitor could choose, lasting `hours`: an invitation's,
- * or a reader's who signed up (lib/sign-up.ts), whose link says the page to go on to. Their earlier links stop
- * working, so one that went astray can't be used later.
+ * or a reader's who signed up (lib/sign-up.ts), whose link says the page to go on to, and with `name`, the name the
+ * account takes with it. Their earlier links stop working, so one that went astray can't be used later.
  */
 export async function passwordLink(
   siteAuth: SiteAuth,
   siteEnv: SiteEnv,
   userId: string,
-  { hours = INVITATION_HOURS, next }: { hours?: number; next?: string } = {},
+  { hours = INVITATION_HOURS, next, name }: { hours?: number; next?: string; name?: string } = {},
 ): Promise<string> {
   if (!siteEnv.GOODFELLOW_SITE_URL) {
     throw new EditorsError(500, "Set GOODFELLOW_SITE_URL, the site's address, so invitations can link to it.");
@@ -207,6 +207,8 @@ export async function passwordLink(
       },
     });
     await retireResetLinks(adapter, userId, row.id);
+    // Under the same lock, so the name an account has is always the one sent with the link that works.
+    if (name !== undefined) await internalAdapter.updateUser(userId, { name });
   } finally {
     await unlockLinks(adapter, userId, holder);
   }

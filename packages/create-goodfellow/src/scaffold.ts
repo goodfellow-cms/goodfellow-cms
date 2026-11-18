@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   type Backend,
@@ -81,6 +82,51 @@ export async function copyTemplate(from: string, to: string, { bundling = false 
   for (const file of await readdir(to, { recursive: true })) {
     const replace = names.get(basename(file));
     if (replace) await rename(join(to, file), join(dirname(join(to, file)), replace));
+  }
+}
+
+/** The secrets a template's folder can hold on a developer's computer: `.env` files and wrangler's `.dev.vars`. */
+const SECRET_FILE = /^(?:\.env|\.dev\.vars)(?:\..*)?$/;
+/** Those that show what to put in one, and hold nothing. */
+const SECRET_EXAMPLES = new Set([".env.example", ".dev.vars.example"]);
+
+/** The files among `paths` that look like they hold secrets, which a published template must never have. */
+export function secretFiles(paths: Iterable<string>): string[] {
+  return [...paths].filter((path) => {
+    const name = basename(path);
+    return SECRET_FILE.test(name) && !SECRET_EXAMPLES.has(name);
+  });
+}
+
+/**
+ * Copies a template from a git repository's `source` folder for publishing, taking only the files git keeps, since a
+ * developer's copy holds build output and secrets that its `.gitignore` leaves out (`.env.local` for trying plugins,
+ * `.dev.vars`). Throws, leaving nothing at `to`, where the copy still has a file that looks like a secret.
+ */
+export async function bundleTemplate(repo: string, source: string, to: string): Promise<void> {
+  const listed = spawnSync("git", ["ls-files", "-z", "--", source], { cwd: repo, encoding: "utf8" });
+  if (listed.status !== 0) throw new ScaffoldError(`git couldn't list ${source}'s files: ${listed.stderr.trim()}`);
+  let folder = source;
+  while (folder.endsWith("/")) folder = folder.slice(0, -1);
+  const prefix = `${folder}/`;
+  const tracked = await mkdtemp(join(tmpdir(), "goodfellow-template-"));
+  try {
+    for (const path of listed.stdout.split("\0").filter(Boolean)) {
+      if (!path.startsWith(prefix)) continue;
+      const into = join(tracked, path.slice(prefix.length));
+      await mkdir(dirname(into), { recursive: true });
+      await cp(join(repo, path), into);
+    }
+    await copyTemplate(tracked, to, { bundling: true });
+  } finally {
+    await rm(tracked, { recursive: true, force: true });
+  }
+  const secrets = secretFiles(await readdir(to, { recursive: true }));
+  if (secrets.length > 0) {
+    await rm(to, { recursive: true, force: true });
+    throw new ScaffoldError(
+      `${source} has files that look like secrets, which are never published: ${secrets.join(", ")}`,
+    );
   }
 }
 

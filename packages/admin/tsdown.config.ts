@@ -7,6 +7,20 @@ import { defineConfig } from "tsdown";
 const registryVersion: string = createRequire(import.meta.url)("@goodfellow-cms/registry/package.json").version;
 
 /**
+ * The SHA-256 of each item of that release, which the Blocks screen and the site import check what they download
+ * against. The build fails without them, rather than ship an admin panel that installs whatever the address answers.
+ */
+const registryFiles = join(
+  dirname(createRequire(import.meta.url).resolve("@goodfellow-cms/registry/package.json")),
+  "r",
+  "digests.json",
+);
+const registryDigests: Record<string, string> = JSON.parse(readFileSync(registryFiles, "utf8"));
+if (Object.keys(registryDigests).length === 0) {
+  throw new Error(`${registryFiles} has no digests: build @goodfellow-cms/registry first.`);
+}
+
+/**
  * The SHA-256 of each file of the token broker's page, from the broker built with this release, which Add a token
  * broker checks the files it downloads against. The build fails without them, rather than ship an admin panel that
  * copies whatever the address answers.
@@ -29,6 +43,7 @@ export default defineConfig({
   fixedExtension: false,
   define: {
     __GOODFELLOW_REGISTRY_VERSION__: JSON.stringify(registryVersion),
+    __GOODFELLOW_REGISTRY_DIGESTS__: JSON.stringify(registryDigests),
     __GOODFELLOW_BROKER_DIGESTS__: JSON.stringify(brokerDigests),
   },
 });
