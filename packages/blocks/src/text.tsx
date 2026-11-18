@@ -201,9 +201,8 @@ export const Table: ComponentConfig<TableProps> = withParts(
     fields: {
       cells: tableField("Cells"),
       // Drawn by nothing: what the cells hold is the table's own business, so neither the AI assistant nor
-      // Claude chooses it (a field they don't understand keeps its starting value). A table saved without one
-      // is from before cells could be formatted, so pages don't give it the default.
-      format: { type: "custom", render: () => <></>, metadata: { noDefault: true } },
+      // Claude chooses it (a field they don't understand keeps its starting value).
+      format: { type: "custom", render: () => <></> },
       header: { type: "radio", label: "First row is headings", options: yesNo },
       footer: { type: "radio", label: "Last row is a footer", options: yesNo },
       caption: { type: "text", label: "Caption" },

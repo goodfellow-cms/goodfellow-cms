@@ -366,13 +366,7 @@ export const Gallery: ComponentConfig<GalleryProps> = withParts(
       crop: { type: "radio", label: "Crop to squares", options: yesNo },
       rounded: { type: "radio", label: "Rounded corners", options: yesNo },
       caption: { type: "text", label: "Gallery's caption" },
-      // Galleries from before the lightbox have none, so pages leave it off for them.
-      lightbox: {
-        type: "radio",
-        label: "Open pictures larger when clicked",
-        options: yesNo,
-        metadata: { noDefault: true },
-      },
+      lightbox: { type: "radio", label: "Open pictures larger when clicked", options: yesNo },
       className: classNameField,
     },
     defaultProps: {
