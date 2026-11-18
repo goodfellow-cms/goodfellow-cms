@@ -71,7 +71,6 @@ async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): P
   type Account = { id: string; emailVerified: boolean; role?: string | null };
   let user = (await internalAdapter.findUserByEmail(signUp.email))?.user as Account | undefined;
   if (user && (user.emailVerified || !isMemberRole(user.role))) return;
-  const existing = user !== undefined;
   if (!user) {
     try {
       user = (await internalAdapter.createUser(
@@ -94,11 +93,12 @@ async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): P
   let link: string;
   try {
     // The name goes with the link: an account takes the name of the sign-up whose link is the one that works, and a
-    // sign-up past the account's share, which sends nothing, changes nothing.
+    // sign-up past the account's share, which sends nothing, changes nothing. A new account's too, since another
+    // sign-up may have sent its link, and its name, since this one made it.
     link = await passwordLink(siteAuth, siteEnv, user.id, {
       hours: VERIFY_HOURS,
       next: signUp.next,
-      ...(existing && { name: signUp.name }),
+      name: signUp.name,
     });
   } catch {
     // No link was made, such as while another of the account's is being sent or used: nothing counts against its share.

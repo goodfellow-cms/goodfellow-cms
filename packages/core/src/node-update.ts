@@ -497,11 +497,18 @@ async function updateSite(
   }
 
   /**
-   * Blocks from Goodfellow's registry, from `release`'s registry, written where nobody changed them; the files
-   * someone did change, or a failure.
+   * Blocks from Goodfellow's registry, from `release`'s registry, as changes to write where nobody changed them, which
+   * aren't written yet, so nothing can run them before `blocksAsReleased()` has checked them; the files someone did
+   * change, or a failure.
    */
-  async function updateBlocks(release: string): Promise<{ kept: string[] } | { failed: UpdateResult }> {
+  async function updateBlocks(
+    release: string,
+  ): Promise<{ kept: string[]; changes: FileChange[] } | { failed: UpdateResult }> {
     const kept: string[] = [];
+    const changes: FileChange[] = [];
+    // What the changes so far would leave, which each block's plan reads, as a component two blocks share is.
+    const pending = new Map<string, string | undefined>();
+    const readPlanned = async (path: string) => (pending.has(path) ? pending.get(path) : read(path));
     let record: ReturnType<typeof parseInstalledRecord>;
     try {
       // Only a site without the record has no blocks: one that's there but can't be read isn't taken as empty,
@@ -533,8 +540,18 @@ async function updateSite(
     for (const [name, block] of Object.entries(record.blocks)) {
       if (!block.source.startsWith(`${GOODFELLOW_REGISTRY}/`)) continue;
       try {
-        const plan = await planUpdate({ name, record, registries, fetchJson: fetchItem, readFile: read, packages });
-        for (const change of plan.changes) await apply(change);
+        const plan = await planUpdate({
+          name,
+          record,
+          registries,
+          fetchJson: fetchItem,
+          readFile: readPlanned,
+          packages,
+        });
+        for (const change of plan.changes) {
+          changes.push(change);
+          pending.set(change.path, "content" in change ? change.content : undefined);
+        }
         record = plan.record;
         kept.push(...plan.kept);
       } catch (error) {
@@ -552,7 +569,7 @@ async function updateSite(
         return { failed: await failed({ step: "blocks" }) };
       }
     }
-    return { kept };
+    return { kept, changes };
   }
 
   // Goodfellow is up to date, but files of the site's own, or with `blocks` its registry blocks, may not be yet:
@@ -564,6 +581,7 @@ async function updateSite(
       const blocks = await updateBlocks(from);
       if ("failed" in blocks) return blocks.failed;
       if (!(await blocksAsReleased(from))) return failed({ step: "blocks" });
+      for (const change of blocks.changes) await apply(change);
       kept.push(...blocks.kept);
     }
     const files = current.changes.map((change) => change.path);
@@ -667,9 +685,13 @@ async function updateSite(
 
   // With `blocks`, blocks from Goodfellow's registry, from the release being installed.
   const kept: string[] = [];
+  // Written only once npm has installed the release they're checked against, and they've been checked, so no package's
+  // install script, nor the site's own, such as a `prepare` that builds it, runs them before.
+  const blockChanges: FileChange[] = [];
   if (options.blocks) {
     const blocks = await updateBlocks(to);
     if ("failed" in blocks) return blocks.failed;
+    blockChanges.push(...blocks.changes);
     kept.push(...blocks.kept);
   }
 
@@ -709,9 +731,10 @@ async function updateSite(
       return failed({ step: "provenance" });
     }
   }
-  // Blocks are fetched before the release is installed, so they're checked against it once it is, before any of
-  // their code runs.
+  // Blocks are fetched before the release is installed, so they're checked against it once it is, and only then
+  // written, before any of their code runs.
   if (!(await blocksAsReleased(to))) return failed({ step: "blocks" });
+  for (const change of blockChanges) await apply(change);
   log("Building the site with the update…");
   const built = await run("npm", ["run", "build"], root);
   if (built.code !== 0) {

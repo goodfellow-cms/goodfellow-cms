@@ -147,6 +147,49 @@ describe("signing up", () => {
     }
   });
 
+  it("names a new account after the sign-up whose link works, though another's was sent first", async () => {
+    const sent = fakeResend();
+    const { auth, context, close } = await site();
+    try {
+      // The first sign-up makes the account, then waits, just before it takes its share of emails…
+      let made = false;
+      let held = false;
+      let release = () => {};
+      const go = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const createUser = context.internalAdapter.createUser.bind(context.internalAdapter);
+      vi.spyOn(context.internalAdapter, "createUser").mockImplementation(async (...args) => {
+        const user = await createUser(...args);
+        made = true;
+        return user;
+      });
+      const deleteMany = context.adapter.deleteMany.bind(context.adapter);
+      vi.spyOn(context.adapter, "deleteMany").mockImplementation(async (...args) => {
+        if (made && !held) {
+          held = true;
+          await go;
+        }
+        return deleteMany(...args);
+      });
+      await signUp(auth, SITE_ENV, signingUp({ name: "Ann", email: "ann@example.org" }));
+      await vi.waitFor(() => expect(held).toBe(true), SENT);
+      // …while a second, with another name, is sent its link.
+      await signUp(auth, SITE_ENV, signingUp({ name: "Bea", email: "ann@example.org" }, "198.51.100.7"));
+      await vi.waitFor(() => expect(sent).toHaveLength(1), SENT);
+      release();
+      await vi.waitFor(() => expect(sent).toHaveLength(2), SENT);
+      // The first's link is the one that works, so the account has the first's name.
+      const second = linkIn(sent[0]?.text).searchParams.get("token") ?? "";
+      const first = linkIn(sent[1]?.text).searchParams.get("token") ?? "";
+      await expect(choose(auth, second)).rejects.toThrow(EditorsError);
+      await choose(auth, first);
+      expect((await context.internalAdapter.findUserByEmail("ann@example.org"))?.user.name).toBe("Ann");
+    } finally {
+      close();
+    }
+  });
+
   it("answers the same for an address that already has an account, and sends an editor's nothing", async () => {
     const sent = fakeResend();
     const { auth, person, close } = await site();

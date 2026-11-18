@@ -521,6 +521,108 @@ describe("goodfellow update", () => {
       expect(await read("package.json")).toBe(before);
       expect(await read(BLOCK)).toBe("export default { v: 1 };\n");
     });
+
+    it("writes a release's blocks only once they're checked, so no install script can run them first", async () => {
+      await site();
+      await installRegistry("0.4.2", { "shadcn-faq": await hashText(released) });
+      // A manual update runs install scripts, the site's own `prepare` among them, as the site's `.npmrc` allows.
+      const { ran, run } = commands();
+      const seen: string[] = [];
+      const result = await update({
+        root,
+        fetchJson,
+        fetchText: jsDelivr(released),
+        run: async (command, args, cwd) => {
+          if (args[0] === "install") seen.push(await read(BLOCK));
+          return run(command, args, cwd);
+        },
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "updated", to: "0.4.2" });
+      expect(ran.some((line) => line.startsWith("npm install ") && !line.includes("--ignore-scripts"))).toBe(true);
+      expect(seen).toEqual(["export default { v: 1 };\n"]);
+      expect(await read(BLOCK)).toBe("export default { v: 2 };\n");
+    });
+
+    it("plans each block with what the blocks before it would write, though nothing's written yet", async () => {
+      await site();
+      await update({ root, fetchJson, run: commands().run, commit: true, log: () => {}, env: {} });
+      const shared = "components/ui/accordion.tsx";
+      const old = "export const Accordion = 1;\n";
+      const entryOf = (name: string) => `blocks/installed/${name}/block.tsx`;
+      const recorded = async (name: string, files: Record<string, string>) => [
+        name,
+        {
+          source: `@goodfellow/${name}`,
+          title: "FAQ",
+          category: "Sections",
+          version: "1.0.0",
+          entry: entryOf(name),
+          files,
+        },
+      ];
+      const v1 = await hashText("export default { v: 1 };\n");
+      // The first block came with the component; the second needs it only from this release on.
+      await writeFile(
+        join(root, "blocks/installed/installed.json"),
+        serializeContent({
+          version: 1,
+          blocks: Object.fromEntries([
+            await recorded("shadcn-faq", { [entryOf("shadcn-faq")]: v1, [shared]: await hashText(old) }),
+            await recorded("shadcn-faq-2", { [entryOf("shadcn-faq-2")]: v1 }),
+          ]),
+        }),
+      );
+      await mkdir(join(root, "blocks/installed/shadcn-faq-2"), { recursive: true });
+      await writeFile(join(root, entryOf("shadcn-faq-2")), "export default { v: 1 };\n");
+      await mkdir(join(root, "components/ui"), { recursive: true });
+      await writeFile(join(root, shared), old);
+      const block = (name: string) =>
+        `${JSON.stringify({
+          ...JSON.parse(released),
+          name,
+          files: [{ path: `blocks/${name}/block.tsx`, type: "registry:block", content: "export default { v: 2 };\n" }],
+          registryDependencies: ["@goodfellow/accordion"],
+        })}\n`;
+      const accordion = `${JSON.stringify({
+        name: "accordion",
+        type: "registry:ui",
+        files: [{ path: shared, type: "registry:ui", content: "export const Accordion = 2;\n" }],
+      })}\n`;
+      await installRegistry(
+        "0.4.2",
+        {
+          "shadcn-faq": await hashText(block("shadcn-faq")),
+          "shadcn-faq-2": await hashText(block("shadcn-faq-2")),
+          accordion: await hashText(accordion),
+        },
+        "admin",
+      );
+      const fetchText = async (url: string) => {
+        const name = /\/r\/([^/]+)\.json$/.exec(url)?.[1] ?? "";
+        return name === "accordion" ? accordion : block(name);
+      };
+      const result = await update({
+        root,
+        fetchJson,
+        fetchText,
+        run: commands().run,
+        blocks: true,
+        log: () => {},
+        env: {},
+      });
+      expect(result).toMatchObject({ state: "up-to-date" });
+      expect(await read(shared)).toBe("export const Accordion = 2;\n");
+      // The second block's plan saw the component as the first's would leave it, so it's the second's too now.
+      const blocks = (
+        JSON.parse(await read("blocks/installed/installed.json")) as {
+          blocks: Record<string, { files: Record<string, string> }>;
+        }
+      ).blocks;
+      expect(blocks["shadcn-faq-2"]?.files[shared]).toBe(await hashText("export const Accordion = 2;\n"));
+    });
   });
 
   it("updates to a newer release only when asked, and says when there's nothing newer", async () => {

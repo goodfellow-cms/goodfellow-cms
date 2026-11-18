@@ -48,6 +48,12 @@ const ADDRESS_ATTRIBUTES = new Set([
   "xlink:href",
 ]);
 
+/** `element attribute` pairs whose address is code the page runs, or a base every other address is read from. */
+const CODE_ADDRESSES = new Set(["base href", "embed src", "object data", "script src"]);
+
+/** Elements whose markup browsers read by other rules, SVG's and MathML's, until their end. */
+const FOREIGN = new Set(["svg", "math"]);
+
 /** The named references that spell what ends an address's scheme, as browsers read them in attributes. */
 const NAMED: Record<string, string> = {
   colon: ":",
@@ -76,14 +82,16 @@ function decodeAttribute(text: string): string {
 type ValuePart = { text: string; value: boolean };
 
 /**
- * An attribute's value with the item's values in it: none in an `on…` handler or `srcdoc`, and, in an address that's
- * followed or loaded, none where they help spell its scheme and the address they make, whole, could run script.
+ * An attribute of a `tag` with the item's values in its value: none in an `on…` handler, `srcdoc`, or the address of
+ * code the page runs, such as a script's, and, in another address that's followed or loaded, none where they help
+ * spell its scheme and the address they make, whole, could run script.
  */
-function attributeValue(attribute: string, parts: ValuePart[]): string {
+function attributeValue(tag: string, attribute: string, parts: ValuePart[]): string {
   const name = attribute.toLowerCase();
   const owners = () => parts.map((part) => (part.value ? "" : part.text)).join("");
   if (!parts.some((part) => part.value)) return owners();
   if (name.startsWith("on") || name === "srcdoc") return owners();
+  if (CODE_ADDRESSES.has(`${tag.toLowerCase()} ${name}`)) return owners();
   if (ADDRESS_ATTRIBUTES.has(name)) {
     let address = "";
     let firstValue = -1;
@@ -103,8 +111,9 @@ function attributeValue(attribute: string, parts: ValuePart[]): string {
  * HTML a block shows as it is, such as Custom HTML's, with an item's values put in where its placeholders are, each
  * by where it sits in the owners' HTML: escaped between tags and in attributes' values, and in an address that's
  * followed or loaded only where the whole address is a safe one. Where no escaping would keep a value from being
- * markup or script, in a tag outside an attribute's value, just after a `<`, an `on…` handler, `srcdoc`, or a script
- * or style, it's left out.
+ * markup or script, in a tag outside an attribute's value, just after a `<`, an `on…` handler, `srcdoc`, the address of
+ * a script, or a script or style, it's left out, as is every value after an `<svg>` or `<math>`, whose markup browsers
+ * read by rules of their own.
  */
 function fillHtml(text: string, values: Values): string {
   type State = "text" | "comment" | "bogus" | "tag" | "before" | "attribute" | "after" | "beforeValue" | "value";
@@ -115,6 +124,12 @@ function fillHtml(text: string, values: Values): string {
   let closing = false;
   let attribute = "";
   let quote = "";
+  // Where the comment being read starts, past its `<!--`, since `--!>` ends it only with dashes of its own.
+  let commentBody = 0;
+  // Once SVG or MathML starts, whose markup browsers read by other rules, such as `<title>` holding tags and
+  // `<![CDATA[` running to `]]>`: following those rules here would be one more way to read it differently from a
+  // browser, so no value goes in from there on.
+  let foreign = false;
   // The attribute value being read, put into `out` whole once it ends.
   let parts: ValuePart[] = [];
   // Read through a function: `startValue()` sets it, which narrowing in the loop doesn't see.
@@ -125,7 +140,7 @@ function fillHtml(text: string, values: Values): string {
     parts = [];
   };
   const endValue = () => {
-    out += attributeValue(attribute, parts);
+    out += attributeValue(tag, attribute, parts);
     parts = [];
   };
   /** The text of a raw-text element, straight after its start tag: values escaped in a text area or title, else none. */
@@ -142,7 +157,8 @@ function fillHtml(text: string, values: Values): string {
   };
   const endTag = () => {
     state = "text";
-    if (!closing && RAW_TEXT.has(tag.toLowerCase())) rawText();
+    if (!closing && FOREIGN.has(tag.toLowerCase())) foreign = true;
+    if (!foreign && !closing && RAW_TEXT.has(tag.toLowerCase())) rawText();
   };
   const placeholder = new RegExp(PLACEHOLDER.source, "y");
   let i = 0;
@@ -150,6 +166,10 @@ function fillHtml(text: string, values: Values): string {
     placeholder.lastIndex = i;
     const match = placeholder.exec(text);
     const value = match ? values.get(match[1] ?? "") : undefined;
+    if (match && value !== undefined && foreign) {
+      i += match[0].length;
+      continue;
+    }
     if (match && value !== undefined) {
       if (state === "beforeValue") startValue("");
       // Just after a `<`, `<!`, `<?` or `</`, a value would name a tag, or start a comment.
@@ -187,6 +207,7 @@ function fillHtml(text: string, values: Values): string {
           out += "!--";
           i += 3;
           state = "comment";
+          commentBody = out.length;
         } else if (/[a-zA-Z]/.test(text[i] ?? "") || (text[i] === "/" && /[a-zA-Z]/.test(text[i + 1] ?? ""))) {
           closing = text[i] === "/";
           if (closing) {
@@ -201,8 +222,11 @@ function fillHtml(text: string, values: Values): string {
         }
         break;
       case "comment":
-        // `-->` and `--!>` end a comment, as does a `>` straight after `<!--` or `<!---`, which ends in `-->` too.
-        if (char === ">" && (out.endsWith("-->") || out.endsWith("--!>"))) state = "text";
+        // `-->` ends a comment, as does a `>` straight after `<!--` or `<!---`, which ends in `-->` too; `--!>` does only
+        // with dashes after the `<!--`, so `<!--!>` and `<!---!>` go on.
+        if (char === ">" && (out.endsWith("-->") || (out.endsWith("--!>") && out.length - 4 >= commentBody))) {
+          state = "text";
+        }
         break;
       case "bogus":
         if (char === ">") state = "text";

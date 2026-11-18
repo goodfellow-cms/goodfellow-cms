@@ -84,8 +84,11 @@ export function rawTextEnd(lower: string, name: string, from: number): number {
 
 /** Where a comment whose `<!--` starts at `start` ends, past its `-->` or `--!>`, or -1 where it never does. */
 export function commentEnd(html: string, start: number): number {
-  // `<!-->` and `<!--->` end at once: their dashes are the end's.
-  for (let at = html.indexOf("--", start + 2); at !== -1; at = html.indexOf("--", at + 1)) {
+  // `<!-->` and `<!--->` end at once: their dashes are the end's. Past them, only dashes after the `<!--` end it, so
+  // `<!--!>` and `<!---!>` go on.
+  if (html[start + 4] === ">") return start + 5;
+  if (html[start + 4] === "-" && html[start + 5] === ">") return start + 6;
+  for (let at = html.indexOf("--", start + 4); at !== -1; at = html.indexOf("--", at + 1)) {
     if (html[at + 2] === ">") return at + 3;
     if (html[at + 2] === "!" && html[at + 3] === ">") return at + 4;
   }

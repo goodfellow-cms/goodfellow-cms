@@ -245,10 +245,13 @@ describe("fillSlots", () => {
       // A quote opens a value only just after an =; elsewhere it's part of the name or value.
       `<p title=it"s>`,
       `<p a"b>`,
-      // Comments end at --!>, and at a > straight after <!-- or <!---.
+      // Comments end at --!>, and at a > straight after <!-- or <!---, but not at <!--!> or <!---!>.
       "<!-- a --!>",
       "<!-->",
       "<!--->",
+      "<!----!>",
+      "<!--!> <template> -->",
+      "<!---!> <template> -->",
       // A script's end tag inside a comment's <script> is still the script's text.
       "<script><!--<script>\n// </script>\n// <template>\n</script>",
       // End tags' attributes, bogus comments, and an = in an unquoted value.

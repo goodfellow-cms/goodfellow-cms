@@ -150,9 +150,15 @@ describe("filling in an item's values", () => {
     expect(fill("<p><!{path}</p>", { path: "--" })).toBe("<p><!</p>");
     expect(fill("<p>{path} < 2</p>", { path: "1" })).toBe("<p>1 < 2</p>");
     // A comment ends at --!>, and at a > straight after <!-- or <!---, so what follows is markup again.
-    for (const comment of ["<!-- x --!>", "<!-->", "<!--->"]) {
+    for (const comment of ["<!-- x --!>", "<!-->", "<!--->", "<!----!>"]) {
       expect(fill(`${comment}<a href="{path}">Go</a>`, { path: "javascript:alert(1)" })).toBe(
         `${comment}<a href="">Go</a>`,
+      );
+    }
+    // But <!--!> and <!---!> don't end one: their --!> takes the opening's dashes, so the next --> does.
+    for (const comment of ["<!--!>", "<!---!>"]) {
+      expect(fill(`${comment} <a title="--> <img src=x onerror={path}> ">`, { path: "alert(1)" })).toBe(
+        `${comment} <a title="--> <img src=x onerror=> ">`,
       );
     }
     // Only HTML's whitespace ends an unquoted value: U+00A0 doesn't, so this is still the handler.
@@ -183,6 +189,41 @@ describe("filling in an item's values", () => {
     expect(fill("<script>var a = '</scriptx>{path}';</script>", { path: "alert(1)" })).toBe(
       "<script>var a = '</scriptx>';</script>",
     );
+  });
+
+  it("keeps values out of what loads code, and out of SVG and MathML, which browsers read by other rules", () => {
+    const fill = (html: string, title: string) =>
+      applyEntry({ root: { props: {} }, content: [{ type: "Html", props: { id: "x", html } }] }, config, news, {
+        collection: "news",
+        slug: "a",
+        file: "content/collections/news/a.json",
+        path: "/news/a",
+        content: { version: 1, fields: { title } },
+      }).content[0]?.props.html;
+    // An address on another site is a safe one, but not for a script, a base every address is read from, or a plugin.
+    const remote = "https://other.example/x.js";
+    for (const html of [
+      '<script src="{title}"></script>',
+      '<SCRIPT SRC="{title}"></SCRIPT>',
+      '<base href="{title}">',
+      '<object data="{title}"></object>',
+      '<embed src="{title}">',
+    ]) {
+      expect(fill(html, remote), html).toBe(html.replace("{title}", ""));
+    }
+    expect(fill('<img src="{title}">', remote)).toBe(`<img src="${remote}">`);
+    expect(fill('<a href="{title}">Go</a>', remote)).toBe(`<a href="${remote}">Go</a>`);
+    // SVG's own attributes are read as HTML's; what's inside it isn't, nor anything after it.
+    expect(fill('<svg aria-label="{title}"><text>{title}</text></svg><p>{title}</p>', "Chart")).toBe(
+      '<svg aria-label="Chart"><text></text></svg><p></p>',
+    );
+    // Inside SVG, a <title> holds tags, which here would be a live link.
+    expect(fill('<svg><title><a href="{title}">x</a></title></svg>', "javascript:alert(1)")).toBe(
+      '<svg><title><a href="">x</a></title></svg>',
+    );
+    // And <![CDATA[ runs to ]]>, past the > that would end it in HTML.
+    const cdata = '<math><![CDATA[ > <a title=" ]]> <img src=x onerror={title}> " ]]></math>';
+    expect(fill(cdata, "alert(1)")).toBe(cdata.replace("{title}", ""));
   });
 
   it("escapes them in rich text inside lists and objects too", () => {

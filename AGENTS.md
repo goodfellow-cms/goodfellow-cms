@@ -83,7 +83,8 @@ Content files are the product's data format; treat changes to them like API chan
   fields a block shows as HTML (`metadata: { html: true }`, `isHtmlField()`, which the registry's `custom-html` marks)
   by where each sits in the owners' HTML (`fillHtml()`: escaped as text or as any attribute's value, an address at the
   start of one a browser follows or loads (`ADDRESS_ATTRIBUTES`) only where `isSafeUrl()` takes it, and left out in a
-  tag outside a value, an `on…` attribute, `srcdoc`, or `RAW_TEXT` elements such as scripts and styles).
+  tag outside a value, an `on…` attribute, `srcdoc`, the address of code (`CODE_ADDRESSES`: a script's, `<base>`'s),
+  `RAW_TEXT` elements such as scripts and styles, and after `<svg>` or `<math>` (`FOREIGN`), read by other rules).
   Blocks that need the entry itself read `useSite().entry` and `useSite().collection`, or Puck's `metadata` in
   `resolveFields` and `resolveData`. Wrap blocks that only make sense in templates in `templateOnly()`, which leaves
   them out of the page, header, and footer editors.
