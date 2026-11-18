@@ -8,7 +8,7 @@ import {
   itemTitleIn,
 } from "@goodfellow-cms/core";
 import type { ComponentData, Config, Data, Fields } from "@puckeditor/core";
-import { asciiLower, isHtmlSpace, RAW_TEXT, rawTextEnd, tagEnd } from "./html-scan.js";
+import { asciiLower, decodeAttribute, isHtmlSpace, RAW_TEXT, rawTextEnd, tagEnd } from "./html-scan.js";
 import type { SiteContextValue } from "./site-types.js";
 
 /** `{title}`, `{event-date}`: a field's name in braces. */
@@ -54,34 +54,6 @@ const CODE_ADDRESSES = new Set(["base href", "embed src", "object data", "script
 /** Elements whose markup browsers read by other rules, SVG's and MathML's, until their end. */
 const FOREIGN = new Set(["svg", "math"]);
 
-/** The named references that spell what ends an address's scheme, as browsers read them in attributes. */
-const NAMED: Record<string, string> = {
-  colon: ":",
-  sol: "/",
-  quest: "?",
-  num: "#",
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  Tab: "\t",
-  NewLine: "\n",
-};
-
-/**
- * Owners' text in an attribute's value as a browser reads it, as far as an address's scheme goes: numeric references,
- * and the named ones that spell what ends a scheme. Others stay as they're written, which reads as no scheme at all
- * only where it really is one, so the check is stricter, never looser.
- */
-function decodeAttribute(text: string): string {
-  return text.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));?/gi, (whole, hex: string, decimal: string, name: string) => {
-    if (name !== undefined) return NAMED[name] ?? whole;
-    const code = hex !== undefined ? Number.parseInt(hex, 16) : Number(decimal);
-    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "\ufffd";
-  });
-}
-
 /**
  * Whether `next`, the first character written after `before`, carries on a character reference `before` ends with
  * but hasn't ended, as a digit carries on `&#5`, and `/` doesn't.
@@ -121,7 +93,8 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
     let firstValue = -1;
     for (const part of parts) {
       const text = part.value ? escapeAttribute(part.text) : part.text;
-      if (part.value && text !== "" && firstValue === -1) {
+      // An empty value counts too, since it joins what's around it, as `da{x}ta:` writes `data:`.
+      if (part.value && firstValue === -1) {
         // A value that carries on a reference the owners started helps spell what it reads as.
         const before = continuesReference(written, text[0] ?? "") ? written.replace(/&[#a-z0-9]*$/i, "") : written;
         firstValue = decodeAttribute(before).length;

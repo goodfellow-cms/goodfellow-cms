@@ -145,6 +145,11 @@ describe("filling in an item's values", () => {
     expect(fill('<a href="webcal&#58{path}">Go</a>', { path: "//example.org/events.ics" })).toBe(
       '<a href="webcal&#58//example.org/events.ics">Go</a>',
     );
+    // An empty value that joins the owners' text into a scheme counts as spelling it.
+    expect(fill('<a href="da{base}ta:text/plain,hello">Go</a>', { base: "" })).toBe('<a href="">Go</a>');
+    expect(fill('<a href="{base}/x" title="https://e.org/{base}">Go</a>', { base: "" })).toBe(
+      '<a href="/x" title="https://e.org/">Go</a>',
+    );
     // What's left once a value is left out is checked too.
     expect(fill('<a href="java{path}script:alert(1)">Go</a>', { path: "-x-" })).toBe('<a href="">Go</a>');
     expect(fill('<a href="web{path}cal://example.org/e.ics">Go</a>', { path: "-x-" })).toBe(
@@ -233,8 +238,10 @@ describe("filling in an item's values", () => {
       "<script></script>&lt;b&gt;</script>",
     );
     // Many raw-text elements before a page's only value are each read once.
-    const many = `${"<script>x</script>".repeat(20000)}<p>{path}</p>`;
-    expect(fill(many, { path: "&" })).toBe(`${"<script>x</script>".repeat(20000)}<p>&amp;</p>`);
+    const many = `${"<script>x</script>".repeat(100_000)}<p>{path}</p>`;
+    const started = performance.now();
+    expect(fill(many, { path: "&" })).toBe(`${"<script>x</script>".repeat(100_000)}<p>&amp;</p>`);
+    expect(performance.now() - started).toBeLessThan(2000);
     // A long document is read, a little more at a time, through each element's end.
     const long = `${"<script>x</script><p>{path}</p>".repeat(3000)}<script>${"y".repeat(5000)}{path}</script>{path}`;
     expect(fill(long, { path: "&" })).toBe(

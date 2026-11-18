@@ -276,6 +276,9 @@ describe("fillSlots", () => {
       "<svg><math><mi><textarea/></mi></math></svg>",
       // MathML annotated with HTML is HTML's.
       '<math><annotation-xml encoding="text/html"><textarea><p><template></textarea></annotation-xml></math>',
+      '<math><annotation-xml encoding="text&#47;html"><textarea><p><template></textarea></annotation-xml></math>',
+      // A </template> with no HTML template open is passed over, as browsers do, and leaves SVG open.
+      "<svg></template><textarea/></svg>",
       // A / that's an unquoted value's doesn't make a tag self-closing.
       "<svg data-label=x/><textarea/></svg>",
       // A font with color, face or size, and </p> and </br>, end SVG.

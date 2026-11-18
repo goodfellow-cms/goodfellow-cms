@@ -9,7 +9,16 @@ import {
   useId,
 } from "react";
 import { prerender } from "react-dom/static";
-import { asciiLower, commentEnd, isHtmlSpace, RAW_TEXT, rawTextEnd, readTag, tagAttributes } from "./html-scan.js";
+import {
+  asciiLower,
+  commentEnd,
+  decodeAttribute,
+  isHtmlSpace,
+  RAW_TEXT,
+  rawTextEnd,
+  readTag,
+  tagAttributes,
+} from "./html-scan.js";
 import { domId, ISLAND_TAG, identifierPrefix, SLOT_MARKER, SLOT_TAG, slotId } from "./island-shared.js";
 import { SiteProvider, useSite } from "./site-context.js";
 import type { SiteContextValue } from "./site-types.js";
@@ -344,7 +353,8 @@ function topLevelSlots(html: string) {
           }
           pop();
           closesHtml = closed?.ns === "html";
-        } else if (name === "template") {
+        } else if (name === "template" && depth > 0) {
+          // An HTML template is open around them; with none, a browser passes the end tag over.
           while (stack.length > 0) pop();
         }
       }
@@ -368,7 +378,7 @@ function topLevelSlots(html: string) {
         if (ns === "svg" && SVG_HTML_POINTS.has(name)) point = "html";
         else if (ns === "math" && MATH_TEXT_POINTS.has(name)) point = "text";
         else if (ns === "math" && name === "annotation-xml") {
-          const encoding = asciiLower(tagAttributes(html, j, close).get("encoding") ?? "");
+          const encoding = asciiLower(decodeAttribute(tagAttributes(html, j, close).get("encoding") ?? ""));
           if (encoding === "text/html" || encoding === "application/xhtml+xml") point = "html";
         }
         if (!selfClosing) push({ ns, name, point });

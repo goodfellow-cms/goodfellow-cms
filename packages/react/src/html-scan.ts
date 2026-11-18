@@ -186,3 +186,31 @@ export function tagAttributes(html: string, from: number, end: number): Map<stri
   }
   return found;
 }
+
+/** The named references that spell what ends an address's scheme, as browsers read them in attributes. */
+const NAMED: Record<string, string> = {
+  colon: ":",
+  sol: "/",
+  quest: "?",
+  num: "#",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  Tab: "\t",
+  NewLine: "\n",
+};
+
+/**
+ * Owners' text in an attribute's value as a browser reads it, as far as an address's scheme goes: numeric references,
+ * and the named ones that spell what ends a scheme. Others stay as they're written, which reads as no scheme at all
+ * only where it really is one, so the check is stricter, never looser.
+ */
+export function decodeAttribute(text: string): string {
+  return text.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));?/gi, (whole, hex: string, decimal: string, name: string) => {
+    if (name !== undefined) return NAMED[name] ?? whole;
+    const code = hex !== undefined ? Number.parseInt(hex, 16) : Number(decimal);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "\ufffd";
+  });
+}
