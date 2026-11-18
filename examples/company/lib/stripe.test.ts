@@ -26,7 +26,7 @@ import {
   webhookResponse,
 } from "./stripe.ts";
 import { SITE, SITE_ENV, testSite } from "./testing/site.ts";
-import { fakeStripe, signEvent } from "./testing/stripe.ts";
+import { fakeStripe, HOLD_MS, signEvent } from "./testing/stripe.ts";
 
 const STRIPE = "https://stripe.test";
 const PAYMENTS_ENV: SiteEnv = {
@@ -304,6 +304,38 @@ describe("checkout", () => {
     ]) {
       expect(() => placeFrom(form(fields))).toThrow();
     }
+  });
+});
+
+describe("the fake Stripe's customersAtOnce", () => {
+  const made = (stripe: ReturnType<typeof fakeStripe>) =>
+    stripe.handle(
+      new Request(`${STRIPE}/v1/customers`, {
+        method: "POST",
+        headers: { authorization: "Bearer rk_test_only", "content-type": "application/x-www-form-urlencoded" },
+        body: "email=rita%40example.org",
+      }),
+    );
+
+  it("lets the requests go once that many have come, and only once", async () => {
+    const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices: [] });
+    stripe.settings.customersAtOnce = 2;
+    const started = Date.now();
+    const both = await Promise.all([made(stripe), made(stripe)]);
+    expect(both.map((answer) => answer.status)).toEqual([200, 200]);
+    expect(stripe.settings.customersAtOnce).toBe(0);
+    // A later request isn't held for a batch of its own.
+    expect((await made(stripe)).status).toBe(200);
+    expect(Date.now() - started).toBeLessThan(HOLD_MS);
+  });
+
+  it("lets fewer go after a while, so a test fails on what it checks rather than waiting for ever", async () => {
+    const stripe = fakeStripe({ key: "rk_test_only", base: STRIPE, prices: [] });
+    stripe.settings.customersAtOnce = 2;
+    const started = Date.now();
+    expect((await made(stripe)).status).toBe(200);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(HOLD_MS - 50);
+    expect(stripe.settings.customersAtOnce).toBe(0);
   });
 });
 
