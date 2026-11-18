@@ -98,7 +98,6 @@ function sendReset(siteEnv: SiteEnv, releaseSlot: (request: Request | undefined)
     link.searchParams.set("token", token);
     const email = passwordResetEmail({
       to: user.email,
-      name: user.name,
       siteUrl,
       link: link.href,
       minutes: RESET_MINUTES,

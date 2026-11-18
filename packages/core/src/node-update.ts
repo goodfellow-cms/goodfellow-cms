@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { findBuildCause } from "./build-problems.js";
 import { CONTENT_REPOSITORY_DIR, INSTALLED_RECORD_FILE, SITE_FILE, UPDATES_FILE } from "./content/paths.js";
@@ -12,9 +13,12 @@ import {
   type FetchJson,
   GOODFELLOW_REGISTRY,
   goodfellowRegistryUrl,
+  hashText,
   parseInstalledRecord,
   planUpdate,
+  REGISTRY_DIGESTS_FILE,
   REGISTRY_PACKAGES,
+  type RegistryDigests,
   RegistryError,
 } from "./registry.js";
 import {
@@ -111,6 +115,10 @@ export interface UpdateOptions {
   siteFiles?: readonly SiteFile[];
   /** For tests. */
   fetchJson?: FetchJson;
+  /** Fetches the text of Goodfellow's registry's items. For tests; defaults to the network. */
+  fetchText?: (url: string) => Promise<string>;
+  /** The first release whose registry has digests (`FIRST_DIGESTS_RELEASE`). For tests. */
+  digestsSince?: string;
   /** Checks Goodfellow's releases' provenance before an automatic update. Defaults to `verifiedSource()`. */
   verifyRelease?: ReleaseVerifier;
   now?: Date;
@@ -264,6 +272,43 @@ const runCommand: RunCommand = (command, args, cwd) =>
     child.on("close", (code) => done({ code: code ?? 1, output }));
   });
 
+/**
+ * The first release of Goodfellow whose registry has digests (`r/digests.json`): going back to an older one goes on
+ * without checking its blocks, and one of this or a newer release without them is refused, as an install that isn't
+ * what npm published.
+ */
+const FIRST_DIGESTS_RELEASE = "0.14.0";
+
+async function fetchTextFromNetwork(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+  return response.text();
+}
+
+/**
+ * The release of Goodfellow's registry the site's packages installed, found as `@goodfellow-cms/admin`, which depends
+ * on it, finds it, and the SHA-256 of each of its items: `undefined` digests where that release has none, as releases
+ * from before they were written don't. Throws where it can't be found or read.
+ */
+async function installedRegistryDigests(root: string): Promise<{ version: string; digests?: RegistryDigests }> {
+  const admin = createRequire(join(root, "package.json")).resolve("@goodfellow-cms/admin/package.json");
+  const manifest = createRequire(admin).resolve("@goodfellow-cms/registry/package.json");
+  const { version } = JSON.parse(await readFile(manifest, "utf8")) as { version: unknown };
+  if (typeof version !== "string") throw new Error(`${manifest} has no version.`);
+  let text: string;
+  try {
+    text = await readFile(join(dirname(manifest), "r", REGISTRY_DIGESTS_FILE), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version };
+    throw error;
+  }
+  const digests = JSON.parse(text) as unknown;
+  if (typeof digests !== "object" || digests === null || Array.isArray(digests)) {
+    throw new Error(`The registry's ${REGISTRY_DIGESTS_FILE} isn't a list of digests.`);
+  }
+  return { version, digests: digests as RegistryDigests };
+}
+
 async function fetchJsonFromNetwork(url: string): Promise<unknown> {
   const response = await fetch(url, { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`${url} answered ${response.status}`);
@@ -304,6 +349,7 @@ async function updateSite(
 ): Promise<UpdateResult> {
   const root = resolve(options.root ?? ".");
   const fetchJson = options.fetchJson ?? fetchJsonFromNetwork;
+  const fetchText = options.fetchText ?? fetchTextFromNetwork;
   const run = options.run ?? runCommand;
   const log = options.log ?? ((line: string) => console.log(line));
   const env = options.env ?? process.env;
@@ -406,11 +452,63 @@ async function updateSite(
   };
 
   /**
-   * Blocks from Goodfellow's registry, from `release`'s registry, written where nobody changed them; the files
-   * someone did change, or a failure.
+   * The text of each item fetched from Goodfellow's registry on the network, by name: fetched once, so every block
+   * that needs an item, such as a component two blocks share, gets the same text, the one that's checked.
    */
-  async function updateBlocks(release: string): Promise<{ kept: string[] } | { failed: UpdateResult }> {
+  const fetchedBlocks = new Map<string, string>();
+
+  /**
+   * Whether the blocks fetched from Goodfellow's registry are what `release` built, by the digests of the registry
+   * npm installed, which is checked against npm's own record of the release: a block's files are the site's code, and
+   * the address that served them could have answered with anything. Only going back to a release from before
+   * registries had digests goes on without them, which it says: every newer release has them.
+   */
+  async function blocksAsReleased(release: string): Promise<boolean> {
+    if (fetchedBlocks.size === 0) return true;
+    let installedRegistry: Awaited<ReturnType<typeof installedRegistryDigests>>;
+    try {
+      installedRegistry = await installedRegistryDigests(root);
+    } catch (error) {
+      log(`The blocks registry npm installed can't be read: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+    if (installedRegistry.version !== release) {
+      log(
+        `The blocks registry installed is ${installedRegistry.version}, not ${release}, so its blocks can't be checked.`,
+      );
+      return false;
+    }
+    const { digests } = installedRegistry;
+    if (!digests) {
+      if (rollback && compareReleases(release, options.digestsSince ?? FIRST_DIGESTS_RELEASE) < 0) {
+        log(`Goodfellow ${release}'s blocks can't be checked, since its registry has no digests.`);
+        return true;
+      }
+      log(`Goodfellow ${release}'s blocks registry has no digests, so its blocks can't be checked.`);
+      return false;
+    }
+    for (const [name, text] of fetchedBlocks) {
+      if (!Object.hasOwn(digests, name) || digests[name] !== (await hashText(text))) {
+        log(`The block ${name} that was downloaded isn't the one Goodfellow ${release} released.`);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Blocks from Goodfellow's registry, from `release`'s registry, as changes to write where nobody changed them, which
+   * aren't written yet, so nothing can run them before `blocksAsReleased()` has checked them; the files someone did
+   * change, or a failure.
+   */
+  async function updateBlocks(
+    release: string,
+  ): Promise<{ kept: string[]; changes: FileChange[] } | { failed: UpdateResult }> {
     const kept: string[] = [];
+    const changes: FileChange[] = [];
+    // What the changes so far would leave, which each block's plan reads, as a component two blocks share is.
+    const pending = new Map<string, string | undefined>();
+    const readPlanned = async (path: string) => (pending.has(path) ? pending.get(path) : read(path));
     let record: ReturnType<typeof parseInstalledRecord>;
     try {
       // Only a site without the record has no blocks: one that's there but can't be read isn't taken as empty,
@@ -422,13 +520,38 @@ async function updateSite(
       return { failed: await failed({ step: "blocks" }) };
     }
     const registries = { [GOODFELLOW_REGISTRY]: options.registry ?? goodfellowRegistryUrl(release) };
+    // Goodfellow's own release is fetched as text, so what came can be checked against the release npm installs.
+    const prefix = options.registry ? undefined : goodfellowRegistryUrl(release).replace("{name}.json", "");
+    const fetchItem: FetchJson = async (url) => {
+      if (!prefix || !url.startsWith(prefix)) return fetchJson(url);
+      // Only an item's own address, which the release's digests can check: anything else there, such as one with a
+      // query, is refused.
+      const name = /^([^/?#]+)\.json$/.exec(url.slice(prefix.length))?.[1];
+      if (!name) throw new RegistryError({ code: "changed", url });
+      let text = fetchedBlocks.get(name);
+      if (text === undefined) {
+        text = await fetchText(url);
+        fetchedBlocks.set(name, text);
+      }
+      return JSON.parse(text);
+    };
     const dependencies = (JSON.parse(packageText) as { dependencies?: Record<string, string> }).dependencies;
     const packages = [...REGISTRY_PACKAGES, ...Object.keys(dependencies ?? {})];
     for (const [name, block] of Object.entries(record.blocks)) {
       if (!block.source.startsWith(`${GOODFELLOW_REGISTRY}/`)) continue;
       try {
-        const plan = await planUpdate({ name, record, registries, fetchJson, readFile: read, packages });
-        for (const change of plan.changes) await apply(change);
+        const plan = await planUpdate({
+          name,
+          record,
+          registries,
+          fetchJson: fetchItem,
+          readFile: readPlanned,
+          packages,
+        });
+        for (const change of plan.changes) {
+          changes.push(change);
+          pending.set(change.path, "content" in change ? change.content : undefined);
+        }
         record = plan.record;
         kept.push(...plan.kept);
       } catch (error) {
@@ -446,7 +569,7 @@ async function updateSite(
         return { failed: await failed({ step: "blocks" }) };
       }
     }
-    return { kept };
+    return { kept, changes };
   }
 
   // Goodfellow is up to date, but files of the site's own, or with `blocks` its registry blocks, may not be yet:
@@ -457,6 +580,8 @@ async function updateSite(
     if (options.blocks) {
       const blocks = await updateBlocks(from);
       if ("failed" in blocks) return blocks.failed;
+      if (!(await blocksAsReleased(from))) return failed({ step: "blocks" });
+      for (const change of blocks.changes) await apply(change);
       kept.push(...blocks.kept);
     }
     const files = current.changes.map((change) => change.path);
@@ -560,9 +685,13 @@ async function updateSite(
 
   // With `blocks`, blocks from Goodfellow's registry, from the release being installed.
   const kept: string[] = [];
+  // Written only once npm has installed the release they're checked against, and they've been checked, so no package's
+  // install script, nor the site's own, such as a `prepare` that builds it, runs them before.
+  const blockChanges: FileChange[] = [];
   if (options.blocks) {
     const blocks = await updateBlocks(to);
     if ("failed" in blocks) return blocks.failed;
+    blockChanges.push(...blocks.changes);
     kept.push(...blocks.kept);
   }
 
@@ -602,6 +731,10 @@ async function updateSite(
       return failed({ step: "provenance" });
     }
   }
+  // Blocks are fetched before the release is installed, so they're checked against it once it is, and only then
+  // written, before any of their code runs.
+  if (!(await blocksAsReleased(to))) return failed({ step: "blocks" });
+  for (const change of blockChanges) await apply(change);
   log("Building the site with the update…");
   const built = await run("npm", ["run", "build"], root);
   if (built.code !== 0) {

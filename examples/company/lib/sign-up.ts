@@ -60,8 +60,10 @@ export function signUpFrom(body: unknown): SignUp {
 
 /**
  * Sends the address a link to choose a password: for a new reader's account, which this makes, or one a reader made
- * before and never chose a password for. An address that already has an account with a password, or an editor's,
- * is sent nothing. Each account is sent at most `VERIFY_ACCOUNT_LIMIT`'s emails, however many ask.
+ * before and never chose a password for, which takes the name typed with the link it's sent, since anyone can sign up
+ * with any address and the account's name should be its owner's, not whoever asked first. An address that already has an account with
+ * a password, or an editor's, is sent nothing. Each account is sent at most `VERIFY_ACCOUNT_LIMIT`'s emails, however
+ * many ask.
  */
 async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): Promise<void> {
   const context = await siteAuth.$context;
@@ -90,7 +92,14 @@ async function sendLink(siteAuth: SiteAuth, siteEnv: SiteEnv, signUp: SignUp): P
   if (!slot) return;
   let link: string;
   try {
-    link = await passwordLink(siteAuth, siteEnv, user.id, { hours: VERIFY_HOURS, next: signUp.next });
+    // The name goes with the link: an account takes the name of the sign-up whose link is the one that works, and a
+    // sign-up past the account's share, which sends nothing, changes nothing. A new account's too, since another
+    // sign-up may have sent its link, and its name, since this one made it.
+    link = await passwordLink(siteAuth, siteEnv, user.id, {
+      hours: VERIFY_HOURS,
+      next: signUp.next,
+      name: signUp.name,
+    });
   } catch {
     // No link was made, such as while another of the account's is being sent or used: nothing counts against its share.
     await releaseEmailSlot(adapter, slot);

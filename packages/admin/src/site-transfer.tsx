@@ -1,6 +1,5 @@
 import {
   CONTENT_DIR,
-  type FetchJson,
   type FileChange,
   GOODFELLOW_REGISTRY,
   INSTALLED_PLUGINS_FILE,
@@ -21,16 +20,13 @@ import { useEffect, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
 import { fileName, mediaUrl } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
+import { registryFetchJson } from "./registry-fetch.js";
 import { type DownloadProgress, downloadName, siteCopyArchive } from "./site-download.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, ErrorMessage } from "./ui.js";
 import { AppLink } from "./use-link.js";
 
-const fetchJson: FetchJson = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} answered ${response.status}.`);
-  return response.json();
-};
+const fetchJson = registryFetchJson;
 
 /** Saves zip pieces as a download. */
 function saveZip(chunks: Uint8Array[], name: string): void {

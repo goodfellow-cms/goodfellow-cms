@@ -153,6 +153,8 @@ export const EMPTY_RECORD: InstalledRecord = { version: 1, blocks: {} };
 export type RegistryProblem =
   | { code: "unreachable"; url: string }
   | { code: "invalid"; url: string }
+  /** An item of a release of Goodfellow's registry that isn't the one released: `checkedFetchJson()`. */
+  | { code: "changed"; url: string }
   | { code: "untrusted"; ref: string }
   | { code: "not-a-block"; ref: string }
   | { code: "already-installed"; name: string }
@@ -173,6 +175,38 @@ export class RegistryError extends Error {
 
 /** Fetches and parses JSON. Rejects when it can't be fetched. */
 export type FetchJson = (url: string) => Promise<unknown>;
+
+/** The SHA-256 of each item in a release of Goodfellow's registry, in hex, by name, as its build writes them. */
+export type RegistryDigests = Record<string, string>;
+
+/** The file a build of Goodfellow's registry writes beside its items, `r/digests.json`, with their `RegistryDigests`. */
+export const REGISTRY_DIGESTS_FILE = "digests.json";
+
+/**
+ * A `FetchJson` that takes the items of `template`, a release of Goodfellow's registry, only where the text fetched
+ * has the SHA-256 `digests` gives its name, hashed as it came, before it's read, so the code a block writes into a
+ * site is always what that release built, whatever the address answers. Any other address in the release's folder is
+ * refused; addresses outside it are fetched with `fetchJson`.
+ */
+export function checkedFetchJson(
+  template: string,
+  digests: RegistryDigests,
+  fetchText: (url: string) => Promise<string>,
+  fetchJson: FetchJson,
+): FetchJson {
+  const prefix = prefixOf(template);
+  const suffix = template.slice(template.indexOf("{name}") + "{name}".length);
+  return async (url) => {
+    if (!url.startsWith(prefix)) return fetchJson(url);
+    // Anything else in the release's folder, such as an item's address with a query, is refused, never fetched as is.
+    const name = url.endsWith(suffix) ? url.slice(prefix.length, url.length - suffix.length) : "";
+    const expected = Object.hasOwn(digests, name) ? digests[name] : undefined;
+    if (!expected) throw new RegistryError({ code: "changed", url });
+    const text = await fetchText(url);
+    if ((await hashText(text)) !== expected) throw new RegistryError({ code: "changed", url });
+    return JSON.parse(text);
+  };
+}
 
 /** The address of the registry's file `name` from a template such as `https://x/r/{name}.json`. */
 function fill(template: string, name: string): string {
@@ -219,7 +253,8 @@ async function fetchItem(url: string, fetchJson: FetchJson): Promise<RegistryIte
   let data: unknown;
   try {
     data = await fetchJson(url);
-  } catch {
+  } catch (error) {
+    if (error instanceof RegistryError) throw error;
     throw new RegistryError({ code: "unreachable", url });
   }
   const parsed = registryItemSchema.safeParse(data);
@@ -238,7 +273,8 @@ export async function availableBlocks(registries: RegistrySources, fetchJson: Fe
         let data: unknown;
         try {
           data = await fetchJson(url);
-        } catch {
+        } catch (error) {
+          if (error instanceof RegistryError) throw error;
           throw new RegistryError({ code: "unreachable", url });
         }
         const parsed = registryIndexSchema.safeParse(data);

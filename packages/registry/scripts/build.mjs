@@ -1,6 +1,7 @@
 // Builds the registry the admin panel installs from: r/<name>.json for each block and each shadcn
 // component they use, with the files' contents, and r/registry.json listing them. Each block is stamped
 // with this package's version, which the site's record of installed blocks keeps.
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -47,4 +48,14 @@ const index = {
   })),
 };
 await writeFile(here("r/registry.json"), `${JSON.stringify(index, null, 2)}\n`);
+
+// The SHA-256 of each file above, by name, which the admin panel built with this release checks what it downloads
+// against, so a block's code is always what this release built, whatever the address that serves it answers.
+const digests = {};
+for (const name of [...items.map((item) => item.name), "registry"].sort()) {
+  digests[name] = createHash("sha256")
+    .update(await readFile(here(`r/${name}.json`)))
+    .digest("hex");
+}
+await writeFile(here("r/digests.json"), `${JSON.stringify(digests, null, 2)}\n`);
 console.log(`Built ${blocks.length} blocks and ${shadcn.items.length} shadcn components into r/.`);

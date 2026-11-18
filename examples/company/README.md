@@ -159,6 +159,7 @@ Every page is rendered once for each publish and served as it was, so a request 
 | `wrangler.jsonc` | The Cloudflare Worker: its name, its D1 database bound as `DB`, and its settings |
 | `vite.config.ts` | How vinext builds the site into that Worker, keeping rendered pages in Workers KV |
 | `.github/workflows/deploy.yml` | Builds the site with its content and puts it online, after every change |
+| `scripts/check-build.ts` | What the Deploy workflow's deploy job, which holds the Cloudflare token and the site's keys, checks before it reads what the build job built: that the build's config is `wrangler.jsonc`'s, with its files in `dist/` |
 | `lib/env.ts` | The one place the site reads its bindings and secrets, so nothing else knows where it runs: the Worker's on Cloudflare, wrangler's in `npm run dev` |
 | `lib/db/dialect.ts` | The one place that knows the database: Cloudflare D1 where it's bound as `DB`, or Postgres at `DATABASE_URL`, through [node-postgres](https://node-postgres.com) |
 | `lib/db/migrations/` | The database's tables, a migration a file, each written once with Kysely's schema builder; `npm run migrations` writes each database's SQL into `migrations/` |

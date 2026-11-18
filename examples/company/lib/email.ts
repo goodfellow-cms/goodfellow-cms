@@ -259,19 +259,16 @@ export function invitationEmail(options: {
   );
 }
 
-/** The message someone who forgot their password asks for. */
-export function passwordResetEmail(options: {
-  to: string;
-  name: string;
-  siteUrl: string;
-  link: string;
-  minutes: number;
-}): Email {
+/**
+ * The message someone who forgot their password asks for. It greets nobody by name: a reader's name was typed when
+ * they signed up, and until they chose a password, anyone signing up with their address could choose it.
+ */
+export function passwordResetEmail(options: { to: string; siteUrl: string; link: string; minutes: number }): Email {
   const site = siteName(options.siteUrl);
   return linkEmail(
     options.to,
     `Choose a new password for ${site}`,
-    [`Hello ${options.name},`, `Someone asked to choose a new password for your account at ${site}. If it was you:`],
+    ["Hello,", `Someone asked to choose a new password for your account at ${site}. If it was you:`],
     "Choose a new password",
     options.link,
     `The link works once, for ${options.minutes} minutes. If it wasn't you, ignore this message: your password stays as it is.`,
