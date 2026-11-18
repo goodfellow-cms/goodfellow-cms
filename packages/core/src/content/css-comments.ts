@@ -68,7 +68,8 @@ function codePoint(hex: string): string {
 export function cssImageSetStrings(text: string): string[] {
   const values: string[] = [];
   const start = /image-set\(/iy;
-  const url = /url\(\s*(?!["'])/iy;
+  // The lookahead takes the spaces too, or `url( "…")` would read as unquoted after none of them.
+  const url = /url\((?!\s*["'])\s*/iy;
   /**
    * Where the string starting at `at` ends: after its closing quote, or at a
    * line break that isn't escaped, which ends a string in CSS too.

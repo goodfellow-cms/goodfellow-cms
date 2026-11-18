@@ -166,6 +166,8 @@ describe("the theme's CSS", () => {
       tracker,
     );
     expect(loads('a{background:image-set(type(a\\)b) "https://tracker.example/p.png" 2x)}')).toEqual(tracker);
+    // A quoted address with spaces before it isn't read as an unquoted one ending at a ")" inside the string.
+    expect(loads(`a{background:url( "/media/x)y.png")} ${later}`)).toEqual(tracker);
   });
 });
 

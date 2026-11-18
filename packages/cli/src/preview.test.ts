@@ -43,8 +43,10 @@ describe("goodfellow preview", () => {
     expect(await status(port, `rebind.attacker.example:${port}`)).toBe(403);
   });
 
-  it("answers any name when shared with the network", async () => {
+  it("answers this computer's IP addresses when shared with the network, and still no other site's name", async () => {
     const port = await start(true);
-    expect(await status(port, `my-laptop.example:${port}`)).toBe(200);
+    expect(await status(port, `192.168.1.20:${port}`)).toBe(200);
+    // The developer's own browser can still be pointed at it by a website's name, network or not.
+    expect(await status(port, `rebind.attacker.example:${port}`)).toBe(403);
   });
 });
