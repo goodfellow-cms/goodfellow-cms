@@ -31,9 +31,9 @@ import {
   todayIn,
   withBlocksData,
 } from "@goodfellow-cms/core";
-import type { Config, Data } from "@puckeditor/core";
+import type { ComponentData, Config, Content, Data } from "@puckeditor/core";
 // The server entry works everywhere and has no browser-only code, so Server Components can prepare pages too.
-import { migrate, resolveAllData } from "@puckeditor/core/rsc";
+import { migrate, resolveAllData, walkTree } from "@puckeditor/core/rsc";
 import { applyEntry, expandEntryLoops } from "./entry.js";
 import { blockHeading, blockStructuredData, createPuckConfig } from "./puck-config.js";
 import { type SiteContextValue, siteMetadata } from "./site-types.js";
@@ -71,14 +71,47 @@ export interface PreparedPage {
 }
 
 /**
- * Brings stored Puck data up to date with the installed Puck version, then runs
- * every block's `resolveData`, so blocks can fetch or compute content at build time.
+ * Whether a block's setting is left out where its saved props don't have it,
+ * rather than given its default: `metadata: { noDefault: true }`, for a
+ * setting whose absence says something, such as a Table saved before its
+ * cells could be formatted, which has no `format`.
+ */
+function keepsMissing(field: unknown): boolean {
+  return (field as { metadata?: { noDefault?: unknown } } | undefined)?.metadata?.noDefault === true;
+}
+
+/**
+ * Data with each block's default settings under its saved ones, in slots too
+ * (`migrate()` has made any zones slots by then). Puck fills defaults in only
+ * when the editor adds a block, so a page written by hand, by a script or
+ * before a setting existed can leave some out, and every block can then count
+ * on having all of them, as the content API's blocks do. A missing slot never
+ * gets its default's blocks: Puck's walk makes it empty before a block's
+ * defaults are filled in.
+ */
+function withDefaultProps(data: Data, config: Config): Data {
+  const fill = (content: Content): Content =>
+    content.map((item: ComponentData) => {
+      const component = config.components[item.type];
+      const defaults = component?.defaultProps;
+      if (!defaults) return item;
+      const fields = (component.fields ?? {}) as Record<string, unknown>;
+      const filled = Object.fromEntries(Object.entries(defaults).filter(([name]) => !keepsMissing(fields[name])));
+      return { ...item, props: { ...filled, ...item.props } };
+    });
+  return walkTree(data, config, fill);
+}
+
+/**
+ * Brings stored Puck data up to date with the installed Puck version, fills
+ * in blocks' default settings, then runs every block's `resolveData`, so
+ * blocks can fetch or compute content at build time.
  */
 async function prepareData(data: unknown, config: Config, site: SiteContextValue): Promise<Data> {
   const stored = data as Data;
   // Puck's DropZone-to-slot migration needs the config and logs on every call, so only run it on data that has zones.
   const migrated = migrate(stored, stored.zones && Object.keys(stored.zones).length > 0 ? config : undefined);
-  return resolveAllData(expandEntryLoops(migrated, config, site), config, siteMetadata(site));
+  return resolveAllData(expandEntryLoops(withDefaultProps(migrated, config), config, site), config, siteMetadata(site));
 }
 
 /** The entry a page shows, if it's an entry's page. */

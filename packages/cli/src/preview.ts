@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { normalizeBase } from "@goodfellow-cms/core";
+import { isAllowedDevHost } from "@goodfellow-cms/core/node";
 
 export interface PreviewOptions {
   root?: string;
@@ -58,6 +59,12 @@ export async function preview(options: PreviewOptions = {}): Promise<Server> {
   const server = createServer(async (req, res) => {
     // A preview may show what isn't published yet, so others on the network see it only when asked.
     if (!options.network && !fromThisComputer(req.socket.remoteAddress)) {
+      res.writeHead(403, { "Content-Type": "text/plain" }).end("This preview is only for this computer.");
+      return;
+    }
+    // Nor for a website that points its own name at this computer (DNS rebinding), which sends that name, as
+    // goodfellow dev refuses it.
+    if (!options.network && !isAllowedDevHost(req.headers.host)) {
       res.writeHead(403, { "Content-Type": "text/plain" }).end("This preview is only for this computer.");
       return;
     }

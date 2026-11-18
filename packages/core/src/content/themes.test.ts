@@ -126,6 +126,29 @@ describe("the theme's CSS", () => {
       "other.png",
     ]);
   });
+
+  it("lists what it loads however its CSS spells it", () => {
+    const loads = (css: string) => themeCssLoads(css);
+    expect(loads('@import"https://other.example/a.css";')).toEqual(["https://other.example/a.css"]);
+    expect(loads("@import/**/'https://other.example/a.css';")).toEqual(["https://other.example/a.css"]);
+    expect(loads('@\\69mport "https://other.example/a.css";')).toEqual(["https://other.example/a.css"]);
+    expect(loads('@\\000069 mport "https://other.example/a.css";')).toEqual(["https://other.example/a.css"]);
+    expect(loads("body{background:u\\72l(https://other.example/a.png)}")).toEqual(["https://other.example/a.png"]);
+    expect(loads("body{background:\\u\\r\\l(https://other.example/a.png)}")).toEqual(["https://other.example/a.png"]);
+    expect(loads('a{background:image-set("https://other.example/a.png" 1x, type("image/avif") url(b.avif))}')).toEqual([
+      "b.avif",
+      "https://other.example/a.png",
+    ]);
+    expect(loads('a{background:-webkit-image-set("https:\\2f\\2fother.example/b.png" 2x)}')).toEqual([
+      "https://other.example/b.png",
+    ]);
+    // An escaped backslash stays one, so what follows it isn't read as an escape.
+    expect(loads('a::after{content:"\\\\69"} b{background:url("/media/a.png")}')).toEqual([]);
+    expect(loads('a{background:image-set("/media/a.png" 1x)}')).toEqual([]);
+    // Addresses are listed as browsers read them: an escaped ")" doesn't end one.
+    expect(loads("a{background:url(https://other.example/a\\29 b.png)}")).toEqual(["https://other.example/a)b.png"]);
+    expect(loads("a{background:url(https://other.example/\\\\61)}")).toEqual(["https://other.example/\\61"]);
+  });
 });
 
 describe("planTheme", () => {

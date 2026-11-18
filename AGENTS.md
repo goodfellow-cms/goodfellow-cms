@@ -1417,7 +1417,8 @@ Content files are the product's data format; treat changes to them like API chan
 - **The file:** `content/permissions.json` (`PERMISSIONS_FILE`, `permissionsFileSchema` in core's
   `content/permissions.ts`, content kind `permissions`, loaded into `SiteContent.permissions`) gives each limited
   person, by sign-in name compared without case (`limitsFor()`), their `EditorLimits`: page sections by address (`/news`
-  with what's under it and pages whose `translationOf` is in it; `/` every page), collections' items, `media`, `layout`,
+  with what's under it and other languages' pages whose `translationOf` names a main language's page in it, never a page
+  in the main language or one naming another language's; `/` every page), collections' items, `media`, `layout`,
   `menus`, and `languages`. People it doesn't name have no limits. `reviewers` names who reviews the rest, else every
   owner (`reviewersFor()`, never the person themselves). `isSettingsPath()` covers it; the Editors screen's Limits
   section (`permissions-section.tsx`) writes it with `permissionsFileChange()`.
@@ -1471,6 +1472,11 @@ Content files are the product's data format; treat changes to them like API chan
 
 - **Never rename** a block's key in a site's `blocks` or any of its props. Content files refer to blocks and props by
   name, so a rename needs a content migration.
+- **Default settings:** `preparePage()` and `prepareLayout()` put each block's `defaultProps` under its saved props
+  (`withDefaultProps()` in `prepare.ts`, by Puck's `walkTree()`, so blocks in slots too), since Puck fills them in only
+  when the editor adds a block, and a page written by hand, by a script or before a setting existed can leave some
+  out; blocks can count on every setting. A setting whose absence says something is marked
+  `metadata: { noDefault: true }`, such as the Table block's `format` and the Gallery's `lightbox`.
 - **CSS classes:** every block has a `className` prop. Declare `className: classNameField` and apply it to the block's
   outermost element. A block that doesn't declare it gets wrapped in a `<div>` that carries the classes.
 - **Style:** `classNameField` is the block's Style setting: a text field marked `metadata: { style: true }`
@@ -1537,9 +1543,10 @@ Content files are the product's data format; treat changes to them like API chan
   every new table's is. Tables from before have none, and their cells are plain text: `render` escapes them
   (`escapeCellText()`), and `resolveData` makes them formatted once they change or where pages are built, never on the
   editor's `load`, which would count as an unpublished change. `format` is a custom field that draws nothing, so the AI
-  assistant and the connector keep it. The editor's grid edits each cell as formatted text (`RichCell` in
-  `frame/table-field.tsx`); the content API gives the cells as rich text by `cells.<row>.<column>`, which apps draw;
-  WordPress imports and exports keep their links and formatting.
+  assistant and the connector keep it, marked `noDefault`, so pages don't give tables from before the default. The
+  editor's grid edits each cell as formatted text (`RichCell` in `frame/table-field.tsx`); the content API gives the
+  cells as rich text by `cells.<row>.<column>`, which apps draw; WordPress imports and exports keep their links and
+  formatting.
 - **Breadcrumbs:** the Breadcrumbs block's way to the page comes from `breadcrumbs()` in core's `content/page-links.ts`
   (the home page of the page's language, then each of `pages` whose address is above it, then the page, an item by its
   title, a page a block adds after the page it's on), through `pageBreadcrumbs()` in `links.ts`, which its native

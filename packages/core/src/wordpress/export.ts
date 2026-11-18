@@ -55,6 +55,7 @@ import {
   type WpCoverLook,
   wpBlock,
 } from "./gutenberg.js";
+import { fileName } from "./model.js";
 
 export interface WordPressExportOptions {
   /** The site's media files (`public/media/…`), which become WordPress's media library. */
@@ -301,13 +302,13 @@ export function puckBlocks(blocks: PuckBlock[], context: ConvertContext): string
       case "File": {
         const href = context.link(text(props.file));
         if (!href) return [];
-        const label = text(props.label).trim() || decodeURIComponent(href.slice(href.lastIndexOf("/") + 1));
+        const label = text(props.label).trim() || fileName(href);
         return [file(href, label, props.button === false ? undefined : text(props.buttonLabel) || "Download")];
       }
       case "Document": {
         const href = context.link(text(props.file));
         if (!href) return [];
-        const label = text(props.title).trim() || decodeURIComponent(href.slice(href.lastIndexOf("/") + 1));
+        const label = text(props.title).trim() || fileName(href);
         const height = Number(props.height);
         return [file(href, label, undefined, Number.isFinite(height) && height >= 200 ? Math.round(height) : 800)];
       }
@@ -603,7 +604,7 @@ export function wordPressExport(content: SiteContent, options: WordPressExportOp
             blocks.push(gallery(pictures, { columns: Math.min(3, pictures.length), crop: true, caption: field.label }));
         } else if (field.type === "file" && typeof value === "string") {
           const href = link(value);
-          if (href) blocks.push(file(href, decodeURIComponent(value.slice(value.lastIndexOf("/") + 1)), field.label));
+          if (href) blocks.push(file(href, fileName(value), field.label));
         } else if (field.type === "item") {
           const target = content.collections.find((candidate) => candidate.id === field.collection);
           const linked = linkedItems(field, value).flatMap((slug) => {

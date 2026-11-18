@@ -38,7 +38,8 @@ export function paragraph(html: string): string {
 
 export function heading(text: string, level: number, align?: string): string {
   const shown = Math.min(6, Math.max(1, level));
-  const aligned = align && align !== "left" ? ` has-text-align-${align}` : "";
+  // From a list, never as saved: the setting goes into the class as it is, and a page's file can say anything.
+  const aligned = align === "center" || align === "right" ? ` has-text-align-${align}` : "";
   return wpBlock(
     "heading",
     { ...(shown !== 2 && { level: shown }), ...(aligned && { textAlign: align }) },

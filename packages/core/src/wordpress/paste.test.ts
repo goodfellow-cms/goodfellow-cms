@@ -47,4 +47,25 @@ describe("pasted HTML as the site's blocks", () => {
     expect(first).toMatch(/^Text-paste-[0-9a-f]{8}-1$/);
     expect(first).not.toBe(second);
   });
+
+  it("names a file or sound linked without words by its address, a stray % and all", () => {
+    const file = [
+      '<!-- wp:file {"href":"https://other.example/50%off.pdf"} -->',
+      '<div class="wp-block-file"><a href="https://other.example/50%off.pdf"></a></div>',
+      "<!-- /wp:file -->",
+    ].join("\n");
+    const audio = [
+      "<!-- wp:audio -->",
+      '<figure class="wp-block-audio"><audio controls src="https://other.example/100%loud.mp3"></audio></figure>',
+      "<!-- /wp:audio -->",
+    ].join("\n");
+    const blocks = htmlBlocks(`${file}\n\n${audio}`, { prefix: "a", blocks: ["Text"] }).blocks;
+    expect(JSON.stringify(blocks)).toContain("50%off.pdf</a>");
+    expect(JSON.stringify(blocks)).toContain("100%loud.mp3</a>");
+    // Codes that spell something are spelled out.
+    const spelled = file.replaceAll("50%off", "Parish%20news");
+    expect(JSON.stringify(htmlBlocks(spelled, { prefix: "b", blocks: ["Text"] }).blocks)).toContain(
+      "Parish news.pdf</a>",
+    );
+  });
 });

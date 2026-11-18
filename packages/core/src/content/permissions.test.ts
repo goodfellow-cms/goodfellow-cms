@@ -82,6 +82,22 @@ describe("editors' permissions", () => {
     expect(mayChangeLayout(content, { layout: true })).toBe(true);
   });
 
+  it("count what a page translates only for a translation of a main language's page", async () => {
+    const content = await site();
+    const news = { pages: ["/news"] };
+    const spanishNews = { pages: ["/es/noticias"] };
+    // A page in the main language translates nothing, whatever it says.
+    expect(mayChangePage(content, news, { path: "/about", content: { translationOf: "/news" } })).toBe(false);
+    // Nor does naming another language's page make it one's own.
+    expect(mayChangePage(content, spanishNews, { path: "/es/sobre", content: { translationOf: "/es/noticias" } })).toBe(
+      false,
+    );
+    expect(mayChangePage(content, news, { path: "/es/sobre", content: { translationOf: "/news" } })).toBe(true);
+    expect(
+      outsideLimits(content, news, [write("content/pages/about.json", page("About", { translationOf: "/news" }))]),
+    ).toEqual([{ path: "content/pages/about.json", kind: "page", address: "/about" }]);
+  });
+
   it("find each change outside someone's limits", async () => {
     const content = await site();
     const maria = limitsFor(content.permissions, "maria");

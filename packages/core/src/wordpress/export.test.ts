@@ -233,6 +233,33 @@ describe("WordPress export files", () => {
     expect(wordPressExportName(content)).toBe("st-brendan-s.wordpress.xml");
   });
 
+  it("writes a heading's alignment only from the ones it knows, and names files with a stray % in their address", async () => {
+    const content = await loadSiteContent(
+      source({
+        ...FILES,
+        "content/pages/index.json": json({
+          version: 1,
+          data: {
+            root: { props: { title: "Welcome" } },
+            content: [
+              {
+                type: "Heading",
+                props: { id: "Heading-1", text: "Hello", level: "h2", align: 'center"><img src=x onerror=alert(1)>' },
+              },
+              { type: "Heading", props: { id: "Heading-2", text: "Right", level: "h2", align: "right" } },
+              { type: "File", props: { id: "File-1", file: "https://other.example/50%off.pdf", label: "" } },
+            ],
+          },
+        }),
+      }),
+    );
+    const { xml } = wordPressExport(content, { mediaFiles: MEDIA, now: NOW });
+    expect(xml).not.toContain("onerror");
+    expect(xml).toContain('<h2 class="wp-block-heading">Hello</h2>');
+    expect(xml).toContain('<h2 class="wp-block-heading has-text-align-right">Right</h2>');
+    expect(xml).toContain("50%off.pdf");
+  });
+
   it("comes back as it went when imported again", async () => {
     const { result } = await exported();
     const empty = await loadSiteContent(source({ "content/site.json": json({ version: 1, title: "New" }) }));

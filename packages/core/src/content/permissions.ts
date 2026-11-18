@@ -97,8 +97,9 @@ function inLanguages(limits: EditorLimits, language: string): boolean {
 }
 
 /**
- * Whether someone may change a page: its address, or the address of the main
- * language's page it translates, is in one of their sections, in one of their languages.
+ * Whether someone may change a page: its address, or, for a page in another
+ * language, the address of the main language's page it translates, is in one
+ * of their sections, in one of their languages.
  */
 export function mayChangePage(
   content: Pick<SiteContent, "settings">,
@@ -106,9 +107,18 @@ export function mayChangePage(
   page: { path: string; content?: { translationOf?: string | undefined } },
 ): boolean {
   if (!limits) return true;
-  if (!inLanguages(limits, pathLanguage(content.settings, page.path))) return false;
+  const language = pathLanguage(content.settings, page.path);
+  if (!inLanguages(limits, language)) return false;
+  if (inSection(limits.pages, page.path)) return true;
+  // Only a page in another language translates, and only a main language's page is translated.
+  const main = mainLanguage(content.settings);
   const source = page.content?.translationOf;
-  return inSection(limits.pages, page.path) || (source !== undefined && inSection(limits.pages, source));
+  return (
+    source !== undefined &&
+    language !== main &&
+    pathLanguage(content.settings, source) === main &&
+    inSection(limits.pages, source)
+  );
 }
 
 /** Whether someone may change a collection's items at all. */

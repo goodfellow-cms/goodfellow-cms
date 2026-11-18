@@ -134,6 +134,14 @@ export function wordPressDate(text: string | undefined): string {
   return match && match[1] !== "0000-00-00" ? `${match[1]}T${match[2]}` : "";
 }
 
+/**
+ * A file's name, the last part of its address with `%` codes spelled out, or as written where they don't spell
+ * anything (`50%off.pdf`), for a link to it that has no words of its own.
+ */
+export function fileName(address: string): string {
+  return decodedSlug(address.slice(address.lastIndexOf("/") + 1));
+}
+
 /** A slug as WordPress stores it, with `%` codes spelled out. */
 export function decodedSlug(slug: string): string {
   try {
