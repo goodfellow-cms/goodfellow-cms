@@ -144,9 +144,12 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
    * `idempotency` off makes each request a new one whatever its idempotency key, as once the key's 24 hours have
    * passed; `forbidden` refuses every request as a restricted key without the permission would be; `customerConflict`
    * answers that many requests to make a customer with Stripe's conflict, as one made with the same key at that
-   * moment is, telling the SDK not to retry, as it would once its retries ran out.
+   * moment is, telling the SDK not to retry, as it would once its retries ran out; `customersAtOnce` holds requests
+   * to make a customer until that many have come, so requests made at once are all in before any is answered.
    */
-  const settings = { idempotency: true, forbidden: false, customerConflict: 0 };
+  const settings = { idempotency: true, forbidden: false, customerConflict: 0, customersAtOnce: 0 };
+  /** Requests to make a customer held until `customersAtOnce` have come. */
+  let held: (() => void)[] = [];
   let count = 0;
   const next = (prefix: string) => `${prefix}_test${++count}`;
   const json = (value: unknown, status = 200) => Response.json(value, { status });
@@ -320,6 +323,14 @@ export function fakeStripe(options: { key: string; base: string; prices: FakePri
           }),
           { status: 409, headers: { "content-type": "application/json", "stripe-should-retry": "false" } },
         );
+      }
+      if (settings.customersAtOnce > 1) {
+        const wait = new Promise<void>((resolve) => held.push(resolve));
+        if (held.length >= settings.customersAtOnce) {
+          for (const release of held) release();
+          held = [];
+        }
+        await wait;
       }
       const key = request.headers.get("idempotency-key");
       const earlier = key && settings.idempotency ? madeWithKey.get(key) : undefined;
