@@ -100,23 +100,32 @@ export function commentEnd(html: string, start: number): number {
  * quoted only straight after an `=` or unquoted to whitespace or `>`, as the standard's attribute states read them.
  */
 export function tagEnd(html: string, from: number): number {
+  return readTag(html, from).end;
+}
+
+/**
+ * How the tag whose attributes start at `from` ends: the `>` that ends it, or -1, and whether it's written
+ * self-closing, with a `/` straight before that `>` outside any value, as `<svg/>` and `<svg a=x />` are and
+ * `<svg a=x/>`, whose `/` is the value's, isn't.
+ */
+export function readTag(html: string, from: number): { end: number; selfClosing: boolean } {
   let state: "before" | "name" | "after" | "beforeValue" | "unquoted" = "before";
   for (let j = from; j < html.length; j++) {
     const char = html[j];
     switch (state) {
       case "before":
-        if (char === ">") return j;
+        if (char === ">") return { end: j, selfClosing: j > from && html[j - 1] === "/" };
         if (!isHtmlSpace(char) && char !== "/") state = "name";
         break;
       case "name":
-        if (char === ">") return j;
+        if (char === ">") return { end: j, selfClosing: false };
         if (char === "=") state = "beforeValue";
         // After a `/`, even an `=` starts an attribute's name.
         else if (char === "/") state = "before";
         else if (isHtmlSpace(char)) state = "after";
         break;
       case "after":
-        if (char === ">") return j;
+        if (char === ">") return { end: j, selfClosing: false };
         if (char === "=") state = "beforeValue";
         else if (char === "/") state = "before";
         else if (!isHtmlSpace(char)) state = "name";
@@ -125,17 +134,55 @@ export function tagEnd(html: string, from: number): number {
         if (isHtmlSpace(char)) break;
         if (char === '"' || char === "'") {
           const close = html.indexOf(char, j + 1);
-          if (close === -1) return -1;
+          if (close === -1) return { end: -1, selfClosing: false };
           j = close;
           state = "before";
-        } else if (char === ">") return j;
+        } else if (char === ">") return { end: j, selfClosing: false };
         else state = "unquoted";
         break;
       case "unquoted":
-        if (char === ">") return j;
+        if (char === ">") return { end: j, selfClosing: false };
         if (isHtmlSpace(char)) state = "before";
         break;
     }
   }
-  return -1;
+  return { end: -1, selfClosing: false };
+}
+
+/**
+ * The attributes of a tag whose attributes start at `from` and that `end`s (its `>`, from `readTag()`), by their
+ * names in lowercase, each with its value as written, the first of each name only, as browsers keep them.
+ */
+export function tagAttributes(html: string, from: number, end: number): Map<string, string> {
+  const found = new Map<string, string>();
+  let j = from;
+  while (j < end) {
+    while (j < end && (isHtmlSpace(html[j]) || html[j] === "/")) j++;
+    if (j >= end) break;
+    // A name's first character may be an `=`; after it, an `=` ends the name.
+    let nameEnd = j + 1;
+    while (nameEnd < end && !isHtmlSpace(html[nameEnd]) && html[nameEnd] !== "/" && html[nameEnd] !== "=") nameEnd++;
+    const name = asciiLower(html.slice(j, nameEnd));
+    let k = nameEnd;
+    while (k < end && isHtmlSpace(html[k])) k++;
+    let value = "";
+    j = nameEnd;
+    if (html[k] === "=") {
+      k++;
+      while (k < end && isHtmlSpace(html[k])) k++;
+      const quote = html[k];
+      if (quote === '"' || quote === "'") {
+        const close = html.indexOf(quote, k + 1);
+        value = html.slice(k + 1, close);
+        j = close + 1;
+      } else {
+        let valueEnd = k;
+        while (valueEnd < end && !isHtmlSpace(html[valueEnd])) valueEnd++;
+        value = html.slice(k, valueEnd);
+        j = valueEnd;
+      }
+    }
+    if (!found.has(name)) found.set(name, value);
+  }
+  return found;
 }

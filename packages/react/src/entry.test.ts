@@ -137,6 +137,24 @@ describe("filling in an item's values", () => {
     expect(fill('<a href={path} class="card" title={path}>Go</a>', { path: "custom:example" })).toBe(
       '<a href="" class="card" title=custom:example>Go</a>',
     );
+    // A value left empty straight after an = leaves what follows it to decide how the value is read.
+    expect(fill('<p title={base}"Hello {title}">x</p>', { base: "", title: "Ada" })).toBe('<p title="Hello Ada">x</p>');
+    expect(fill('<a href={base} class="card">Go</a>', { base: "" })).toBe('<a href="" class="card">Go</a>');
+    expect(fill("<a href={base}>Go</a>", { base: "" })).toBe('<a href="">Go</a>');
+    // A value that can't carry on the owners' reference doesn't help spell what it reads as.
+    expect(fill('<a href="webcal&#58{path}">Go</a>', { path: "//example.org/events.ics" })).toBe(
+      '<a href="webcal&#58//example.org/events.ics">Go</a>',
+    );
+    // What's left once a value is left out is checked too.
+    expect(fill('<a href="java{path}script:alert(1)">Go</a>', { path: "-x-" })).toBe('<a href="">Go</a>');
+    expect(fill('<a href="web{path}cal://example.org/e.ics">Go</a>', { path: "-x-" })).toBe(
+      '<a href="webcal://example.org/e.ics">Go</a>',
+    );
+    // No value decides whether or how a script runs.
+    expect(fill('<script type="{title}">0</script>', { title: "module" })).toBe('<script type="">0</script>');
+    expect(fill('<script language="{title}">0</script>', { title: "javascript" })).toBe(
+      '<script language="">0</script>',
+    );
     // A reference the owners start and a value ends is read as the browser reads it, as one.
     expect(fill('<a href="javascript&#5{path}">Go</a>', { path: "8;alert(1)" })).toBe('<a href="javascript&#5">Go</a>');
     expect(fill('<a href="javascript&colo{path}">Go</a>', { path: "n;alert(1)" })).toBe(

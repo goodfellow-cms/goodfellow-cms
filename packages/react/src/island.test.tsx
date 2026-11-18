@@ -269,6 +269,21 @@ describe("fillSlots", () => {
       "<svg><foreignObject><textarea></foreignObject></svg><template></textarea>",
       "<svg><desc><title><template></title></desc></svg>",
       "<svg><p><title><template></title>",
+      // An HTML title's end tag inside SVG's title is the text's, and leaves SVG's title open.
+      "<svg><title><title>Caption</title><textarea><p><template></textarea></title></svg>",
+      // In MathML's text points, mglyph and malignmark are MathML's; in SVG, a math element is SVG's.
+      "<math><mtext><mglyph><textarea/></mglyph></mtext></math>",
+      "<svg><math><mi><textarea/></mi></math></svg>",
+      // MathML annotated with HTML is HTML's.
+      '<math><annotation-xml encoding="text/html"><textarea><p><template></textarea></annotation-xml></math>',
+      // A / that's an unquoted value's doesn't make a tag self-closing.
+      "<svg data-label=x/><textarea/></svg>",
+      // A font with color, face or size, and </p> and </br>, end SVG.
+      "<svg><font color=red>Label</font>",
+      "<svg></p>",
+      "<svg></br>",
+      // In SVG, <![CDATA[ is text to ]]>.
+      "<svg><![CDATA[ > </svg><template> ]]></svg>",
     ]) {
       expect(fillSlots(page(code)), code).toBe(`<head>${code}</head>${filled}`);
     }
@@ -297,11 +312,20 @@ describe("fillSlots", () => {
       `<a "${"'".repeat(100_000)}`,
       // Comments that each end, read each once.
       "<!-- x -->".repeat(50_000),
+      // SVG opened many times, then end tags that close nothing, or what was just opened, each read once.
+      `${"<svg>".repeat(50_000)}${"</x>".repeat(50_000)}`,
+      `${"<svg>".repeat(50_000)}${"<g></g>".repeat(50_000)}`,
     ]) {
       const started = performance.now();
       expect(fillSlots(`${island}${rest}`)).toBe(`${filled}${rest}`);
       expect(performance.now() - started).toBeLessThan(1000);
     }
+  });
+
+  it("moves all of a slot's content, SVG's own templates in it too", () => {
+    const content = "<svg><template>Label</template></svg>Tail";
+    const html = `<gf-island>${slot("a.0")}</gf-island><template data-gf-slot="a.0">${content}</template>`;
+    expect(fillSlots(html)).toBe(`<gf-island>${slot("a.0", content)}</gf-island>`);
   });
 
   it("keeps templates whose slots weren't rendered", () => {

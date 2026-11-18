@@ -9,7 +9,7 @@ import {
   useId,
 } from "react";
 import { prerender } from "react-dom/static";
-import { asciiLower, commentEnd, isHtmlSpace, RAW_TEXT, rawTextEnd, tagEnd } from "./html-scan.js";
+import { asciiLower, commentEnd, isHtmlSpace, RAW_TEXT, rawTextEnd, readTag, tagAttributes } from "./html-scan.js";
 import { domId, ISLAND_TAG, identifierPrefix, SLOT_MARKER, SLOT_TAG, slotId } from "./island-shared.js";
 import { SiteProvider, useSite } from "./site-context.js";
 import type { SiteContextValue } from "./site-types.js";
@@ -226,11 +226,11 @@ export function island<T>(component: T, module: string, name: string): T {
   return Island as T;
 }
 
-/** Where in SVG and MathML a browser reads the content by HTML's rules again: their HTML integration points. */
-const INTEGRATION_POINTS: Record<string, Set<string>> = {
-  svg: new Set(["foreignobject", "desc", "title"]),
-  math: new Set(["mi", "mo", "mn", "ms", "mtext"]),
-};
+/** SVG's elements whose content a browser reads by HTML's rules again: its HTML integration points. */
+const SVG_HTML_POINTS = new Set(["foreignobject", "desc", "title"]);
+
+/** MathML's elements whose content a browser reads by HTML's rules, but for `mglyph` and `malignmark`. */
+const MATH_TEXT_POINTS = new Set(["mi", "mo", "mn", "ms", "mtext"]);
 
 /** Start tags that end SVG and MathML where they're met in them, as the standard's foreign content rules say. */
 const BREAKS_OUT = new Set(
@@ -239,6 +239,15 @@ const BREAKS_OUT = new Set(
     "meta nobr ol p pre ruby s small span strong strike sub sup table tt u ul var"
   ).split(" "),
 );
+
+/** HTML's elements that have no content or end tag. */
+const VOID = new Set("area base br col embed hr img input keygen link meta param source track wbr".split(" "));
+
+/**
+ * An element open inside SVG or MathML: its namespace and name, and whether its content is read by HTML's rules
+ * (`html`, an HTML integration point) or by them but for `mglyph` and `malignmark` (`text`).
+ */
+type Frame = { ns: "html" | "svg" | "math"; name: string; point?: "html" | "text" };
 
 /** A template React wrote for an island's content: exactly this, as `island()` renders it. */
 const SLOT_TEMPLATE = /^<template data-gf-slot="([^"]+)">$/;
@@ -256,12 +265,34 @@ function topLevelSlots(html: string) {
   const lower = asciiLower(html);
   let depth = 0;
   let open: { id: string; start: number; innerStart: number } | undefined;
-  // The SVG and MathML open, and the integration points open in them, innermost last: in SVG or MathML, a `<title>`
-  // or `<textarea>` is an element like any other, whose content is markup.
-  const foreign: Array<{ kind: "svg" | "math" | "html"; name: string }> = [];
-  const inForeign = () => {
-    const top = foreign.at(-1);
-    return top !== undefined && top.kind !== "html";
+  // The elements open from the first `<svg>` or `<math>` on, innermost last, as the standard's foreign content rules
+  // keep them: in SVG or MathML a `<title>` or `<textarea>` is an element like any other, whose content is markup, and
+  // its end tags close only what they name. Empty, the page is read by HTML's rules. `named` counts each name in it,
+  // so an end tag that closes nothing is passed over without reading it all.
+  const stack: Frame[] = [];
+  const named = new Map<string, number>();
+  const push = (frame: Frame) => {
+    stack.push(frame);
+    named.set(frame.name, (named.get(frame.name) ?? 0) + 1);
+  };
+  const pop = () => {
+    const frame = stack.pop();
+    if (!frame) return;
+    const count = (named.get(frame.name) ?? 1) - 1;
+    if (count === 0) named.delete(frame.name);
+    else named.set(frame.name, count);
+  };
+  const top = () => stack.at(-1);
+  // Pops what SVG or MathML a tag that ends them closes, back to HTML or an integration point.
+  const breakOut = () => {
+    for (let frame = top(); frame && frame.ns !== "html" && !frame.point; frame = top()) pop();
+  };
+  // Whether a start tag named `name` is read by HTML's rules where the page is, as the standard's dispatcher says.
+  const htmlRules = (name: string) => {
+    const frame = top();
+    if (!frame || frame.ns === "html" || frame.point === "html") return true;
+    if (frame.point === "text") return name !== "mglyph" && name !== "malignmark";
+    return frame.ns === "math" && frame.name === "annotation-xml" && name === "svg";
   };
   let i = html.indexOf("<");
   while (i !== -1) {
@@ -269,6 +300,14 @@ function topLevelSlots(html: string) {
       const end = commentEnd(html, i);
       if (end === -1) break;
       i = html.indexOf("<", end);
+      continue;
+    }
+    // In SVG and MathML, but not HTML inside them, `<![CDATA[` is text to `]]>`.
+    const frame = top();
+    if (frame && frame.ns !== "html" && html.startsWith("<![CDATA[", i)) {
+      const end = html.indexOf("]]>", i + 9);
+      if (end === -1) break;
+      i = html.indexOf("<", end + 3);
       continue;
     }
     const closing = html[i + 1] === "/";
@@ -286,13 +325,30 @@ function topLevelSlots(html: string) {
     let j = nameStart;
     while (j < html.length && !isHtmlSpace(html[j]) && html[j] !== "/" && html[j] !== ">") j++;
     const name = lower.slice(nameStart, j);
-    const close = tagEnd(html, j);
+    const { end: close, selfClosing } = readTag(html, j);
     if (close === -1) break;
     const end = close + 1;
     if (closing) {
-      const at = foreign.findLastIndex((frame) => frame.name === name);
-      if (at !== -1) foreign.length = at;
-      if (name === "template" && depth > 0) {
+      // Whether an HTML template is what a `</template>` closes, not SVG's or MathML's element of that name.
+      let closesHtml = true;
+      if (stack.length > 0) {
+        const current = top();
+        // `</p>` and `</br>` end SVG and MathML too; any other end tag closes the latest element it names, and one
+        // naming none closes nothing, but for a `</template>`, which closes the HTML template they're in.
+        if (current && current.ns !== "html" && (name === "p" || name === "br")) breakOut();
+        else if (named.has(name)) {
+          let closed = top();
+          while (closed && closed.name !== name) {
+            pop();
+            closed = top();
+          }
+          pop();
+          closesHtml = closed?.ns === "html";
+        } else if (name === "template") {
+          while (stack.length > 0) pop();
+        }
+      }
+      if (closesHtml && name === "template" && depth > 0) {
         depth--;
         if (depth === 0 && open) {
           found.push({ id: open.id, start: open.start, end, inner: html.slice(open.innerStart, i) });
@@ -302,27 +358,46 @@ function topLevelSlots(html: string) {
       i = html.indexOf("<", end);
       continue;
     }
-    const selfClosing = html[close - 1] === "/";
-    if (inForeign() && BREAKS_OUT.has(name)) {
-      while (inForeign()) foreign.pop();
-    }
-    if (inForeign()) {
-      const top = foreign.at(-1);
-      if (!selfClosing && (name === "svg" || name === "math")) foreign.push({ kind: name, name });
-      else if (!selfClosing && top && INTEGRATION_POINTS[top.kind]?.has(name)) foreign.push({ kind: "html", name });
-      i = html.indexOf("<", end);
-      continue;
+    if (!htmlRules(name)) {
+      const font =
+        name === "font" && /^(?:color|face|size)$/m.test([...tagAttributes(html, j, close).keys()].join("\n"));
+      if (!BREAKS_OUT.has(name) && !font) {
+        // An element of the SVG or MathML it's in, whatever its name, as `<math>` in SVG is SVG's.
+        const ns = top()?.ns === "math" ? "math" : "svg";
+        let point: Frame["point"];
+        if (ns === "svg" && SVG_HTML_POINTS.has(name)) point = "html";
+        else if (ns === "math" && MATH_TEXT_POINTS.has(name)) point = "text";
+        else if (ns === "math" && name === "annotation-xml") {
+          const encoding = asciiLower(tagAttributes(html, j, close).get("encoding") ?? "");
+          if (encoding === "text/html" || encoding === "application/xhtml+xml") point = "html";
+        }
+        if (!selfClosing) push({ ns, name, point });
+        i = html.indexOf("<", end);
+        continue;
+      }
+      breakOut();
     }
     if (name === "svg" || name === "math") {
-      if (!selfClosing) foreign.push({ kind: name, name });
+      if (!selfClosing) push({ ns: name, name });
       i = html.indexOf("<", end);
       continue;
     }
     if (RAW_TEXT.has(name)) {
+      // Its end tag is the text's, never one that closes anything in SVG or MathML.
       const textEnd = rawTextEnd(lower, name, end);
       if (textEnd === -1) break;
-      i = textEnd;
+      const textClose = readTag(html, textEnd + 2 + name.length).end;
+      if (textClose === -1) break;
+      i = html.indexOf("<", textClose + 1);
       continue;
+    }
+    if (stack.length > 0) {
+      // HTML inside SVG or MathML, which its end tags close; a template there is HTML's like any other.
+      if (!VOID.has(name)) push({ ns: "html", name });
+      if (name !== "template") {
+        i = html.indexOf("<", end);
+        continue;
+      }
     }
     if (name === "template") {
       const id = SLOT_TEMPLATE.exec(html.slice(i, end))?.[1];

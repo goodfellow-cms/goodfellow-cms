@@ -82,6 +82,19 @@ function decodeAttribute(text: string): string {
   });
 }
 
+/**
+ * Whether `next`, the first character written after `before`, carries on a character reference `before` ends with
+ * but hasn't ended, as a digit carries on `&#5`, and `/` doesn't.
+ */
+function continuesReference(before: string, next: string): boolean {
+  const reference = /&(#[xX][0-9a-fA-F]*|#[0-9]*|[a-zA-Z0-9]*)$/.exec(before)?.[1];
+  if (reference === undefined || next === "") return false;
+  if (/^#[xX]/.test(reference)) return /[0-9a-fA-F;]/.test(next);
+  if (reference === "#") return /[0-9xX]/.test(next);
+  if (reference.startsWith("#")) return /[0-9;]/.test(next);
+  return reference === "" ? /[a-zA-Z0-9#]/.test(next) : /[a-zA-Z0-9;]/.test(next);
+}
+
 /** One attribute value's parts: the owners' text as written, and an item's values as they are. */
 type ValuePart = { text: string; value: boolean };
 
@@ -96,23 +109,31 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
   if (!parts.some((part) => part.value)) return owners();
   if (name.startsWith("on") || name === "srcdoc") return owners();
   if (CODE_ADDRESSES.has(`${tag.toLowerCase()} ${name}`)) return owners();
+  // Nor in a script's type or language, which decide whether and how it runs.
+  if (tag.toLowerCase() === "script" && (name === "type" || name === "language")) return owners();
   if (ADDRESS_ATTRIBUTES.has(name)) {
     // Read as the browser reads what's written, all of it at once, since a reference the owners start can end in a
     // value, as `javascript&#5` and `8;…` write `&#58;`, a colon.
     let written = "";
     let firstValue = -1;
     for (const part of parts) {
-      if (part.value && part.text !== "" && firstValue === -1) {
-        // A value straight after a reference that may not have ended yet helps spell it.
-        firstValue = decodeAttribute(written.replace(/&[#a-z0-9]*$/i, "")).length;
+      const text = part.value ? escapeAttribute(part.text) : part.text;
+      if (part.value && text !== "" && firstValue === -1) {
+        // A value that carries on a reference the owners started helps spell what it reads as.
+        const before = continuesReference(written, text[0] ?? "") ? written.replace(/&[#a-z0-9]*$/i, "") : written;
+        firstValue = decodeAttribute(before).length;
       }
-      written += part.value ? escapeAttribute(part.text) : part.text;
+      written += text;
     }
     const address = decodeAttribute(written);
     // The scheme is settled by the first character that ends it; a value before then helps spell it.
     const settled = address.search(/[:/?#]/);
     const spells = firstValue !== -1 && (settled === -1 || firstValue <= settled);
-    if (spells && (!isSafeUrl(address) || isScriptUrl(address))) return owners();
+    if (spells && (!isSafeUrl(address) || isScriptUrl(address))) {
+      // What the owners wrote around the value can join into a scheme of its own once it's left out.
+      const without = owners();
+      return isScriptUrl(decodeAttribute(without)) ? "" : without;
+    }
   }
   return parts.map((part) => (part.value ? escapeAttribute(part.text) : part.text)).join("");
 }
@@ -122,7 +143,7 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
  * by where it sits in the owners' HTML: escaped between tags and in attributes' values, and in an address that's
  * followed or loaded only where the whole address is a safe one. Where no escaping would keep a value from being
  * markup or script, in a tag outside an attribute's value, just after a `<` (written as text), an `on…` handler,
- * `srcdoc`, the address of a script, or a script or style, it's left out, as is every value after an `<svg>` or
+ * `srcdoc`, the address of a script, a script's type or language, or a script or style, it's left out, as is every value after an `<svg>` or
  * `<math>`, whose markup browsers read by rules of their own.
  */
 function fillHtml(text: string, values: Values): string {
@@ -144,10 +165,15 @@ function fillHtml(text: string, values: Values): string {
   let foreign = false;
   // The attribute value being read, put into `out` whole once it ends.
   let parts: ValuePart[] = [];
+  // Whether a value left empty was straight after an attribute's `=`: what follows it decides how the browser reads
+  // the value, a quote opening a quoted one, and whitespace or a `>` leaving it empty, written `""` so the next
+  // attribute isn't taken for it.
+  let deferred = false;
   // Read through a function: `startValue()` sets it, which narrowing in the loop doesn't see.
   const inValue = () => state === "value";
   const startValue = (opening: string) => {
     state = "value";
+    deferred = false;
     quote = opening;
     parts = [];
   };
@@ -244,6 +270,11 @@ function fillHtml(text: string, values: Values): string {
       continue;
     }
     if (match && value !== undefined) {
+      if (state === "beforeValue" && value === "") {
+        deferred = true;
+        i += match[0].length;
+        continue;
+      }
       if (state === "beforeValue") startValue("");
       // Just after a `<`, `<!`, `<!-`, `<?` or `</`, a value, or leaving it out, would decide what the `<` starts, such
       // as `<{x}img` an image's tag, or `<!-{x}-` a comment where the owners' HTML reads as one ending at the next `>`.
@@ -325,7 +356,10 @@ function fillHtml(text: string, values: Values): string {
         break;
       case "attribute":
         if (char === ">") endTag();
-        else if (char === "=") state = "beforeValue";
+        else if (char === "=") {
+          state = "beforeValue";
+          deferred = false;
+        }
         // A `/` ends the tag only before its `>`; anything else after it starts an attribute's name, even an `=`, as
         // in `<img x /="…">`, whose `="…` is an attribute's name, not `x`'s value.
         else if (char === "/") state = "before";
@@ -334,14 +368,24 @@ function fillHtml(text: string, values: Values): string {
         break;
       case "after":
         if (char === ">") endTag();
-        else if (char === "=") state = "beforeValue";
-        else if (char === "/") state = "before";
+        else if (char === "=") {
+          state = "beforeValue";
+          deferred = false;
+        } else if (char === "/") state = "before";
         else if (!isHtmlSpace(char)) {
           attribute = char;
           state = "attribute";
         }
         break;
       case "beforeValue":
+        if (deferred && (char === ">" || isHtmlSpace(char))) {
+          out = `${out.slice(0, -1)}""${char}`;
+          deferred = false;
+          if (char !== ">") {
+            state = "before";
+            break;
+          }
+        }
         if (char === ">") endTag();
         else if (char === '"' || char === "'") startValue(char);
         else if (!isHtmlSpace(char)) {
