@@ -1,5 +1,28 @@
 # @goodfellow-cms/mcp
 
+## 0.14.0
+
+### Patch Changes
+
+- 6acdd10: Claude's `update_settings` changes only the part of a setting it's given: asked to change one color, it keeps the rest of the theme, its dark colors, fonts, and parts' classes, and the rest of the contact details, where before it replaced the whole theme. `null` takes a setting out.
+- Updated dependencies [fd47ba6]
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [fe299e7]
+- Updated dependencies [29abe52]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/ai@0.14.0
+  - @goodfellow-cms/core@0.14.0
+  - @goodfellow-cms/github@0.14.0
+  - @goodfellow-cms/gitlab@0.14.0
+  - @goodfellow-cms/bitbucket@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes

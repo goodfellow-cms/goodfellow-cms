@@ -1,5 +1,34 @@
 # create-goodfellow
 
+## 0.14.0
+
+### Patch Changes
+
+- ddac2ff: `create-goodfellow`'s build copies the starter and the parish and Next.js examples from the files git keeps, as it already did the company example, so a `.env.local` left from trying a plugin, or anything else `.gitignore` leaves out, can never be published with it. The build also stops where a bundled template still has a file that looks like a secret (`.env`, `.env.*`, or `.dev.vars`, but for their `.example` files).
+- e183eb6: Full-stack sites' **Deploy** workflow checks what the build job built before the deploy job, which holds the Cloudflare token and the site's keys, gives it to wrangler. The build runs the site's code and every package it loads, and wrangler follows the config it writes, which could name a command to run before uploading, or files outside `dist/` to upload with the Worker, such as the deploy's own environment. The new `scripts/check-build.ts` takes the build's config only where it's `wrangler.jsonc`'s, leaving none of its settings out, with the build's own files in `dist/` and no links. It doesn't read the Worker's code, which runs with the site's keys, so a hostile package could still put code there. Sites made with `create-goodfellow --server cloudflare` or the full-stack setup page before this release keep their copy: copy the example's `scripts/check-build.ts` into the site's code repository, and add its **Check what the build handed over** step to the deploy job in `.github/workflows/deploy.yml`, after the build's files are downloaded and before `npm ci`, keeping the site's own content repository and other settings in the file.
+- 4c727cd: In the full-stack example, signing up again for an account that hasn't chosen a password yet takes the name typed with the link it sends, so whoever signed up with someone's address first no longer chooses the name that person's account keeps, a sign-up past the account's share of emails changes nothing, and password reset emails greet nobody by name.
+- 3c311f4: Full-stack sites made on the setup page now publish with a GitHub App of their own, which the page makes and installs on the content repository alone, so nobody makes or renews a token by hand. `@goodfellow-cms/github/app` makes the app's manifest and turns GitHub's answer into its key (`publishingAppManifest()`, `convertAppManifest()`), and gives the site's server hour-long tokens for the content repository only (`publishingAppToken()`), each made once the installation is checked: not on all repositories, on no others, and with no permissions besides Contents (`publishingToken()`, `checkPublishingApp()`, `PublishingAppError`).
+  
+  The setup page saves the app's key and the Cloudflare token you paste as the code repository's secrets and starts Set up Cloudflare itself, through `SetupAccount`'s new `saveSecrets()`, `startWorkflow()`, and `readFile()`, and links to the site's `/setup/` page with the setup code in the address's fragment, which the page takes out at once.
+  
+  The company example, which `--server cloudflare` starts from, publishes with the app's `GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`, or else `GOODFELLOW_GIT_TOKEN`. Its Deploy workflow runs each night, so new photos reach the site, puts only the main branch's newest commit online, and gives the Worker the site's domain where its zone is on the Cloudflare account. Set up Cloudflare finds the account the token is for and writes its id into `wrangler.jsonc`. The content repository no longer has a workflow or a token that starts the code's builds (`deploySiteWorkflow()` is gone).
+- 9b82bf3: New Next.js and full-stack sites start with Next.js 16.4.5, which fixes GHSA-mfr8-8qww-v76h. Sites made before keep the Next.js release they have, since updates change only Goodfellow's packages: run `npm install next@16.4.5` in the site's folder.
+- adb8e2c: Goodfellow's setup page creates full-stack sites on a page of its own, `/new-site/full-stack/`, which the static sites' page links to: it creates the code and content repositories on GitHub from the company example, connects them, and lists what's left on GitHub and Cloudflare. Core's `newSetupCode()` and `setupCodeHash()` make the site's setup code, whose SHA-256 alone `planServerSite()` writes into `wrangler.jsonc` (`setupCodeHash`), and `madeBy: "page"` says in the README that the setup page made the site.
+  
+  The company example, which `--server cloudflare` starts from, makes its first admin at `/setup/` with that code, once, while it has no admin. Its new **Set up Cloudflare** workflow makes the D1 database and KV namespace, names them in `wrangler.jsonc`, gives a site without an address of its own the Worker's on workers.dev, and starts the Deploy workflow. Deploy skips itself until they're named, gives the Worker `BETTER_AUTH_SECRET` and `GOODFELLOW_GIT_TOKEN` from the repository's secrets, and makes a session key on the first deploy where the Worker has none. The content repository's workflow says, rather than fails, until its token is added.
+- fd35770: The sign-in service's Deploy to Cloudflare copy updates itself only to a newer release: the highest version that's been out a day, never past npm's latest tag or a deprecated release, never one lower than it has, and only where npm's signature and provenance show Goodfellow's own release workflow built it.
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/core@0.14.0
+
 ## 0.13.0
 
 ### Minor Changes

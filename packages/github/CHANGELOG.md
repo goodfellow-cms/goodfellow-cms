@@ -1,5 +1,31 @@
 # @goodfellow-cms/github
 
+## 0.14.0
+
+### Minor Changes
+
+- 3c311f4: Full-stack sites made on the setup page now publish with a GitHub App of their own, which the page makes and installs on the content repository alone, so nobody makes or renews a token by hand. `@goodfellow-cms/github/app` makes the app's manifest and turns GitHub's answer into its key (`publishingAppManifest()`, `convertAppManifest()`), and gives the site's server hour-long tokens for the content repository only (`publishingAppToken()`), each made once the installation is checked: not on all repositories, on no others, and with no permissions besides Contents (`publishingToken()`, `checkPublishingApp()`, `PublishingAppError`).
+  
+  The setup page saves the app's key and the Cloudflare token you paste as the code repository's secrets and starts Set up Cloudflare itself, through `SetupAccount`'s new `saveSecrets()`, `startWorkflow()`, and `readFile()`, and links to the site's `/setup/` page with the setup code in the address's fragment, which the page takes out at once.
+  
+  The company example, which `--server cloudflare` starts from, publishes with the app's `GOODFELLOW_APP_ID` and `GOODFELLOW_APP_KEY`, or else `GOODFELLOW_GIT_TOKEN`. Its Deploy workflow runs each night, so new photos reach the site, puts only the main branch's newest commit online, and gives the Worker the site's domain where its zone is on the Cloudflare account. Set up Cloudflare finds the account the token is for and writes its id into `wrangler.jsonc`. The content repository no longer has a workflow or a token that starts the code's builds (`deploySiteWorkflow()` is gone).
+
+### Patch Changes
+
+- 31abc4e: Editors' ids, file paths, and revisions are checked before they go into GitHub's, GitLab's, and Bitbucket's addresses, so `..` can't reach another of the host's addresses. The token broker names the editor the site's own list gives an id, and makes reads only with plain paths at commits.
+- 28469ad: A full-stack site's server asks its token for a new one where GitHub, GitLab, or Bitbucket refuses the one it has, as once it's been revoked, and tries the request again, as the admin panel's sign-in already does: `GitHost.server({ token })` and `goodfellowApi({ token })` take a function that's given `{ refresh: true }` then. A token given as text is still tried once.
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/core@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes

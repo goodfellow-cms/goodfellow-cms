@@ -1,5 +1,25 @@
 # @goodfellow-cms/react
 
+## 0.14.0
+
+### Patch Changes
+
+- 36833de: Buttons on Goodfellow sites show the pointer cursor, as do summaries and `role="button"` elements, unless they're disabled or a block's classes say otherwise.
+- 7fd0470: An item's values go into HTML a block shows as written, such as Custom HTML's in a collection's page design, by where each placeholder sits. They were escaped only as text, which left a single-quoted or unquoted attribute's value open to more attributes, and an address such as `<iframe src="{video}">` open to `javascript:`. Now a value is escaped for any attribute, values that help spell the scheme of an address a browser follows or loads go in only where the whole address is a safe one, and a placeholder where no escaping makes a value safe (inside a tag outside an attribute's value, straight after a `<`, which is then written as text, in an `on…` attribute or `srcdoc`, in the address of a script, an `<object>` or `<embed>`, or `<base>`, in a script or style, or anywhere after an `<svg>` or `<math>`, whose markup browsers read by rules of their own) is left empty, and a placeholder in a script's `type` or `language` never decides whether it runs: there `type` becomes `text/plain` and `language` becomes `none`. The HTML is read as browsers read it: comments (never at `<!--!>`), `<!x>` and `<?x>` end where browsers end them, a tag's name ends at a `/`, only HTML's own whitespace ends a value, a text area's or title's content is text, and a script or style ends only at its own end tag, a script's not inside its `<!--<script>`, as the text is written with its values.
+- 8a0f8bc: Pages `goodfellow build` and `goodfellow dev` render put what blocks pass to Client Components into the page even where the site's own code holds text that looks like a template tag, such as `"<template>"` in a script's string, a comment, an attribute, or any element whose content is text, or a stray `</template>`, read as browsers read them: quotes open a value only after an `=`, end tags' attributes, `<!x>` and `<?x>` are passed over, comments end at `--!>` too, a script's `<!--<script>` keeps its end tag in it, and a letter whose lowercase is longer, such as `İ`, doesn't move what comes after it. Before, the page came back with every island's passed content left in its template, so visitors without JavaScript, search engines, and the site's search didn't see it.
+- b11c956: Pages now give each block its default settings for any its saved file leaves out, so a page written by hand or by a script no longer stops a build, and a block is drawn with the settings the server checks. A setting whose absence means something is marked `metadata: { noDefault: true }`, as the Table block's `format` and the Gallery's `lightbox` are. On a full-stack site, a save that set Custom HTML's "Make it safe" to `null`, or put the block in another block's slot without an id, got past the server's check, and the block then used its HTML exactly as written: the check now reads a setting as pages draw it, compares settings whatever order they're saved in, and refuses a block without an id whose owners-only settings aren't their starting values unless the file had it before. Custom HTML uses its HTML as written only where the setting is `false`.
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/core@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @goodfellow-cms/admin
 
+## 0.14.0
+
+### Patch Changes
+
+- 47d580a: **Add a token broker** checks the page it copies. The broker's build writes each file's SHA-256 into its `files.json`, the admin panel's build keeps them from the broker built with it, and `fetchBrokerRelease()` takes them as `digests`, refusing a file that isn't the released one, or a list with files added or missing, before anything is committed.
+- 8c3a822: Blocks from Goodfellow's own registry are checked before they're installed. The registry's build writes each item's SHA-256 into `r/digests.json`, the admin panel's build keeps them from the registry built with it, and the Blocks screen and the site import take an item from jsDelivr only where its text has that SHA-256 (`checkedFetchJson()`), saying the block's files aren't the ones Goodfellow released otherwise. Any other address in the release's folder is refused. `goodfellow update --blocks` checks the blocks it fetched against the digests of the registry npm installed, found as the admin panel finds it, before the site builds, and stops where it can't find or read them, except when going back to a release from before registries had digests.
+- Updated dependencies [fd47ba6]
+- Updated dependencies [718f2e9]
+- Updated dependencies [47d580a]
+- Updated dependencies [36833de]
+- Updated dependencies [31abc4e]
+- Updated dependencies [3c311f4]
+- Updated dependencies [29abe52]
+- Updated dependencies [7fd0470]
+- Updated dependencies [8a0f8bc]
+- Updated dependencies [b11c956]
+- Updated dependencies [8c3a822]
+- Updated dependencies [8d24eda]
+- Updated dependencies [adb8e2c]
+- Updated dependencies [28469ad]
+  - @goodfellow-cms/ai@0.14.0
+  - @goodfellow-cms/core@0.14.0
+  - @goodfellow-cms/react@0.14.0
+  - @goodfellow-cms/registry@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes

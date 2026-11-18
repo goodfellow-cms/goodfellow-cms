@@ -1,5 +1,14 @@
 # @goodfellow-cms/broker
 
+## 0.14.0
+
+### Patch Changes
+
+- fd47ba6: Claude works through the token broker again. The broker sends the AI assistant's requests from its own page, which is a browser, and Anthropic's API answers browsers only when a request says it comes from one, which `aiServer()` left out. `aiServer()` takes a `browser` option, which the broker sets.
+- 718f2e9: The token broker refuses any call it makes unasked with more arguments than its policy lists, so an extra argument to `filesAt()` can no longer move its method's path out of the place checked as a path. `serveBackend()` makes a factory's call, such as `filesAt(revision).read(path)`, with the arguments its check gives back, for the factory and its method alike, and refuses one whose factory isn't given exactly its own arguments, whose method's arguments aren't a list, or whose check gives back another number of arguments, so each argument is used where it was checked.
+- 47d580a: **Add a token broker** checks the page it copies. The broker's build writes each file's SHA-256 into its `files.json`, the admin panel's build keeps them from the broker built with it, and `fetchBrokerRelease()` takes them as `digests`, refusing a file that isn't the released one, or a list with files added or missing, before anything is committed.
+- 31abc4e: Editors' ids, file paths, and revisions are checked before they go into GitHub's, GitLab's, and Bitbucket's addresses, so `..` can't reach another of the host's addresses. The token broker names the editor the site's own list gives an id, and makes reads only with plain paths at commits.
+
 ## 0.13.0
 
 No changes in this release.
