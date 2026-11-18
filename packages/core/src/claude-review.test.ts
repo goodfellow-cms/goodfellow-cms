@@ -280,8 +280,37 @@ describe("the Claude review's file tools", () => {
     });
   });
 
+  it("let the commands' sandbox see the git that keeps git to reading, so plain git never runs in its place", () => {
+    const keep = steps.find((step) => step.name === "Keep git to reading") as { run?: string };
+    expect(keep.run).toContain('bin="$RUNNER_TEMP/review-bin"');
+    expect(JSON.parse(review.with?.settings ?? "{}").sandbox).toEqual({
+      // GitHub's expression for $RUNNER_TEMP, written in two parts so it reads as text, not a template.
+      filesystem: { allowRead: [["$", "{{ runner.temp }}/review-bin"].join("")] },
+    });
+  });
+
   const tools = (flag: string) =>
     new RegExp(`${flag} "([^"]*)"`).exec(review.with?.claude_args ?? "")?.[1]?.split(",") ?? [];
+
+  it("run no commands but git's reading ones, without the Claude token in their environment", () => {
+    const review = steps.find((step) => step.name === "Review") as { env?: Record<string, string>; if?: string };
+    expect(review.env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");
+    // Which needs bubblewrap and socat, or Claude Code won't start or no command runs; the review waits for them.
+    const at = steps.findIndex((step) => step.name === "Give the review's commands their sandbox");
+    const sandbox = steps[at] as { id?: string; run?: string };
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(steps.indexOf(review));
+    expect(sandbox.run).toContain("apt-get install -y --no-install-recommends bubblewrap socat");
+    expect(sandbox.run).toContain("bwrap --ro-bind / / --unshare-pid true");
+    expect(review.if).toContain(`steps.${sandbox.id}.outcome == 'success'`);
+    // gh's --jq reads its environment ($ENV), so any gh command could print a token in a form withholding misses.
+    expect(tools("--allowedTools").filter((tool) => tool.startsWith("Bash("))).toEqual([
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git blame:*)",
+    ]);
+  });
 
   it("read only the checkout's files, never everything Read could", () => {
     expect(tools("--allowedTools")).toContain("Read(./**)");

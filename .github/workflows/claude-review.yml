@@ -403,14 +403,37 @@ jobs:
           chmod +x "$bin/git"
           echo "$bin" >> "$GITHUB_PATH"
 
+      # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB runs the review's commands in a sandbox, which needs bubblewrap and socat:
+      # without bubblewrap Claude Code doesn't start, and without socat every command it runs fails. The action
+      # installs them only for reviews of people who can't write, so this does, as the action does, lifting the
+      # AppArmor limit on the user namespaces bubblewrap uses where Ubuntu sets it, and tries the sandbox once.
+      - name: Give the review's commands their sandbox
+        id: sandbox
+        if: steps.base.outcome == 'success' && steps.git.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          if ! command -v bwrap > /dev/null || ! command -v socat > /dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends bubblewrap socat
+          fi
+          if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2> /dev/null)" = 1 ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --ro-bind / / --unshare-pid true
+
       # A step that runs out of time fails, which continue-on-error catches; the job running out would be cancelled,
       # failing CI, so the review stops well before the job's own limit.
       - name: Review
         id: claude
-        if: steps.base.outcome == 'success' && steps.git.outcome == 'success'
+        if: steps.base.outcome == 'success' && steps.git.outcome == 'success' && steps.sandbox.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 35
         uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        # The commands Claude Code runs get its environment without the Claude token, which they could otherwise print
+        # in some form the step that withholds tokens doesn't know.
+        env:
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -428,17 +451,19 @@ jobs:
           # github-actions[bot], which the action refuses unless it's named here. No other bot is, and nothing else
           # starts these runs as one.
           allowed_bots: ${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}
-          # Read, Glob, and Grep never reach outside the checkout, whatever the rules below allow them.
-          settings: '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}'
-          # Only what reading needs: no editing, and no commands but reading the pull request and git (the git the
-          # step before keeps to reading). Files only in the checkout (the settings above), and never the process's own
+          # Read, Glob, and Grep never reach outside the checkout, whatever the rules below allow them. The commands'
+          # sandbox follows the same rule, so it's given the folder of the git that keeps git to reading: without it,
+          # that git isn't there for them, and plain git, which reads anything in the checkout, runs in its place.
+          settings: '{"permissions":{"blockReadsOutsideWorkingDirectories":true},"sandbox":{"filesystem":{"allowRead":["${{ runner.temp }}/review-bin"]}}}'
+          # Only what reading needs: no editing, and no commands but git (the git the step before keeps to reading),
+          # never gh, whose --jq can print any of its environment. Files only in the checkout (the settings above), and never the process's own
           # environment under /proc or Claude Code's settings and state, which hold what the job signs in with. Only the runner's own settings,
           # never the checkout's .claude/ ones, whose hooks would run the pull request's own commands with this job's
           # token. Findings come back as data, in the schema below, for the finish job.
           claude_args: >-
             --model opus
             --setting-sources user
-            --allowedTools "Skill,Agent,Read(./**),Glob,Grep,Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*)"
+            --allowedTools "Skill,Agent,Read(./**),Glob,Grep,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*)"
             --disallowedTools "Read(//proc/**),Read(//sys/**),Read(//dev/**),Read(~/.claude/**),Read(~/.claude.json),Read(~/.claude.json.*),Read(~/.config/**),Read(./.git/**)"
             --json-schema '{"type":"object","additionalProperties":false,"required":["findings"],"properties":{"findings":{"type":"array","description":"Every finding of the review, none when it found nothing to raise","items":{"type":"object","additionalProperties":false,"required":["path","line","body"],"properties":{"path":{"type":"string","description":"The file the finding is about, relative to the root of the repository"},"line":{"type":"integer","minimum":1,"description":"The line it is about, in the version of the file in the pull request"},"body":{"type":"string","description":"The finding in Markdown: what is wrong, how it fails, and the fix"}}}}}}'
 

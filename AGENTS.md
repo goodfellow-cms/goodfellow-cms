@@ -2896,9 +2896,11 @@ pnpm test:e2e
   `finish` labels the pull request only after the slot is free); every step that could fail is caught
   (`continue-on-error`), in `choose` too, so a review never fails CI. It asks for the code-review skill in words rather
   than as the slash command, since a slash command's skill ends the session before Claude can return the findings, and
-  allows the `Skill` tool. It runs Opus at Claude Code's default effort, with tools to read the pull request and run
-  git, never to edit or run its code, reading the change at the commit it chose (`git diff` from its merge base with the
-  branch it's merged into), never the pull request's live diff, which may have moved on while it waited, and only the
+  allows the `Skill` tool. It runs Opus at Claude Code's default effort, with tools to run git alone (never `gh`, whose
+  `--jq` reads its environment), in an environment without the Claude token (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`,
+  whose sandbox needs bubblewrap and socat, which the step before installs and tries), never to edit or run its code,
+  reading the change at the commit it chose (`git diff` from its merge base with the branch it's merged into), never
+  the pull request's live diff, which may have moved on while it waited, and only the
   runner's own settings (`--setting-sources user`), never the checkout's `.claude/` settings, whose hooks would run the
   pull request's commands, and never on pull requests from forks, whose runs get no secrets. Each review keeps one
   comment up to date, marked `<!-- claude-review sha=… outcome=reviewing|reviewed|noted|failed|replaced -->`: that it's
