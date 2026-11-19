@@ -308,12 +308,14 @@ describe("fillSlots", () => {
     expect(fillSlots(`${island}<p title="${"<a ".repeat(20)}"></p>`)).toBe(
       `${filled}<p title="${"<a ".repeat(20)}"></p>`,
     );
-    // Tags, comments and quotes that never end, which a backtracking pattern takes far longer than this to read.
+    // Tags, comments and quotes that never end, which a backtracking pattern takes far longer than this to read: each
+    // input is 400,000 characters or more, so reading it more than once over takes 18 seconds or longer, while one
+    // pass takes milliseconds, or about a second where CI runs every package's tests at once, hence the limit's margin.
     for (const rest of [
-      `<a${"!".repeat(200_000)}`,
-      "<a".repeat(100_000),
+      `<a${"!".repeat(400_000)}`,
+      "<a".repeat(200_000),
       "<!--".repeat(100_000),
-      `<a "${"'".repeat(100_000)}`,
+      `<a "${"'".repeat(400_000)}`,
       // Comments that each end, read each once.
       "<!-- x -->".repeat(50_000),
       // SVG opened many times, then end tags that close nothing, or what was just opened, each read once.
@@ -322,7 +324,7 @@ describe("fillSlots", () => {
     ]) {
       const started = performance.now();
       expect(fillSlots(`${island}${rest}`)).toBe(`${filled}${rest}`);
-      expect(performance.now() - started).toBeLessThan(1000);
+      expect(performance.now() - started).toBeLessThan(5000);
     }
   });
 
