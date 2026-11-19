@@ -1,5 +1,14 @@
 # @goodfellow-cms/admin
 
+## 0.14.1
+
+### Patch Changes
+
+- @goodfellow-cms/ai@0.14.1
+  - @goodfellow-cms/core@0.14.1
+  - @goodfellow-cms/react@0.14.1
+  - @goodfellow-cms/registry@0.14.1
+
 ## 0.14.0
 
 ### Patch Changes

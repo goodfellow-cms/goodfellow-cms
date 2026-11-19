@@ -1,5 +1,11 @@
 # @goodfellow-cms/gitlab
 
+## 0.14.1
+
+### Patch Changes
+
+- @goodfellow-cms/core@0.14.1
+
 ## 0.14.0
 
 ### Patch Changes
