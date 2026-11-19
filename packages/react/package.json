@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/react",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "description": "Renders Goodfellow CMS pages with React.",
   "keywords": [
     "goodfellow",
