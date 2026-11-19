@@ -308,23 +308,30 @@ describe("fillSlots", () => {
     expect(fillSlots(`${island}<p title="${"<a ".repeat(20)}"></p>`)).toBe(
       `${filled}<p title="${"<a ".repeat(20)}"></p>`,
     );
-    // Tags, comments and quotes that never end, which a backtracking pattern takes far longer than this to read: each
-    // input is 400,000 characters or more, so reading it more than once over takes 18 seconds or longer, while one
-    // pass takes milliseconds, or about a second where CI runs every package's tests at once, hence the limit's margin.
+    // Each input repeats something 100,000 times. One pass over it takes milliseconds, under half a second where CI
+    // runs every package's tests at once. Reading it again for each repeat, as a backtracking pattern or a search back
+    // through every open element would, takes time that grows with the square of its length: some 10 billion steps,
+    // 20 seconds or more. Only fillSlots is timed, not making the input or checking what it gave.
+    const repeats = 100_000;
     for (const rest of [
-      `<a${"!".repeat(400_000)}`,
-      "<a".repeat(200_000),
-      "<!--".repeat(100_000),
-      `<a "${"'".repeat(400_000)}`,
+      // Tags, comments and quotes that never end.
+      `<a${"!".repeat(repeats)}`,
+      "<a".repeat(repeats),
+      "<!--".repeat(repeats),
+      `<a "${"'".repeat(repeats)}`,
+      `<a x="${"'".repeat(repeats)}`,
       // Comments that each end, read each once.
-      "<!-- x -->".repeat(50_000),
+      "<!-- x -->".repeat(repeats),
       // SVG opened many times, then end tags that close nothing, or what was just opened, each read once.
-      `${"<svg>".repeat(50_000)}${"</x>".repeat(50_000)}`,
-      `${"<svg>".repeat(50_000)}${"<g></g>".repeat(50_000)}`,
+      `${"<svg>".repeat(repeats)}${"</x>".repeat(repeats)}`,
+      `${"<svg>".repeat(repeats)}${"<g></g>".repeat(repeats)}`,
     ]) {
+      const html = `${island}${rest}`;
       const started = performance.now();
-      expect(fillSlots(`${island}${rest}`)).toBe(`${filled}${rest}`);
-      expect(performance.now() - started).toBeLessThan(5000);
+      const result = fillSlots(html);
+      const took = performance.now() - started;
+      expect(result).toBe(`${filled}${rest}`);
+      expect(took, `${rest.slice(0, 12)}…`).toBeLessThan(5000);
     }
   });
 
