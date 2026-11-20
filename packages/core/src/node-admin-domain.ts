@@ -112,8 +112,9 @@ export async function guardBuiltSite(
   const forAdmin = adminGuard(admin, framer);
   let guarded = 0;
   const unguarded: string[] = [];
-  // Files a host could open as a page by what they hold, which have no guard.
-  const markup: string[] = [];
+  // Files whose names don't say what they are, which a host could open as a page by what they hold, read once the
+  // pages are guarded, many at a time.
+  const untyped: { file: string; path: string }[] = [];
   for (const entry of await readdir(outDir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const file = join(entry.parentPath, entry.name);
@@ -125,7 +126,7 @@ export async function guardBuiltSite(
       continue;
     }
     if (!kind) {
-      if (typedByContent(path) && startsAsMarkup(await firstBytes(file))) markup.push(path);
+      if (typedByContent(path)) untyped.push({ file, path });
       continue;
     }
     const text = await readFile(file, "utf8");
@@ -136,6 +137,14 @@ export async function guardBuiltSite(
     }
     if (next !== text) await writeFile(file, next);
     guarded += 1;
+  }
+  const markup: string[] = [];
+  for (let start = 0; start < untyped.length; start += FILES_AT_ONCE) {
+    const batch = untyped.slice(start, start + FILES_AT_ONCE);
+    const starts = await Promise.all(batch.map(async ({ file }) => startsAsMarkup(await firstBytes(file))));
+    batch.forEach(({ path }, index) => {
+      if (starts[index]) markup.push(path);
+    });
   }
   if (unguarded.length > 0) {
     throw new Error(
@@ -158,6 +167,9 @@ export async function guardBuiltSite(
   }
   return guarded;
 }
+
+/** How many files' first bytes are read at once: enough to keep the disk busy, few enough for any open-file limit. */
+const FILES_AT_ONCE = 64;
 
 /** A file's first bytes, enough for `startsAsMarkup()`. */
 async function firstBytes(file: string): Promise<Uint8Array> {

@@ -194,6 +194,16 @@ describe("planSiteImport, adding", () => {
     };
     expect((await plan(SITE, counted, { settings: true })).result.notes).toContainEqual({ kind: "code" });
     expect((await plan(SITE, counted)).result.notes).not.toContainEqual({ kind: "code" });
+    // The same counter, written in another order, isn't one coming in.
+    const counting = {
+      ...SITE,
+      "content/site.json": json({
+        version: 1,
+        title: "St. Anne",
+        stats: { service: "plausible", script: "https://plausible.io/js/script.js", domain: "stbrendan.example.org" },
+      }),
+    };
+    expect((await plan(counting, counted, { settings: true })).result.notes).not.toContainEqual({ kind: "code" });
   });
 
   it("leaves out what uses blocks the site lacks, offering Goodfellow's registry's, or brings it in without them", async () => {

@@ -197,7 +197,13 @@ describe("what a theme's header and footer may do", () => {
     // A link's address is only followed when someone chooses it, and the site's own media and Google Fonts load
     // from where the site does already.
     const button = { type: "Button", props: { id: "b", label: "Shop", href: "https://shop.example/" } };
-    expect(themeLoads(withLayout([button, section("/media/sea.jpg")]))).toEqual([]);
+    // Words that are an address are only shown, and a setting that's a link only followed.
+    const words = { type: "Heading", props: { id: "h", text: "https://stanne.example.org" } };
+    const linked = {
+      type: "SiteBrand",
+      props: { id: "s", url: "https://stanne.example.org/", link: "//shop.example/" },
+    };
+    expect(themeLoads(withLayout([button, words, linked, section("/media/sea.jpg")]))).toEqual([]);
   });
 
   it("refuses a theme whose header holds an address that would run code", async () => {

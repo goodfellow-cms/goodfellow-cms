@@ -897,13 +897,14 @@ Content files are the product's data format; treat changes to them like API chan
   the starters', must pass the contrast check; a test checks this.
 - **When publishing:** `useAdmin().publish()` runs `checkPublish()` (`site-checks.ts`), which loads the site as the
   changes would leave it and compares it with the site as loaded (`publishProblems()`): errors the publish brings stop
-  it, a file the changes leave unreadable as content too (`unreadable`, from the loader's `ContentError`), since neither
-  builds nor the admin panel could open the site with it, and warnings it brings to the files it changes (rendered
-  problems compared with the same pages rendered as they were) are listed, so a warning published anyway isn't asked
-  about again. `ChecksDialog` lists them, in the string table's words (`describeProblem()`), and offers **Publish
-  anyway** for warnings only. Going back returns `reason: "checks"`, which screens show nothing for. Publishes that
-  can't break a link and that the editor didn't write (uploads, the Domain screen's address, update settings, stock
-  photos) pass `{ checks: false }`. The Theme tab shows `contrastProblems()` as colors are chosen.
+  it, a file the changes leave unreadable as content too (`unreadable`, from the loader's `ContentError`, unless the
+  site as it is now can't read the same file either), since neither builds nor the admin panel could open the site with
+  it, and warnings it brings to the files it changes (rendered problems compared with the same pages rendered as they
+  were) are listed, so a warning published anyway isn't asked about again. `ChecksDialog` lists them, in the string
+  table's words (`describeProblem()`), and offers **Publish anyway** for warnings only. Going back returns `reason:
+  "checks"`, which screens show nothing for. Publishes that can't break a link and that the editor didn't write
+  (uploads, the Domain screen's address, update settings, stock photos) pass `{ checks: false }`. The Theme tab shows
+  `contrastProblems()` as colors are chosen.
 - **Moves update links:** moving a page (`movePageChanges()`), renaming an item (`moveEntryChanges()`) and changing a
   collection's address pattern (the admin panel's `collectionSettingsChanges()` given the site) point every link to the
   old addresses at the new ones in the same save, so moves are never stopped by the checks. `relinkSite()`
@@ -2604,10 +2605,11 @@ of it.
   theme, or removing it (`theme` undefined), replaces what the theme before gave and lists owners' changes it replaces
   as `replaced`. `themeLoads()` lists what the theme would have browsers load besides Google Fonts, `/media/`, and data
   addresses (from its CSS with `themeCssLoads()`, its parts' classes, such as Tailwind's arbitrary `url()` backgrounds,
-  and its header's and footer's props), which the admin panel shows before installing. A theme's header and footer may
-  use only `THEME_LAYOUT_BLOCKS`, built-in blocks that load and run nothing (a site's own or registry blocks, such as
-  Custom HTML, could run a theme's code), so `themeUnknownBlocks()` lists any other, which keeps them from being used,
-  and `fetchTheme()` refuses a theme whose header or footer holds a `javascript:`, `vbscript:` or `data:` address.
+  and the settings of its header's and footer's blocks whose address the page loads, `THEME_LOADED_PROPS`, which a test
+  in `@goodfellow-cms/blocks` keeps complete), which the admin panel shows before installing. A theme's header and
+  footer may use only `THEME_LAYOUT_BLOCKS`, built-in blocks that load and run nothing (a site's own or registry blocks,
+  such as Custom HTML, could run a theme's code), so `themeUnknownBlocks()` lists any other, which keeps them from being
+  used, and `fetchTheme()` refuses a theme whose header or footer holds a `javascript:`, `vbscript:` or `data:` address.
 - **The admin panel:** Site Settings' Themes screen (`themes-screen.tsx`) searches, shows a theme's release, provenance,
   swatches, and a preview of any of the site's pages (`allPages()`) with the plan applied (`PreviewFrame`), and
   installs, updates, and removes it through `publish()`. Themes never update by themselves: nothing else, the nightly

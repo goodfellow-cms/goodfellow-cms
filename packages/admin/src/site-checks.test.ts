@@ -126,6 +126,21 @@ describe("checkPublish", () => {
     }
   });
 
+  it("leaves a file someone else left unreadable to them, stopping only what the publish brings", async () => {
+    const site = { blocks: config.blocks, code: localSiteCode(config) };
+    const files: Record<string, string> = { ...FILES, "content/media-storage.json": "{" };
+    const broken: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const typo = [{ path: "content/pages/index.json", content: FILES["content/pages/index.json"] ?? "" }];
+    expect((await checkPublish(broken, await loaded(), typo, site)).blocking).toEqual([]);
+    const more = [...typo, { path: "content/pages/new.json", content: "{" }];
+    expect((await checkPublish(broken, await loaded(), more, site)).blocking.map((problem) => problem.file)).toEqual([
+      "content/pages/new.json",
+    ]);
+  });
+
   it("knows the pages of items that come from a source, which aren't the site's files", async () => {
     const files: Record<string, string> = {
       ...FILES,

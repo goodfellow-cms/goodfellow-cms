@@ -227,6 +227,14 @@ function checkLayoutAddresses(theme: ThemePackage): void {
   );
 }
 
+/**
+ * The settings of `THEME_LAYOUT_BLOCKS` whose address the page loads, such as
+ * a Section's background image, by their names, anywhere in a block's props.
+ * Every other address is followed only when someone chooses it, or is shown
+ * as words. A test in `@goodfellow-cms/blocks` keeps it complete.
+ */
+export const THEME_LOADED_PROPS: readonly string[] = ["backgroundImage", "src", "poster", "file", "media", "image"];
+
 /** A `src`, `poster`, or `srcset` attribute in HTML, its value quoted either way or not at all. */
 const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
 
@@ -234,7 +242,7 @@ const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"
  * What installing a theme would have visitors' browsers load besides Google
  * Fonts and the site's own media: from its CSS, from classes it gives parts
  * or its header's and footer's blocks (such as arbitrary `url()` backgrounds),
- * from every address its header's and footer's settings hold but links' (a
+ * from every address its header's and footer's `THEME_LOADED_PROPS` hold (a
  * Section's background is shown whatever its address ends in), and from
  * `src`, `poster`, and `srcset` in their HTML.
  */
@@ -252,8 +260,8 @@ export function themeLoads(theme: ThemePackage): string[] {
         const addresses = match[1]?.toLowerCase() === "srcset" ? value.split(",") : [value];
         for (const address of addresses) pictures.push(address.trim().split(/\s+/)[0] ?? "");
       }
-      // A link's address is only followed when someone chooses it.
-      if (key !== "href" && /^(?:https?:)?\/\//i.test(text.trim())) pictures.push(text.trim());
+      // Links' addresses are only followed when someone chooses them, and words are only shown.
+      if (THEME_LOADED_PROPS.includes(key) && /^(?:https?:)?\/\//i.test(text.trim())) pictures.push(text.trim());
     },
   );
   const found = new Set([

@@ -917,7 +917,7 @@ export async function planSiteImport(
     const change = out.get(SITE_FILE);
     if (!change || !("content" in change)) return false;
     const next = (parsed(SITE_FILE, change.content) as { stats?: unknown } | undefined)?.stats;
-    return next !== undefined && JSON.stringify(next) !== JSON.stringify(siteSettings.stats);
+    return next !== undefined && !sameJson(next, siteSettings.stats);
   })();
   if (statsCome || [...out.values()].some((change) => "content" in change && change.path.startsWith("content/code/"))) {
     notes.push({ kind: "code" });

@@ -114,6 +114,15 @@ describe("guardBuiltSite", () => {
       await expect(guardBuiltSite(dir, options), path).rejects.toThrow(path);
       await rm(join(dir, path));
     }
+    // Read many at a time, every one is still checked, and each named.
+    const names = Array.from({ length: 150 }, (_, index) => `fonts/f${String(index).padStart(3, "0")}.woff`);
+    for (const name of names) await write(name, "<html>");
+    const refused = await guardBuiltSite(dir, options).catch((error: Error) => error.message);
+    expect(
+      String(refused)
+        .match(/fonts\/f\d+\.woff/g)
+        ?.sort(),
+    ).toEqual(names);
   });
 
   it("refuses a page whose comment a browser ends before the guard", async () => {

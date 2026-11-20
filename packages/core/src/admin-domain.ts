@@ -120,7 +120,9 @@ const PAGE_EXTENSIONS: Record<string, PageFileKind> = {
   xsl: "xml",
   xslt: "xml",
   mml: "xml",
-  // Other hosts' tables (mime-db's, which most follow) type as XML, where a script in XHTML's namespace runs.
+  // Other hosts' tables (mime-db's, which most follow) type as XML, where a script in XHTML's namespace runs. Data
+  // formats among them (GPS tracks, maps, captions, schemas) get the guard too, inside their root element, which a
+  // reader that checks a schema strictly may refuse: a trade-off accepted, since a browser opens each as a page.
   xsd: "xml",
   rng: "xml",
   owl: "xml",
@@ -148,9 +150,18 @@ const TYPED_BY_NAME = new Set(["avif", "css", "gif", "jpeg", "jpg", "js", "json"
  * that knows no type for its name types it by what it holds, as GitLab Pages does.
  */
 export function typedByContent(path: string): boolean {
+  const extension = extensionIn(path);
+  return extension === "" || !TYPED_BY_NAME.has(extension);
+}
+
+/**
+ * A path's file's extension in lower case, or `""` without one, as `extensionOf()` in `content/media-files.ts` gives
+ * it, so the build, uploads, and the broker read a name the same way: this file imports nothing.
+ */
+function extensionIn(path: string): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
   const dot = name.lastIndexOf(".");
-  return dot === -1 || !TYPED_BY_NAME.has(name.slice(dot + 1).toLowerCase());
+  return dot === -1 ? "" : name.slice(dot + 1).toLowerCase();
 }
 
 /**
@@ -159,10 +170,8 @@ export function typedByContent(path: string): boolean {
  * order mark and whitespace.
  */
 export function startsAsMarkup(start: string | Uint8Array): boolean {
-  const text =
-    typeof start === "string"
-      ? start.slice(0, 1024)
-      : String.fromCharCode(...start.subarray(0, 1024)).replace(/^\xef\xbb\xbf/, "");
+  // Decoding drops a UTF-8 byte order mark, which a string keeps.
+  const text = typeof start === "string" ? start.slice(0, 1024) : new TextDecoder().decode(start.subarray(0, 1024));
   let at = text.startsWith("\ufeff") ? 1 : 0;
   while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
   return text[at] === "<" && /[A-Za-z!?/]/.test(text[at + 1] ?? "");
@@ -170,9 +179,8 @@ export function startsAsMarkup(start: string | Uint8Array): boolean {
 
 /** What kind of page a file is, from its name, or `undefined` for files browsers don't run, such as images and scripts. */
 export function pageFileKind(path: string): PageFileKind | undefined {
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  return dot === -1 ? undefined : PAGE_EXTENSIONS[name.slice(dot + 1).toLowerCase()];
+  const extension = extensionIn(path);
+  return extension === "" || !Object.hasOwn(PAGE_EXTENSIONS, extension) ? undefined : PAGE_EXTENSIONS[extension];
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";

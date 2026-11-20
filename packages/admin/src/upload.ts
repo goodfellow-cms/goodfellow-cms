@@ -240,3 +240,20 @@ export function safeMediaChanges(changes: readonly FileChange[]): FileChange[] {
     return { path: change.path, bytes: new TextEncoder().encode(cleaned) };
   });
 }
+
+/**
+ * Whether a file brought in from elsewhere, such as another site's export, can
+ * go into the media library as it is publishing checks it (`safeMediaChanges()`):
+ * small enough, a kind the site can use, and not one that starts as a page.
+ * Imports leave out what can't, rather than stop at it while publishing.
+ */
+export function copiesAsMedia(path: string, bytes: Uint8Array): boolean {
+  if (bytes.length > MAX_UPLOAD_BYTES) return false;
+  try {
+    safeMediaChanges([{ path, bytes }]);
+    return true;
+  } catch (error) {
+    if (error instanceof UploadError) return false;
+    throw error;
+  }
+}

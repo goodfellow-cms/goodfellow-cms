@@ -47,6 +47,10 @@ describe("admin addresses", () => {
     expect(pageFileKind("assets/site.js")).toBeUndefined();
     expect(pageFileKind("media/photo.jpg")).toBeUndefined();
     expect(pageFileKind("CNAME")).toBeUndefined();
+    // Only the table's own extensions, never what every object has.
+    expect(pageFileKind("media/x.constructor")).toBeUndefined();
+    expect(pageFileKind("media/x.__proto__")).toBeUndefined();
+    expect(pageFileKind("media/x.toString")).toBeUndefined();
     expect(pageFileKind("schema.xsd")).toBe("xml");
   });
 
