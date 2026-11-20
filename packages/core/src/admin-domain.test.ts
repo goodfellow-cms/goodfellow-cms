@@ -68,7 +68,11 @@ describe("admin addresses", () => {
       expect(startsAsMarkup(start), start).toBe(true);
       expect(startsAsMarkup(bytes(start)), start).toBe(true);
     }
-    for (const start of ["", "WEBVTT", "a,b,c", "< not a tag", "<3", '{"x":1}', "x <html>"]) {
+    // Whitespace to the end of what's read could hide a tag after it.
+    expect(startsAsMarkup(`${" ".repeat(1024)}<script>`)).toBe(true);
+    expect(startsAsMarkup(bytes(`\ufeff${"\n".repeat(1100)}<html>`))).toBe(true);
+    expect(pageFileKind("chrome/bindings.xbl")).toBe("xml");
+    for (const start of ["", "   ", "WEBVTT", "a,b,c", "< not a tag", "<3", '{"x":1}', "x <html>"]) {
       expect(startsAsMarkup(start), start).toBe(false);
       expect(startsAsMarkup(bytes(start)), start).toBe(false);
     }

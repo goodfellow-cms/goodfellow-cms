@@ -329,7 +329,8 @@ function languageName(content: SiteContent, code: string): string {
 export function describeProblem(t: Translate, content: SiteContent, problem: SiteProblem): string {
   switch (problem.kind) {
     case "unreadable":
-      return t("checks.unreadable", { file: problem.file, message: problem.message });
+      // The loader's reason is in English and technical, so the dialog shows it behind Details.
+      return t("checks.unreadable", { file: problem.file });
     case "missing-page":
     case "missing-media":
     case "unsafe-link":

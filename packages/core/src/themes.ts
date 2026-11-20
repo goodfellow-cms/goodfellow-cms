@@ -30,6 +30,7 @@ import {
   type ReleaseChoice,
   searchPackages,
 } from "./npm-packages.js";
+import { trimChars } from "./trim.js";
 
 export { JSDELIVR_NPM, worksWith } from "./npm-packages.js";
 
@@ -235,6 +236,69 @@ function checkLayoutAddresses(theme: ThemePackage): void {
  */
 export const THEME_LOADED_PROPS: readonly string[] = ["backgroundImage", "src", "poster", "file", "media", "image"];
 
+/** Named character references addresses can be spelled with, by name: any other is left as written, and listed so. */
+const NAMED_REFERENCES: Record<string, string> = {
+  amp: "&",
+  apos: "'",
+  colon: ":",
+  comma: ",",
+  equals: "=",
+  gt: ">",
+  lowbar: "_",
+  lpar: "(",
+  lt: "<",
+  num: "#",
+  percnt: "%",
+  period: ".",
+  quest: "?",
+  quot: '"',
+  rpar: ")",
+  sol: "/",
+};
+
+/**
+ * An attribute's value as a browser reads it, with numeric character references and `NAMED_REFERENCES` written
+ * out (`&amp;` as `&`, `&#47;` as `/`), in one pass, so `&amp;#47;` stays `&#47;`.
+ */
+function attributeText(value: string): string {
+  return value.replace(/&(?:#[xX]([0-9a-fA-F]{1,6})|#([0-9]{1,7})|([A-Za-z]+));/g, (reference, hex, decimal, name) => {
+    if (name !== undefined) return NAMED_REFERENCES[name] ?? reference;
+    const code = Number.parseInt(hex ?? decimal, hex === undefined ? 10 : 16);
+    return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : "\ufffd";
+  });
+}
+
+/**
+ * The addresses a `srcset` lists, read as HTML's own parsing does: each candidate's address is what's before the
+ * next whitespace, which may hold commas (`a,b 1x`), less any commas it ends with, and its descriptors run to the
+ * next comma outside parentheses.
+ */
+function srcsetAddresses(value: string): string[] {
+  const addresses: string[] = [];
+  const space = (char: string) => " \t\n\f\r".includes(char);
+  let at = 0;
+  while (at < value.length) {
+    while (at < value.length && (space(value.charAt(at)) || value.charAt(at) === ",")) at += 1;
+    if (at >= value.length) break;
+    const start = at;
+    while (at < value.length && !space(value.charAt(at))) at += 1;
+    let address = value.slice(start, at);
+    if (address.endsWith(",")) {
+      address = trimChars(address, ",", { start: false });
+    } else {
+      let depth = 0;
+      for (; at < value.length; at += 1) {
+        const char = value.charAt(at);
+        if (char === "(") depth += 1;
+        else if (char === ")" && depth > 0) depth -= 1;
+        else if (char === "," && depth === 0) break;
+      }
+    }
+    if (address !== "") addresses.push(address);
+  }
+  return addresses;
+}
+
 /** A `src`, `poster`, or `srcset` attribute in HTML, its value quoted either way or not at all. */
 const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
 
@@ -255,10 +319,9 @@ export function themeLoads(theme: ThemePackage): string[] {
     (text, key) => {
       texts.push(text);
       for (const match of text.matchAll(LOADED_ATTRIBUTE)) {
-        const value = match[2] ?? match[3] ?? match[4] ?? "";
-        // A srcset lists addresses, each with its width or density after it, between commas.
-        const addresses = match[1]?.toLowerCase() === "srcset" ? value.split(",") : [value];
-        for (const address of addresses) pictures.push(address.trim().split(/\s+/)[0] ?? "");
+        const value = attributeText(match[2] ?? match[3] ?? match[4] ?? "");
+        if (match[1]?.toLowerCase() === "srcset") pictures.push(...srcsetAddresses(value));
+        else pictures.push(value.trim());
       }
       // Links' addresses are only followed when someone chooses them, and words are only shown.
       if (THEME_LOADED_PROPS.includes(key) && /^(?:https?:)?\/\//i.test(text.trim())) pictures.push(text.trim());

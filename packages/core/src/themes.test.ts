@@ -190,6 +190,12 @@ describe("what a theme's header and footer may do", () => {
       [section("//tracker.example/a)b"), "//tracker.example/a)b"],
       [text("<img src=https://tracker.example/pixel>"), "https://tracker.example/pixel"],
       [text('<img srcset="/media/a.png 1x, https://tracker.example/pixel 2x">'), "https://tracker.example/pixel"],
+      // A srcset's address may hold commas, and descriptors' parentheses too, as browsers read them.
+      [text('<img srcset="https://tracker.example/a,b 1x,/media/b.png 2x">'), "https://tracker.example/a,b"],
+      [text('<img srcset="/media/a.png (x, y) 1x,, https://tracker.example/c,">'), "https://tracker.example/c"],
+      // Character references are read as the browser reads them.
+      [text('<img srcset="https://tracker.example/p?a=1&amp;b=2 1x">'), "https://tracker.example/p?a=1&b=2"],
+      [text("<img src='&sol;&#47;tracker.example&#x2F;q'>"), "//tracker.example/q"],
       [text("<video poster='https://tracker.example/still'>"), "https://tracker.example/still"],
     ] as const) {
       expect(themeLoads(withLayout([block])), address).toEqual([address]);

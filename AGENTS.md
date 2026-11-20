@@ -2034,14 +2034,14 @@ Content files are the product's data format; treat changes to them like API chan
   stylesheet, a comment browsers end sooner than it seems to, `<!-->`, `<!--->` or `--!>`), and fails the build, naming
   them, if any can't. Every other file whose name a host may have no type for (`typedByContent()`: any but
   `TYPED_BY_NAME`'s) that starts as a page does (`startsAsMarkup()`, a `<` and a tag's first character past a byte order
-  mark and whitespace) fails it too, since GitLab Pages types such a file by its first bytes; `safeMediaChanges()` and
-  `unsafeMediaChanges()` refuse such uploads (`UploadError` `markup`), and the broker asks before them (`media-code`).
-  The site's guard writes `<plaintext hidden>`, stops the page, and goes to the same page at the Site address; the admin
-  page's refuses to draw itself in a frame. Guards hold no `<` or `&`, so XML can hold them in CDATA, and name their
-  script's namespace, since a root element with a prefix (`<svg:svg>`) leaves none by default; an empty root element
-  (`<svg …/>`) is opened and closed around the guard. `admin-domain.spec.ts` tries every way a script could run before
-  them (`e2e/fixtures/admin-domain`) in Chromium, Firefox, and WebKit, which with `preact.spec.ts` are the only specs
-  the Firefox and WebKit projects run.
+  mark and whitespace, or whitespace to the end of its first 1,024 bytes) fails it too, since GitLab Pages types such a
+  file by its first bytes; `safeMediaChanges()` and `unsafeMediaChanges()` refuse such uploads (`UploadError` `markup`),
+  and the broker asks before them (`media-code`). The site's guard writes `<plaintext hidden>`, stops the page, and goes
+  to the same page at the Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`,
+  so XML can hold them in CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`)
+  leaves none by default; an empty root element (`<svg …/>`) is opened and closed around the guard.
+  `admin-domain.spec.ts` tries every way a script could run before them (`e2e/fixtures/admin-domain`) in Chromium,
+  Firefox, and WebKit, which with `preact.spec.ts` are the only specs the Firefox and WebKit projects run.
 - **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add
   `cloudflareSiteHeaders()` to `_headers` with `writeSiteHeaders()` (after the site's own, once, by
   `SITE_HEADERS_MARK`): `SITE_HEADERS` everywhere, `SVG_MEDIA_HEADERS` (`sandbox`) on the media library's SVGs, never
@@ -2636,8 +2636,9 @@ of it.
   path for a file, and gives no reserved variables such as `GITHUB_TOKEN`, `GOODFELLOW_*`, or `NODE_OPTIONS`; `read`
   takes no patterns, `.git`, or files of secrets, `.npmrc` and `.netrc` among them, in any letter case or Windows short
   name, `isPluginReadPath()`, and no path part ending in a dot or a space or holding a `:`, which Windows reads
-  otherwise). Server modules, steps' network requests, and blocks on the site's pages can't be held to anything, and the
-  docs say so.
+  otherwise, and no folder holding such a file or a link out of it, `secretsUnder()`, since Node gives a folder's every
+  file and follows links). Server modules, steps' network requests, and blocks on the site's pages can't be held to
+  anything, and the docs say so.
 - **Admin frames:** each plugin's admin module is bundled with `pluginFrameEntry()` and `mountPluginFrame()` from
   `@goodfellow-cms/admin/plugin` (`plugin.ts`, with `plugin.css`, the admin panel's `--gfa-*` colors), as one classic
   script starting with `EDITOR_PRELUDE`, at `admin/plugins/<id>/` (`PLUGINS_PATH`, `pluginId()`, beside the editor's

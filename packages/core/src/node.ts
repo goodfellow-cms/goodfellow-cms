@@ -82,6 +82,7 @@ export {
   resolvePluginModule,
   runPluginBuildSteps,
   runPluginTask,
+  secretsUnder,
   sitePluginsApart,
   taskSecretsFrom,
 } from "./node-plugins.js";

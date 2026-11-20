@@ -588,7 +588,16 @@ const RESERVED_SECRETS =
   /^(GH_TOKEN|GITHUB_.*|ACTIONS_.*|RUNNER_.*|CI|CI_.*|GITLAB_.*|BITBUCKET_.*|VERCEL|VERCEL_.*|CF_.*|CLOUDFLARE_.*|NETLIFY|NETLIFY_.*|GOODFELLOW_.*|NODE_.*|NPM_.*)$/;
 
 /** Files of secrets no plugin reads, whatever it declares, by their names in lower case. */
-const SECRET_FILES = new Set([".dev.vars", ".npmrc", ".netrc"]);
+const SECRET_FILES = new Set([".dev.vars", ".npmrc", ".netrc", ".git-credentials"]);
+
+/**
+ * Whether a file or folder of this name holds secrets no plugin reads, inside a folder it may read too: git's folder
+ * (which holds any credentials a checkout keeps), `.env` files, and `SECRET_FILES`, whatever their letter case.
+ */
+export function isSecretName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === ".git" || lower.startsWith(".env") || SECRET_FILES.has(lower);
+}
 
 /**
  * Whether a build step or task may read a path: one in the site, never a

@@ -233,7 +233,7 @@ export const defaultStrings = {
   "checks.missing-item": "{place} links to {target} in {collection}, which isn't there any more.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
   "checks.unreadable":
-    "{file} can't be read as the site's content, so the site couldn't be built with it, and this admin panel couldn't open to change it back. Details: {message}",
+    "{file} can't be read as the site's content, so the site couldn't be built with it, and this admin panel couldn't open to change it back. Undo your change to it, or ask the site's developer what it needs.",
   "checks.unsafe-link":
     "{place} links to {target}, an address that would run code on the site. Pages leave it out: use an address that starts with https://, or one of the site's own pages.",
   "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",

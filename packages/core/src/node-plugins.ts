@@ -4,15 +4,21 @@
  * sites' server modules.
  */
 import { spawn } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { type Dirent, existsSync, realpathSync } from "node:fs";
+import { mkdir, readdir, readFile, realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { mediaStorageFileSchema } from "./content/media-storage.js";
 import { MEDIA_STORAGE_FILE } from "./content/paths.js";
 import { TASK_OUTPUT_LIMIT, type TaskAnswer } from "./plugin-tasks.js";
-import { type GoodfellowPlugin, isPluginOrigin, type PluginBuildContext, type PluginTaskContext } from "./plugins.js";
+import {
+  type GoodfellowPlugin,
+  isPluginOrigin,
+  isSecretName,
+  type PluginBuildContext,
+  type PluginTaskContext,
+} from "./plugins.js";
 
 export type { PluginServer } from "./server-app-api.js";
 
@@ -50,6 +56,45 @@ function withRealPath(path: string): string[] {
   } catch {
     return [path];
   }
+}
+
+/**
+ * What a folder a plugin may read holds that it mustn't, relative to the site: Node's permission model gives a
+ * folder's every file, and follows links wherever they go, so a secret file (`isSecretName()`) anywhere under it, or a
+ * link to somewhere outside it, would be read too. `.gitkeep` and `.gitignore` are kept, since they hold none.
+ */
+export async function secretsUnder(root: string, paths: readonly string[]): Promise<string[]> {
+  const found: string[] = [];
+  for (const path of paths) {
+    const folder = join(root, path);
+    let real: string;
+    let entries: Dirent[];
+    try {
+      real = await realpath(folder);
+      entries = await readdir(folder, { recursive: true, withFileTypes: true });
+    } catch {
+      // A file, or nothing there: a file's name was checked as it was declared.
+      continue;
+    }
+    for (const entry of entries) {
+      const file = join(entry.parentPath, entry.name);
+      const named = relative(folder, file).split(sep).some(isSecretName);
+      let outside = false;
+      if (entry.isSymbolicLink()) {
+        const target = await realpath(file).catch(() => undefined);
+        outside = target === undefined || (target !== real && !target.startsWith(`${real}${sep}`));
+      }
+      if (named || outside) found.push(relative(root, file).split(sep).join("/"));
+    }
+  }
+  return [...new Set(found)].sort();
+}
+
+/** Why a plugin can't be given its folders, naming what's in them, or `undefined` where nothing is. */
+async function readProblem(plugin: GoodfellowPlugin, root: string): Promise<string | undefined> {
+  const found = await secretsUnder(root, plugin.permissions?.read ?? []);
+  if (found.length === 0) return undefined;
+  return `${plugin.title} may read folders that hold secrets or links out of them, which it would read too: ${found.join(", ")}. Move ${found.length === 1 ? "it" : "them"} elsewhere, or ask the plugin's author to name narrower folders.`;
 }
 
 /**
@@ -128,6 +173,8 @@ export async function runPluginBuildSteps(options: PluginBuildOptions): Promise<
   const ran: PluginBuildStepRunInfo[] = [];
   for (const plugin of options.plugins) {
     for (const step of plugin.build ?? []) {
+      const problem = await readProblem(plugin, root);
+      if (problem) throw new PluginBuildError(plugin.name, step.id, problem);
       const file = resolvePluginModule(root, step.module);
       const permissions = plugin.permissions ?? {};
       const reads = [
@@ -316,6 +363,8 @@ export async function runPluginTask(options: PluginTaskOptions): Promise<TaskAns
   const { plugin } = options;
   const task = plugin.tasks?.find((candidate) => candidate.id === options.task);
   if (!task) return { ok: false, error: `${plugin.title} has no task called "${options.task}".` };
+  const problem = await readProblem(plugin, root);
+  if (problem) return { ok: false, error: problem };
   const file = resolvePluginModule(root, task.module);
   const permissions = plugin.permissions ?? {};
   const reads = [

@@ -135,6 +135,7 @@ const PAGE_EXTENSIONS: Record<string, PageFileKind> = {
   wsdl: "xml",
   smil: "xml",
   ttml: "xml",
+  xbl: "xml",
   xul: "xml",
   xhtm: "xml",
 };
@@ -167,13 +168,15 @@ function extensionIn(path: string): string {
 /**
  * Whether a file's first bytes read as markup, as a browser's or a server's sniffing would take for an HTML or XML
  * page (`<html`, `<script`, `<!--`, `<?xml`, and every other tag): a `<` and a letter, `!`, `?`, or `/`, past a byte
- * order mark and whitespace.
+ * order mark and whitespace, or whitespace to the end of the first 1,024 bytes, which a tag could follow.
  */
 export function startsAsMarkup(start: string | Uint8Array): boolean {
   // Decoding drops a UTF-8 byte order mark, which a string keeps.
   const text = typeof start === "string" ? start.slice(0, 1024) : new TextDecoder().decode(start.subarray(0, 1024));
   let at = text.startsWith("\ufeff") ? 1 : 0;
   while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
+  // Whitespace to the end of what's read could be followed by a tag, which a reader looking further would find.
+  if (at === text.length) return start.length >= 1024;
   return text[at] === "<" && /[A-Za-z!?/]/.test(text[at + 1] ?? "");
 }
 

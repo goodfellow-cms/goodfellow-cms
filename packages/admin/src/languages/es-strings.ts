@@ -232,7 +232,7 @@ export const strings: Strings = {
   "checks.missing-item": "{place} enlaza a {target} en {collection}, que ya no está.",
   "checks.missing-media": "{place} usa {target}, que no está en la biblioteca multimedia.",
   "checks.unreadable":
-    "{file} no se puede leer como contenido del sitio, así que el sitio no podría construirse con él, ni este panel de administración abrirse para deshacerlo. Detalles: {message}",
+    "{file} no se puede leer como contenido del sitio, así que el sitio no podría construirse con él, ni este panel de administración abrirse para deshacerlo. Deshaz tu cambio o pregunta a quien desarrolla el sitio qué necesita.",
   "checks.unsafe-link":
     "{place} enlaza a {target}, una dirección que ejecutaría código en el sitio. Las páginas la omiten: usa una dirección que empiece por https:// o una de las páginas del sitio.",
   "checks.no-title":
