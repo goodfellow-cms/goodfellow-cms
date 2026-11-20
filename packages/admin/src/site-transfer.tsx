@@ -4,9 +4,8 @@ import {
   GOODFELLOW_REGISTRY,
   INSTALLED_PLUGINS_FILE,
   INSTALLED_RECORD_FILE,
-  MAX_UPLOAD_BYTES,
   MEDIA_DIR,
-  mediaKind,
+  ownersOnlyFields,
   parseInstalledRecord,
   planBlockChanges,
   planSiteImport,
@@ -24,6 +23,7 @@ import { registryFetchJson } from "./registry-fetch.js";
 import { type DownloadProgress, downloadName, siteCopyArchive } from "./site-download.js";
 import { type StringKey, type Translate, useStrings } from "./strings.js";
 import { Button, ErrorMessage } from "./ui.js";
+import { copiesAsMedia } from "./upload.js";
 import { AppLink } from "./use-link.js";
 
 const fetchJson = registryFetchJson;
@@ -167,6 +167,8 @@ function noteText(t: Translate, note: SiteImportNote, blockName: (name: string) 
       return t("siteTransfer.note.plugins", { names: listed(t, note.names) });
     case "code":
       return t("siteTransfer.note.code");
+    case "owners-blocks":
+      return t("siteTransfer.note.ownersBlocks", { items: listed(t, note.files) });
     case "kept":
       return t("siteTransfer.note.kept", {
         things: note.things.map((thing) => t(`siteTransfer.kept.${thing}` as StringKey)).join(", "),
@@ -232,6 +234,7 @@ export function SiteImportSection() {
       {
         ...choices,
         blocks: Object.keys(blocks),
+        ownersOnly: ownersOnlyFields(blocks),
         installing: [...choices.install],
         plugins: loaded.plugins,
         sameMedia: loaded.same,
@@ -273,7 +276,7 @@ export function SiteImportSection() {
       const mine = new Set(siteFiles);
       for (const [path, bytes] of files) {
         if (!path.startsWith(`${MEDIA_DIR}/`)) continue;
-        if (bytes.length > MAX_UPLOAD_BYTES || !mediaKind(fileName(path))) uncopied.add(path);
+        if (!copiesAsMedia(path, bytes)) uncopied.add(path);
         else if (mine.has(path)) {
           const own = await readBytes(path);
           if (own && own.length === bytes.length && own.every((byte, index) => byte === bytes[index])) same.add(path);

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,6 +8,7 @@ import {
   PluginBuildError,
   runPluginBuildSteps,
   runPluginTask,
+  secretsUnder,
   sitePluginsApart,
   taskSecretsFrom,
 } from "./node-plugins.js";
@@ -91,6 +92,53 @@ describe("plugins' build steps", { timeout: NODE_TIMEOUT }, () => {
       env: ["STORAGE_KEY"],
     });
     expect(await readFile(join(root, "goodfellow.config.tsx"), "utf8")).toBe("export default {};");
+  });
+
+  it("aren't given a folder that holds secrets or links out of it, which Node would give them too", async () => {
+    const plugin = definePlugin({
+      name: "goodfellow-plugin-storage",
+      title: "Storage",
+      permissions: { read: ["content/"] },
+      build: [{ id: "upload", module: "./plugins/storage/build.mjs" }],
+    });
+    await writeFile(join(root, "content/.gitkeep"), "");
+    await mkdir(join(root, "content/settings"));
+    await writeFile(join(root, "content/settings/site.json"), "{}");
+    expect(await secretsUnder(root, ["content/"])).toEqual([]);
+    await writeFile(join(root, "content/settings/.NETRC"), "machine example.org password secret");
+    await writeFile(join(root, ".env"), "SECRET=1");
+    await symlink(join(root, ".env"), join(root, "content/settings/env-link"));
+    await symlink(join(root, "content/site.json"), join(root, "content/settings/inside-link"));
+    expect(await secretsUnder(root, ["content/", "missing/"])).toEqual([
+      "content/settings/.NETRC",
+      "content/settings/env-link",
+    ]);
+    const refused = runPluginBuildSteps({ root, outDir, base: "/", plugins: [plugin], env: {} });
+    await expect(refused).rejects.toBeInstanceOf(PluginBuildError);
+    await expect(refused).rejects.toThrow(/content\/settings\/\.NETRC, content\/settings\/env-link/);
+  });
+
+  it("aren't given a path that really is a secret, outside the site, or a link to nowhere", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "goodfellow-outside-"));
+    try {
+      await mkdir(join(root, ".git"));
+      await writeFile(join(root, ".git/config"), "[credential]");
+      await writeFile(join(root, ".env"), "SECRET=1");
+      await mkdir(join(root, "content/safe"), { recursive: true });
+      await symlink(join(root, ".git"), join(root, "data"));
+      await symlink(join(root, ".env"), join(root, "settings.json"));
+      await symlink(outside, join(root, "elsewhere"));
+      await symlink(join(root, "nowhere"), join(root, "broken"));
+      await symlink(join(root, "content/safe"), join(root, "shortcut"));
+      expect(await secretsUnder(root, ["data/", "settings.json", "elsewhere/", "broken/", "shortcut/"])).toEqual([
+        "broken",
+        "data",
+        "elsewhere",
+        "settings.json",
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   it("stop the build when one fails", async () => {
@@ -180,6 +228,9 @@ describe("plugins' tasks", { timeout: NODE_TIMEOUT }, () => {
       ok: false,
       error: 'Storage has no task called "other".',
     });
+    await writeFile(join(root, "content/.env.local"), "STORAGE_KEY=1");
+    const refused = await runPluginTask({ root, plugin, task: "sign", input: "{}", secrets: {} });
+    expect(refused).toMatchObject({ ok: false, error: expect.stringContaining("content/.env.local") });
   });
 
   it("take GitHub's secrets out of the environment before anything else sees them", () => {

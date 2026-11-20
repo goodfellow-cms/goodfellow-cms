@@ -29,6 +29,23 @@ const TYPES: Record<string, string> = {
   json: "application/json",
 };
 
+/**
+ * The plugin and the file of its admin frame a path under the plugins' prefix
+ * names, within `dir`, or `undefined` for one it can't: a `%` that starts no
+ * escape, or a file outside the plugin's folder.
+ */
+export function pluginFrameFile(path: string, dir: string): { id: string; file: string } | undefined {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    return undefined;
+  }
+  const [id = "", ...rest] = decoded.split("/");
+  const file = resolve(dir, id, rest.join("/") || "index.html");
+  return id !== "" && file.startsWith(`${resolve(dir, id)}${sep}`) ? { id, file } : undefined;
+}
+
 export async function startDevEditor(root: string): Promise<DevEditor> {
   siteConfigFile(root);
   const outDir = join(root, "node_modules/.goodfellow/next-editor");
@@ -118,9 +135,9 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
       // Next.js passes the frames' page on without its trailing slash.
       const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
       if (pathname.startsWith(pluginsPrefix) && (req.method === "GET" || req.method === "HEAD")) {
-        const [id = "", ...rest] = decodeURIComponent(pathname.slice(pluginsPrefix.length)).split("/");
-        const file = resolve(pluginsDir, id, rest.join("/") || "index.html");
-        if (!file.startsWith(`${pluginsDir}${sep}`) || !(await pluginFrame(id))) return false;
+        const asked = pluginFrameFile(pathname.slice(pluginsPrefix.length), pluginsDir);
+        if (!asked || !(await pluginFrame(asked.id))) return false;
+        const { file } = asked;
         try {
           const data = await readFile(file);
           res.setHeader("Content-Type", TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");

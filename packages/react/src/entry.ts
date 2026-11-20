@@ -110,6 +110,10 @@ function attributeValue(tag: string, attribute: string, parts: ValuePart[]): str
       const without = owners();
       return isScriptUrl(decodeAttribute(without)) ? "" : without;
     }
+    // An address the owners made a script one themselves, as `javascript:show('{title}')` or `data:text/html,{x}`:
+    // the browser undoes the escaping before it runs or opens what follows the scheme, so a value there is script, and
+    // none goes in, as in an `on…` handler.
+    if (isScriptUrl(address)) return owners();
   }
   return parts.map((part) => (part.value ? escapeAttribute(part.text) : part.text)).join("");
 }

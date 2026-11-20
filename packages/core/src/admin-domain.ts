@@ -120,13 +120,70 @@ const PAGE_EXTENSIONS: Record<string, PageFileKind> = {
   xsl: "xml",
   xslt: "xml",
   mml: "xml",
+  // Other hosts' tables (mime-db's, which most follow) type as XML, where a script in XHTML's namespace runs. Data
+  // formats among them (GPS tracks, maps, captions, schemas) get the guard too, inside their root element, which a
+  // reader that checks a schema strictly may refuse: a trade-off accepted, since a browser opens each as a page.
+  xsd: "xml",
+  rng: "xml",
+  owl: "xml",
+  mathml: "xml",
+  kml: "xml",
+  gpx: "xml",
+  xspf: "xml",
+  xlf: "xml",
+  xaml: "xml",
+  wsdl: "xml",
+  smil: "xml",
+  ttml: "xml",
+  xbl: "xml",
+  xul: "xml",
+  xhtm: "xml",
 };
+
+/**
+ * Files every host types by their name as something no browser runs, Go's own table among them, which GitLab Pages
+ * falls back to: a file with any other name may be typed by its first bytes (`startsAsMarkup()`).
+ */
+const TYPED_BY_NAME = new Set(["avif", "css", "gif", "jpeg", "jpg", "js", "json", "mjs", "pdf", "png", "wasm", "webp"]);
+
+/**
+ * Whether a file of this name, which `pageFileKind()` doesn't call a page, could still open as one, where a host
+ * that knows no type for its name types it by what it holds, as GitLab Pages does.
+ */
+export function typedByContent(path: string): boolean {
+  const extension = extensionIn(path);
+  return extension === "" || !TYPED_BY_NAME.has(extension);
+}
+
+/**
+ * A path's file's extension in lower case, or `""` without one, as `extensionOf()` in `content/media-files.ts` gives
+ * it, so the build, uploads, and the broker read a name the same way: this file imports nothing.
+ */
+function extensionIn(path: string): string {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const dot = name.lastIndexOf(".");
+  return dot === -1 ? "" : name.slice(dot + 1).toLowerCase();
+}
+
+/**
+ * Whether a file's first bytes read as markup, as a browser's or a server's sniffing would take for an HTML or XML
+ * page (`<html`, `<script`, `<!--`, `<?xml`, and every other tag): a `<` and a letter, `!`, `?`, or `/`, past a byte
+ * order mark and whitespace, or whitespace to the end of the first 1,024 bytes, which a tag could follow.
+ */
+export function startsAsMarkup(start: string | Uint8Array): boolean {
+  // Decoding drops a UTF-8 byte order mark, which a string keeps.
+  const text = typeof start === "string" ? start.slice(0, 1024) : new TextDecoder().decode(start.subarray(0, 1024));
+  let at = text.startsWith("\ufeff") ? 1 : 0;
+  while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
+  // Whitespace to the end of what's read could be followed by a tag, which a reader looking further would find.
+  if (at === text.length) return start.length >= 1024;
+  return text[at] === "<" && /[A-Za-z!?/]/.test(text[at + 1] ?? "");
+}
 
 /** What kind of page a file is, from its name, or `undefined` for files browsers don't run, such as images and scripts. */
 export function pageFileKind(path: string): PageFileKind | undefined {
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  return dot === -1 ? undefined : PAGE_EXTENSIONS[name.slice(dot + 1).toLowerCase()];
+  const extension = extensionIn(path);
+  return extension === "" || !Object.hasOwn(PAGE_EXTENSIONS, extension) ? undefined : PAGE_EXTENSIONS[extension];
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";

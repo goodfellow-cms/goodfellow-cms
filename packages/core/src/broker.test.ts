@@ -66,6 +66,10 @@ describe("what the broker publishes without asking", () => {
         { path: "public/media/page.__proto__", content: "" },
         // The admin panel cleans SVGs, but the broker can't tell whether it did.
         { path: "public/media/logo.svg", content: "<svg></svg>" },
+        // A host that types files by what they hold would open these as pages.
+        { path: "public/media/notes.txt", bytes: new TextEncoder().encode("<html><script></script>") },
+        { path: "public/media/talk.vtt", content: "<!-- --><script></script>" },
+        { path: "public/media/plain.txt", content: "Notes" },
       ],
       undefined,
     );
@@ -76,6 +80,8 @@ describe("what the broker publishes without asking", () => {
       { path: "public/media/page.constructor", kind: "media-code" },
       { path: "public/media/page.__proto__", kind: "media-code" },
       { path: "public/media/logo.svg", kind: "media-code" },
+      { path: "public/media/notes.txt", kind: "media-code" },
+      { path: "public/media/talk.vtt", kind: "media-code" },
     ]);
     // Taking files away runs nothing.
     expect(brokerChangeCheck([{ path: "public/media/page.html", delete: true }], undefined).confirm).toEqual([]);

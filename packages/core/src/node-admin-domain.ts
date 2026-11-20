@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { open, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   type AdminAddress,
@@ -14,7 +14,9 @@ import {
   pageFileKind,
   SITE_HEADERS_MARK,
   siteGuard,
+  startsAsMarkup,
   startsWithGuard,
+  typedByContent,
   withGuard,
 } from "./admin-domain.js";
 import { brokerOrigin } from "./broker.js";
@@ -110,6 +112,9 @@ export async function guardBuiltSite(
   const forAdmin = adminGuard(admin, framer);
   let guarded = 0;
   const unguarded: string[] = [];
+  // Files whose names don't say what they are, which a host could open as a page by what they hold, read once the
+  // pages are guarded, many at a time.
+  const untyped: { file: string; path: string }[] = [];
   for (const entry of await readdir(outDir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const file = join(entry.parentPath, entry.name);
@@ -117,12 +122,11 @@ export async function guardBuiltSite(
     const kind = pageFileKind(path);
     // The editor's frames, and plugins', refuse to run anywhere but in the admin panel's sandboxed frames
     // (`EDITOR_PRELUDE`).
-    if (
-      !kind ||
-      path.startsWith("admin/editor/") ||
-      path === "admin/editor.html" ||
-      path.startsWith("admin/plugins/")
-    ) {
+    if (path.startsWith("admin/editor/") || path === "admin/editor.html" || path.startsWith("admin/plugins/")) {
+      continue;
+    }
+    if (!kind) {
+      if (typedByContent(path)) untyped.push({ file, path });
       continue;
     }
     const text = await readFile(file, "utf8");
@@ -134,9 +138,22 @@ export async function guardBuiltSite(
     if (next !== text) await writeFile(file, next);
     guarded += 1;
   }
+  const markup: string[] = [];
+  for (let start = 0; start < untyped.length; start += FILES_AT_ONCE) {
+    const batch = untyped.slice(start, start + FILES_AT_ONCE);
+    const starts = await Promise.all(batch.map(async ({ file }) => startsAsMarkup(await firstBytes(file))));
+    batch.forEach(({ path }, index) => {
+      if (starts[index]) markup.push(path);
+    });
+  }
   if (unguarded.length > 0) {
     throw new Error(
       `The admin address needs every page to start with its guard, and ${unguarded.length === 1 ? "this one can't" : "these can't"}: ${unguarded.join(", ")}. A page can't have a script, an event handler, or a frame before it, or an XML stylesheet, and a compressed SVG can't be changed: remove or change ${unguarded.length === 1 ? "it" : "them"}.`,
+    );
+  }
+  if (markup.length > 0) {
+    throw new Error(
+      `The admin address needs every file that could open as a page to start with its guard, and ${markup.length === 1 ? "this one starts" : "these start"} as a page does, though ${markup.length === 1 ? "its name doesn't" : "their names don't"} say so, which some hosts, such as GitLab Pages, serve as one: ${markup.join(", ")}. Give ${markup.length === 1 ? "it" : "each"} a page's name, such as .html, or remove ${markup.length === 1 ? "it" : "them"}.`,
     );
   }
   // Cloudflare Pages sandboxes the rest of the admin address itself. Other hosts serve this as a file of no use,
@@ -149,4 +166,18 @@ export async function guardBuiltSite(
     await writeFile(headersFile, `${own}${separator}${cloudflareAdminHeaders(admin, base, framer)}`);
   }
   return guarded;
+}
+
+/** How many files' first bytes are read at once: enough to keep the disk busy, few enough for any open-file limit. */
+const FILES_AT_ONCE = 64;
+
+/** A file's first bytes, enough for `startsAsMarkup()`. */
+async function firstBytes(file: string): Promise<Uint8Array> {
+  const handle = await open(file, "r");
+  try {
+    const { buffer, bytesRead } = await handle.read(new Uint8Array(1024), 0, 1024, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
 }

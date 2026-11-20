@@ -6,6 +6,8 @@ import {
   type Page,
   type SiteContent,
   siteSettingsSchema,
+  THEME_LAYOUT_BLOCKS,
+  THEME_LOADED_PROPS,
 } from "@goodfellow-cms/core";
 import { blockIcon, blockKeywords, createPuckConfig, SiteProvider } from "@goodfellow-cms/react";
 import { createPageRenderer } from "@goodfellow-cms/react/server";
@@ -707,5 +709,30 @@ describe("Search", () => {
       noResults: "Nothing matches “{query}”.",
       unavailable: "Search works on the published site.",
     });
+  });
+});
+
+describe("themes' headers and footers", () => {
+  it("name every setting of the blocks they may use whose address a page loads", () => {
+    const loaded: string[] = [];
+    const visit = (fields: Record<string, unknown> | undefined) => {
+      for (const [name, field] of Object.entries(fields ?? {})) {
+        const each = field as {
+          metadata?: { media?: unknown };
+          objectFields?: Record<string, unknown>;
+          arrayFields?: Record<string, unknown>;
+        };
+        if (each.metadata?.media) loaded.push(name);
+        visit(each.objectFields);
+        visit(each.arrayFields);
+      }
+    };
+    for (const type of THEME_LAYOUT_BLOCKS) {
+      const block = (blocks as Record<string, { fields?: Record<string, unknown> }>)[type];
+      expect(block, type).toBeDefined();
+      visit(block?.fields);
+    }
+    expect(loaded.length).toBeGreaterThan(0);
+    for (const name of loaded) expect(THEME_LOADED_PROPS, name).toContain(name);
   });
 });

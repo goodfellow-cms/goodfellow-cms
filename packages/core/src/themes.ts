@@ -30,6 +30,7 @@ import {
   type ReleaseChoice,
   searchPackages,
 } from "./npm-packages.js";
+import { trimChars } from "./trim.js";
 
 export { JSDELIVR_NPM, worksWith } from "./npm-packages.js";
 
@@ -170,21 +171,25 @@ export const THEME_LAYOUT_BLOCKS: readonly string[] = [
   "LanguageSwitch",
 ];
 
-/** Every block in a theme's header and footer, and every text in their props. */
-function visitLayouts(theme: ThemePackage, onBlock: (type: string) => void, onText: (text: string) => void) {
-  const visit = (value: unknown) => {
-    if (typeof value === "string") onText(value);
+/** Every block in a theme's header and footer, and every text in their props, with the name of the key it's under. */
+function visitLayouts(
+  theme: ThemePackage,
+  onBlock: (type: string) => void,
+  onText: (text: string, key: string) => void,
+) {
+  const visit = (value: unknown, key: string) => {
+    if (typeof value === "string") onText(value, key);
     if (value === null || typeof value !== "object") return;
     if (Array.isArray(value)) {
-      for (const item of value) visit(item);
+      for (const item of value) visit(item, key);
       return;
     }
     const record = value as Record<string, unknown>;
     if (typeof record.type === "string" && typeof record.props === "object") onBlock(record.type);
-    for (const child of Object.values(record)) visit(child);
+    for (const [name, child] of Object.entries(record)) visit(child, name);
   };
-  visit(theme.header?.data);
-  visit(theme.footer?.data);
+  visit(theme.header?.data, "");
+  visit(theme.footer?.data, "");
 }
 
 /**
@@ -224,10 +229,94 @@ function checkLayoutAddresses(theme: ThemePackage): void {
 }
 
 /**
+ * The settings of `THEME_LAYOUT_BLOCKS` whose address the page loads, such as
+ * a Section's background image, by their names, anywhere in a block's props.
+ * Every other address is followed only when someone chooses it, or is shown
+ * as words. A test in `@goodfellow-cms/blocks` keeps it complete.
+ */
+export const THEME_LOADED_PROPS: readonly string[] = ["backgroundImage", "src", "poster", "file", "media", "image"];
+
+/**
+ * Named character references addresses can be spelled with, by name, with the only ones HTML has for a `srcset`'s
+ * separators (`Tab`, `NewLine`, and `comma`), so no candidate hides inside another: any other is left as written, and
+ * listed so.
+ */
+const NAMED_REFERENCES: Record<string, string> = {
+  NewLine: "\n",
+  Tab: "\t",
+  amp: "&",
+  apos: "'",
+  colon: ":",
+  comma: ",",
+  equals: "=",
+  gt: ">",
+  lowbar: "_",
+  lpar: "(",
+  lt: "<",
+  num: "#",
+  percnt: "%",
+  period: ".",
+  quest: "?",
+  quot: '"',
+  rpar: ")",
+  sol: "/",
+};
+
+/**
+ * An attribute's value as a browser reads it, with numeric character references (with or without their `;`) and
+ * `NAMED_REFERENCES` written out (`&amp;` as `&`, `&#47;` as `/`), in one pass, so `&amp;#47;` stays `&#47;`.
+ */
+function attributeText(value: string): string {
+  // A numeric reference counts without its `;` too, and with every digit after it, as browsers read it.
+  return value.replace(/&(?:#[xX]([0-9a-fA-F]+);?|#([0-9]+);?|([A-Za-z]+);)/g, (reference, hex, decimal, name) => {
+    if (name !== undefined) return NAMED_REFERENCES[name] ?? reference;
+    const code = Number.parseInt(hex ?? decimal, hex === undefined ? 10 : 16);
+    return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : "\ufffd";
+  });
+}
+
+/**
+ * The addresses a `srcset` lists, read as HTML's own parsing does: each candidate's address is what's before the
+ * next whitespace, which may hold commas (`a,b 1x`), less any commas it ends with, and its descriptors run to the
+ * next comma outside parentheses, which don't nest.
+ */
+function srcsetAddresses(value: string): string[] {
+  const addresses: string[] = [];
+  const space = (char: string) => " \t\n\f\r".includes(char);
+  let at = 0;
+  while (at < value.length) {
+    while (at < value.length && (space(value.charAt(at)) || value.charAt(at) === ",")) at += 1;
+    if (at >= value.length) break;
+    const start = at;
+    while (at < value.length && !space(value.charAt(at))) at += 1;
+    let address = value.slice(start, at);
+    if (address.endsWith(",")) {
+      address = trimChars(address, ",", { start: false });
+    } else {
+      // HTML doesn't nest parentheses here: the first `)` ends them, however many `(` came before.
+      let inParentheses = false;
+      for (; at < value.length; at += 1) {
+        const char = value.charAt(at);
+        if (char === "(") inParentheses = true;
+        else if (char === ")") inParentheses = false;
+        else if (char === "," && !inParentheses) break;
+      }
+    }
+    if (address !== "") addresses.push(address);
+  }
+  return addresses;
+}
+
+/** A `src`, `poster`, or `srcset` attribute in HTML, its value quoted either way or not at all. */
+const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+
+/**
  * What installing a theme would have visitors' browsers load besides Google
  * Fonts and the site's own media: from its CSS, from classes it gives parts
- * or its header's and footer's blocks (such as arbitrary `url()` backgrounds), and from its
- * header's and footer's pictures.
+ * or its header's and footer's blocks (such as arbitrary `url()` backgrounds),
+ * from every address its header's and footer's `THEME_LOADED_PROPS` hold (a
+ * Section's background is shown whatever its address ends in), and from
+ * `src`, `poster`, and `srcset` in their HTML.
  */
 export function themeLoads(theme: ThemePackage): string[] {
   const texts = [theme.css ?? "", ...Object.values(theme.manifest.theme.parts ?? {})];
@@ -235,17 +324,25 @@ export function themeLoads(theme: ThemePackage): string[] {
   visitLayouts(
     theme,
     () => undefined,
-    (text) => {
+    (text, key) => {
       texts.push(text);
-      for (const match of text.matchAll(/\b(?:src|poster)\s*=\s*["']([^"']+)["']/gi)) pictures.push(match[1] ?? "");
-      if (/^(?:https?:)?\/\//i.test(text.trim()) && /\.(?:png|jpe?g|gif|webp|avif|svg)(?:[?#]|$)/i.test(text)) {
-        pictures.push(text.trim());
+      for (const match of text.matchAll(LOADED_ATTRIBUTE)) {
+        const value = attributeText(match[2] ?? match[3] ?? match[4] ?? "");
+        if (match[1]?.toLowerCase() === "srcset") pictures.push(...srcsetAddresses(value));
+        else pictures.push(value.trim());
       }
+      // Links' addresses are only followed when someone chooses them, and words are only shown.
+      if (THEME_LOADED_PROPS.includes(key) && /^(?:https?:)?\/\//i.test(text.trim())) pictures.push(text.trim());
     },
   );
   const found = new Set([
     ...themeCssLoads(texts.join("\n")),
-    ...themeCssLoads(pictures.map((url) => `url(${url})`).join(" ")),
+    // As CSS strings, so an address holding `)` or a quote is read whole.
+    ...themeCssLoads(
+      pictures
+        .map((url) => `url("${url.replace(/["\\\n\r\f]/g, (char) => `\\${char.charCodeAt(0).toString(16)} `)}")`)
+        .join(" "),
+    ),
   ]);
   return [...found].sort();
 }

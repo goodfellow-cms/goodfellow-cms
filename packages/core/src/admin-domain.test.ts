@@ -10,7 +10,9 @@ import {
   pageFileKind,
   SITE_HEADERS_MARK,
   siteGuard,
+  startsAsMarkup,
   startsWithGuard,
+  typedByContent,
   vercelAdminHeaders,
   vercelAdminRedirects,
   vercelHeaders,
@@ -45,6 +47,38 @@ describe("admin addresses", () => {
     expect(pageFileKind("assets/site.js")).toBeUndefined();
     expect(pageFileKind("media/photo.jpg")).toBeUndefined();
     expect(pageFileKind("CNAME")).toBeUndefined();
+    // Only the table's own extensions, never what every object has.
+    expect(pageFileKind("media/x.constructor")).toBeUndefined();
+    expect(pageFileKind("media/x.__proto__")).toBeUndefined();
+    expect(pageFileKind("media/x.toString")).toBeUndefined();
+    expect(pageFileKind("schema.xsd")).toBe("xml");
+  });
+
+  it("knows a file that starts as a page does, as a host typing it by what it holds would take it", () => {
+    const bytes = (text: string) => new TextEncoder().encode(text);
+    for (const start of [
+      "<html>",
+      "  <script>",
+      "\ufeff<p>",
+      "<!--x-->",
+      "<?xml version='1.0'?>",
+      "\n</x>",
+      "<A HREF=x>",
+    ]) {
+      expect(startsAsMarkup(start), start).toBe(true);
+      expect(startsAsMarkup(bytes(start)), start).toBe(true);
+    }
+    // Whitespace to the end of what's read could hide a tag after it.
+    expect(startsAsMarkup(`${" ".repeat(1024)}<script>`)).toBe(true);
+    expect(startsAsMarkup(bytes(`\ufeff${"\n".repeat(1100)}<html>`))).toBe(true);
+    expect(pageFileKind("chrome/bindings.xbl")).toBe("xml");
+    for (const start of ["", "   ", "WEBVTT", "a,b,c", "< not a tag", "<3", '{"x":1}', "x <html>"]) {
+      expect(startsAsMarkup(start), start).toBe(false);
+      expect(startsAsMarkup(bytes(start)), start).toBe(false);
+    }
+    expect(typedByContent("media/notes.txt")).toBe(true);
+    expect(typedByContent("CNAME")).toBe(true);
+    expect(typedByContent("assets/app.JS")).toBe(false);
   });
 });
 

@@ -109,6 +109,38 @@ describe("checkPublish", () => {
     expect(checks.warnings).toEqual([]);
   });
 
+  it("stops a publish that would leave the site's content unreadable, naming each file", async () => {
+    const site = { blocks: config.blocks, code: localSiteCode(config) };
+    // An item in a folder whose collection was deleted meanwhile, and a file that isn't JSON.
+    for (const [path, content] of [
+      ["content/collections/gone/picnic.json", JSON.stringify({ version: 1, fields: { title: "Picnic" } })],
+      ["content/media-storage.json", "{"],
+      ["content/pages/new.json", JSON.stringify({ version: 99, data: { root: { props: {} }, content: [] } })],
+    ] as const) {
+      const checks = await checkPublish(source, await loaded(), [{ path, content }], site);
+      expect(
+        checks.blocking.map((problem) => problem.kind),
+        path,
+      ).toEqual(["unreadable"]);
+      expect(checks.blocking.map((problem) => describeProblem(t, checks.content, problem))[0], path).toContain(path);
+    }
+  });
+
+  it("leaves a file someone else left unreadable to them, stopping only what the publish brings", async () => {
+    const site = { blocks: config.blocks, code: localSiteCode(config) };
+    const files: Record<string, string> = { ...FILES, "content/media-storage.json": "{" };
+    const broken: ContentSource = {
+      read: async (path) => files[path],
+      list: async (dir) => Object.keys(files).filter((path) => path.startsWith(`${dir}/`)),
+    };
+    const typo = [{ path: "content/pages/index.json", content: FILES["content/pages/index.json"] ?? "" }];
+    expect((await checkPublish(broken, await loaded(), typo, site)).blocking).toEqual([]);
+    const more = [...typo, { path: "content/pages/new.json", content: "{" }];
+    expect((await checkPublish(broken, await loaded(), more, site)).blocking.map((problem) => problem.file)).toEqual([
+      "content/pages/new.json",
+    ]);
+  });
+
   it("knows the pages of items that come from a source, which aren't the site's files", async () => {
     const files: Record<string, string> = {
       ...FILES,

@@ -47,6 +47,7 @@ import {
   PURPOSES,
   parseChoices,
   SIGN_IN_PLACES,
+  signInProblem,
   VISIBILITIES,
 } from "./site-setup-choices";
 import { button, fetchJson, input, LockfileWarning, link, Note, Question, type Starter } from "./site-setup-ui";
@@ -232,6 +233,20 @@ export function SiteCreateForm({ githubSignIn, gitlabClientId }: SiteCreateFormP
       </Note>
     );
   }
+  // A link can carry choices the first step wouldn't take, such as a sign-in page's domain that isn't one, so they're
+  // checked again here, before anything is created.
+  const problem = signInProblem(choices);
+  if (problem) {
+    return (
+      <Note tone="warning">
+        {problem}{" "}
+        <SiteLink className={link} href={`${CHOOSE_PATH}?${choicesQuery(choices)}`}>
+          Change the site's options
+        </SiteLink>{" "}
+        first.
+      </Note>
+    );
+  }
   return (
     <CreateSite
       choices={choices}
@@ -265,7 +280,9 @@ function Summary({ choices }: { choices: Choices }) {
       choices.signIn === "admin-address"
         ? `At ${choices.admin}`
         : choices.signIn === "broker"
-          ? `At a sign-in page of its own, on ${BROKER_HOSTS[choices.brokerHost].label}`
+          ? choices.brokerHost === "github-pages"
+            ? `At a sign-in page of its own, on ${BROKER_HOSTS[choices.brokerHost].label}, at ${choices.brokerDomain}`
+            : `At a sign-in page of its own, on ${BROKER_HOSTS[choices.brokerHost].label}`
           : SIGN_IN_PLACES["admin-panel"].label,
     ],
   ];
@@ -914,7 +931,9 @@ function Created({
         <Note>
           Editors' sign-in page is in <RepoLink repo={broker.created} />.{" "}
           {choices.brokerHost === "github-pages"
-            ? `GitHub Pages puts it online at ${choices.brokerDomain} once you point the domain at GitHub Pages, as the repository's Settings → Pages says.`
+            ? broker.created.warnings.includes("domain-unavailable")
+              ? `GitHub didn't take ${choices.brokerDomain} as its GitHub Pages domain: add it under the repository's Settings → Pages, then point the domain at GitHub Pages.`
+              : `GitHub Pages puts it online at ${choices.brokerDomain} once you point the domain at GitHub Pages, as the repository's Settings → Pages says.`
             : choices.brokerHost === "gitlab-pages"
               ? "GitLab Pages puts it online at an address of its own, shown under Deploy → Pages in its project once it's built."
               : `Put it online with ${BROKER_HOSTS[choices.brokerHost].label}, as its README says.`}{" "}

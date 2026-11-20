@@ -83,11 +83,12 @@ Content files are the product's data format; treat changes to them like API chan
   fields a block shows as HTML (`metadata: { html: true }`, `isHtmlField()`, which the registry's `custom-html` marks)
   by where each sits in the owners' HTML (`fillHtml()`: escaped as text or as any attribute's value, an address at the
   start of one a browser follows or loads (`ADDRESS_ATTRIBUTES`) only where `isSafeUrl()` takes it, and left out in a
-  tag outside a value, an `on…` attribute, `srcdoc`, the address of code (`CODE_ADDRESSES`: a script's, `<base>`'s),
-  `RAW_TEXT` elements such as scripts and styles, and after `<svg>` or `<math>` (`FOREIGN`), read by other rules).
-  Blocks that need the entry itself read `useSite().entry` and `useSite().collection`, or Puck's `metadata` in
-  `resolveFields` and `resolveData`. Wrap blocks that only make sense in templates in `templateOnly()`, which leaves
-  them out of the page, header, and footer editors.
+  tag outside a value, an address the owners made a script one themselves (`javascript:show('{title}')`, `data:…`), an
+  `on…` attribute, `srcdoc`, the address of code (`CODE_ADDRESSES`: a script's, `<base>`'s), `RAW_TEXT` elements such as
+  scripts and styles, and after `<svg>` or `<math>` (`FOREIGN`), read by other rules). Blocks that need the entry itself
+  read `useSite().entry` and `useSite().collection`, or Puck's `metadata` in `resolveFields` and `resolveData`. Wrap
+  blocks that only make sense in templates in `templateOnly()`, which leaves them out of the page, header, and footer
+  editors.
 - **Rich text from entries** is rendered through a hidden `richtext` field that `resolveData` fills in, so it's cleaned
   like any other rich text (see Puck's Rich text). Never render an entry's HTML directly.
 - **Markdown items:** a collection with `markdown: { body }` stores items as `<slug>.md`, the body field as the Markdown
@@ -869,8 +870,9 @@ Content files are the product's data format; treat changes to them like API chan
   update settings, media storage) and the Site address always stay. What uses blocks the site lacks is left out, or
   brought in without them (`withoutMissingBlocks`); missing blocks the export installed from Goodfellow's registry are
   `installable`, and counted present when `installing`. Media the export's storage keeps is linked at its address
-  (`withStoredAddresses()`), or listed in the site's storage where it's the same. Notes are data the admin panel and
-  `formatSiteImport()` put in words.
+  (`withStoredAddresses()`), or listed in the site's storage where it's the same. Blocks set as only owners would
+  (`options.ownersOnly`, `ownersOnlyChanges()` against the site's files) are noted (`owners-blocks`), and a visit
+  counter's script with custom code (`code`). Notes are data the admin panel and `formatSiteImport()` put in words.
 - **Where:** the Import / Export tab's `SiteImportSection` reads the zip with fflate, compares media both have by their
   bytes (`sameMedia`), leaves out what uploads refuse (`uncopied`), re-plans as choices change, and publishes
   everything, with Goodfellow's registry blocks it chose added in the same publish through `planBlockChanges()` (only
@@ -895,10 +897,12 @@ Content files are the product's data format; treat changes to them like API chan
   the starters', must pass the contrast check; a test checks this.
 - **When publishing:** `useAdmin().publish()` runs `checkPublish()` (`site-checks.ts`), which loads the site as the
   changes would leave it and compares it with the site as loaded (`publishProblems()`): errors the publish brings stop
+  it, a file the changes leave unreadable as content too (`unreadable`, from the loader's `ContentError`, unless the
+  site as it is now can't read the same file either), since neither builds nor the admin panel could open the site with
   it, and warnings it brings to the files it changes (rendered problems compared with the same pages rendered as they
   were) are listed, so a warning published anyway isn't asked about again. `ChecksDialog` lists them, in the string
-  table's words (`describeProblem()`), and offers **Publish anyway** for warnings only. Going back returns
-  `reason: "checks"`, which screens show nothing for. Publishes that can't break a link and that the editor didn't write
+  table's words (`describeProblem()`), and offers **Publish anyway** for warnings only. Going back returns `reason:
+  "checks"`, which screens show nothing for. Publishes that can't break a link and that the editor didn't write
   (uploads, the Domain screen's address, update settings, stock photos) pass `{ checks: false }`. The Theme tab shows
   `contrastProblems()` as colors are chosen.
 - **Moves update links:** moving a page (`movePageChanges()`), renaming an item (`moveEntryChanges()`) and changing a
@@ -2028,12 +2032,16 @@ Content files are the product's data format; treat changes to them like API chan
   editor's frames or plugins', whose `EDITOR_PRELUDE` refuses to run outside a sandboxed frame), checks each with
   `startsWithGuard()`, which refuses anything that could run first (a script, an `on…` attribute, a frame, an XML
   stylesheet, a comment browsers end sooner than it seems to, `<!-->`, `<!--->` or `--!>`), and fails the build, naming
-  them, if any can't. The site's guard writes `<plaintext hidden>`, stops the page, and goes to the same page at the
-  Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`, so XML can hold them in
-  CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`) leaves none by default; an
-  empty root element (`<svg …/>`) is opened and closed around the guard. `admin-domain.spec.ts` tries every way a script
-  could run before them (`e2e/fixtures/admin-domain`) in Chromium, Firefox, and WebKit, which with `preact.spec.ts` are
-  the only specs the Firefox and WebKit projects run.
+  them, if any can't. Every other file whose name a host may have no type for (`typedByContent()`: any but
+  `TYPED_BY_NAME`'s) that starts as a page does (`startsAsMarkup()`, a `<` and a tag's first character past a byte order
+  mark and whitespace, or whitespace to the end of its first 1,024 bytes) fails it too, since GitLab Pages types such a
+  file by its first bytes; `safeMediaChanges()` and `unsafeMediaChanges()` refuse such uploads (`UploadError` `markup`),
+  and the broker asks before them (`media-code`). The site's guard writes `<plaintext hidden>`, stops the page, and goes
+  to the same page at the Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`,
+  so XML can hold them in CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`)
+  leaves none by default; an empty root element (`<svg …/>`) is opened and closed around the guard.
+  `admin-domain.spec.ts` tries every way a script could run before them (`e2e/fixtures/admin-domain`) in Chromium,
+  Firefox, and WebKit, which with `preact.spec.ts` are the only specs the Firefox and WebKit projects run.
 - **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add
   `cloudflareSiteHeaders()` to `_headers` with `writeSiteHeaders()` (after the site's own, once, by
   `SITE_HEADERS_MARK`): `SITE_HEADERS` everywhere, `SVG_MEDIA_HEADERS` (`sandbox`) on the media library's SVGs, never
@@ -2597,10 +2605,11 @@ of it.
   theme, or removing it (`theme` undefined), replaces what the theme before gave and lists owners' changes it replaces
   as `replaced`. `themeLoads()` lists what the theme would have browsers load besides Google Fonts, `/media/`, and data
   addresses (from its CSS with `themeCssLoads()`, its parts' classes, such as Tailwind's arbitrary `url()` backgrounds,
-  and its header's and footer's props), which the admin panel shows before installing. A theme's header and footer may
-  use only `THEME_LAYOUT_BLOCKS`, built-in blocks that load and run nothing (a site's own or registry blocks, such as
-  Custom HTML, could run a theme's code), so `themeUnknownBlocks()` lists any other, which keeps them from being used,
-  and `fetchTheme()` refuses a theme whose header or footer holds a `javascript:`, `vbscript:` or `data:` address.
+  and the settings of its header's and footer's blocks whose address the page loads, `THEME_LOADED_PROPS`, which a test
+  in `@goodfellow-cms/blocks` keeps complete), which the admin panel shows before installing. A theme's header and
+  footer may use only `THEME_LAYOUT_BLOCKS`, built-in blocks that load and run nothing (a site's own or registry blocks,
+  such as Custom HTML, could run a theme's code), so `themeUnknownBlocks()` lists any other, which keeps them from being
+  used, and `fetchTheme()` refuses a theme whose header or footer holds a `javascript:`, `vbscript:` or `data:` address.
 - **The admin panel:** Site Settings' Themes screen (`themes-screen.tsx`) searches, shows a theme's release, provenance,
   swatches, and a preview of any of the site's pages (`allPages()`) with the plan applied (`PreviewFrame`), and
   installs, updates, and removes it through `publish()`. Themes never update by themselves: nothing else, the nightly
@@ -2625,8 +2634,13 @@ of it.
   its build steps, each a Node process of its own with `--permission` (`runPluginBuildSteps()` in
   `@goodfellow-cms/core/node`'s `node-plugins.ts`, which makes declared write folders first, since Node takes a missing
   path for a file, and gives no reserved variables such as `GITHUB_TOKEN`, `GOODFELLOW_*`, or `NODE_OPTIONS`; `read`
-  takes no patterns, `.git`, or files of secrets, `isPluginReadPath()`). Server modules, steps' network requests, and
-  blocks on the site's pages can't be held to anything, and the docs say so.
+  takes no patterns, `.git`, or files of secrets, `.npmrc` and `.netrc` among them, in any letter case or Windows short
+  name, `isPluginReadPath()`, and no path part ending in a dot or a space or holding a `:`, which Windows reads
+  otherwise, and no path that is really such a file, outside the site, or a link to nowhere, and no folder holding
+  such a file or a link out of it or that can't be read through, `secretsUnder()`, since Node gives a folder's every
+  file and follows links; it checks only the declared paths, never the plugin's own package or `node_modules`, which
+  are given too). Server modules, steps' network requests, and blocks on the site's pages can't be held to anything,
+  and the docs say so.
 - **Admin frames:** each plugin's admin module is bundled with `pluginFrameEntry()` and `mountPluginFrame()` from
   `@goodfellow-cms/admin/plugin` (`plugin.ts`, with `plugin.css`, the admin panel's `--gfa-*` colors), as one classic
   script starting with `EDITOR_PRELUDE`, at `admin/plugins/<id>/` (`PLUGINS_PATH`, `pluginId()`, beside the editor's

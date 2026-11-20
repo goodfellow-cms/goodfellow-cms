@@ -367,6 +367,27 @@ test("recommends a sign-in page of its own, or with a domain chooses an admin ad
   await expect(signIn("At a sign-in page of its own")).toContainText("Recommended");
 });
 
+test("checks the sign-in choices a link carries again before creating anything, and names the sign-in page's domain", async ({
+  page,
+}) => {
+  const choices = "purpose=personal&git=github&signIn=broker&brokerHost=github-pages";
+  for (const brokerDomain of ["", "&brokerDomain=someone.github.io", "&brokerDomain=not%20a%20domain"]) {
+    await page.goto(`${CREATE}?${choices}${brokerDomain}`, { waitUntil: "networkidle" });
+    await expect(page.getByText("Type the sign-in page's own domain"), brokerDomain).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create the site" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Change the site's options" })).toHaveAttribute(
+      "href",
+      /\/new-site\/\?purpose=personal/,
+    );
+  }
+  await page.goto(`${CREATE}?${choices}&brokerDomain=signin.example.org`, { waitUntil: "networkidle" });
+  await expect(page.getByRole("region", { name: "Your choices" })).toContainText("at signin.example.org");
+  await page.goto(`${CREATE}?purpose=personal&git=gitlab&signIn=admin-address&admin=http://admin.example.org`, {
+    waitUntil: "networkidle",
+  });
+  await expect(page.getByText("Type the admin address as https://")).toBeVisible();
+});
+
 test("names an admin address of its own in a new site's config", async ({ page }) => {
   const gitlab = fakeGitLab({ project: "someone/existing", tokens: { "gl-token": { username: "someone" } } });
   await routeToFake(page, "https://gitlab.com", gitlab.handle);

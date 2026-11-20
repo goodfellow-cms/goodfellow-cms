@@ -62,6 +62,17 @@ describe("media changes a server refuses", () => {
       ]),
     ).toEqual(["public/media/page.html", "public/media/a.Svg"]);
   });
+
+  it("are files that start as a page does, which a host typing files by what they hold would open as one", () => {
+    expect(
+      unsafeMediaChanges([
+        { path: "public/media/notes.txt", bytes: bytes("<html><script>x()</script>") },
+        { path: "public/media/talk.vtt", content: "\ufeff <!-- --><script>x()</script>" },
+        { path: "public/media/readme.txt", content: "Notes: <b>bold</b>" },
+        { path: "public/media/talk2.vtt", content: "WEBVTT\n\n00:00.000 --> 00:01.000\n<b>Hi</b>" },
+      ]),
+    ).toEqual(["public/media/notes.txt", "public/media/talk.vtt"]);
+  });
 });
 
 describe("cssWithoutOutsideAddresses", () => {

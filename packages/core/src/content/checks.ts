@@ -39,6 +39,11 @@ import { sitePages } from "./site-pages.js";
 import { syncedBlockProblems } from "./synced-blocks.js";
 
 export type SiteProblem =
+  /**
+   * A file that can't be read as the site's content (`message` says why, in English), so the site couldn't be built
+   * or its admin panel opened with it: only a publish's checks find one, since a site with one doesn't load.
+   */
+  | { kind: "unreadable"; severity: "error"; file: string; message: string }
   /** A link to a page or item the site doesn't have. */
   | { kind: "missing-page"; severity: "error"; file: string; target: string }
   /** An item's link to an item (`target`, its name) that isn't in `collection`. */
@@ -323,6 +328,8 @@ export function checkSite(content: SiteContent, options: SiteCheckOptions): Site
 /** What makes a problem the same one before and after a change. */
 export function problemKey(problem: SiteProblem): string {
   switch (problem.kind) {
+    case "unreadable":
+      return `${problem.kind} ${problem.file}`;
     case "missing-page":
     case "missing-media":
     case "unsafe-link":
@@ -379,6 +386,8 @@ export function publishProblems(
 /** A problem as developers' tools say it, such as `goodfellow build`, naming the file it's in. */
 export function formatSiteProblem(problem: SiteProblem): string {
   switch (problem.kind) {
+    case "unreadable":
+      return `${problem.file} can't be read as content: ${problem.message}`;
     case "missing-page":
       return `${problem.file} links to ${problem.target}, which isn't a page or item on the site.`;
     case "missing-item":

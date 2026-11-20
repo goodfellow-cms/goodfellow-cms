@@ -7,7 +7,7 @@
  * offers, never the backend's own requests, and lets the broker check each
  * call before making it (`brokerChangeCheck()`).
  */
-import { adminOrigin } from "./admin-domain.js";
+import { adminOrigin, startsAsMarkup } from "./admin-domain.js";
 import { CommentsError } from "./comments.js";
 import { extensionOf, mediaKind } from "./content/media-files.js";
 import { CONTENT_DIR, MEDIA_DIR } from "./content/paths.js";
@@ -181,11 +181,14 @@ export function brokerChangeCheck(changes: readonly FileChange[], siteUrl: strin
     else if (path.startsWith(`${CONTENT_DIR}/code/`)) check.confirm.push({ path, kind: "custom-code" });
     else if (!isContentPath(path)) check.confirm.push({ path, kind: "code" });
     // The media library's own kinds can't run on the site's address, but for SVGs, whose cleaning the broker can't
-    // check; anything else there (a page, a script) could.
+    // check, and a file that starts as a page does, which a host typing files by what they hold would open as one;
+    // anything else there (a page, a script) could.
     else if (
       path.startsWith(`${MEDIA_DIR}/`) &&
       !("delete" in change) &&
-      (!mediaKind(path) || extensionOf(path) === "svg")
+      (!mediaKind(path) ||
+        extensionOf(path) === "svg" ||
+        startsAsMarkup("content" in change ? change.content : change.bytes))
     ) {
       check.confirm.push({ path, kind: "media-code" });
     } else if (path === `${CONTENT_DIR}/site.json`) {

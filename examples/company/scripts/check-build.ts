@@ -4,8 +4,13 @@
 // config of its own could name a command for wrangler to run before uploading (build), an image to build
 // (containers), or files outside dist/ to upload with the Worker, such as the deploy's own environment.
 //
-// Run from the site's folder, after the build's files are in place: `node scripts/check-build.ts`.
-import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+// Run from the site's folder: `node scripts/check-build.ts <folder>`, where <folder> is where the build's artifact was
+// downloaded, outside the checkout. The artifact is made on the build job's machine, where the site's code runs and
+// could change the upload action itself, so it can hold any file: downloaded into the checkout, a .env would change
+// where wrangler sends the token, and a script, package-lock.json or .npmrc would replace this checkout's own. So only
+// its dist/ and .wrangler/deploy/config.json are taken, where it holds nothing else, and moved into the checkout
+// before they're checked. Without <folder>, the build's files are checked where they are.
+import { cpSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 /** JSON with comments and trailing commas, as wrangler.jsonc is written, read as JSON. */
@@ -158,7 +163,61 @@ function buildProblems(root: string): string[] {
   return problems;
 }
 
-const problems = buildProblems(process.cwd());
+/** What's wrong with the artifact in `folder`, which may hold only dist/ and .wrangler/deploy/config.json. */
+function artifactProblems(folder: string, root: string): string[] {
+  if (!existsSync(folder) || lstatSync(folder).isSymbolicLink() || !lstatSync(folder).isDirectory()) {
+    return ["The build's files aren't there."];
+  }
+  const [from, to] = [realpathSync(folder), realpathSync(root)];
+  if (from === to || within(from, to) || within(to, from)) {
+    return ["The build's files must be downloaded outside the checkout."];
+  }
+  const problems: string[] = [];
+  const CONFIG = ".wrangler/deploy/config.json";
+  const allowed = new Map([
+    ["", ["dist", ".wrangler"]],
+    [".wrangler", ["deploy"]],
+    [".wrangler/deploy", ["config.json"]],
+  ]);
+  const walk = (path: string) => {
+    for (const entry of readdirSync(join(folder, path), { withFileTypes: true })) {
+      const inside = path === "" ? entry.name : `${path}/${entry.name}`;
+      const stat = lstatSync(join(folder, inside));
+      const names = allowed.get(path);
+      // Outside dist/, only the folders and the one file named above; inside it, folders and files, never links.
+      const kept = names === undefined || (names.includes(entry.name) && stat.isDirectory() === (inside !== CONFIG));
+      // Read without following links, so a link is neither a folder nor a file.
+      if (!kept) problems.push(`The build handed over ${inside}.`);
+      else if (stat.isDirectory()) walk(inside);
+      else if (!stat.isFile()) problems.push(`The build's ${inside} is a link, or no file.`);
+    }
+  };
+  walk("");
+  for (const name of ["dist", ".wrangler"]) {
+    if (existsSync(join(root, name)) || isLink(join(root, name))) problems.push(`The checkout has ${name} already.`);
+  }
+  return problems;
+}
+
+/** Whether `path` is a link, whether or not it leads anywhere. */
+function isLink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+const root = process.cwd();
+const downloaded = process.argv[2];
+const taken = downloaded === undefined ? [] : artifactProblems(downloaded, root);
+if (downloaded !== undefined && taken.length === 0) {
+  for (const name of ["dist", ".wrangler"].filter((each) => existsSync(join(downloaded, each)))) {
+    cpSync(join(downloaded, name), join(root, name), { recursive: true, verbatimSymlinks: true });
+  }
+  rmSync(downloaded, { recursive: true, force: true });
+}
+const problems = taken.length > 0 ? taken : buildProblems(root);
 for (const problem of problems) console.log(`::error::${problem}`);
 if (problems.length > 0) {
   console.log("The deploy stops here: wrangler reads only a config that's wrangler.jsonc's, with files in dist/.");

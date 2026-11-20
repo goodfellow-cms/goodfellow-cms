@@ -14,6 +14,7 @@ import { mediaDetailsOf } from "./content/credits.js";
 import { ContentError } from "./content/errors.js";
 import { allPages, type ContentSource, loadSiteContent, type SiteContent } from "./content/load.js";
 import { type MediaStorage, mediaStorageFileSchema, withStoredAddresses } from "./content/media-storage.js";
+import { type OwnersOnlyFields, ownersOnlyChanges } from "./content/owners-only.js";
 import {
   COLLECTIONS_DIR,
   CONTENT_DIR,
@@ -221,6 +222,11 @@ export interface SiteImportOptions {
   installing?: readonly string[];
   /** Brings in pages and the rest that use blocks the site doesn't have, without those blocks, rather than leaving them out. */
   withoutMissingBlocks?: boolean;
+  /**
+   * The site's blocks' owners-only settings (`ownersOnlyFields(config.blocks)`), so the notes name what comes in
+   * with one set as only owners would, such as Custom HTML used exactly as written, whose scripts run on the page.
+   */
+  ownersOnly?: OwnersOnlyFields;
   /** The plugins the site has, by package name, so the notes list only the export's others. */
   plugins?: readonly string[];
   /** Media files the export and the site both have with the same bytes, which needn't be copied or asked about. */
@@ -267,8 +273,10 @@ export type SiteImportNote =
   | { kind: "languages"; codes: string[] }
   /** The export's plugins, which aren't installed. */
   | { kind: "plugins"; names: string[] }
-  /** Custom code comes in, which runs on every page. */
+  /** Custom code comes in, which runs on every page: in `content/code/`, or a visit counter's script. */
   | { kind: "code" }
+  /** Files that come in with blocks set as only owners would, such as Custom HTML used exactly as written. */
+  | { kind: "owners-blocks"; files: string[] }
   /** What stays as the site has it, whatever the export says. */
   | { kind: "kept"; things: ("address" | "limits" | "updates" | "storage")[] };
 
@@ -904,8 +912,21 @@ export async function planSiteImport(
   } catch {
     // A record that can't be read names no plugins.
   }
-  if ([...out.values()].some((change) => "content" in change && change.path.startsWith("content/code/"))) {
+  // A visit counter's script loads on every page too, from its service's address.
+  const statsCome = (() => {
+    const change = out.get(SITE_FILE);
+    if (!change || !("content" in change)) return false;
+    const next = (parsed(SITE_FILE, change.content) as { stats?: unknown } | undefined)?.stats;
+    return next !== undefined && !sameJson(next, siteSettings.stats);
+  })();
+  if (statsCome || [...out.values()].some((change) => "content" in change && change.path.startsWith("content/code/"))) {
     notes.push({ kind: "code" });
+  }
+  if (options.ownersOnly) {
+    const owned = await ownersOnlyChanges([...out.values()], options.ownersOnly, async (path) =>
+      siteFiles.has(path) ? site.read(path) : undefined,
+    );
+    if (owned.length > 0) notes.push({ kind: "owners-blocks", files: owned.sort() });
   }
   const kept: ("address" | "limits" | "updates" | "storage")[] = [];
   if (typeof theirs?.url === "string" && theirs.url !== siteSettings.url) kept.push("address");

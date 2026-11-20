@@ -231,6 +231,8 @@ export const strings: Strings = {
   "checks.missing-page": "{place} enlaza a {target}, que no es una página del sitio.",
   "checks.missing-item": "{place} enlaza a {target} en {collection}, que ya no está.",
   "checks.missing-media": "{place} usa {target}, que no está en la biblioteca multimedia.",
+  "checks.unreadable":
+    "{file} no se puede leer como contenido del sitio, así que el sitio no podría construirse con él, ni este panel de administración abrirse para deshacerlo. Deshaz tu cambio o pregunta a quien desarrolla el sitio qué necesita.",
   "checks.unsafe-link":
     "{place} enlaza a {target}, una dirección que ejecutaría código en el sitio. Las páginas la omiten: usa una dirección que empiece por https:// o una de las páginas del sitio.",
   "checks.no-title":
@@ -769,6 +771,8 @@ export const strings: Strings = {
   "media.error.unreadable":
     "No se pudo leer {name}. Puede estar dañado, o en un formato que los navegadores no abren, como HEIC. Guárdalo como JPEG e inténtalo de nuevo.",
   "media.error.font": "{name} es una fuente. Las fuentes se añaden en Ajustes del sitio, en Colores y fuentes.",
+  "media.error.markup":
+    "{name} empieza como una página web, así que algunos servicios lo abrirían como una página en la dirección del sitio. Guárdalo como PDF, o como texto sin el marcado, y vuelve a intentarlo.",
   "media.choose": "Elegir imagen",
   "media.chooseAudio": "Elegir archivo de sonido",
   "media.chooseFile": "Elegir archivo",
@@ -2016,6 +2020,8 @@ export const strings: Strings = {
   "siteTransfer.note.plugins":
     "El otro sitio usaba complementos que este sitio no tiene: {names}. Añádelos en Complementos si los necesitas.",
   "siteTransfer.note.code": "Llega código personalizado. Se ejecuta en todas las páginas, así que revísalo antes.",
+  "siteTransfer.note.ownersBlocks":
+    "Con {items} llegan bloques configurados como solo los propietarios lo harían, como HTML personalizado usado tal como está escrito, cuyos scripts se ejecutan en la página. Revísalos antes.",
   "siteTransfer.note.kept": "Se queda como lo tiene este sitio: {things}.",
   "siteTransfer.kept.address": "la dirección del sitio",
   "siteTransfer.kept.limits": "los límites de los editores",

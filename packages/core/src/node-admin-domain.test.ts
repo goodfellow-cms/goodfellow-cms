@@ -96,6 +96,35 @@ describe("guardBuiltSite", () => {
     );
   });
 
+  it("guards XML that hosts type by other names, and refuses a file that starts as a page under another name", async () => {
+    await write("index.html", "<html><head></head></html>");
+    await write("schema.xsd", '<?xml version="1.0"?><schema xmlns="http://www.w3.org/2001/XMLSchema"></schema>');
+    await write("robots.txt", "User-agent: *\nAllow: /\n");
+    await write("assets/app.js", "<!-- an old comment -->\nconsole.log(1);");
+    expect(await guardBuiltSite(dir, options)).toBe(2);
+    expect(startsWithGuard(await read("schema.xsd"), "xml")).toBe(true);
+    // GitLab Pages types a file it has no type for by its first bytes, so notes.txt would be a page there.
+    for (const [path, text] of [
+      ["media/notes.txt", "<html><script>steal()</script>"],
+      ["media/notes.vtt", "\ufeff  <script>steal()</script>"],
+      ["data", "<?xml version='1.0'?><x/>"],
+      ["media/old.ico", "<!-- --><script>steal()</script>"],
+    ] as const) {
+      await write(path, text);
+      await expect(guardBuiltSite(dir, options), path).rejects.toThrow(path);
+      await rm(join(dir, path));
+    }
+    // Read many at a time, every one is still checked, and each named.
+    const names = Array.from({ length: 150 }, (_, index) => `fonts/f${String(index).padStart(3, "0")}.woff`);
+    for (const name of names) await write(name, "<html>");
+    const refused = await guardBuiltSite(dir, options).catch((error: Error) => error.message);
+    expect(
+      String(refused)
+        .match(/fonts\/f\d+\.woff/g)
+        ?.sort(),
+    ).toEqual(names);
+  });
+
   it("refuses a page whose comment a browser ends before the guard", async () => {
     await write("index.html", "<html><head></head></html>");
     await write("early.html", "<!--><script>steal()</script>--><html><head></head></html>");

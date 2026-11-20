@@ -181,6 +181,45 @@ describe("what a theme's header and footer may do", () => {
     expect(themeLoads(theme)).toEqual(["https://images.example/sea.jpg", "https://tracker.example/pixel.gif"]);
   });
 
+  it("lists every address its header and footer would load, whatever it ends in, and in HTML however it's quoted", () => {
+    const section = (backgroundImage: string) => ({ type: "Section", props: { id: "a", backgroundImage } });
+    const text = (html: string) => ({ type: "Text", props: { id: "t", text: html } });
+    for (const [block, address] of [
+      [section("https://tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("https://tracker.example/p.png/x"), "https://tracker.example/p.png/x"],
+      [section("//tracker.example/a)b"), "//tracker.example/a)b"],
+      [text("<img src=https://tracker.example/pixel>"), "https://tracker.example/pixel"],
+      [text('<img srcset="/media/a.png 1x, https://tracker.example/pixel 2x">'), "https://tracker.example/pixel"],
+      // A srcset's address may hold commas, and descriptors' parentheses too, as browsers read them.
+      [text('<img srcset="https://tracker.example/a,b 1x,/media/b.png 2x">'), "https://tracker.example/a,b"],
+      [text('<img srcset="/media/a.png (x, y) 1x,, https://tracker.example/c,">'), "https://tracker.example/c"],
+      // The first `)` ends them, however many `(` came before.
+      [text('<img srcset="/media/a.png ((x), https://tracker.example/q 2x">'), "https://tracker.example/q"],
+      // Character references are read as the browser reads them.
+      [text('<img srcset="https://tracker.example/p?a=1&amp;b=2 1x">'), "https://tracker.example/p?a=1&b=2"],
+      [text("<img src='&sol;&#47;tracker.example&#x2F;q'>"), "//tracker.example/q"],
+      // A reference to whitespace separates candidates, as browsers read it, so none hides inside another.
+      [text('<img srcset="/media/a.png&Tab;1x,https://tracker.example/t 2x">'), "https://tracker.example/t"],
+      [text('<img srcset="/media/a.png&NewLine;1x&comma;https://tracker.example/n 2x">'), "https://tracker.example/n"],
+      // Numeric references without their ";", and with as many digits as they like.
+      [text('<img srcset="/media/a.png&#9,https://tracker.example/s 2x">'), "https://tracker.example/s"],
+      [text('<img srcset="/media/a.png&#x00000000009;1x,https://tracker.example/z 2x">'), "https://tracker.example/z"],
+      [text("<video poster='https://tracker.example/still'>"), "https://tracker.example/still"],
+    ] as const) {
+      expect(themeLoads(withLayout([block])), address).toEqual([address]);
+    }
+    // A link's address is only followed when someone chooses it, and the site's own media and Google Fonts load
+    // from where the site does already.
+    const button = { type: "Button", props: { id: "b", label: "Shop", href: "https://shop.example/" } };
+    // Words that are an address are only shown, and a setting that's a link only followed.
+    const words = { type: "Heading", props: { id: "h", text: "https://stanne.example.org" } };
+    const linked = {
+      type: "SiteBrand",
+      props: { id: "s", url: "https://stanne.example.org/", link: "//shop.example/" },
+    };
+    expect(themeLoads(withLayout([button, words, linked, section("/media/sea.jpg")]))).toEqual([]);
+  });
+
   it("refuses a theme whose header holds an address that would run code", async () => {
     const files = sampleThemeFiles({ header: true });
     files["header.json"] = (files["header.json"] ?? "").replace('"menu": "main"', '"menu": "javascript:alert(1)"');

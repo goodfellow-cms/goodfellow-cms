@@ -112,6 +112,7 @@ const uploadProblems: Record<UploadError["problem"], StringKey> = {
   size: "media.error.size",
   unreadable: "media.error.unreadable",
   font: "media.error.font",
+  markup: "media.error.markup",
 };
 
 export type UploadResult =

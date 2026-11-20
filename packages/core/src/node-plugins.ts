@@ -4,15 +4,22 @@
  * sites' server modules.
  */
 import { spawn } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { type Dirent, existsSync, realpathSync } from "node:fs";
+import { lstat, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { mediaStorageFileSchema } from "./content/media-storage.js";
 import { MEDIA_STORAGE_FILE } from "./content/paths.js";
 import { TASK_OUTPUT_LIMIT, type TaskAnswer } from "./plugin-tasks.js";
-import { type GoodfellowPlugin, isPluginOrigin, type PluginBuildContext, type PluginTaskContext } from "./plugins.js";
+import {
+  type GoodfellowPlugin,
+  isPluginOrigin,
+  isSecretName,
+  type PluginBuildContext,
+  type PluginTaskContext,
+} from "./plugins.js";
+import { trimChars } from "./trim.js";
 
 export type { PluginServer } from "./server-app-api.js";
 
@@ -50,6 +57,77 @@ function withRealPath(path: string): string[] {
   } catch {
     return [path];
   }
+}
+
+/** A path relative to the site, written with `/`. */
+function sitePath(root: string, file: string): string {
+  return relative(root, file).split(sep).join("/") || ".";
+}
+
+/**
+ * What a plugin may read that it mustn't, relative to the site: Node's permission model follows a path's links and
+ * gives a folder's every file, so a path that really is a secret (`isSecretName()`) or somewhere outside the site, a
+ * secret file anywhere under a folder, or a link from it to somewhere outside it, would be read too. A path that's a
+ * broken link, or a folder that can't be read through to its last file, is named as well, since what it holds can't
+ * be checked. `.gitkeep` and `.gitignore` are kept, since they hold none.
+ */
+export async function secretsUnder(root: string, paths: readonly string[]): Promise<string[]> {
+  const found: string[] = [];
+  const site = await realpath(root).catch(() => resolve(root));
+  for (const path of paths) {
+    // Without its trailing `/`, so a link is looked at as a link, not as what it points to.
+    const folder = join(root, trimChars(path, "/\\", { start: false }));
+    let real: string;
+    try {
+      real = await realpath(folder);
+    } catch {
+      // Nothing there is fine, since there's nothing to read; a link to nowhere could be made to point anywhere.
+      if (
+        await lstat(folder).then(
+          () => true,
+          () => false,
+        )
+      )
+        found.push(sitePath(root, folder));
+      continue;
+    }
+    const inSite = relative(site, real);
+    if (
+      inSite === ".." ||
+      inSite.startsWith(`..${sep}`) ||
+      isAbsolute(inSite) ||
+      inSite.split(sep).some(isSecretName)
+    ) {
+      found.push(sitePath(root, folder));
+      continue;
+    }
+    let entries: Dirent[];
+    try {
+      if (!(await stat(real)).isDirectory()) continue;
+      entries = await readdir(folder, { recursive: true, withFileTypes: true });
+    } catch {
+      found.push(sitePath(root, folder));
+      continue;
+    }
+    for (const entry of entries) {
+      const file = join(entry.parentPath, entry.name);
+      const named = relative(folder, file).split(sep).some(isSecretName);
+      let outside = false;
+      if (entry.isSymbolicLink()) {
+        const target = await realpath(file).catch(() => undefined);
+        outside = target === undefined || (target !== real && !target.startsWith(`${real}${sep}`));
+      }
+      if (named || outside) found.push(sitePath(root, file));
+    }
+  }
+  return [...new Set(found)].sort();
+}
+
+/** Why a plugin can't be given its folders, naming what's in them, or `undefined` where nothing is. */
+async function readProblem(plugin: GoodfellowPlugin, root: string): Promise<string | undefined> {
+  const found = await secretsUnder(root, plugin.permissions?.read ?? []);
+  if (found.length === 0) return undefined;
+  return `${plugin.title} may read secrets, links out of its folders, or folders that couldn't be checked, which it would read too: ${found.join(", ")}. Move ${found.length === 1 ? "it" : "them"} elsewhere, or ask the plugin's author to name narrower folders.`;
 }
 
 /**
@@ -128,6 +206,8 @@ export async function runPluginBuildSteps(options: PluginBuildOptions): Promise<
   const ran: PluginBuildStepRunInfo[] = [];
   for (const plugin of options.plugins) {
     for (const step of plugin.build ?? []) {
+      const problem = await readProblem(plugin, root);
+      if (problem) throw new PluginBuildError(plugin.name, step.id, problem);
       const file = resolvePluginModule(root, step.module);
       const permissions = plugin.permissions ?? {};
       const reads = [
@@ -316,6 +396,8 @@ export async function runPluginTask(options: PluginTaskOptions): Promise<TaskAns
   const { plugin } = options;
   const task = plugin.tasks?.find((candidate) => candidate.id === options.task);
   if (!task) return { ok: false, error: `${plugin.title} has no task called "${options.task}".` };
+  const problem = await readProblem(plugin, root);
+  if (problem) return { ok: false, error: problem };
   const file = resolvePluginModule(root, task.module);
   const permissions = plugin.permissions ?? {};
   const reads = [

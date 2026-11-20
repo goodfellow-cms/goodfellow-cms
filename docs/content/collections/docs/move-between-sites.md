@@ -44,7 +44,7 @@ Whichever way you import, these stay as the receiving site has them:
 
 - **Newer releases:** a file from a newer release of Goodfellow than this site's is refused until this site is [updated](/docs/updates). Older ones are brought up to date as they're read.
 - **Large files:** the admin panel publishes everything at once. Media files over 25 MB, and files the media library doesn't take, are left out, as with uploads; very large sites may be slow to publish, or hit the host's limits. The command line has neither limit.
-- **Custom code** comes in with **Site Settings** or **Replace this site's content**, and the list says so, since it runs on every page.
+- **Custom code**, and a visit counter's script, come in with **Site Settings** or **Replace this site's content**, and the list says so, since they run on every page. So does a page, template, or header that comes in with a block set as only owners would set it, such as Custom HTML used exactly as written, whose scripts run on its page: check those before publishing an export someone else made.
 - **Who can:** importing changes Site Settings, so it's for owners. On a [full-stack Next.js site](/docs/full-stack-nextjs), the server refuses an editor's import of settings.
 
 ## From the command line

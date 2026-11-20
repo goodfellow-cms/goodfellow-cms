@@ -3,6 +3,7 @@ import {
   type CollectionFile,
   type CollectionSource,
   type CollectionSources,
+  ContentError,
   type ContentSource,
   checkSite,
   collectionSettingsFile,
@@ -58,6 +59,11 @@ export interface PublishChecks {
 /** The media library's files as the addresses content uses, such as `/media/photo.jpg`. */
 function mediaAddresses(paths: Iterable<string>): string[] {
   return [...paths].filter((path) => path.startsWith(`${MEDIA_DIR}/`)).map(mediaUrl);
+}
+
+/** A file the loader couldn't read, by the file and why, to compare the site before a publish and after it. */
+function unreadableKey(problem: { file: string; message: string }): string {
+  return `${problem.file}\n${problem.message}`;
 }
 
 /** The site as it would be once the changes are published, read like the site itself. */
@@ -137,9 +143,9 @@ export function askedWithSettings(
 
 /**
  * The site checks for a publish: the site as it's loaded, and as the changes
- * would leave it, with the pages they change rendered. A site the changes
- * would leave unreadable isn't checked; loading it again after publishing
- * says what's wrong.
+ * would leave it, with the pages they change rendered. Files the changes would
+ * leave unreadable as content stop it (`unreadable`), since neither builds nor
+ * this admin panel could open the site with them.
  */
 export async function checkPublish(
   source: ContentSource,
@@ -167,6 +173,30 @@ export async function checkPublish(
   } catch (error) {
     // A sign-in that ran out is for signing in again, never for publishing without the checks.
     if (error instanceof SignInError) throw error;
+    // Files that can't be read as content would leave the site unbuildable, and this admin panel unable to open
+    // to undo them, so they stop the publish, each named.
+    if (error instanceof ContentError) {
+      // Only what the publish brings: a file someone else left unreadable since this editor loaded stops no one
+      // else's publish, as before these checks, so the site as it is now is read too, only here.
+      const already = await contentWithChanges(source, [], sourced).then(
+        () => new Set<string>(),
+        (now) => {
+          if (now instanceof SignInError) throw now;
+          return new Set(now instanceof ContentError ? now.problems.map(unreadableKey) : []);
+        },
+      );
+      const blocking = error.problems
+        .filter((problem) => !already.has(unreadableKey(problem)))
+        .map(
+          (problem): SiteProblem => ({
+            kind: "unreadable",
+            severity: "error",
+            file: problem.file,
+            message: problem.message,
+          }),
+        );
+      return { blocking, warnings: [], content: before };
+    }
     return { blocking: [], warnings: [], content: before };
   }
   const sources = typeof site.sources === "function" ? site.sources(after) : site.sources;
@@ -298,6 +328,9 @@ function languageName(content: SiteContent, code: string): string {
 /** What a problem means, in plain words. */
 export function describeProblem(t: Translate, content: SiteContent, problem: SiteProblem): string {
   switch (problem.kind) {
+    case "unreadable":
+      // The loader's reason is in English and technical, so the dialog shows it behind Details.
+      return t("checks.unreadable", { file: problem.file });
     case "missing-page":
     case "missing-media":
     case "unsafe-link":

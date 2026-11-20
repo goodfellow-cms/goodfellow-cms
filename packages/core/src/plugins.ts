@@ -587,17 +587,37 @@ const SECRET = /^[A-Z_][A-Z0-9_]*$/;
 const RESERVED_SECRETS =
   /^(GH_TOKEN|GITHUB_.*|ACTIONS_.*|RUNNER_.*|CI|CI_.*|GITLAB_.*|BITBUCKET_.*|VERCEL|VERCEL_.*|CF_.*|CLOUDFLARE_.*|NETLIFY|NETLIFY_.*|GOODFELLOW_.*|NODE_.*|NPM_.*)$/;
 
+/** Files of secrets no plugin reads, whatever it declares, by their names in lower case. */
+const SECRET_FILES = new Set([".dev.vars", ".npmrc", ".netrc", ".git-credentials"]);
+
+/**
+ * Whether a file or folder of this name holds secrets no plugin reads, inside a folder it may read too: git's folder
+ * (which holds any credentials a checkout keeps), `.env` files, and `SECRET_FILES`, whatever their letter case.
+ */
+export function isSecretName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === ".git" || lower.startsWith(".env") || SECRET_FILES.has(lower);
+}
+
 /**
  * Whether a build step or task may read a path: one in the site, never a
  * pattern Node's permission model would widen (`*`), git's folder, which
  * holds the history and any credentials checkouts keep, or files of secrets
- * (`.env`, `.env.local`, `.dev.vars`).
+ * (`.env`, `.env.local`, `.dev.vars`, and `.npmrc` and `.netrc`, which can
+ * hold a registry's or a host's token). Names are compared in lower case,
+ * since Windows' and macOS's file systems take `.ENV.local` and `.GIT` for the
+ * same files, and none may be a Windows short name (`GIT~1`).
  */
 export function isPluginReadPath(path: string): boolean {
   return (
     isRelativePath(path) &&
     !path.includes("*") &&
-    path.split("/").every((part) => !part.startsWith(".git") && !part.startsWith(".env") && part !== ".dev.vars")
+    path
+      .toLowerCase()
+      .split("/")
+      .every(
+        (part) => !part.startsWith(".git") && !part.startsWith(".env") && !SECRET_FILES.has(part) && !/~\d/.test(part),
+      )
   );
 }
 
@@ -607,16 +627,17 @@ export function isPluginOrigin(origin: string): boolean {
   return /^https:\/\/(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(:\d{1,5})?$/.test(origin);
 }
 
-/** A path relative to somewhere, with no way out of it. */
+/**
+ * A path relative to somewhere, with no way out of it, on any system: Windows drops a part's last dots and spaces,
+ * so `.. ` is `..` there, and reads a `:` as a drive or a file's stream.
+ */
 function isRelativePath(path: string): boolean {
   return (
     path.length > 0 &&
     !path.startsWith("/") &&
     !path.includes("\\") &&
-    !/^[a-zA-Z]:/.test(path) &&
-    path
-      .split("/")
-      .every((part, index, parts) => part !== ".." && part !== "." && (part !== "" || index === parts.length - 1))
+    !path.includes(":") &&
+    path.split("/").every((part, index, parts) => !/[. ]$/.test(part) && (part !== "" || index === parts.length - 1))
   );
 }
 

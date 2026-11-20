@@ -20,4 +20,20 @@ describe("ChecksDialog", () => {
     expect(html).toContain("jobs");
     expect(html).not.toContain(defaultStrings["checks.alsoWarnings"]);
   });
+
+  it("words an unreadable file in the admin panel's language, with the loader's own reason behind Details", () => {
+    const unreadable: SiteProblem = {
+      kind: "unreadable",
+      severity: "error",
+      file: "content/pages/new.json",
+      message: "Expected object, received string",
+    };
+    const html = renderToStaticMarkup(
+      <ChecksDialog checks={{ blocking: [unreadable], warnings: [], content }} content={content} onDecide={() => {}} />,
+    );
+    expect(html).toContain("content/pages/new.json");
+    expect(html).toContain("Undo your change to it");
+    expect(html.indexOf("Expected object")).toBeGreaterThan(html.indexOf("<details"));
+    expect(html).toMatch(/<details[^>]*><summary>Details<\/summary><pre>Expected object, received string<\/pre>/);
+  });
 });

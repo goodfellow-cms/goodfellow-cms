@@ -6,6 +6,7 @@ import {
   describePlugin,
   isPluginName,
   isPluginOrigin,
+  isPluginReadPath,
   PluginError,
   pluginFramePage,
   pluginFrameUrl,
@@ -139,6 +140,27 @@ describe("a site's plugins", () => {
     ).toEqual(["no-admin", "bad-storage"]);
     expect(isPluginOrigin("http://localhost:4400")).toBe(true);
     expect(isPluginOrigin("https://storage.example.com/path")).toBe(false);
+  });
+
+  it("never lets a build step or task read git's folder or a file of secrets, in any letter case or spelling", () => {
+    for (const path of ["content", "data/feeds.json", "public/media/"]) expect(isPluginReadPath(path), path).toBe(true);
+    // Windows' and macOS's file systems take these for .env.local, .git and .dev.vars; GIT~1 is a Windows short
+    // name; Windows drops a last dot or space, so `.. ` is `..`, and reads a colon as a drive or a stream.
+    for (const path of [
+      ".ENV.local",
+      ".Env",
+      ".GIT/config",
+      ".DEV.VARS",
+      "GIT~1/config",
+      ".npmrc",
+      "config/.NETRC",
+      ".. /outside",
+      "content. ",
+      "C:/secrets",
+      ".env:stream",
+    ]) {
+      expect(isPluginReadPath(path), path).toBe(false);
+    }
   });
 });
 

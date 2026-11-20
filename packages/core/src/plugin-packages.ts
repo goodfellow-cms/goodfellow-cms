@@ -112,8 +112,8 @@ export interface ApprovedPlugin extends PluginManifest {
 
 /**
  * What a plugin has that it wasn't approved for: permissions, blocks, screens
- * and build steps beyond its approval, an admin module or server module it
- * wasn't approved with, or another name.
+ * and build steps beyond its approval, an admin module, server module, page
+ * editor, or media storage it wasn't approved with, or another name.
  */
 export function unapproved(approved: ApprovedPlugin, plugin: GoodfellowPlugin): string[] {
   const found: string[] = [];
@@ -134,6 +134,8 @@ export function unapproved(approved: ApprovedPlugin, plugin: GoodfellowPlugin): 
   for (const task of plugin.tasks ?? []) if (!tasks.has(task.id)) found.push(`the task "${task.id}"`);
   if (plugin.admin && !approved.admin) found.push("an admin module");
   if (plugin.server && !approved.server) found.push("a server module");
+  // Keeping the site's media is given every upload, and decides where pages load the site's media from.
+  if (plugin.mediaStorage && !approved.mediaStorage) found.push("keeping the site's media");
   if (plugin.editor) {
     // An editor is given what's edited, so it needs approving, as does each kind of page it edits.
     const kinds = new Set(approved.editor ? pluginEditorKinds(approved.editor) : []);

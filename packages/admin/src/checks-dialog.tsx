@@ -8,7 +8,15 @@ function ProblemList({ content, problems }: { content: SiteContent; problems: Si
   return (
     <ul className="gfa-check-list">
       {problems.map((problem) => (
-        <li key={JSON.stringify(problem)}>{describeProblem(t, content, problem)}</li>
+        <li key={JSON.stringify(problem)}>
+          {describeProblem(t, content, problem)}
+          {problem.kind === "unreadable" && (
+            <details className="gfa-details">
+              <summary>{t("details.show")}</summary>
+              <pre>{problem.message}</pre>
+            </details>
+          )}
+        </li>
       ))}
     </ul>
   );

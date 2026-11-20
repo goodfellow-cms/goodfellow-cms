@@ -232,6 +232,8 @@ export const defaultStrings = {
   "checks.missing-page": "{place} links to {target}, which isn't a page on the site.",
   "checks.missing-item": "{place} links to {target} in {collection}, which isn't there any more.",
   "checks.missing-media": "{place} uses {target}, which isn't in the media library.",
+  "checks.unreadable":
+    "{file} can't be read as the site's content, so the site couldn't be built with it, and this admin panel couldn't open to change it back. Undo your change to it, or ask the site's developer what it needs.",
   "checks.unsafe-link":
     "{place} links to {target}, an address that would run code on the site. Pages leave it out: use an address that starts with https://, or one of the site's own pages.",
   "checks.no-title": "{place} has no title, so browser tabs and search results show only the site's name.",
@@ -781,6 +783,8 @@ export const defaultStrings = {
   "media.error.unreadable":
     "{name} couldn't be read. It may be damaged, or in a format browsers can't open, such as HEIC. Save it as a JPEG and try again.",
   "media.error.font": "{name} is a font. Fonts are added in Site Settings, under Colors & fonts.",
+  "media.error.markup":
+    "{name} starts as a web page does, so some hosts would open it as a page on the site's address. Save it as a PDF, or as plain text without the markup, and try again.",
   "media.choose": "Choose image",
   "media.chooseAudio": "Choose sound file",
   "media.chooseFile": "Choose file",
@@ -2111,6 +2115,8 @@ export const defaultStrings = {
   "siteTransfer.note.plugins":
     "The other site used plugins this site doesn't have: {names}. Add them on Plugins if you need them.",
   "siteTransfer.note.code": "Custom code comes in. It runs on every page, so check it first.",
+  "siteTransfer.note.ownersBlocks":
+    "Blocks set as only owners would come in with {items}, such as Custom HTML used exactly as written, whose scripts run on the page. Check them first.",
   "siteTransfer.note.kept": "Stays as this site has it: {things}.",
   "siteTransfer.kept.address": "the Site address",
   "siteTransfer.kept.limits": "editors' limits",

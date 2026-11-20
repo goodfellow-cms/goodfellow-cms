@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { cleanSvg, safeMediaChanges, UploadError } from "./upload.js";
+import { cleanSvg, copiesAsMedia, safeMediaChanges, UploadError } from "./upload.js";
 
 const svg = (body: string, attributes = "") =>
   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"${attributes}>${body}</svg>`;
@@ -131,6 +131,13 @@ describe("safeMediaChanges", () => {
     expect(() => safeMediaChanges([{ path: "public/media/notes.js", content: "alert(1)" }])).toThrow(UploadError);
   });
 
+  it("refuses a document that starts as a page does, which a host typing it by what it holds would open as one", () => {
+    expect(() =>
+      safeMediaChanges([{ path: "public/media/notes.txt", bytes: bytes("<html><script>x()</script>") }]),
+    ).toThrow(expect.objectContaining({ problem: "markup" }));
+    expect(safeMediaChanges([{ path: "public/media/notes.txt", content: "Plain notes." }])).toHaveLength(1);
+  });
+
   it("cleans every SVG saved there, whatever it was chosen as, and leaves other files alone", () => {
     const [logo, photo, page, gone] = safeMediaChanges([
       { path: "public/media/logo.svg", bytes: bytes(svg('<rect width="4" height="4"/><script>alert(1)</script>')) },
@@ -155,5 +162,17 @@ describe("safeMediaChanges", () => {
     expect(() =>
       safeMediaChanges([{ path: "public/media/logo.svg", content: "<html><script>x</script></html>" }]),
     ).toThrow(UploadError);
+  });
+});
+
+describe("copiesAsMedia", () => {
+  const bytes = (text: string) => new TextEncoder().encode(text);
+
+  it("leaves out what publishing would refuse, so an import isn't stopped by one file", () => {
+    expect(copiesAsMedia("public/media/photo.jpg", bytes("\xff\xd8 photo"))).toBe(true);
+    expect(copiesAsMedia("public/media/notes.pdf", bytes("<html><script>x</script>"))).toBe(false);
+    expect(copiesAsMedia("public/media/clip.mp4", bytes("  <!doctype html>"))).toBe(false);
+    expect(copiesAsMedia("public/media/page.html", bytes("hello"))).toBe(false);
+    expect(copiesAsMedia("public/media/huge.jpg", new Uint8Array(25 * 1024 * 1024 + 1))).toBe(false);
   });
 });
