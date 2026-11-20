@@ -1,28 +1,36 @@
 name: Fresh site
 
 # A full-stack site made as `npm create goodfellow -- --server cloudflare` makes one, installed with npm and no
-# lockfile, as a new site is: every package the company example names by a range (vitest's `^5.1.1` among them),
-# and every package below the ones it names exactly, at the newest release npm has today, where CI's other jobs use
-# the workspace's lockfile. Then the site's own tests, typecheck, and build. Each night, since a new release of any
-# of those packages can break new sites without any change here, and on pull requests that change what the example
-# installs. Goodfellow's packages come from npm at the workspace's versions, as create-goodfellow's bundled
-# versions name them, so it fails between a release's version bump being merged and that release being published.
+# lockfile, as a new site is: every package the company example names by a range, and every package below the ones it
+# names exactly, at the newest release npm has today, where CI's other jobs use the workspace's lockfile. Then the
+# site's own tests, typecheck, and build. Each night, since a new release of any of those packages can break new sites
+# without any change here, and on pull requests that change what a new site is made from. Goodfellow's packages come
+# from npm at the workspace's versions, as create-goodfellow's bundled versions name them, since that's what new sites
+# get: so a pull request is tested against the published release's code, and the job fails between a release's version
+# bump being merged and that release being published.
 
 on:
   schedule:
     - cron: "41 4 * * *"
   workflow_dispatch:
   pull_request:
+    # What a new full-stack site is made from: the example, create-goodfellow, and how core plans it and its
+    # package.json (its versions and overrides).
     paths:
-      - examples/company/package.json
+      - examples/company/**
+      - packages/create-goodfellow/**
+      - packages/core/src/server-setup.ts
+      - packages/core/src/site-setup.ts
+      - packages/core/src/updates.ts
       - .github/workflows/fresh-site.yml
 
 permissions:
   contents: read
 
+# A newer push to a pull request replaces its run; the nightly run and one started by hand never cancel each other.
 concurrency:
-  group: fresh-site-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: fresh-site-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   company:
@@ -49,13 +57,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # create-goodfellow as this commit has it, with the company example bundled from this commit.
       - run: pnpm turbo run build --filter=create-goodfellow
-      # CI is set, so create-goodfellow asks nothing and offers no Cloudflare setup. It runs npm install itself.
+      # CI is set, so create-goodfellow asks nothing and offers no Cloudflare setup. It only says so where npm install
+      # fails, so the install is a step of its own, as create-goodfellow runs it: npm install, with no lockfile.
       - name: Make the site
         working-directory: ${{ runner.temp }}
         run: |
           node "$GITHUB_WORKSPACE/packages/create-goodfellow/bin/create-goodfellow.js" site \
-            --server cloudflare --github acme/site --content acme/site-content --no-git --yes
-          node -p '"vitest " + require("./site/package-lock.json").packages["node_modules/vitest"].version'
+            --server cloudflare --github acme/site --content acme/site-content --no-install --no-git --yes
+      - name: Install the site's packages
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm install
+          npm ls vitest --depth=0
       - run: npm test
         working-directory: ${{ runner.temp }}/site
       - run: npm run typecheck

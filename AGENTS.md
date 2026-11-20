@@ -2997,8 +2997,10 @@ pnpm test:e2e
   company example names by a range, and everything below what it names exactly, at today's newest releases, where the
   other jobs use the workspace's lockfile; then it runs the site's tests, typecheck, and build, on Node 22 and 24. It
   runs each night, since a new release elsewhere can break new sites with no change here, and on pull requests that
-  change `examples/company/package.json`. It fails between a release's version bump being merged and the release being
-  published, since its Goodfellow packages come from npm at the workspace's versions.
+  change what such a site is made from (the company example, create-goodfellow, and core's `server-setup.ts`,
+  `site-setup.ts`, and `updates.ts`). Its Goodfellow packages come from npm at the workspace's versions, as new sites'
+  do, so a pull request is tested against the published release's code, and it fails between a release's version bump
+  being merged and the release being published.
 - **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It
   reads this file (and `CLAUDE.md`) as its guidelines by itself, so rules belong here, not there; the config only keeps
   its reviews short, leaves out files written by tools (lockfiles, changelogs, `google-fonts.ts`, `icons.ts`, the shadcn
