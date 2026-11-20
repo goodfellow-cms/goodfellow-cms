@@ -1,0 +1,64 @@
+name: Fresh site
+
+# A full-stack site made as `npm create goodfellow -- --server cloudflare` makes one, installed with npm and no
+# lockfile, as a new site is: every package the company example names by a range (vitest's `^5.1.1` among them),
+# and every package below the ones it names exactly, at the newest release npm has today, where CI's other jobs use
+# the workspace's lockfile. Then the site's own tests, typecheck, and build. Each night, since a new release of any
+# of those packages can break new sites without any change here, and on pull requests that change what the example
+# installs. Goodfellow's packages come from npm at the workspace's versions, as create-goodfellow's bundled
+# versions name them, so it fails between a release's version bump being merged and that release being published.
+
+on:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - examples/company/package.json
+      - .github/workflows/fresh-site.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fresh-site-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  company:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 22's npm 10, which stopped installing the site with "Cannot read properties of null (reading
+        # 'edgesOut')" when it named one vitest release exactly and a newer one was out, and Node 24's npm 11.
+        node: [22, 24]
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: true
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # create-goodfellow as this commit has it, with the company example bundled from this commit.
+      - run: pnpm turbo run build --filter=create-goodfellow
+      # CI is set, so create-goodfellow asks nothing and offers no Cloudflare setup. It runs npm install itself.
+      - name: Make the site
+        working-directory: ${{ runner.temp }}
+        run: |
+          node "$GITHUB_WORKSPACE/packages/create-goodfellow/bin/create-goodfellow.js" site \
+            --server cloudflare --github acme/site --content acme/site-content --no-git --yes
+          node -p '"vitest " + require("./site/package-lock.json").packages["node_modules/vitest"].version'
+      - run: npm test
+        working-directory: ${{ runner.temp }}/site
+      - run: npm run typecheck
+        working-directory: ${{ runner.temp }}/site
+      - run: npm run build
+        working-directory: ${{ runner.temp }}/site
