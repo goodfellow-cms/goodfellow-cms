@@ -2638,8 +2638,9 @@ of it.
   name, `isPluginReadPath()`, and no path part ending in a dot or a space or holding a `:`, which Windows reads
   otherwise, and no path that is really such a file, outside the site, or a link to nowhere, and no folder holding
   such a file or a link out of it or that can't be read through, `secretsUnder()`, since Node gives a folder's every
-  file and follows links). Server modules, steps' network requests, and blocks on the site's pages can't be held to
-  anything, and the docs say so.
+  file and follows links; it checks only the declared paths, never the plugin's own package or `node_modules`, which
+  are given too). Server modules, steps' network requests, and blocks on the site's pages can't be held to anything,
+  and the docs say so.
 - **Admin frames:** each plugin's admin module is bundled with `pluginFrameEntry()` and `mountPluginFrame()` from
   `@goodfellow-cms/admin/plugin` (`plugin.ts`, with `plugin.css`, the admin panel's `--gfa-*` colors), as one classic
   script starting with `EDITOR_PRELUDE`, at `admin/plugins/<id>/` (`PLUGINS_PATH`, `pluginId()`, beside the editor's
