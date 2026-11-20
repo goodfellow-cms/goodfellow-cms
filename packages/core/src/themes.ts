@@ -263,11 +263,12 @@ const NAMED_REFERENCES: Record<string, string> = {
 };
 
 /**
- * An attribute's value as a browser reads it, with numeric character references and `NAMED_REFERENCES` written
- * out (`&amp;` as `&`, `&#47;` as `/`), in one pass, so `&amp;#47;` stays `&#47;`.
+ * An attribute's value as a browser reads it, with numeric character references (with or without their `;`) and
+ * `NAMED_REFERENCES` written out (`&amp;` as `&`, `&#47;` as `/`), in one pass, so `&amp;#47;` stays `&#47;`.
  */
 function attributeText(value: string): string {
-  return value.replace(/&(?:#[xX]([0-9a-fA-F]{1,6})|#([0-9]{1,7})|([A-Za-z]+));/g, (reference, hex, decimal, name) => {
+  // A numeric reference counts without its `;` too, and with every digit after it, as browsers read it.
+  return value.replace(/&(?:#[xX]([0-9a-fA-F]+);?|#([0-9]+);?|([A-Za-z]+);)/g, (reference, hex, decimal, name) => {
     if (name !== undefined) return NAMED_REFERENCES[name] ?? reference;
     const code = Number.parseInt(hex ?? decimal, hex === undefined ? 10 : 16);
     return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : "\ufffd";

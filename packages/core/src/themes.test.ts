@@ -199,6 +199,9 @@ describe("what a theme's header and footer may do", () => {
       // A reference to whitespace separates candidates, as browsers read it, so none hides inside another.
       [text('<img srcset="/media/a.png&Tab;1x,https://tracker.example/t 2x">'), "https://tracker.example/t"],
       [text('<img srcset="/media/a.png&NewLine;1x&comma;https://tracker.example/n 2x">'), "https://tracker.example/n"],
+      // Numeric references without their ";", and with as many digits as they like.
+      [text('<img srcset="/media/a.png&#9,https://tracker.example/s 2x">'), "https://tracker.example/s"],
+      [text('<img srcset="/media/a.png&#x00000000009;1x,https://tracker.example/z 2x">'), "https://tracker.example/z"],
       [text("<video poster='https://tracker.example/still'>"), "https://tracker.example/still"],
     ] as const) {
       expect(themeLoads(withLayout([block])), address).toEqual([address]);
