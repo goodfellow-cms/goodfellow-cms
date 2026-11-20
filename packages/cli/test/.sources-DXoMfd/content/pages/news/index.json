@@ -1,1 +1,0 @@
-{ "version": 1, "data": { "root": { "props": { "title": "News" } }, "content": [{ "type": "Counter", "props": { "id": "c", "label": "Clicked" } }] } }
