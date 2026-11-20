@@ -5,6 +5,7 @@ import {
   CLOUDFLARE_REDIRECTS_LIMIT,
   ContentError,
   formatUpdateResult,
+  ownersOnlyFields,
   SiteImportError,
   TASK_RESULT_FILE,
 } from "@goodfellow-cms/core";
@@ -470,6 +471,7 @@ async function main(): Promise<void> {
           const config = await loadTaskConfig(resolve(root));
           const result = await importSite(root, from, {
             blocks: Object.keys(config.blocks),
+            ownersOnly: ownersOnlyFields(config.blocks),
             replace: values.replace,
             menus: values.menus,
             settings: values.settings,

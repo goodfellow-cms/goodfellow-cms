@@ -170,21 +170,25 @@ export const THEME_LAYOUT_BLOCKS: readonly string[] = [
   "LanguageSwitch",
 ];
 
-/** Every block in a theme's header and footer, and every text in their props. */
-function visitLayouts(theme: ThemePackage, onBlock: (type: string) => void, onText: (text: string) => void) {
-  const visit = (value: unknown) => {
-    if (typeof value === "string") onText(value);
+/** Every block in a theme's header and footer, and every text in their props, with the name of the key it's under. */
+function visitLayouts(
+  theme: ThemePackage,
+  onBlock: (type: string) => void,
+  onText: (text: string, key: string) => void,
+) {
+  const visit = (value: unknown, key: string) => {
+    if (typeof value === "string") onText(value, key);
     if (value === null || typeof value !== "object") return;
     if (Array.isArray(value)) {
-      for (const item of value) visit(item);
+      for (const item of value) visit(item, key);
       return;
     }
     const record = value as Record<string, unknown>;
     if (typeof record.type === "string" && typeof record.props === "object") onBlock(record.type);
-    for (const child of Object.values(record)) visit(child);
+    for (const [name, child] of Object.entries(record)) visit(child, name);
   };
-  visit(theme.header?.data);
-  visit(theme.footer?.data);
+  visit(theme.header?.data, "");
+  visit(theme.footer?.data, "");
 }
 
 /**
@@ -223,11 +227,16 @@ function checkLayoutAddresses(theme: ThemePackage): void {
   );
 }
 
+/** A `src`, `poster`, or `srcset` attribute in HTML, its value quoted either way or not at all. */
+const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
+
 /**
  * What installing a theme would have visitors' browsers load besides Google
  * Fonts and the site's own media: from its CSS, from classes it gives parts
- * or its header's and footer's blocks (such as arbitrary `url()` backgrounds), and from its
- * header's and footer's pictures.
+ * or its header's and footer's blocks (such as arbitrary `url()` backgrounds),
+ * from every address its header's and footer's settings hold but links' (a
+ * Section's background is shown whatever its address ends in), and from
+ * `src`, `poster`, and `srcset` in their HTML.
  */
 export function themeLoads(theme: ThemePackage): string[] {
   const texts = [theme.css ?? "", ...Object.values(theme.manifest.theme.parts ?? {})];
@@ -235,17 +244,26 @@ export function themeLoads(theme: ThemePackage): string[] {
   visitLayouts(
     theme,
     () => undefined,
-    (text) => {
+    (text, key) => {
       texts.push(text);
-      for (const match of text.matchAll(/\b(?:src|poster)\s*=\s*["']([^"']+)["']/gi)) pictures.push(match[1] ?? "");
-      if (/^(?:https?:)?\/\//i.test(text.trim()) && /\.(?:png|jpe?g|gif|webp|avif|svg)(?:[?#]|$)/i.test(text)) {
-        pictures.push(text.trim());
+      for (const match of text.matchAll(LOADED_ATTRIBUTE)) {
+        const value = match[2] ?? match[3] ?? match[4] ?? "";
+        // A srcset lists addresses, each with its width or density after it, between commas.
+        const addresses = match[1]?.toLowerCase() === "srcset" ? value.split(",") : [value];
+        for (const address of addresses) pictures.push(address.trim().split(/\s+/)[0] ?? "");
       }
+      // A link's address is only followed when someone chooses it.
+      if (key !== "href" && /^(?:https?:)?\/\//i.test(text.trim())) pictures.push(text.trim());
     },
   );
   const found = new Set([
     ...themeCssLoads(texts.join("\n")),
-    ...themeCssLoads(pictures.map((url) => `url(${url})`).join(" ")),
+    // As CSS strings, so an address holding `)` or a quote is read whole.
+    ...themeCssLoads(
+      pictures
+        .map((url) => `url("${url.replace(/["\\\n\r\f]/g, (char) => `\\${char.charCodeAt(0).toString(16)} `)}")`)
+        .join(" "),
+    ),
   ]);
   return [...found].sort();
 }

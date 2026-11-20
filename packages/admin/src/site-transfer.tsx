@@ -7,6 +7,7 @@ import {
   MAX_UPLOAD_BYTES,
   MEDIA_DIR,
   mediaKind,
+  ownersOnlyFields,
   parseInstalledRecord,
   planBlockChanges,
   planSiteImport,
@@ -167,6 +168,8 @@ function noteText(t: Translate, note: SiteImportNote, blockName: (name: string) 
       return t("siteTransfer.note.plugins", { names: listed(t, note.names) });
     case "code":
       return t("siteTransfer.note.code");
+    case "owners-blocks":
+      return t("siteTransfer.note.ownersBlocks", { items: listed(t, note.files) });
     case "kept":
       return t("siteTransfer.note.kept", {
         things: note.things.map((thing) => t(`siteTransfer.kept.${thing}` as StringKey)).join(", "),
@@ -232,6 +235,7 @@ export function SiteImportSection() {
       {
         ...choices,
         blocks: Object.keys(blocks),
+        ownersOnly: ownersOnlyFields(blocks),
         installing: [...choices.install],
         plugins: loaded.plugins,
         sameMedia: loaded.same,

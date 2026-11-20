@@ -181,6 +181,25 @@ describe("what a theme's header and footer may do", () => {
     expect(themeLoads(theme)).toEqual(["https://images.example/sea.jpg", "https://tracker.example/pixel.gif"]);
   });
 
+  it("lists every address its header and footer would load, whatever it ends in, and in HTML however it's quoted", () => {
+    const section = (backgroundImage: string) => ({ type: "Section", props: { id: "a", backgroundImage } });
+    const text = (html: string) => ({ type: "Text", props: { id: "t", text: html } });
+    for (const [block, address] of [
+      [section("https://tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("https://tracker.example/p.png/x"), "https://tracker.example/p.png/x"],
+      [section("//tracker.example/a)b"), "//tracker.example/a)b"],
+      [text("<img src=https://tracker.example/pixel>"), "https://tracker.example/pixel"],
+      [text('<img srcset="/media/a.png 1x, https://tracker.example/pixel 2x">'), "https://tracker.example/pixel"],
+      [text("<video poster='https://tracker.example/still'>"), "https://tracker.example/still"],
+    ] as const) {
+      expect(themeLoads(withLayout([block])), address).toEqual([address]);
+    }
+    // A link's address is only followed when someone chooses it, and the site's own media and Google Fonts load
+    // from where the site does already.
+    const button = { type: "Button", props: { id: "b", label: "Shop", href: "https://shop.example/" } };
+    expect(themeLoads(withLayout([button, section("/media/sea.jpg")]))).toEqual([]);
+  });
+
   it("refuses a theme whose header holds an address that would run code", async () => {
     const files = sampleThemeFiles({ header: true });
     files["header.json"] = (files["header.json"] ?? "").replace('"menu": "main"', '"menu": "javascript:alert(1)"');

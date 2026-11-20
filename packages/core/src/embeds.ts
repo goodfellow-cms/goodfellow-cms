@@ -114,15 +114,26 @@ function blueskyPost(author: string, post: string): EmbedPostResult {
   return { post: { site: "bluesky", url: blueskyPostUrl(author, post), link, height: 400 } };
 }
 
+/** An address's path, a part at a time, decoded; `undefined` where a `%` starts no escape, as in `50%off`. */
+function pathParts(url: URL): string[] | undefined {
+  try {
+    return url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    return undefined;
+  }
+}
+
 function bluesky(url: URL): EmbedPostResult | undefined {
   const host = url.hostname.toLowerCase();
+  const parts = pathParts(url);
+  if (!parts) return undefined;
   if (host === "embed.bsky.app") {
-    const [embed, did, collection, post] = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    const [embed, did, collection, post] = parts;
     if (embed !== "embed" || !did || !DID.test(did) || collection !== "app.bsky.feed.post") return undefined;
     return post && RECORD_KEY.test(post) ? blueskyPost(did, post) : undefined;
   }
   if (host !== "bsky.app" && host !== "www.bsky.app") return undefined;
-  const [profile, author, kind, post] = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  const [profile, author, kind, post] = parts;
   if (profile !== "profile" || !author || kind !== "post" || !post || !RECORD_KEY.test(post)) return undefined;
   return blueskyPost(author, post);
 }

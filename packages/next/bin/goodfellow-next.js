@@ -29,6 +29,7 @@ import {
   CLOUDFLARE_REDIRECTS_LIMIT,
   configAdmin,
   formatUpdateResult,
+  ownersOnlyFields,
   SiteImportError,
 } from "@goodfellow-cms/core";
 import { reportSiteProblems } from "@goodfellow-cms/core/accessibility";
@@ -338,6 +339,7 @@ if (command === "import") {
       const config = await loadTaskConfig(resolve("."));
       const result = await importSite(".", from, {
         blocks: Object.keys(config.blocks),
+        ownersOnly: ownersOnlyFields(config.blocks),
         replace: values.replace,
         menus: values.menus,
         settings: values.settings,

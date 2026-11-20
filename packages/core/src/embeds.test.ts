@@ -35,6 +35,16 @@ describe("embeddedPost", () => {
     });
   });
 
+  it("takes a Bluesky address with a % that starts no escape as no post, rather than stopping the page", () => {
+    for (const input of [
+      "https://bsky.app/profile/%zz/post/3kabc",
+      "https://bsky.app/profile/50%off.example/post/3kabc",
+      `https://embed.bsky.app/embed/${DID}/app.bsky.feed.post/3kabc%E`,
+    ]) {
+      expect("post" in embeddedPost(input), input).toBe(false);
+    }
+  });
+
   it("reads Mastodon posts on any server", () => {
     for (const input of [
       "https://mastodon.social/@Gargron/111111111111111111",

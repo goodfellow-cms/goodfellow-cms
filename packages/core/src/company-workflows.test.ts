@@ -3,6 +3,7 @@
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -536,6 +537,64 @@ describe("the company example's deploy job's check of what the build handed over
     }
   });
 
+  /** The build's artifact, as the deploy job downloads it outside the checkout, with `extra` added; checked. */
+  function downloaded(extra: (artifact: string, root: string) => void = () => {}) {
+    const { status, out } = checked();
+    expect(status, out).toBe(0);
+    const root = dir;
+    const artifact = mkdtempSync(join(tmpdir(), "company-artifact-"));
+    for (const name of ["dist", ".wrangler"]) renameSync(join(root, name), join(artifact, name));
+    extra(artifact, root);
+    const result = spawnSync("node", [check, artifact], { cwd: root, encoding: "utf8" });
+    const taken =
+      existsSync(join(root, "dist/server/index.js")) && existsSync(join(root, ".wrangler/deploy/config.json"));
+    rmSync(artifact, { recursive: true, force: true });
+    return { status: result.status, out: `${result.stdout}${result.stderr}`, root, taken };
+  }
+
+  it("takes only dist/ and the build's config from the artifact, downloaded outside the checkout", () => {
+    const plain = downloaded();
+    expect(plain.status, plain.out).toBe(0);
+    expect(plain.taken).toBe(true);
+    // Anything else the build job put in the artifact, which it could, since it ran the site's code where the
+    // artifact was made: a .env, whose CLOUDFLARE_API_BASE_URL would send the token elsewhere, this script, the
+    // lockfile, .npmrc, or another file beside the config.
+    const extras: [string, (artifact: string) => void][] = [
+      [".env", (artifact) => writeFileSync(join(artifact, ".env"), "CLOUDFLARE_API_BASE_URL=https://evil.example\n")],
+      [
+        "scripts/check-build.ts",
+        (artifact) => {
+          mkdirSync(join(artifact, "scripts"));
+          writeFileSync(join(artifact, "scripts/check-build.ts"), "");
+        },
+      ],
+      ["package-lock.json", (artifact) => writeFileSync(join(artifact, "package-lock.json"), "{}")],
+      [".npmrc", (artifact) => writeFileSync(join(artifact, ".npmrc"), "registry=https://evil.example/\n")],
+      [".wrangler/deploy/.env", (artifact) => writeFileSync(join(artifact, ".wrangler/deploy/.env"), "X=1\n")],
+      [".wrangler/state", (artifact) => mkdirSync(join(artifact, ".wrangler/state"))],
+      [
+        "a link",
+        (artifact) => {
+          rmSync(join(artifact, ".wrangler/deploy/config.json"));
+          symlinkSync("/proc/self/environ", join(artifact, ".wrangler/deploy/config.json"));
+        },
+      ],
+    ];
+    for (const [what, extra] of extras) {
+      const { status, out, root, taken } = downloaded(extra);
+      expect(status, what).toBe(1);
+      expect(out, what).toContain("::error::");
+      expect(taken, what).toBe(false);
+      expect(existsSync(join(root, ".env")), what).toBe(false);
+    }
+    // Downloaded into the checkout, as before, it's refused.
+    const inside = checked();
+    expect(inside.status, inside.out).toBe(0);
+    const result = spawnSync("node", [check, dir], { cwd: dir, encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("outside the checkout");
+  });
+
   it("runs in the deploy job before anything reads the build's files, with none of the job's secrets", () => {
     const steps = parse(readFileSync(join(workflows, "deploy.yml"), "utf8")).jobs.deploy.steps as {
       name?: string;
@@ -544,8 +603,13 @@ describe("the company example's deploy job's check of what the build handed over
       env?: Record<string, string>;
     }[];
     const at = steps.findIndex((step) => step.name === "Check what the build handed over");
-    expect(steps[at]?.run).toBe("node scripts/check-build.ts");
+    expect(steps[at]?.run).toBe('node scripts/check-build.ts "$RUNNER_TEMP/build"');
     expect(steps[at]?.env).toBeUndefined();
+    const download = steps.find((step) => step.uses?.startsWith("actions/download-artifact@")) as
+      | { with?: Record<string, string> }
+      | undefined;
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, as the workflow writes it.
+    expect(download?.with?.path).toBe("${{ runner.temp }}/build");
     expect(steps.findIndex((step) => step.uses?.startsWith("actions/download-artifact@"))).toBeLessThan(at);
     expect(steps.findIndex((step) => step.run === "npm ci")).toBeGreaterThan(at);
     expect(steps.findIndex((step) => step.run?.includes("wrangler d1 migrations apply"))).toBeGreaterThan(at);

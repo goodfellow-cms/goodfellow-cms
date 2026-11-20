@@ -131,6 +131,13 @@ describe("safeMediaChanges", () => {
     expect(() => safeMediaChanges([{ path: "public/media/notes.js", content: "alert(1)" }])).toThrow(UploadError);
   });
 
+  it("refuses a document that starts as a page does, which a host typing it by what it holds would open as one", () => {
+    expect(() =>
+      safeMediaChanges([{ path: "public/media/notes.txt", bytes: bytes("<html><script>x()</script>") }]),
+    ).toThrow(expect.objectContaining({ problem: "markup" }));
+    expect(safeMediaChanges([{ path: "public/media/notes.txt", content: "Plain notes." }])).toHaveLength(1);
+  });
+
   it("cleans every SVG saved there, whatever it was chosen as, and leaves other files alone", () => {
     const [logo, photo, page, gone] = safeMediaChanges([
       { path: "public/media/logo.svg", bytes: bytes(svg('<rect width="4" height="4"/><script>alert(1)</script>')) },

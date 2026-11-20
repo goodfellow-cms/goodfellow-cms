@@ -3,6 +3,7 @@ import {
   type CollectionFile,
   type CollectionSource,
   type CollectionSources,
+  ContentError,
   type ContentSource,
   checkSite,
   collectionSettingsFile,
@@ -137,9 +138,9 @@ export function askedWithSettings(
 
 /**
  * The site checks for a publish: the site as it's loaded, and as the changes
- * would leave it, with the pages they change rendered. A site the changes
- * would leave unreadable isn't checked; loading it again after publishing
- * says what's wrong.
+ * would leave it, with the pages they change rendered. Files the changes would
+ * leave unreadable as content stop it (`unreadable`), since neither builds nor
+ * this admin panel could open the site with them.
  */
 export async function checkPublish(
   source: ContentSource,
@@ -167,6 +168,19 @@ export async function checkPublish(
   } catch (error) {
     // A sign-in that ran out is for signing in again, never for publishing without the checks.
     if (error instanceof SignInError) throw error;
+    // Files that can't be read as content would leave the site unbuildable, and this admin panel unable to open
+    // to undo them, so they stop the publish, each named.
+    if (error instanceof ContentError) {
+      const blocking = error.problems.map(
+        (problem): SiteProblem => ({
+          kind: "unreadable",
+          severity: "error",
+          file: problem.file,
+          message: problem.message,
+        }),
+      );
+      return { blocking, warnings: [], content: before };
+    }
     return { blocking: [], warnings: [], content: before };
   }
   const sources = typeof site.sources === "function" ? site.sources(after) : site.sources;
@@ -298,6 +312,8 @@ function languageName(content: SiteContent, code: string): string {
 /** What a problem means, in plain words. */
 export function describeProblem(t: Translate, content: SiteContent, problem: SiteProblem): string {
   switch (problem.kind) {
+    case "unreadable":
+      return t("checks.unreadable", { file: problem.file, message: problem.message });
     case "missing-page":
     case "missing-media":
     case "unsafe-link":

@@ -109,7 +109,7 @@ export function formatSiteExport(result: ExportSiteResult, from = process.cwd())
 export interface ImportSiteOptions
   extends Pick<
     SiteImportOptions,
-    "replace" | "menus" | "settings" | "layout" | "redirects" | "withoutMissingBlocks" | "installing"
+    "replace" | "menus" | "settings" | "layout" | "redirects" | "withoutMissingBlocks" | "installing" | "ownersOnly"
   > {
   /** The site's blocks, by name, from its config. */
   blocks: readonly string[];
@@ -251,6 +251,8 @@ function noteLine(note: SiteImportNote): string {
       return `The export's site used plugins this site doesn't have: ${list(note.names)}.`;
     case "code":
       return "Custom code came in. It runs on every page, so check it.";
+    case "owners-blocks":
+      return `Blocks set as only owners would, such as Custom HTML used exactly as written, whose scripts run on the page, came in with ${list(note.files)}. Check them.`;
     case "kept": {
       const names = {
         address: "the Site address",

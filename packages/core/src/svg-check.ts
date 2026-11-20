@@ -21,6 +21,7 @@ import {
   MEDIA_DIR,
   mediaKind,
   SVG_NAMESPACE,
+  startsAsMarkup,
   XLINK_NAMESPACE,
   XML_NAMESPACE,
   XMLNS_NAMESPACE,
@@ -113,7 +114,9 @@ export function unsafeMediaChanges(changes: readonly FileChange[]): string[] {
     if (!mediaKind(name)) return [change.path];
     if (mediaKind(name) === "font")
       return isSafeFontFile(change.path, "bytes" in change ? change.bytes : undefined) ? [] : [change.path];
-    if (extensionOf(name) !== "svg") return [];
+    // A host may type a file by what it holds, so one that starts as a page would be one.
+    if (extensionOf(name) !== "svg")
+      return startsAsMarkup("bytes" in change ? change.bytes : change.content) ? [change.path] : [];
     const text = "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
     return isCleanSvg(text) ? [] : [change.path];
   });

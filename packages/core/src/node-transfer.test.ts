@@ -30,7 +30,7 @@ describe("exportSite and importSite", () => {
       "content/pages/index.json": page("Welcome to St. Brendan"),
       "content/pages/contact.json": page("Contact"),
       "content/permissions.json": json({ version: 1, editors: {} }),
-      "public/media/church.jpg": "<photo>",
+      "public/media/church.jpg": "photo bytes",
       "public/media/bad.svg": '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
       "src/blocks.tsx": "export {}",
     });
@@ -56,7 +56,7 @@ describe("exportSite and importSite", () => {
     const result = await importSite(into, file, { blocks: [] });
     expect(result.written).toBe(true);
     expect(await readFile(join(into, "content/pages/contact.json"), "utf8")).toBe(page("Contact"));
-    expect(await readFile(join(into, "public/media/church.jpg"), "utf8")).toBe("<photo>");
+    expect(await readFile(join(into, "public/media/church.jpg"), "utf8")).toBe("photo bytes");
     // An SVG that could run code isn't brought in, nor are editors' limits.
     await expect(readFile(join(into, "public/media/bad.svg"))).rejects.toThrow();
     await expect(readFile(join(into, "content/permissions.json"))).rejects.toThrow();

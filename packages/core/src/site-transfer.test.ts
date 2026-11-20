@@ -162,6 +162,40 @@ describe("planSiteImport, adding", () => {
     });
   });
 
+  it("says when script comes in: custom code, a visit counter, or blocks set as only owners would", async () => {
+    const owners = { "custom-html": { fields: ["sanitize"], defaults: { sanitize: true } } };
+    const blocks = [...BLOCKS, "custom-html"];
+    const html = (sanitize: boolean) => ({
+      type: "custom-html",
+      props: { id: "c", html: "<script>x()</script>", sanitize },
+    });
+    const exported = {
+      ...EXPORT,
+      "content/pages/raw.json": page("Raw", [html(false)]),
+      "content/pages/clean.json": page("Clean", [html(true)]),
+    };
+    const { result } = await plan(SITE, exported, { blocks, ownersOnly: owners });
+    expect(result.notes).toContainEqual({ kind: "owners-blocks", files: ["content/pages/raw.json"] });
+    expect(result.notes).not.toContainEqual({ kind: "code" });
+    // The site's own page as it already has it isn't news.
+    const already = await plan({ ...SITE, "content/pages/raw.json": exported["content/pages/raw.json"] }, exported, {
+      blocks,
+      ownersOnly: owners,
+    });
+    expect(already.result.notes.some((note) => note.kind === "owners-blocks")).toBe(false);
+    // A visit counter's script loads on every page, as custom code does.
+    const counted = {
+      ...EXPORT,
+      "content/site.json": json({
+        version: 1,
+        title: "St. Brendan",
+        stats: { service: "plausible", domain: "stbrendan.example.org", script: "https://plausible.io/js/script.js" },
+      }),
+    };
+    expect((await plan(SITE, counted, { settings: true })).result.notes).toContainEqual({ kind: "code" });
+    expect((await plan(SITE, counted)).result.notes).not.toContainEqual({ kind: "code" });
+  });
+
   it("leaves out what uses blocks the site lacks, offering Goodfellow's registry's, or brings it in without them", async () => {
     const { result, after } = await plan(SITE, EXPORT);
     expect(after["content/pages/faq.json"]).toBeUndefined();

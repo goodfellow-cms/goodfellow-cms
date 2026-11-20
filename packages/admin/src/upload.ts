@@ -7,6 +7,7 @@ import {
   keepsSvgElement,
   MEDIA_DIR,
   SVG_NAMESPACE,
+  startsAsMarkup,
   withoutImageDetails,
 } from "@goodfellow-cms/core";
 import { extensionOf, MAX_UPLOAD_BYTES, mediaKind } from "./media.js";
@@ -15,7 +16,7 @@ import { mediaType } from "./media-previews.js";
 /** Photos are made no larger than this on their longest side, which is plenty for any screen. */
 export const MAX_IMAGE_SIDE = 2400;
 
-export type UploadProblem = "type" | "size" | "unreadable" | "font";
+export type UploadProblem = "type" | "size" | "unreadable" | "font" | "markup";
 
 export class UploadError extends Error {
   override name = "UploadError";
@@ -222,7 +223,14 @@ export function safeMediaChanges(changes: readonly FileChange[]): FileChange[] {
       }
       return change;
     }
-    if (extensionOf(name) !== "svg") return change;
+    if (extensionOf(name) !== "svg") {
+      // A host that has no type for a file's name may type it by what it holds, as GitLab Pages does: one that starts
+      // as a page would be one, on the site's address.
+      if (startsAsMarkup("bytes" in change ? change.bytes : change.content)) {
+        throw new UploadError("markup", name, `${name} starts as a web page does.`);
+      }
+      return change;
+    }
     const text = "bytes" in change ? new TextDecoder().decode(change.bytes) : change.content;
     const cleaned = cleanSvg(text);
     if (cleaned === undefined) throw new UploadError("unreadable", name, `${name} isn't a valid SVG image.`);

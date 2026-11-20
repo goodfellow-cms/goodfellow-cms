@@ -118,7 +118,14 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
       // Next.js passes the frames' page on without its trailing slash.
       const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
       if (pathname.startsWith(pluginsPrefix) && (req.method === "GET" || req.method === "HEAD")) {
-        const [id = "", ...rest] = decodeURIComponent(pathname.slice(pluginsPrefix.length)).split("/");
+        let decoded: string;
+        try {
+          decoded = decodeURIComponent(pathname.slice(pluginsPrefix.length));
+        } catch {
+          // A `%` that starts no escape names no plugin's file.
+          return false;
+        }
+        const [id = "", ...rest] = decoded.split("/");
         const file = resolve(pluginsDir, id, rest.join("/") || "index.html");
         if (!file.startsWith(`${pluginsDir}${sep}`) || !(await pluginFrame(id))) return false;
         try {

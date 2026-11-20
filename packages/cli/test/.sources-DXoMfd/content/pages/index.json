@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "data": {
+    "root": { "props": { "title": "Home" } },
+    "content": [
+      { "type": "Greeting", "props": { "id": "g", "name": "world", "className": "bg-rose-200" } },
+      {
+        "type": "Text",
+        "props": { "id": "t", "content": "<p><a href=\"/news\">News</a></p>", "align": "left", "className": "" }
+      }
+    ]
+  }
+}

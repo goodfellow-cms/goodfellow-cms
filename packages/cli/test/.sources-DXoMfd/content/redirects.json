@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "redirects": [
+    {
+      "from": "/old-news",
+      "to": "/news"
+    },
+    {
+      "from": "/news",
+      "to": "/talks/hope"
+    },
+    {
+      "from": "/2019/talk.html",
+      "to": "https://talks.example.org/hope"
+    }
+  ]
+}

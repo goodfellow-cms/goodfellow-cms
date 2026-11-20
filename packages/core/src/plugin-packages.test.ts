@@ -179,6 +179,14 @@ describe("approving a plugin", () => {
     expect(() => installedPlugin(undefined, approved)).toThrow(/doesn't export a plugin/);
   });
 
+  it("approves keeping the site's media, since that plugin is given every upload", () => {
+    const keeper = { ...plugin, admin: "./admin", mediaStorage: {} };
+    const withAdmin = { name: plugin.name, release: "1.0.0", ...pluginManifest({ ...plugin, admin: "./admin" }) };
+    expect(() => installedPlugin(keeper, withAdmin)).toThrow(/keeping the site's media/);
+    const withStorage = { name: plugin.name, release: "1.0.0", ...pluginManifest(keeper) };
+    expect(installedPlugin(keeper, withStorage)).toBe(keeper);
+  });
+
   it("approves a page editor, and each kind of page it edits, since it's given what's edited", () => {
     const editor = { ...plugin, editor: { title: "Guestbook editor" } };
     expect(() => installedPlugin(editor, approved)).toThrow(/a page editor/);

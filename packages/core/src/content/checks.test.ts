@@ -45,7 +45,9 @@ const site = (files: Record<string, unknown>) =>
   );
 
 const errors = (problems: SiteProblem[]) =>
-  problems.filter((problem) => problem.severity === "error").map(({ kind, file, target }) => [kind, file, target]);
+  problems
+    .filter((problem) => problem.severity === "error")
+    .map((problem) => [problem.kind, problem.file, "target" in problem ? problem.target : undefined]);
 
 describe("site checks", () => {
   it("finds links to pages and media that don't exist, wherever they are", async () => {

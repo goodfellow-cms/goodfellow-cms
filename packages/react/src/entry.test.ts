@@ -96,6 +96,17 @@ describe("filling in an item's values", () => {
     expect(fill(`<button onclick="go('{title}')">Go</button>`, "x');alert(1);('")).toBe(
       `<button onclick="go('')">Go</button>`,
     );
+    // An address the owners made a script one themselves is the same: the browser undoes the escaping before it runs
+    // what follows the scheme.
+    expect(fill(`<a href="javascript:show('{title}')">More</a>`, "');alert(document.domain);('")).toBe(
+      `<a href="javascript:show('')">More</a>`,
+    );
+    expect(fill("<iframe src='data:text/html,{title}'></iframe>", "<script>alert(1)</script>")).toBe(
+      "<iframe src='data:text/html,'></iframe>",
+    );
+    expect(fill('<a href=" JavaScript&#58;go({title})">Go</a>', "1);alert(1")).toBe(
+      '<a href=" JavaScript&#58;go()">Go</a>',
+    );
     expect(fill('<iframe srcdoc="{title}"></iframe>', "<script>alert(1)</script>")).toBe('<iframe srcdoc=""></iframe>');
     expect(fill("<script>var t = {title};</script><p>{title}</p>", "alert(1)")).toBe(
       "<script>var t = ;</script><p>alert(1)</p>",
