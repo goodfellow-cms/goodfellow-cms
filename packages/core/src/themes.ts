@@ -236,8 +236,14 @@ function checkLayoutAddresses(theme: ThemePackage): void {
  */
 export const THEME_LOADED_PROPS: readonly string[] = ["backgroundImage", "src", "poster", "file", "media", "image"];
 
-/** Named character references addresses can be spelled with, by name: any other is left as written, and listed so. */
+/**
+ * Named character references addresses can be spelled with, by name, with the only ones HTML has for a `srcset`'s
+ * separators (`Tab`, `NewLine`, and `comma`), so no candidate hides inside another: any other is left as written, and
+ * listed so.
+ */
 const NAMED_REFERENCES: Record<string, string> = {
+  NewLine: "\n",
+  Tab: "\t",
   amp: "&",
   apos: "'",
   colon: ":",

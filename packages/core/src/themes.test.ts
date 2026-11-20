@@ -196,6 +196,9 @@ describe("what a theme's header and footer may do", () => {
       // Character references are read as the browser reads them.
       [text('<img srcset="https://tracker.example/p?a=1&amp;b=2 1x">'), "https://tracker.example/p?a=1&b=2"],
       [text("<img src='&sol;&#47;tracker.example&#x2F;q'>"), "//tracker.example/q"],
+      // A reference to whitespace separates candidates, as browsers read it, so none hides inside another.
+      [text('<img srcset="/media/a.png&Tab;1x,https://tracker.example/t 2x">'), "https://tracker.example/t"],
+      [text('<img srcset="/media/a.png&NewLine;1x&comma;https://tracker.example/n 2x">'), "https://tracker.example/n"],
       [text("<video poster='https://tracker.example/still'>"), "https://tracker.example/still"],
     ] as const) {
       expect(themeLoads(withLayout([block])), address).toEqual([address]);
