@@ -61,6 +61,11 @@ describe("createServerSite", { timeout: 120_000 }, () => {
     expect(await readFile(join(folder, "wrangler.jsonc"), "utf8")).toContain("https://www.acme.example");
     expect(existsSync(join(folder, "content-repository/content/site.json"))).toBe(true);
     expect(given.said.join("\n")).toContain("Push the content to acme/site-content first, then the code to acme/site.");
+    // A range, never one release: vitest names its optional packages at its own release, and one of them by a range
+    // that takes the newest, which names that newest vitest, so npm 10 (Node 22's) stops installing a site without a
+    // lockfile, with "Cannot read properties of null (reading 'edgesOut')", once a newer vitest is out.
+    const pkg = JSON.parse(await readFile(join(folder, "package.json"), "utf8"));
+    expect(pkg.devDependencies.vitest).toMatch(/^\^/);
   });
 
   it("asks for the repositories and the address, then offers to put the site online", async () => {
