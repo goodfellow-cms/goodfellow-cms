@@ -2636,7 +2636,8 @@ of it.
   path for a file, and gives no reserved variables such as `GITHUB_TOKEN`, `GOODFELLOW_*`, or `NODE_OPTIONS`; `read`
   takes no patterns, `.git`, or files of secrets, `.npmrc` and `.netrc` among them, in any letter case or Windows short
   name, `isPluginReadPath()`, and no path part ending in a dot or a space or holding a `:`, which Windows reads
-  otherwise, and no folder holding such a file or a link out of it, `secretsUnder()`, since Node gives a folder's every
+  otherwise, and no path that is really such a file, outside the site, or a link to nowhere, and no folder holding
+  such a file or a link out of it or that can't be read through, `secretsUnder()`, since Node gives a folder's every
   file and follows links). Server modules, steps' network requests, and blocks on the site's pages can't be held to
   anything, and the docs say so.
 - **Admin frames:** each plugin's admin module is bundled with `pluginFrameEntry()` and `mountPluginFrame()` from

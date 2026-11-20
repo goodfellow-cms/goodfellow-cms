@@ -5,7 +5,7 @@
  */
 import { spawn } from "node:child_process";
 import { type Dirent, existsSync, realpathSync } from "node:fs";
-import { mkdir, readdir, readFile, realpath } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -19,6 +19,7 @@ import {
   type PluginBuildContext,
   type PluginTaskContext,
 } from "./plugins.js";
+import { trimChars } from "./trim.js";
 
 export type { PluginServer } from "./server-app-api.js";
 
@@ -58,22 +59,54 @@ function withRealPath(path: string): string[] {
   }
 }
 
+/** A path relative to the site, written with `/`. */
+function sitePath(root: string, file: string): string {
+  return relative(root, file).split(sep).join("/") || ".";
+}
+
 /**
- * What a folder a plugin may read holds that it mustn't, relative to the site: Node's permission model gives a
- * folder's every file, and follows links wherever they go, so a secret file (`isSecretName()`) anywhere under it, or a
- * link to somewhere outside it, would be read too. `.gitkeep` and `.gitignore` are kept, since they hold none.
+ * What a plugin may read that it mustn't, relative to the site: Node's permission model follows a path's links and
+ * gives a folder's every file, so a path that really is a secret (`isSecretName()`) or somewhere outside the site, a
+ * secret file anywhere under a folder, or a link from it to somewhere outside it, would be read too. A path that's a
+ * broken link, or a folder that can't be read through to its last file, is named as well, since what it holds can't
+ * be checked. `.gitkeep` and `.gitignore` are kept, since they hold none.
  */
 export async function secretsUnder(root: string, paths: readonly string[]): Promise<string[]> {
   const found: string[] = [];
+  const site = await realpath(root).catch(() => resolve(root));
   for (const path of paths) {
-    const folder = join(root, path);
+    // Without its trailing `/`, so a link is looked at as a link, not as what it points to.
+    const folder = join(root, trimChars(path, "/\\", { start: false }));
     let real: string;
-    let entries: Dirent[];
     try {
       real = await realpath(folder);
+    } catch {
+      // Nothing there is fine, since there's nothing to read; a link to nowhere could be made to point anywhere.
+      if (
+        await lstat(folder).then(
+          () => true,
+          () => false,
+        )
+      )
+        found.push(sitePath(root, folder));
+      continue;
+    }
+    const inSite = relative(site, real);
+    if (
+      inSite === ".." ||
+      inSite.startsWith(`..${sep}`) ||
+      isAbsolute(inSite) ||
+      inSite.split(sep).some(isSecretName)
+    ) {
+      found.push(sitePath(root, folder));
+      continue;
+    }
+    let entries: Dirent[];
+    try {
+      if (!(await stat(real)).isDirectory()) continue;
       entries = await readdir(folder, { recursive: true, withFileTypes: true });
     } catch {
-      // A file, or nothing there: a file's name was checked as it was declared.
+      found.push(sitePath(root, folder));
       continue;
     }
     for (const entry of entries) {
@@ -84,7 +117,7 @@ export async function secretsUnder(root: string, paths: readonly string[]): Prom
         const target = await realpath(file).catch(() => undefined);
         outside = target === undefined || (target !== real && !target.startsWith(`${real}${sep}`));
       }
-      if (named || outside) found.push(relative(root, file).split(sep).join("/"));
+      if (named || outside) found.push(sitePath(root, file));
     }
   }
   return [...new Set(found)].sort();
@@ -94,7 +127,7 @@ export async function secretsUnder(root: string, paths: readonly string[]): Prom
 async function readProblem(plugin: GoodfellowPlugin, root: string): Promise<string | undefined> {
   const found = await secretsUnder(root, plugin.permissions?.read ?? []);
   if (found.length === 0) return undefined;
-  return `${plugin.title} may read folders that hold secrets or links out of them, which it would read too: ${found.join(", ")}. Move ${found.length === 1 ? "it" : "them"} elsewhere, or ask the plugin's author to name narrower folders.`;
+  return `${plugin.title} may read secrets, links out of its folders, or folders that couldn't be checked, which it would read too: ${found.join(", ")}. Move ${found.length === 1 ? "it" : "them"} elsewhere, or ask the plugin's author to name narrower folders.`;
 }
 
 /**

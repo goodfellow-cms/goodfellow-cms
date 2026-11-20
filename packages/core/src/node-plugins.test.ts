@@ -118,6 +118,29 @@ describe("plugins' build steps", { timeout: NODE_TIMEOUT }, () => {
     await expect(refused).rejects.toThrow(/content\/settings\/\.NETRC, content\/settings\/env-link/);
   });
 
+  it("aren't given a path that really is a secret, outside the site, or a link to nowhere", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "goodfellow-outside-"));
+    try {
+      await mkdir(join(root, ".git"));
+      await writeFile(join(root, ".git/config"), "[credential]");
+      await writeFile(join(root, ".env"), "SECRET=1");
+      await mkdir(join(root, "content/safe"), { recursive: true });
+      await symlink(join(root, ".git"), join(root, "data"));
+      await symlink(join(root, ".env"), join(root, "settings.json"));
+      await symlink(outside, join(root, "elsewhere"));
+      await symlink(join(root, "nowhere"), join(root, "broken"));
+      await symlink(join(root, "content/safe"), join(root, "shortcut"));
+      expect(await secretsUnder(root, ["data/", "settings.json", "elsewhere/", "broken/", "shortcut/"])).toEqual([
+        "broken",
+        "data",
+        "elsewhere",
+        "settings.json",
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it("stop the build when one fails", async () => {
     await writeFile(join(root, "plugins/storage/fail.mjs"), "export default () => { throw new Error('No bucket.'); };");
     const plugin = definePlugin({

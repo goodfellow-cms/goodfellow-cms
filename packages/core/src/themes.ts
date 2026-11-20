@@ -278,7 +278,7 @@ function attributeText(value: string): string {
 /**
  * The addresses a `srcset` lists, read as HTML's own parsing does: each candidate's address is what's before the
  * next whitespace, which may hold commas (`a,b 1x`), less any commas it ends with, and its descriptors run to the
- * next comma outside parentheses.
+ * next comma outside parentheses, which don't nest.
  */
 function srcsetAddresses(value: string): string[] {
   const addresses: string[] = [];
@@ -293,12 +293,13 @@ function srcsetAddresses(value: string): string[] {
     if (address.endsWith(",")) {
       address = trimChars(address, ",", { start: false });
     } else {
-      let depth = 0;
+      // HTML doesn't nest parentheses here: the first `)` ends them, however many `(` came before.
+      let inParentheses = false;
       for (; at < value.length; at += 1) {
         const char = value.charAt(at);
-        if (char === "(") depth += 1;
-        else if (char === ")" && depth > 0) depth -= 1;
-        else if (char === "," && depth === 0) break;
+        if (char === "(") inParentheses = true;
+        else if (char === ")") inParentheses = false;
+        else if (char === "," && !inParentheses) break;
       }
     }
     if (address !== "") addresses.push(address);

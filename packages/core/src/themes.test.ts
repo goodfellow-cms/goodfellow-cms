@@ -193,6 +193,8 @@ describe("what a theme's header and footer may do", () => {
       // A srcset's address may hold commas, and descriptors' parentheses too, as browsers read them.
       [text('<img srcset="https://tracker.example/a,b 1x,/media/b.png 2x">'), "https://tracker.example/a,b"],
       [text('<img srcset="/media/a.png (x, y) 1x,, https://tracker.example/c,">'), "https://tracker.example/c"],
+      // The first `)` ends them, however many `(` came before.
+      [text('<img srcset="/media/a.png ((x), https://tracker.example/q 2x">'), "https://tracker.example/q"],
       // Character references are read as the browser reads them.
       [text('<img srcset="https://tracker.example/p?a=1&amp;b=2 1x">'), "https://tracker.example/p?a=1&b=2"],
       [text("<img src='&sol;&#47;tracker.example&#x2F;q'>"), "//tracker.example/q"],
