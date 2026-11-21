@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ContentError } from "./content/errors.js";
 import {
@@ -92,7 +93,7 @@ describe("sites' overrides", () => {
   });
 
   it("pins Puck's command line to the release the workspace has, never its moving `latest`", async () => {
-    const workspace = await readFile(new URL("../../../pnpm-workspace.yaml", import.meta.url), "utf8");
+    const workspace = await readFile(join(import.meta.dirname, "../../../pnpm-workspace.yaml"), "utf8");
     expect(workspace).toContain(`"@puckeditor/core>@puckeditor/cli": "${PUCK_CLI}"`);
     expect(SITE_OVERRIDES["@puckeditor/core"]?.["@puckeditor/cli"]).toBe(PUCK_CLI);
     expect(PUCK_CLI).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
