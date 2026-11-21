@@ -10,8 +10,8 @@ import {
   manifestAction,
   newSessionKey,
   readVar,
-  SETUP_COOKIE,
   setupCookie,
+  setupCookieName,
   setupPage,
   setupRequest,
   withVars,
@@ -168,16 +168,29 @@ describe("setupRequest", () => {
   });
 
   it("takes GitHub's way back only from the browser the page gave its cookie to", () => {
-    const [pair = ""] = setupCookie(cookie).split(";");
-    expect(setupCookie(cookie)).toContain("HttpOnly");
-    expect(setupCookie(cookie)).toContain("SameSite=Lax");
+    const [pair = ""] = setupCookie(cookie, 4321).split(";");
+    expect(setupCookie(cookie, 4321)).toContain("HttpOnly");
+    expect(setupCookie(cookie, 4321)).toContain("SameSite=Lax");
+    // A browser keeps one cookie a name for 127.0.0.1, whatever the port: the other setup page's, set after this
+    // one's, must be another cookie, or GitHub's way back to this page is refused.
+    const jar = new Map<string, string>();
+    for (const header of [setupCookie(cookie, 4321), setupCookie("d4e5f6", 5432)]) {
+      const [name = "", value = ""] = (header.split(";")[0] ?? "").split("=");
+      jar.set(name, value);
+    }
+    const both = [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+    const otherPage = setupCookie("d4e5f6", 5432).split(";")[0] ?? "";
     for (const path of ["/created", "/created/edit", "/created/owner?code=x&state=y"]) {
       expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `other=1; ${pair}` }, options)).toBe("serve");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: both }, options)).toBe("serve");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: otherPage }, options)).toBe("refuse");
       expect(setupRequest({ host: "127.0.0.1:4321", path }, options)).toBe("refuse");
-      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `${SETUP_COOKIE}=wrong` }, options)).toBe("refuse");
-      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `x${SETUP_COOKIE}=${cookie}` }, options)).toBe(
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `${setupCookieName(4321)}=wrong` }, options)).toBe(
         "refuse",
       );
+      expect(
+        setupRequest({ host: "127.0.0.1:4321", path, cookie: `x${setupCookieName(4321)}=${cookie}` }, options),
+      ).toBe("refuse");
     }
   });
 });

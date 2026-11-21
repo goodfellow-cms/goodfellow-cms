@@ -213,7 +213,7 @@ function createApp({ connector, organization, isPublic }) {
         .writeHead(200, {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
-          "set-cookie": setupCookie(cookie),
+          "set-cookie": setupCookie(cookie, port),
           connection: "close",
         })
         .end(page);
