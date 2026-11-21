@@ -305,9 +305,9 @@ async function miniSearchModule(): Promise<string> {
   throw new Error("Goodfellow's MiniSearch module is missing: build @goodfellow-cms/core again");
 }
 
-/** A file's name with its hash: `en.3f2a9c01b4d7e6f0.json`. */
-async function hashedName(stem: string, extension: string, text: string): Promise<string> {
-  return `${stem}.${(await hashText(text)).slice(0, 16)}.${extension}`;
+/** A file's name with its text's hash (`hashText()`): `en.3f2a9c01b4d7e6f0.json`. */
+function hashedName(stem: string, extension: string, hash: string): string {
+  return `${stem}.${hash.slice(0, 16)}.${extension}`;
 }
 
 /**
@@ -322,20 +322,21 @@ async function hashedName(stem: string, extension: string, text: string): Promis
  *   has, which its manifest names as the language's `search`, where the build
  *   wrote a content API.
  *
- * Returns how many pages are in it.
+ * Returns how many pages are in it. Its callers take out the files written before (`removeMiniSearch()`).
  */
-export async function writeMiniSearch(
+async function writeMiniSearch(
   outDir: string,
   pages: SearchPage[],
   { web, apps }: { web: boolean; apps: boolean },
 ): Promise<number> {
-  await removeMiniSearch(outDir);
   const byLanguage = new Map<string, SearchDocument[]>();
   for (const page of pages) {
     const found = searchPageText(page.html, page.url);
     // A page whose `<html lang>` is missing or odd is still found, as Pagefind finds it, from pages saying the same.
     if (!found) continue;
-    byLanguage.set(found.language, [...(byLanguage.get(found.language) ?? []), found.document]);
+    const documents = byLanguage.get(found.language);
+    if (documents) documents.push(found.document);
+    else byLanguage.set(found.language, [found.document]);
   }
   const files = await Promise.all(
     [...byLanguage].map(async ([language, documents]) => {
@@ -347,7 +348,8 @@ export async function writeMiniSearch(
       const text = `${JSON.stringify(file)}\n`;
       // Files are named by the language only where it's a code a file's name can hold.
       const stem = FILE_LANGUAGE.test(language) ? language : "pages";
-      return { language, text, name: await hashedName(stem, "json", text), count: documents.length };
+      const hash = await hashText(text);
+      return { language, text, hash, name: hashedName(stem, "json", hash), count: documents.length };
     }),
   );
   if (web) {
@@ -355,7 +357,7 @@ export async function writeMiniSearch(
     await mkdir(assets, { recursive: true });
     for (const file of files) await writeFile(join(assets, file.name), file.text);
     const module = await miniSearchModule();
-    const moduleName = await hashedName("search", "js", module);
+    const moduleName = hashedName("search", "js", await hashText(module));
     await writeFile(join(assets, moduleName), module);
     const assetsFolder = MINISEARCH_ASSETS_DIR.slice(MINISEARCH_DIR.length + 1);
     const named = Object.fromEntries(files.map((file) => [file.language, `${assetsFolder}/${file.name}`]));
@@ -382,7 +384,7 @@ export async function writeMiniSearch(
         const language = manifest.languages[file.language];
         if (!language) continue;
         await writeFile(join(folder, file.name), file.text);
-        language.search = { file: `${API_SEARCH_DIR}/${file.name}`, hash: await hashText(file.text) };
+        language.search = { file: `${API_SEARCH_DIR}/${file.name}`, hash: file.hash };
       }
       await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
     }

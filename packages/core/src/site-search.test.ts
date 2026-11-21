@@ -38,6 +38,8 @@ describe("siteSearch", () => {
   it("finds words whatever their case and accents", () => {
     expect(search.search("CAFE").map((result) => result.path)).toEqual(["/about/"]);
     expect(searchTerm("Café")).toBe("cafe");
+    // Some letters' lower case brings an accent of its own, which goes too.
+    expect(searchTerm("İstanbul")).toBe("istanbul");
   });
 
   it("allows a typo in long words, never in short ones", () => {

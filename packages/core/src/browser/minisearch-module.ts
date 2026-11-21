@@ -7,7 +7,7 @@
  * page's language (`<html lang>`), loaded the first time it's asked.
  * `minisearch/minisearch.js`, which builds write beside it, names the files.
  */
-import { excerptHtml, isSearchFile, type SiteSearch, siteSearch } from "../site-search.js";
+import { excerptHtml, isSearchFile, SEARCH_FILE_VERSION, type SiteSearch, siteSearch } from "../site-search.js";
 
 /** A result as Pagefind's module gives one. */
 export interface PagefindResult {
@@ -50,7 +50,8 @@ export function pagefindLike(files: Readonly<Record<string, string>>, from: stri
           if (!isSearchFile(index)) throw new Error(`The search index for ${language} can't be read`);
           return siteSearch(index);
         })
-      : Promise.reject(new Error(`There's no search index for ${language}`));
+      : // A language with no pages to search finds nothing, as Pagefind does, rather than search being unavailable.
+        Promise.resolve(siteSearch({ version: SEARCH_FILE_VERSION, language, documents: [] }));
     // A failed load is asked again next time, as the script does for Pagefind.
     search.catch(() => {
       if (loaded?.search === search) loaded = undefined;

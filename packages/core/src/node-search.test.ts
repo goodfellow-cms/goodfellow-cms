@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CACHED_FOLDERS, MINISEARCH_MODULE, vercelSiteHeaders } from "./index.js";
 import {
   builtPagePath,
   marksSearchContent,
@@ -262,6 +263,28 @@ describe("MiniSearch's index", () => {
     expect(module).toMatch(/"en_US":"assets\/pages\.[0-9a-f]{16}\.json"/);
   }, 60_000);
 
+  it("goes only where hosts let browsers and apps keep files for long, apart from the module naming them", async () => {
+    await site();
+    await writeSearchIndex(dir, { engine: "minisearch" });
+    const written = readdirSync(join(dir, "minisearch/assets")).map((file) => `minisearch/assets/${file}`);
+    await writeSearchIndex(dir, { engine: "both" });
+    written.push(...readdirSync(join(dir, "api/search")).map((file) => `api/search/${file}`));
+    const folders = [...new Set(written.map((file) => `${file.slice(0, file.lastIndexOf("/"))}/`))].sort();
+    expect(folders).toEqual(["api/search/", "minisearch/assets/"]);
+    const vercel = vercelSiteHeaders().map((rule) => rule.source);
+    const starters = await Promise.all(
+      ["templates/starter/vercel.ts", "examples/parish/vercel.ts"].map((file) =>
+        readFile(new URL(`../../../${file}`, import.meta.url), "utf8"),
+      ),
+    );
+    for (const folder of folders) {
+      expect(CACHED_FOLDERS).toContain(folder);
+      expect(vercel).toContain(`/${folder}(.*)`);
+      for (const starter of starters) expect(starter).toContain(`"/${folder}(.*)"`);
+    }
+    expect(CACHED_FOLDERS.some((folder) => MINISEARCH_MODULE.startsWith(folder))).toBe(false);
+  }, 60_000);
+
   it("goes beside the folder given for a server's pages", async () => {
     const indexDir = join(dir, "public/pagefind");
     const pages = [
@@ -355,7 +378,8 @@ describe("the website's MiniSearch module", () => {
     lang.lang = "es";
     await search.destroy();
     expect((await search.debouncedSearch("manzanas")).results).toHaveLength(1);
+    // A language with no pages to search finds nothing, as Pagefind does, rather than search being unavailable.
     lang.lang = "fr";
-    await expect(search.debouncedSearch("pears")).rejects.toThrow();
+    expect((await search.debouncedSearch("pears")).results).toEqual([]);
   });
 });

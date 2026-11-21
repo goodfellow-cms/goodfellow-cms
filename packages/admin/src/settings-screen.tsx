@@ -196,7 +196,6 @@ function formsProblem(t: ReturnType<typeof useStrings>, forms: FormSettings | un
 
 const FORM_SERVICES: Array<FormSettings["service"]> = ["web3forms", "formspree", "other"];
 
-/** Where forms' answers go: the service, and its key or address. */
 /** What searches the site: each of `SEARCH_ENGINES`, with what it's good for. */
 function SearchSettings({ engine, onChange }: { engine: SearchEngine; onChange: (engine: SearchEngine) => void }) {
   const t = useStrings();
@@ -220,6 +219,7 @@ function SearchSettings({ engine, onChange }: { engine: SearchEngine; onChange: 
   );
 }
 
+/** Where forms' answers go: the service, and its key or address. */
 function FormsSettings({
   forms,
   error,
