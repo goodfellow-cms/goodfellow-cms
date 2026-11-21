@@ -47,7 +47,7 @@ import {
   TASK_DESCRIPTION_FILE,
   update,
 } from "@goodfellow-cms/core/node";
-import { writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { readSearchEngine, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { blockWorks, formatShadcnBlock, ShadcnBlockError, TYPESCRIPT_VERSION } from "@goodfellow-cms/core/shadcn";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import { addBlock } from "./blocks.js";
@@ -310,7 +310,7 @@ async function main(): Promise<void> {
     }
     case "index": {
       const dir = positionals[1] ?? values.out ?? "out";
-      const indexed = await writeSearchIndex(dir);
+      const indexed = await writeSearchIndex(dir, { engine: await readSearchEngine(values.root ?? ".") });
       console.log(
         indexed === undefined
           ? `No page in ${dir} has a search block, so there's nothing to index`

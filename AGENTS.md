@@ -2285,6 +2285,27 @@ of it.
   bundles Pagefind's binary. Pages mark their main content `data-pagefind-body`, except "Page not found", pages blocks
   add, and pages with `noSearch`. The Search block tells Pagefind its base is `/`, since `SiteLink` adds the site's base
   path.
+- **MiniSearch:** `content/site.json`'s `search.engine` (`SEARCH_ENGINES`, `searchEngine()`: `pagefind` where it's
+  missing, `minisearch`, or `both`) chooses what searches: `webSearchEngine()` says the website's, and `miniSearchFor()`
+  whether builds write MiniSearch's index for the website and for apps. `writeSearchIndex()` and
+  `writePagesSearchIndex()` take it (`readSearchEngine()` reads it for `goodfellow-next` and `goodfellow index`), and
+  `writeMiniSearch()` reads each page as Pagefind does (`searchPageText()`: what's `data-pagefind-body`, without
+  `data-pagefind-ignore`, scripts, or templates) into a `SearchFile` for each `<html lang>`, whatever it says (a file
+  named `pages.<hash>.json` where it's no code), each named by its hash: for apps `api/search/<code>.<hash>.json`, which
+  the content API's manifest names as the language's `search` (written after the API, so it adds to the manifest, and
+  taken out of it with the files, `removeMiniSearch()`); for the website the module
+  (`minisearch/assets/search.<hash>.js`, core's `src/browser/minisearch-module.ts`, bundled with MiniSearch by core's
+  build), and `MINISEARCH_MODULE`, which names it and each language's index and keeps its name: the apps' file where
+  there is one, so no index is written twice, else `minisearch/assets/<code>.<hash>.json`. A page with
+  `SEARCH_ATTRIBUTE` on an element that neither says nor holds `SEARCH_ENGINE_ATTRIBUTE`'s `minisearch`
+  (`searchesWithPagefind()`) is another's block loading Pagefind, so Pagefind's index is written for it whatever the
+  setting. Both hashed folders are `CACHED_FOLDERS`. Results must be the same on the website and in apps, so both search
+  only through `siteSearch()` in `@goodfellow-cms/core/site-search` (an entry of its own, so nothing else loads
+  MiniSearch): the box's module answers as Pagefind's does (`pagefindLike()`), which `searchScript()` loads where the
+  box carries `SEARCH_ENGINE_ATTRIBUTE`, or the other engine's module where that one can't be loaded, as on a full-stack
+  site rendering from its repository before its next build, (only then, so other sites' pages stay as they were), and
+  the native Search block reads `useNativeSite().searchIndex` (`readSearchFile()`), finding by titles only where the
+  site has no index for apps.
 - **The copy button and the Search box** are plain HTML that `copyScript()` and `searchScript()` make work (see Blocks),
   with their words from the block's props, which editors can translate, in the HTML. The copy button copies the text of
   the `<pre>` beside it; the Search box loads Pagefind from `data-gf-base` and writes its results with the classes its

@@ -131,8 +131,17 @@ export interface ApiManifest {
   /** The Site address, where it's set. */
   url?: string;
   mainLanguage: string;
-  /** Each language's site, collections, header, and footer, by its code. */
-  languages: Record<string, { site: ApiFile; collections: ApiFile; header: ApiFile; footer: ApiFile }>;
+  /**
+   * Each language's site, collections, header, and footer, by its code, and
+   * its search index (a `SearchFile` from `@goodfellow-cms/core/site-search`,
+   * named by its hash) where the site searches with MiniSearch in apps
+   * (`content/site.json`'s `search.engine`, `miniSearchFor()`) and a page has a
+   * Search block.
+   */
+  languages: Record<
+    string,
+    { site: ApiFile; collections: ApiFile; header: ApiFile; footer: ApiFile; search?: ApiFile }
+  >;
   /** Every page, "Page not found" (`/404`) and pages blocks add included. */
   pages: Array<
     ApiFile & { path: string; language: string; entry?: { collection: string; slug: string }; added?: true }

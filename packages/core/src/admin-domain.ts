@@ -534,13 +534,24 @@ export const CACHED_HEADERS: Readonly<Record<string, string>> = {
 /**
  * The folders of a built site, relative to its base path, whose files are
  * named by their content and so cached long (`CACHED_HEADERS`): `goodfellow
- * build`'s CSS and JS, which Vite names by their hash, Next.js's, and the
+ * build`'s CSS and JS, which Vite names by their hash, Next.js's, the
  * Google Fonts builds copy in (`FONTS_DIR`, written out here since this file
  * imports nothing: the stylesheet named by its hash,
- * the fonts at Google's own paths, which Google caches as long). Never
- * `/media/`, whose files keep their names when they're replaced.
+ * the fonts at Google's own paths, which Google caches as long), and
+ * MiniSearch's index and module, for the website (`MINISEARCH_ASSETS_DIR`) and
+ * for apps (`api/search/`), each named by its hash. Never `/media/`, whose
+ * files keep their names when they're replaced.
  */
-export const CACHED_FOLDERS: readonly string[] = ["assets/", "_next/static/", "fonts/google/"];
+export const CACHED_FOLDERS: readonly string[] = [
+  "assets/",
+  "_next/static/",
+  "fonts/google/",
+  "minisearch/assets/",
+  "api/search/",
+];
+
+/** A file named by its hash as the content API's search indexes are (`en.3f2a9c01b4d7e6f0.json`), for Vercel's rules. */
+const HASHED_JSON = "([^/]+\\.[0-9a-f]{16}\\.json)";
 
 /** Every spelling of `svg`, since browsers open `x.Svg` as an SVG as they do `x.svg`. */
 const SVG_SPELLINGS = ["s", "S"].flatMap((s) => ["v", "V"].flatMap((v) => ["g", "G"].map((g) => `${s}${v}${g}`)));
@@ -639,9 +650,9 @@ export function netlifySiteHeaders(
 
 /**
  * Vercel's header rules for every site, the same as `cloudflareSiteHeaders()`'s,
- * but long caching only for the Google Fonts builds copy in: Vercel caches
- * Next.js's own files itself (and Next.js warns about rules for them), and
- * `assets/` only with `assets`, as the starters' `vercel.ts` asks where the
+ * but long caching only for the Google Fonts builds copy in and MiniSearch's
+ * files (the content API's by their names alone): Vercel caches Next.js's own
+ * files itself (and Next.js warns about rules for them), and `assets/` only with `assets`, as the starters' `vercel.ts` asks where the
  * site has no `public/assets/` of its own. `base` is the site's base path.
  */
 export function vercelSiteHeaders(
@@ -655,6 +666,10 @@ export function vercelSiteHeaders(
     { source: `${prefix}/(.*)`, headers: list(SITE_HEADERS) },
     { source: `${prefix}/media/(.*)\\.([sS][vV][gG])`, headers: list(SVG_MEDIA_HEADERS) },
     { source: `${prefix}/fonts/google/(.*)`, headers: list(CACHED_HEADERS) },
+    { source: `${prefix}/minisearch/assets/(.*)`, headers: list(CACHED_HEADERS) },
+    // Only the index files, named by their hash: Next.js sends these rules for a full-stack site's own routes too,
+    // and `/api/search/…` is where a site may answer searches itself.
+    { source: `${prefix}/api/search/${HASHED_JSON}`, headers: list(CACHED_HEADERS) },
     ...(assets ? [{ source: `${prefix}/assets/(.*)`, headers: list(CACHED_HEADERS) }] : []),
   ];
   if (adminOrigin(admin)) return rules;

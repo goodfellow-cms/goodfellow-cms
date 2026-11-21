@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      // The search index tests copy the website's MiniSearch module, which the build bundles.
+      "dependsOn": ["^build", "build"]
+    }
+  }
+}

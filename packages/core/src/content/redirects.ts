@@ -60,6 +60,7 @@ const RESERVED_PREFIXES = [
   "/api",
   "/fonts",
   "/pagefind",
+  "/minisearch",
   "/_next",
   "/_redirects",
   "/_headers",

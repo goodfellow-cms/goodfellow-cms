@@ -2,6 +2,7 @@ import { z } from "zod";
 import { wallClock } from "../calendar.js";
 import { COMMENTS_ID, COMMENTS_REPO, DISQUS_SHORTNAME, garrulAddress } from "../comments.js";
 import { CUSTOM_FONT_ADDRESS, MAX_CUSTOM_FONTS, MAX_FONT_FILES } from "../custom-fonts.js";
+import { SEARCH_ENGINES } from "../search.js";
 import { PLAUSIBLE_DOMAIN, STATS_PURPOSES, statsAddress, UMAMI_ID } from "../stats.js";
 import { addressPatternProblem } from "./paths.js";
 
@@ -471,6 +472,13 @@ export const siteSettingsSchema = z
      * custom code wait until they agree. Asks only where it's set.
      */
     consent: consentSchema.optional(),
+    /**
+     * What searches the site's pages where a page has a Search block
+     * (`searchEngine()`, `SEARCH_ENGINES`): Pagefind on the website where it
+     * doesn't say, MiniSearch on the website and in apps, or Pagefind on the
+     * website and MiniSearch in apps.
+     */
+    search: z.object({ engine: z.enum(SEARCH_ENGINES) }).optional(),
     theme: themeSchema.default({ colors: {}, fonts: {} }),
   })
   // The notice's words, where an owner hasn't changed them, are in the site's main language.

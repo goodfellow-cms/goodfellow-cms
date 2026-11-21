@@ -72,18 +72,24 @@ describe("guardBuiltSite", () => {
   it("keeps a build's assets a year only where every file there is named by its content", async () => {
     await write("assets/styles-B56g62wk.css", "body{}");
     await write("assets/islands-CHz1ci1F.js", "");
-    expect(await cachedFolders(dir)).toEqual(["assets/", "_next/static/", "fonts/google/"]);
+    expect(await cachedFolders(dir)).toEqual([
+      "assets/",
+      "_next/static/",
+      "fonts/google/",
+      "minisearch/assets/",
+      "api/search/",
+    ]);
     await writeSiteHeaders(dir, { host: "netlify" });
     expect(await read("_headers")).toContain(
       "/assets/*\n  Content-Security-Policy: object-src 'none'; base-uri 'self'\n  Cache-Control: public, max-age=31536000, immutable\n",
     );
     // A file the site keeps in public/assets/ keeps its name when it changes.
     await write("assets/logo.png", "png");
-    expect(await cachedFolders(dir)).toEqual(["_next/static/", "fonts/google/"]);
+    expect(await cachedFolders(dir)).toEqual(["_next/static/", "fonts/google/", "minisearch/assets/", "api/search/"]);
     await rm(join(dir, "_headers"));
     await writeSiteHeaders(dir);
     const rules = await read("_headers");
-    expect(rules).not.toContain("/assets/*");
+    expect(rules).not.toMatch(/^\/assets\/\*/m);
     expect(rules).toContain("/fonts/google/*\n  Cache-Control: public, max-age=31536000, immutable\n");
   });
 

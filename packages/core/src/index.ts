@@ -1359,7 +1359,19 @@ export {
   type ScheduledBuildTiming,
   stopsScheduledBuild,
 } from "./scheduled-builds.js";
-export { SEARCH_ATTRIBUTE, SEARCH_INDEX_DIR } from "./search.js";
+export {
+  MINISEARCH_ASSETS_DIR,
+  MINISEARCH_DIR,
+  MINISEARCH_MODULE,
+  miniSearchFor,
+  SEARCH_ATTRIBUTE,
+  SEARCH_ENGINE_ATTRIBUTE,
+  SEARCH_ENGINES,
+  SEARCH_INDEX_DIR,
+  type SearchEngine,
+  searchEngine,
+  webSearchEngine,
+} from "./search.js";
 export {
   newSetupCode,
   planServerSite,

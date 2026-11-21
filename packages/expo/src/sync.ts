@@ -7,11 +7,13 @@
 import { CURRENT_VERSION, mediaKind, trimChars } from "@goodfellow-cms/core";
 import type {
   ApiCollectionsFile,
+  ApiFile,
   ApiLayoutFile,
   ApiManifest,
   ApiPageFile,
   ApiSiteFile,
 } from "@goodfellow-cms/core/content-api";
+import { isSearchFile, type SearchFile } from "@goodfellow-cms/core/site-search";
 
 /** Where the app keeps its copy: text files by name, and downloaded media. */
 export interface ContentStorage {
@@ -112,13 +114,22 @@ export function readsContent(manifest: Pick<ApiManifest, "version" | "content">)
   );
 }
 
+/** A language's files that the app always keeps: its site, collections, header, footer, and search index if it has one. */
+function languageFiles(language: ApiManifest["languages"][string]): ApiFile[] {
+  return [
+    language.site,
+    language.collections,
+    language.header,
+    language.footer,
+    ...(language.search ? [language.search] : []),
+  ];
+}
+
 /** Every file of the manifest's that the app keeps: each language's files, and the pages it keeps ahead. */
 function wantedFiles(manifest: ApiManifest, keep: (page: ManifestPage) => boolean): Map<string, string> {
   const files = new Map<string, string>();
   for (const language of Object.values(manifest.languages)) {
-    for (const file of [language.site, language.collections, language.header, language.footer]) {
-      files.set(file.file, file.hash);
-    }
+    for (const file of languageFiles(language)) files.set(file.file, file.hash);
   }
   for (const page of manifest.pages) if (keep(page)) files.set(page.file, page.hash);
   return files;
@@ -129,9 +140,7 @@ function hashes(manifest: ApiManifest | undefined): Map<string, string> {
   const files = new Map<string, string>();
   if (!manifest) return files;
   for (const language of Object.values(manifest.languages)) {
-    for (const file of [language.site, language.collections, language.header, language.footer]) {
-      files.set(file.file, file.hash);
-    }
+    for (const file of languageFiles(language)) files.set(file.file, file.hash);
   }
   for (const page of manifest.pages) files.set(page.file, page.hash);
   return files;
@@ -237,7 +246,10 @@ export async function syncSite(options: SyncOptions): Promise<SyncResult> {
   const stale = new Map<string, string>();
   if (options.media !== false && storage.download) {
     const shown = new Set<string>();
+    // Search indexes hold pages' words, not the pictures they show.
+    const searchFiles = new Set(Object.values(manifest.languages).flatMap((language) => language.search?.file ?? []));
     for (const name of wanted.keys()) {
+      if (searchFiles.has(name)) continue;
       const text = texts.get(name) ?? (await storage.read(name)) ?? "";
       for (const address of mediaAddresses(text)) shown.add(mediaFile(address));
     }
@@ -313,6 +325,21 @@ export async function readSiteFiles(
     readJson<ApiLayoutFile>(storage, files.footer.file),
   ]);
   return site && collections && header && footer ? { site, collections, header, footer } : undefined;
+}
+
+/**
+ * A language's search index from the app's copy, where the site searches with
+ * MiniSearch in apps (`ApiManifest`'s `search`), or `undefined` where it has
+ * none, or one of a version this release doesn't read.
+ */
+export async function readSearchFile(
+  storage: ContentStorage,
+  manifest: ApiManifest,
+  language: string,
+): Promise<SearchFile | undefined> {
+  const file = manifest.languages[language]?.search;
+  const index = file && (await readJson<unknown>(storage, file.file));
+  return isSearchFile(index) ? index : undefined;
 }
 
 /** An address's path, without its `?…`, `#…` or trailing slash. */
