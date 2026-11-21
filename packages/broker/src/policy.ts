@@ -1,6 +1,9 @@
 import {
   type BrokerConfirmKind,
   brokerChangeCheck,
+  COMMENTS_ID,
+  COMMENTS_REPO,
+  type CommentsPlace,
   type EditorList,
   type FileChange,
   type GitBackend,
@@ -14,6 +17,7 @@ import {
   outsideLimits,
   parseInstalledPlugins,
   readPermissions,
+  SITE_FILE,
   type SiteEditor,
   THEME_FILE,
   themeRecordSchema,
@@ -35,8 +39,11 @@ export type BrokerQuestion =
   | { kind: "editors"; who: string; role?: string }
   /** Taking someone's access away. */
   | { kind: "editors-remove"; who: string }
-  /** Connecting, securing, or removing a domain on the site's host. */
-  | { kind: "domain"; change: "connect" | "secure" | "disconnect"; domain: string }
+  /**
+   * Connecting, securing, or removing a domain on the site's host. `primary`, for securing, says the domain becomes
+   * the one visitors are sent to from the site's other addresses.
+   */
+  | { kind: "domain"; change: "connect" | "secure" | "disconnect"; domain: string; primary?: boolean }
   /** Running an installed plugin's task in the site's CI, with the secrets it declared. */
   | { kind: "task"; plugin: string; task: string }
   /** Turning on what the site's host needs for updates. */
@@ -45,6 +52,8 @@ export type BrokerQuestion =
   | { kind: "discard-draft"; name: string }
   /** Making a public repository for visitors' comments. */
   | { kind: "comments-create"; name: string }
+  /** Turning on Discussions in a repository for visitors' comments, where they're off. */
+  | { kind: "comments-discussions"; name: string }
   /** Deleting a visitor's comment, which can't be undone. */
   | { kind: "comments-delete" }
   /** Updating the theme before its release is three days old, which its provenance is to allow. */
@@ -52,10 +61,11 @@ export type BrokerQuestion =
 
 /** What the broker does with a call: makes it, asks first, or refuses it. */
 export type BrokerDecision =
-  | { action: "allow" }
+  /** `args`, where given, are what the call is made with in place of the admin panel's. */
+  | { action: "allow"; args?: unknown[] }
   /** `args`, where given, are what the call is made with in place of the admin panel's. */
   | { action: "ask"; questions: BrokerQuestion[]; args?: unknown[] }
-  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" | "unknown" | "editor" | "read" };
+  | { action: "refuse"; paths: string[]; reason: "workflow" | "limits" | "unknown" | "editor" | "read" | "domain" };
 
 /** Calls that publish a set of changes, by their path in the backend. */
 const WRITES = new Set(["write", "draft.store.write"]);
@@ -127,9 +137,9 @@ const UNASKED: Record<string, readonly ArgKind[]> = {
   "scheduledBuilds.sync": ["value", "value"],
   "tasks.supported": [],
   "tasks.secretsPlace": [],
-  // Comments: finding their repository, reading them, and moderating in ways that can be undone, by GraphQL's ids.
-  "comments.find": ["repository"],
-  "comments.threads": ["value", "value"],
+  // Comments: finding their repository, and moderating in ways that can be undone, by GraphQL's ids, which the
+  // backend takes only where its `threads()` listed them, from the place `decide()` gives it: the site's own.
+  "comments.find": ["repository", "value"],
   "comments.hide": ["value", "value"],
   "comments.show": ["value"],
   "comments.lock": ["value"],
@@ -288,6 +298,60 @@ async function listedEditor(target: unknown, editor: unknown): Promise<SiteEdito
   return editors.find((listed) => listed?.id === id);
 }
 
+/**
+ * What the broker does with a change to a domain: asks about the domain the call changes. The name must be a domain
+ * as `normalizeDomain()` writes it, since backends put it in the host's addresses. A host that serves one domain
+ * (`severalDomains` false, GitHub Pages) secures or removes the site's own whatever name it's given, so there the
+ * name must be the one the host has (`site()`), and the question names it.
+ */
+async function domainDecision(
+  path: string,
+  change: "connect" | "secure" | "disconnect",
+  args: unknown[],
+  target: unknown,
+): Promise<BrokerDecision> {
+  const [domain, options] = args;
+  if (
+    args.length > (change === "disconnect" ? 1 : 2) ||
+    typeof domain !== "string" ||
+    normalizeDomain(domain) !== domain
+  ) {
+    return { action: "refuse", paths: [path], reason: "read" };
+  }
+  const pages = (target ?? {}) as { severalDomains?: unknown; site?: unknown };
+  if (change !== "connect" && pages.severalDomains !== true) {
+    const site =
+      typeof pages.site === "function"
+        ? ((await Promise.resolve(pages.site.call(target)).catch(() => undefined)) as { domain?: unknown } | undefined)
+        : undefined;
+    if (site?.domain !== domain) return { action: "refuse", paths: [path], reason: "domain" };
+  }
+  const primary = change === "secure" ? (options as { primary?: unknown } | undefined)?.primary !== false : undefined;
+  return {
+    action: "ask",
+    questions: [{ kind: "domain", change, domain, ...(primary === undefined ? {} : { primary }) }],
+  };
+}
+
+/** The site's own place for visitors' comments, from its settings as the backend reads them, if it has one on GitHub. */
+async function siteCommentsPlace(backend: GitBackend | undefined): Promise<CommentsPlace | undefined> {
+  try {
+    const settings = JSON.parse((await backend?.read(SITE_FILE)) ?? "null") as { comments?: Partial<CommentsPlace> };
+    const { repo, repoId, category, categoryId } = settings?.comments ?? {};
+    return typeof repo === "string" &&
+      COMMENTS_REPO.test(repo) &&
+      typeof repoId === "string" &&
+      COMMENTS_ID.test(repoId) &&
+      typeof category === "string" &&
+      typeof categoryId === "string" &&
+      COMMENTS_ID.test(categoryId)
+      ? { repo, repoId, category, categoryId }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -334,7 +398,7 @@ export async function decide(
   }
   if (path === "editors.letEditorsPublish") return { action: "ask", questions: [{ kind: "editors", who: "" }] };
   const change = DOMAIN_CHANGES[path];
-  if (change) return { action: "ask", questions: [{ kind: "domain", change, domain: text(args[0]) }] };
+  if (change) return domainDecision(path, change, args, target);
   if (path === "tasks.run") {
     const request = (args[0] ?? {}) as { plugin?: unknown; task?: unknown };
     return { action: "ask", questions: [{ kind: "task", plugin: text(request.plugin), task: text(request.task) }] };
@@ -349,6 +413,18 @@ export async function decide(
   if (path === "comments.create")
     return { action: "ask", questions: [{ kind: "comments-create", name: text(args[0]) }] };
   if (path === "comments.remove") return { action: "ask", questions: [{ kind: "comments-delete" }] };
+  if (path === "comments.threads") {
+    // Whatever place the admin panel names, the site's own is listed, so nothing else's ids can be moderated.
+    const place = await siteCommentsPlace(backend);
+    if (!place || args.length > 2 || (args[1] !== undefined && typeof args[1] !== "string")) {
+      return { action: "refuse", paths: [path], reason: "read" };
+    }
+    return { action: "allow", args: [place, ...args.slice(1)] };
+  }
+  if (path === "comments.find" && (args[1] as { turnOn?: unknown } | undefined)?.turnOn === true) {
+    if (!argsFit(UNASKED[path] ?? [], args)) return { action: "refuse", paths: [path], reason: "read" };
+    return { action: "ask", questions: [{ kind: "comments-discussions", name: text(args[0]) }] };
+  }
   const kinds = Object.hasOwn(UNASKED, path) ? UNASKED[path] : undefined;
   if (kinds) return argsFit(kinds, args) ? { action: "allow" } : { action: "refuse", paths: [path], reason: "read" };
   return { action: "refuse", paths: [path], reason: "unknown" };

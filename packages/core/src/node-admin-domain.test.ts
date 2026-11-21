@@ -238,3 +238,14 @@ describe("files in UTF-16", () => {
     await expect(guardBuiltSite(dir, options)).rejects.toThrow("media/a.gml");
   });
 });
+
+describe("files whose root element HTML wouldn't call a tag", () => {
+  it("stop the build too, since XML's names may start with _ or a letter outside ASCII", async () => {
+    await write("index.html", "<!DOCTYPE html><html><head></head></html>");
+    await write("media/b.gml", '<_x><script xmlns="http://www.w3.org/1999/xhtml">steal()</script></_x>');
+    await write("media/c.gml", "<\u00e9l/>");
+    await expect(guardBuiltSite(dir, options)).rejects.toThrow(
+      /media\/b\.gml[\s\S]*media\/c\.gml|media\/c\.gml[\s\S]*media\/b\.gml/,
+    );
+  });
+});

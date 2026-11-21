@@ -122,6 +122,9 @@ export function commentsTokenLink(webUrl: string, siteRepo: string): TokenLink {
 
 export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: TokenLink): SiteComments {
   let own: ApiOptions | undefined;
+  // What `threads()` has listed, by id: GitHub takes any comment's or issue's id for the moderating mutations, in any
+  // repository the token can moderate, so only ids listed from a place are moderated.
+  const listed = new Map<string, "thread" | "comment">();
   const api = () => own ?? base;
 
   async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
@@ -195,6 +198,13 @@ export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: To
     });
   }
 
+  /** Refuses an id `threads()` hasn't listed as that kind. */
+  function mustBeListed(id: string, kind: "thread" | "comment"): void {
+    if (listed.get(id) !== kind) {
+      throw new CommentsError("not-found", `That isn't one of the ${kind === "thread" ? "pages" : "comments"} listed.`);
+    }
+  }
+
   async function mutate(mutation: string, input: Record<string, unknown>): Promise<void> {
     await graphql(
       `mutation ($input: ${mutation}Input!) { ${mutation[0]?.toLowerCase()}${mutation.slice(1)}(input: $input) { clientMutationId } }`,
@@ -266,7 +276,7 @@ export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: To
       return placeOf(await withDiscussions(made));
     },
 
-    async find(repo) {
+    async find(repo, options) {
       const wanted = repo
         .trim()
         .replace(/^https:\/\/github\.com\//i, "")
@@ -278,6 +288,9 @@ export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: To
       });
       if (found.private)
         throw new CommentsError("not-public", "The repository is private.", `${found.html_url}/settings`);
+      if (!found.has_discussions && !options?.turnOn) {
+        throw new CommentsError("no-discussions", "Discussions are off.", `${found.html_url}/settings`);
+      }
       return placeOf(await withDiscussions(found));
     },
 
@@ -290,6 +303,12 @@ export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: To
       }>(THREADS_QUERY, { owner, name, category: place.categoryId, after: next ?? null });
       if (!data.repository) throw new CommentsError("not-found", "GitHub has no such repository for this sign-in.");
       const { pageInfo, nodes } = data.repository.discussions;
+      const remember = (items: SiteComment[]) => {
+        for (const item of items) {
+          listed.set(item.id, "comment");
+          remember(item.replies);
+        }
+      };
       const threads: CommentThread[] = nodes.map((node) => ({
         id: node.id,
         title: node.title,
@@ -298,22 +317,31 @@ export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: To
         updatedAt: node.updatedAt,
         comments: node.comments.nodes.map(comment),
       }));
+      for (const thread of threads) {
+        listed.set(thread.id, "thread");
+        remember(thread.comments);
+      }
       return { threads, ...(pageInfo.hasNextPage && pageInfo.endCursor && { next: pageInfo.endCursor }) };
     },
 
     async hide(commentId, reason) {
+      mustBeListed(commentId, "comment");
       await mutate("MinimizeComment", { subjectId: commentId, classifier: CLASSIFIERS[reason] });
     },
     async show(commentId) {
+      mustBeListed(commentId, "comment");
       await mutate("UnminimizeComment", { subjectId: commentId });
     },
     async remove(commentId) {
+      mustBeListed(commentId, "comment");
       await mutate("DeleteDiscussionComment", { id: commentId });
     },
     async lock(threadId) {
+      mustBeListed(threadId, "thread");
       await mutate("LockLockable", { lockableId: threadId });
     },
     async unlock(threadId) {
+      mustBeListed(threadId, "thread");
       await mutate("UnlockLockable", { lockableId: threadId });
     },
   };
