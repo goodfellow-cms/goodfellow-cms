@@ -230,7 +230,7 @@ function CommentsSetup({ onMade }: { onMade: (made: CommentsRepository) => void 
       const found =
         way === "new"
           ? await comments.create(name, t("comments.setup.description", { site: content.settings.title }))
-          : await comments.find(existing);
+          : await comments.find(existing, { turnOn: true });
       const { repo, repoId, category, categoryId } = found;
       const result = await publish(
         [siteSettingsFileChange({ ...content.settings, comments: { repo, repoId, category, categoryId } })],

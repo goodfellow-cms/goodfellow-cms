@@ -165,10 +165,11 @@ describe("what the broker asks before making a call", () => {
     expect(await ask("pages.connect", ["example.org", {}])).toEqual([
       { kind: "domain", change: "connect", domain: "example.org" },
     ]);
-    expect(await ask("pages.secure", ["example.org"])).toEqual([
-      { kind: "domain", change: "secure", domain: "example.org" },
+    const pages = { severalDomains: true, site: async () => ({ domain: "example.org" }) };
+    expect(await ask("pages.secure", ["example.org"], pages)).toEqual([
+      { kind: "domain", change: "secure", domain: "example.org", primary: true },
     ]);
-    expect(await ask("pages.disconnect", ["example.org"])).toEqual([
+    expect(await ask("pages.disconnect", ["example.org"], pages)).toEqual([
       { kind: "domain", change: "disconnect", domain: "example.org" },
     ]);
     const editors = { list: async () => ({ editors: [{ id: "1", login: "ann", role: "editor" }], manage: "yes" }) };
@@ -180,6 +181,48 @@ describe("what the broker asks before making a call", () => {
     ]);
     expect(await ask("updates.enable", [])).toEqual([{ kind: "updates-setup" }]);
     expect(await ask("draft.discard", [], { name: "spring" })).toEqual([{ kind: "discard-draft", name: "spring" }]);
+  });
+
+  it("asks about the domain a call changes, and only a domain", async () => {
+    const decision = (path: string, args: unknown[], target: unknown) => decide({ path, args, target }, SITE);
+    const gitlab = { severalDomains: true, site: async () => ({ domain: "example.org" }) };
+    const github = { severalDomains: false, site: async () => ({ domain: "example.org" }) };
+    // A name a host's address could read as leaving its folder, or one that isn't text, is no domain.
+    for (const path of ["pages.connect", "pages.secure", "pages.disconnect"]) {
+      for (const name of ["..", ".", "", "example.org/..", "Example.org", ["www.example.org"], undefined]) {
+        expect(await decision(path, [name], gitlab), `${path} ${String(name)}`).toEqual({
+          action: "refuse",
+          paths: [path],
+          reason: "read",
+        });
+      }
+      // No more than the call takes.
+      expect(await decision(path, ["example.org", {}, "x"], gitlab), path).toMatchObject({ action: "refuse" });
+    }
+    // GitHub Pages secures or removes the site's own domain whatever it's told, so the name must be the site's.
+    for (const path of ["pages.secure", "pages.disconnect"]) {
+      expect(await decision(path, ["old-test.example.org"], github), path).toEqual({
+        action: "refuse",
+        paths: [path],
+        reason: "domain",
+      });
+      expect(
+        await decision(path, ["example.org"], { severalDomains: false, site: async () => undefined }),
+        path,
+      ).toEqual({ action: "refuse", paths: [path], reason: "domain" });
+      expect(await decision(path, ["example.org"], github), path).toMatchObject({
+        action: "ask",
+        questions: [{ kind: "domain", domain: "example.org" }],
+      });
+    }
+    // Where a host serves several, securing says whether the domain becomes the one visitors are sent to.
+    expect(await decision("pages.secure", ["admin.example.org", { primary: false }], gitlab)).toEqual({
+      action: "ask",
+      questions: [{ kind: "domain", change: "secure", domain: "admin.example.org", primary: false }],
+    });
+    expect(await decision("pages.secure", ["admin.example.org"], gitlab)).toMatchObject({
+      questions: [{ primary: true }],
+    });
   });
 
   it("names the editor the site's list gives the id, and hands the call that editor, never the admin panel's", async () => {
@@ -225,7 +268,6 @@ describe("what the broker asks before making a call", () => {
       questions: [{ kind: "comments-delete" }],
     });
     for (const [path, args] of [
-      ["comments.threads", [{ repo: "example/comments" }]],
       ["comments.hide", ["DC_1", "spam"]],
       ["comments.show", ["DC_1"]],
       ["comments.lock", ["D_1"]],
@@ -233,6 +275,36 @@ describe("what the broker asks before making a call", () => {
     ] as const) {
       expect(await decide({ path, args: [...args], target: {} }, SITE), path).toEqual({ action: "allow" });
     }
+    // Turning Discussions on is asked about, since it changes the repository.
+    expect(
+      await decide({ path: "comments.find", args: ["example/comments", { turnOn: true }], target: {} }, SITE),
+    ).toEqual({ action: "ask", questions: [{ kind: "comments-discussions", name: "example/comments" }] });
+  });
+
+  it("lists only the site's own comments, whatever place the admin panel names, so only those can be moderated", async () => {
+    const place = { repo: "example/comments", repoId: "R_1", category: "Announcements", categoryId: "DIC_1" };
+    const backend = (settings: unknown) =>
+      ({
+        read: async (path: string) => (path === "content/site.json" ? JSON.stringify(settings) : undefined),
+      }) as never;
+    const elsewhere = { repo: "someone/else", repoId: "R_2", category: "General", categoryId: "DIC_2" };
+    expect(
+      await decide(
+        { path: "comments.threads", args: [elsewhere, "Y3Vyc29y"], target: {} },
+        SITE,
+        backend({ comments: place }),
+      ),
+    ).toEqual({ action: "allow", args: [place, "Y3Vyc29y"] });
+    // A site without comments on GitHub lists none.
+    for (const settings of [{}, { comments: { disqus: "parish" } }, { comments: { ...place, repo: "../x" } }]) {
+      expect(
+        await decide({ path: "comments.threads", args: [elsewhere], target: {} }, SITE, backend(settings)),
+        JSON.stringify(settings),
+      ).toEqual({ action: "refuse", paths: ["comments.threads"], reason: "read" });
+    }
+    expect(await decide({ path: "comments.threads", args: [elsewhere], target: {} }, SITE)).toMatchObject({
+      action: "refuse",
+    });
   });
 
   it("refuses calls it doesn't know, so one added later isn't made unchecked", async () => {

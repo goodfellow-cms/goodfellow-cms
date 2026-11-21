@@ -66,16 +66,199 @@ export type BrokerServiceRequest =
       method: string;
       headers: [string, string][];
       body?: ArrayBuffer;
+      /**
+       * Asks for the answer in parts as it arrives (`ai-start`, `ai-chunk`, then `ai-end` or `ai-error`), as admin
+       * panels since streaming do. Without it, as from an admin panel before, the answer comes whole (`ai`).
+       */
+      stream?: boolean;
     }
+  /** The admin panel stopped the request with this id, which the broker stops sending on. */
+  | { type: "ai-stop"; id: number }
   /** The admin panel's screen, which the broker opens again after going to the host to sign in. */
   | { type: "route"; hash: string };
 
-export interface BrokerServiceAnswer {
-  type: "ai";
-  id: number;
-  status: number;
-  headers: [string, string][];
-  body: ArrayBuffer;
+/** Answers on the broker's second port, each for the AI request with its `id`. */
+export type BrokerServiceAnswer =
+  /** A whole answer, for a request that didn't ask for parts, as brokers before streaming sent every answer. */
+  | { type: "ai"; id: number; status: number; headers: [string, string][]; body: ArrayBuffer }
+  /** The answer's status and headers, before its body. */
+  | { type: "ai-start"; id: number; status: number; headers: [string, string][] }
+  /** The next part of its body, as the service sent it. */
+  | { type: "ai-chunk"; id: number; chunk: ArrayBuffer }
+  /** The body is complete. */
+  | { type: "ai-end"; id: number }
+  /** Sending the request or reading its answer failed, before or after it started. */
+  | { type: "ai-error"; id: number; message: string };
+
+/** The part of a `MessagePort` AI requests and their answers go on, which can move the bytes they carry. */
+export interface BrokerAiPort {
+  postMessage(message: unknown, transfer: ArrayBuffer[]): void;
+}
+
+/** What the admin panel is told where the broker couldn't send a request on or read its answer, with no details. */
+const BROKER_AI_FAILED = "The token broker couldn't reach the AI service, or its answer broke off.";
+
+/** Statuses whose answers have no body, which a `Response` can't be made with one. */
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
+
+/** A part of a stream's bytes as an `ArrayBuffer` of its own, which can be moved to another page. */
+function ownBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+/**
+ * The broker's side of AI requests on its second port: `answer(request)` sends one on with `forward` (which adds the
+ * broker's keys) and always answers it, in parts as they arrive where it asked for them, with `ai-error` (or, whole,
+ * a 502) where sending or reading failed, and stops sending it on when the admin panel says it stopped (`ai-stop`).
+ * Other requests are left to the caller.
+ */
+export function brokerAiAnswers(
+  port: BrokerAiPort,
+  forward: (request: Request, service: string, path: string) => Promise<Response>,
+): (request: BrokerServiceRequest | undefined) => Promise<void> {
+  const running = new Map<number, AbortController>();
+  const post = (answer: BrokerServiceAnswer, transfer: ArrayBuffer[] = []) => port.postMessage(answer, transfer);
+  return async (request) => {
+    if (request?.type === "ai-stop") {
+      running.get(request.id)?.abort();
+      return;
+    }
+    if (request?.type !== "ai" || typeof request.id !== "number" || running.has(request.id)) return;
+    const { id } = request;
+    const stop = new AbortController();
+    running.set(id, stop);
+    try {
+      const path = String(request.path ?? "");
+      const [service = "", ...rest] = path.split("?")[0]?.split("/") ?? [];
+      const query = path.includes("?") ? path.slice(path.indexOf("?")) : "";
+      const forwarded = new Request(`https://broker.invalid/${rest.join("/")}${query}`, {
+        method: request.method,
+        headers: request.headers,
+        signal: stop.signal,
+        ...(request.body && request.method !== "GET" && { body: request.body }),
+      });
+      const response = await forward(forwarded, service, rest.join("/"));
+      const headers = [...response.headers.entries()];
+      if (!request.stream) {
+        const body = await response.arrayBuffer();
+        post({ type: "ai", id, status: response.status, headers, body }, [body]);
+        return;
+      }
+      post({ type: "ai-start", id, status: response.status, headers });
+      const reader = response.body?.getReader();
+      for (;;) {
+        const part = await reader?.read();
+        if (!part || part.done) break;
+        const chunk = ownBuffer(part.value);
+        post({ type: "ai-chunk", id, chunk }, [chunk]);
+      }
+      post({ type: "ai-end", id });
+    } catch {
+      // What failed stays here: its message could hold the service's answer, which the admin panel doesn't need.
+      if (request.stream) post({ type: "ai-error", id, message: BROKER_AI_FAILED });
+      else {
+        const body = ownBuffer(new TextEncoder().encode(BROKER_AI_FAILED));
+        post({ type: "ai", id, status: 502, headers: [["content-type", "text/plain; charset=utf-8"]], body }, [body]);
+      }
+    } finally {
+      running.delete(id);
+    }
+  };
+}
+
+/**
+ * The admin panel's `fetch` for AI requests through the broker on `port`, which sends them on with its own keys:
+ * answers stream in as the broker passes them on, a failure the broker reports rejects (or errors the body part
+ * way), and stopping a request, or its body, tells the broker to stop it too. Takes whole answers from brokers
+ * before streaming as well.
+ */
+export function brokerAiFetch(
+  port: BrokerAiPort & { onmessage: BrokerHandler | null },
+): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
+  interface Waiting {
+    resolve(response: Response): void;
+    reject(error: unknown): void;
+    body?: ReadableStreamDefaultController<Uint8Array>;
+  }
+  const waiting = new Map<number, Waiting>();
+  let next = 1;
+  const stop = (id: number) => {
+    if (!waiting.delete(id)) return;
+    port.postMessage({ type: "ai-stop", id } satisfies BrokerServiceRequest, []);
+  };
+  port.onmessage = (event) => {
+    const answer = event.data as BrokerServiceAnswer | undefined;
+    const entry = typeof answer?.id === "number" ? waiting.get(answer.id) : undefined;
+    if (!answer || !entry) return;
+    switch (answer.type) {
+      case "ai":
+        waiting.delete(answer.id);
+        entry.resolve(
+          new Response(NULL_BODY_STATUSES.has(answer.status) ? null : answer.body, {
+            status: answer.status,
+            headers: answer.headers,
+          }),
+        );
+        break;
+      case "ai-start": {
+        const id = answer.id;
+        const body = NULL_BODY_STATUSES.has(answer.status)
+          ? null
+          : new ReadableStream<Uint8Array>({
+              start(controller) {
+                entry.body = controller;
+              },
+              cancel() {
+                stop(id);
+              },
+            });
+        entry.resolve(new Response(body, { status: answer.status, headers: answer.headers }));
+        break;
+      }
+      case "ai-chunk":
+        entry.body?.enqueue(new Uint8Array(answer.chunk));
+        break;
+      case "ai-end":
+        waiting.delete(answer.id);
+        entry.body?.close();
+        break;
+      case "ai-error": {
+        waiting.delete(answer.id);
+        const error = new TypeError(answer.message);
+        if (entry.body) entry.body.error(error);
+        else entry.reject(error);
+        break;
+      }
+    }
+  };
+  return async (input, init) => {
+    const request = new Request(input instanceof URL ? input.href : input, init);
+    if (!request.url.startsWith(`${BROKER_AI_ADDRESS}/`)) throw new TypeError("Only AI requests go to the broker.");
+    const id = next++;
+    const body = request.method === "GET" ? undefined : await request.arrayBuffer();
+    return new Promise<Response>((resolve, reject) => {
+      const entry: Waiting = { resolve, reject };
+      waiting.set(id, entry);
+      const stopped = () => {
+        const error = new DOMException("The request was stopped.", "AbortError");
+        if (entry.body) entry.body.error(error);
+        else reject(error);
+        stop(id);
+      };
+      if (request.signal.aborted) return stopped();
+      request.signal.addEventListener("abort", stopped, { once: true });
+      const message: BrokerServiceRequest = {
+        type: "ai",
+        id,
+        path: request.url.slice(BROKER_AI_ADDRESS.length + 1),
+        method: request.method,
+        headers: [...request.headers.entries()],
+        stream: true,
+        ...(body && { body }),
+      };
+      port.postMessage(message, body ? [body] : []);
+    });
+  };
 }
 
 /** The broker's origin, such as `https://broker.example.org`, if its address is one of its own. */

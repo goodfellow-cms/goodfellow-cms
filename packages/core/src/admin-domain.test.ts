@@ -65,6 +65,14 @@ describe("admin addresses", () => {
       "<?xml version='1.0'?>",
       "\n</x>",
       "<A HREF=x>",
+      // XML's names start with more than HTML's: "_", ":", and letters outside ASCII.
+      '<_x><script xmlns="http://www.w3.org/1999/xhtml">alert(1)</script></_x>',
+      "<él/>",
+      "<中/>",
+      "<:x/>",
+      // Any other "<" too, since what could follow it isn't worth guessing.
+      "< not a tag",
+      "<3",
     ]) {
       expect(startsAsMarkup(start), start).toBe(true);
       expect(startsAsMarkup(bytes(start)), start).toBe(true);
@@ -72,14 +80,12 @@ describe("admin addresses", () => {
     // Whitespace to the end of what's read could hide a tag after it.
     expect(startsAsMarkup(`${" ".repeat(1024)}<script>`)).toBe(true);
     expect(startsAsMarkup(bytes(`\ufeff${"\n".repeat(1100)}<html>`))).toBe(true);
-    // So could a "<" that ends it, whose next character is past it.
+    // And a "<" that ends it.
     expect(startsAsMarkup(`${" ".repeat(1023)}<svg>`)).toBe(true);
-    // A string has what follows, which settles it.
-    expect(startsAsMarkup(`${" ".repeat(1023)}< 3 is less`)).toBe(false);
     expect(startsAsMarkup(bytes(`${" ".repeat(1023)}<svg>`))).toBe(true);
     expect(startsAsMarkup(bytes(`\ufeff${" ".repeat(1020)}<svg>`))).toBe(true);
     expect(pageFileKind("chrome/bindings.xbl")).toBe("xml");
-    for (const start of ["", "   ", "WEBVTT", "a,b,c", "< not a tag", "<3", '{"x":1}', "x <html>"]) {
+    for (const start of ["", "   ", "WEBVTT", "a,b,c", '{"x":1}', "x <html>", "\u00e9<x>"]) {
       expect(startsAsMarkup(start), start).toBe(false);
       expect(startsAsMarkup(bytes(start)), start).toBe(false);
     }
@@ -109,6 +115,8 @@ describe("admin addresses", () => {
           const name = `${encode.name} ${little ? "LE" : "BE"}${mark ? " with a mark" : ""}`;
           expect(startsAsMarkup(encode(page, little, mark)), name).toBe(true);
           expect(startsAsMarkup(encode("  <html>", little, mark)), name).toBe(true);
+          expect(startsAsMarkup(encode("<_x/>", little, mark)), name).toBe(true);
+          expect(startsAsMarkup(encode("<\u00e9l/>", little, mark)), name).toBe(true);
           expect(startsAsMarkup(encode("plain text, then <b>", little, mark)), name).toBe(false);
           // A "<" that ends the 1,024 bytes read.
           const width = encode === utf16 ? 2 : 4;

@@ -585,13 +585,14 @@ Content files are the product's data format; treat changes to them like API chan
   but for this computer).
 - **Setting up and moderating:** a backend's optional `comments` (`SiteComments`) makes that repository (`create()`,
   beside the site's, in its organization or the person's account, with Discussions on), or checks one (`find()`: public,
-  Discussions turned on where it may), finds its Announcements category, which only Giscus and owners can start
-  discussions in, and lists (`threads()`, those changed most recently first), hides (`HIDE_REASONS`), shows, deletes,
-  locks, and unlocks pages' comments. Only GitHub has it (`githubComments()` in `@goodfellow-cms/github`'s
-  `comments.ts`: REST for repositories, GraphQL for discussions); GitLab and Bitbucket sites, full-stack sites, and the
-  local backend don't, and the screen says how it's done on GitHub. Problems are `CommentsError`s, with a `link` where
-  GitHub has a page to fix them. Giscus's app can't be installed for anyone, so the screen links to its install page for
-  the repository's account (`CommentsRepository.installUrl`).
+  Discussions turned on where it may, only with `turnOn`, which the Comments screen passes and the broker asks about),
+  finds its Announcements category, which only Giscus and owners can start discussions in, and lists (`threads()`, those
+  changed most recently first), and, by the ids it listed only, hides (`HIDE_REASONS`), shows, deletes, locks, and
+  unlocks pages' comments. Only GitHub has it (`githubComments()` in `@goodfellow-cms/github`'s `comments.ts`: REST for
+  repositories, GraphQL for discussions); GitLab and Bitbucket sites, full-stack sites, and the local backend don't, and
+  the screen says how it's done on GitHub. Problems are `CommentsError`s, with a `link` where GitHub has a page to fix
+  them. Giscus's app can't be installed for anyone, so the screen links to its install page for the repository's account
+  (`CommentsRepository.installUrl`).
 - **Its token:** the sign-in worker's tokens reach only the site's repository, so `comments.access` (`CommentsAccess`)
   takes a classic token with `public_repo` (`commentsTokenLink()`), in memory only and forgotten on sign-out, as
   `ownerAccess` is; through a token broker it's asked for in the broker's own dialog (`requestToken`,
@@ -2033,15 +2034,17 @@ Content files are the product's data format; treat changes to them like API chan
   `startsWithGuard()`, which refuses anything that could run first (a script, an `on…` attribute, a frame, an XML
   stylesheet, a comment browsers end sooner than it seems to, `<!-->`, `<!--->` or `--!>`), and fails the build, naming
   them, if any can't. Every other file whose name a host may have no type for (`typedByContent()`: any but
-  `TYPED_BY_NAME`'s) that starts as a page does (`startsAsMarkup()`, a `<` and a tag's first character past a byte order
-  mark and whitespace, or whitespace to the end of its first 1,024 bytes, read in UTF-16 or UTF-32 where a byte order
-  mark or zero bytes say so, as browsers read XML) fails it too, since GitLab Pages types such a file by its first bytes; `safeMediaChanges()` and `unsafeMediaChanges()` refuse such uploads (`UploadError` `markup`),
-  and the broker asks before them (`media-code`). The site's guard writes `<plaintext hidden>`, stops the page, and goes
-  to the same page at the Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`,
-  so XML can hold them in CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`)
-  leaves none by default; an empty root element (`<svg …/>`) is opened and closed around the guard.
-  `admin-domain.spec.ts` tries every way a script could run before them (`e2e/fixtures/admin-domain`) in Chromium,
-  Firefox, and WebKit, which with `preact.spec.ts` are the only specs the Firefox and WebKit projects run.
+  `TYPED_BY_NAME`'s) that starts as a page does (`startsAsMarkup()`, a `<` past a byte order mark and whitespace,
+  whatever follows it, since XML's names may start with `_` or a letter outside ASCII, or whitespace to the end of its
+  first 1,024 bytes, read in UTF-16 or UTF-32 where a byte order mark or zero bytes say so, as browsers read XML) fails
+  it too, since GitLab Pages types such a file by its first bytes; `safeMediaChanges()` and `unsafeMediaChanges()`
+  refuse such uploads (`UploadError` `markup`), and the broker asks before them (`media-code`). The site's guard writes
+  `<plaintext hidden>`, stops the page, and goes to the same page at the Site address; the admin page's refuses to draw
+  itself in a frame. Guards hold no `<` or `&`, so XML can hold them in CDATA, and name their script's namespace, since
+  a root element with a prefix (`<svg:svg>`) leaves none by default; an empty root element (`<svg …/>`) is opened and
+  closed around the guard. `admin-domain.spec.ts` tries every way a script could run before them
+  (`e2e/fixtures/admin-domain`) in Chromium, Firefox, and WebKit, which with `preact.spec.ts` are the only specs the
+  Firefox and WebKit projects run.
 - **Frames' folders:** a bundler writes what a module imports as an address (`./help.html?url`) beside the frame's
   script, with no prelude, so `admin/editor/` and `admin/plugins/<id>/` (`FRAME_FOLDERS`) may hold only their pages and
   `isFrameFileName()`'s kinds (scripts, styles, maps, fonts, pictures but SVGs, text) that don't start as markup:
@@ -2133,11 +2136,15 @@ Content files are the product's data format; treat changes to them like API chan
   their classes (`receiveError()`) and values such as `ownerAccess.active` refreshed with every answer. The second
   carries AI requests (`BrokerServiceRequest`: the admin panel's `ai.fetch`, at `BROKER_AI_ADDRESS`, which the broker
   sends on with `aiServer()` and its keys, through `brokerAi()` in `ai.ts`, with `browser` set, since Anthropic's API
-  answers a browser only when it's told the request comes from one) and the screen the admin panel shows, which the
-  broker opens again after going to the host to sign in, keeping only its `#/…` screen without what a sign-in brought
-  back (`adminRoute()`, `route.ts`), so no grant or token reaches the framed page's address. A draft's publish names the
-  changes the broker checked (`serveBackend()` reads them before `check`), so nothing added to the draft meanwhile goes
-  live unchecked.
+  answers a browser only when it's told the request comes from one, the admin panel's side `brokerAiFetch()` and the
+  broker's `brokerAiAnswers()`, in core's `broker.ts`: answers come in parts as they arrive, `ai-start`, `ai-chunk`,
+  then `ai-end` or `ai-error`, where the request asks with `stream`, and whole otherwise, as admin panels and brokers
+  before them sent and still take, every request is answered, with `ai-error` or a 502 where it failed and no details,
+  and `ai-stop`, sent when the admin panel stops a request or its body, stops the broker's) and the screen the admin
+  panel shows, which the broker opens again after going to the host to sign in, keeping only its `#/…` screen without
+  what a sign-in brought back (`adminRoute()`, `route.ts`), so no grant or token reaches the framed page's address. A
+  draft's publish names the changes the broker checked (`serveBackend()` reads them before `check`), so nothing added to
+  the draft meanwhile goes live unchecked.
 - **What it checks:** every call goes through `check`, with its path in the backend (`write`, `draft.store.write`,
   `draft.publish`, `editors.invite`, …): `decide()` (`policy.ts`, with core's `brokerChangeCheck()`) refuses workflows
   (`isWorkflowPath()`: `.github/`, `.gitlab-ci.yml`, `.gitlab/`, and `bitbucket-pipelines.yml`) and asks the editor, in
@@ -2147,15 +2154,23 @@ Content files are the product's data format; treat changes to them like API chan
   (however `content/site.json` is written, or deleted), starting an update, giving someone access or taking it away
   (naming, and handing the backend, the editor `editors.list()` gives the id, through the decision's `args`, which
   `serveBackend()`'s `check` returns, `reason: "editor"` where it gives none), changing domains (`pages.connect`,
-  `secure`, `disconnect`), setting up updates, throwing away a draft, or running a plugin's task (`tasks.run`, asked
-  once per task while the page is open). It makes unasked only the calls in `UNASKED`, each with what its arguments must
-  be, and no more of them than it lists, so none moves another out of a checked place (`ArgKind`: plain paths,
-  `isPlainPath()`, commits' ids, `isCommitId()`, both in core's `content/store.ts`, domains as `normalizeDomain()`
-  writes them, repositories' `owner/name`, or a `value` only a body or query holds), since backends put them in the
-  host's addresses (`reason: "read"`), and refuses the rest (`reason: "unknown"`), so a method added to `BACKEND` later
-  is refused until it's listed or given a question; `policy.test.ts` checks every one of `brokerCalls()` has a decision.
-  Owner tokens are asked for in the broker's own dialog (`ownerAccess.requestToken`, which it offers instead of
-  `applyToken()`), so the admin panel never holds one.
+  `secure`, `disconnect`: only a domain as `normalizeDomain()` writes it, and, on a host with one domain, GitHub Pages,
+  whose `secure()` and `disconnect()` change the site's own whatever they're told, only the one `site()` gives, `reason:
+  "domain"` otherwise, and the GitHub backend's own go ahead only while it's still the site's domain, `DomainError`
+  `changed`, saying where securing makes the domain the one visitors are sent to, `primary`), turning on Discussions in
+  a comments repository (`comments.find` with `turnOn`), setting up updates, throwing away a draft, or running a
+  plugin's task (`tasks.run`, asked once per task while the page is open). It makes unasked only the calls in `UNASKED`,
+  each with what its arguments must be, and no more of them than it lists, so none moves another out of a checked place
+  (`ArgKind`: plain paths, `isPlainPath()`, commits' ids, `isCommitId()`, both in core's `content/store.ts`, domains as
+  `normalizeDomain()` writes them, repositories' `owner/name`, or a `value` only a body or query holds), since backends
+  put them in the host's addresses (`reason: "read"`), and refuses the rest (`reason: "unknown"`), so a method added to
+  `BACKEND` later is refused until it's listed or given a question; `policy.test.ts` checks every one of `brokerCalls()`
+  has a decision. `comments.threads` lists the site's own comments, from `content/site.json` as the backend reads it,
+  whatever place the admin panel names (the decision's `args`, which `allow` carries too), and GitHub's `comments`
+  moderates only ids its `threads()` listed, so nothing in another repository can be hidden or locked. Owner tokens are
+  asked for in the broker's own dialog (`ownerAccess.requestToken`, which it offers instead of `applyToken()`), so the
+  admin panel never holds one. A question's answering buttons work only `ANSWER_DELAY_MS` after it opens, and again
+  after the window comes back (`holdAnswers()` in `hold.ts`), so a click the frame timed for it does nothing.
 - **The admin panel:** with the config's `broker` (`BrokerAddress`, written by Site Settings' Security tab,
   `security-screen.tsx`, with `withBrokerConfig()`), `Admin` uses `BrokerGate` (`broker-gate.tsx`) in place of signing
   in: it waits for the broker, says where to sign in when it's opened anywhere else, and forgets any sign-in kept at its

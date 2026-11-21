@@ -62,7 +62,16 @@ describe("GitHub comments", () => {
     const { fake, comments } = await signIn();
     await comments.access.applyToken("comments");
     fake.addRepo("maria/talk");
-    expect(await comments.find("https://github.com/maria/talk/")).toMatchObject({
+    // Finding a repository changes nothing: Discussions are turned on only when asked.
+    await expect(comments.find("maria/talk")).rejects.toMatchObject({ problem: "no-discussions" });
+    // Nor does anything but an exact true, which is what the broker asks about.
+    for (const turnOn of [1, "yes", {}]) {
+      await expect(comments.find("maria/talk", { turnOn } as unknown as { turnOn: boolean })).rejects.toMatchObject({
+        problem: "no-discussions",
+      });
+    }
+    expect(fake.created.get("maria/talk")?.discussions).toBeFalsy();
+    expect(await comments.find("https://github.com/maria/talk/", { turnOn: true })).toMatchObject({
       repo: "maria/talk",
       category: "Announcements",
     });
@@ -71,7 +80,7 @@ describe("GitHub comments", () => {
     await expect(comments.find("maria/secret")).rejects.toMatchObject({ problem: "not-public" });
     await expect(comments.find("maria/nothing")).rejects.toMatchObject({ problem: "not-found" });
     fake.addRepo("maria/theirs", { collaborators: { anne: "admin" } });
-    await expect(comments.find("maria/theirs")).rejects.toMatchObject({ problem: "no-discussions" });
+    await expect(comments.find("maria/theirs", { turnOn: true })).rejects.toMatchObject({ problem: "no-discussions" });
   });
 
   it("says where to open Discussions when GitHub hasn't made their categories yet", async () => {
@@ -134,6 +143,37 @@ describe("GitHub comments", () => {
     fake.addRepo("maria/talk", { discussions: true, collaborators: { maria: "admin" } });
     const thread = fake.addDiscussion("maria/talk", { title: "about", comments: [{ login: "x", text: "Hello" }] });
     const backend = await github({ repo: "maria/site", fetch: fake.fetch }).signInWithToken("stranger", false);
+    const place = await backend.comments?.find("maria/talk");
+    if (place) await backend.comments?.threads(place);
     await expect(backend.comments?.lock(thread.id)).rejects.toMatchObject({ problem: "no-access" });
+  });
+
+  it("moderates only what it has listed, so no other repository's comments or issues can be changed", async () => {
+    const { fake, comments } = await signIn();
+    await comments.access.applyToken("comments");
+    fake.addRepo("maria/talk", { discussions: true });
+    fake.addRepo("maria/other", { discussions: true });
+    const place = await comments.find("maria/talk");
+    fake.addDiscussion("maria/talk", { title: "about", comments: [{ login: "x", text: "Hello" }] });
+    const elsewhere = fake.addDiscussion("maria/other", { title: "x", comments: [{ login: "y", text: "Mine" }] });
+    const listed = (await comments.threads(place)).threads[0];
+    const otherComment = elsewhere.comments[0]?.id ?? "";
+    for (const attempt of [
+      () => comments.hide(otherComment, "spam"),
+      () => comments.show(otherComment),
+      () => comments.remove(otherComment),
+      () => comments.lock(elsewhere.id),
+      () => comments.unlock(elsewhere.id),
+      // A listed page's id isn't a comment's, nor a listed comment's a page's.
+      () => comments.hide(listed?.id ?? "", "spam"),
+      () => comments.lock(listed?.comments[0]?.id ?? ""),
+      // Nor is an issue's or a pull request's id anything it listed.
+      () => comments.lock("I_kwDOissue"),
+    ]) {
+      await expect(attempt()).rejects.toMatchObject({ problem: "not-found" });
+    }
+    expect(elsewhere.locked).toBe(false);
+    expect(elsewhere.comments[0]?.minimized).toBeUndefined();
+    await comments.lock(listed?.id ?? "");
   });
 });

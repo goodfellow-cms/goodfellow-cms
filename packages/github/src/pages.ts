@@ -65,6 +65,18 @@ export function githubPages(api: () => ApiOptions, repo: string): PagesDomains {
     }
   }
 
+  /**
+   * GitHub's Pages settings change the site's one domain whatever it's called, so securing or removing one goes ahead
+   * only while it's still the domain named, which is what the person approved. GitHub has no conditional write, so a
+   * change made between this read and the write still wins: a moment's window, where before it was the whole question.
+   */
+  async function mustBeTheDomain(domain: string): Promise<void> {
+    const found = await pages();
+    if ((found?.cname ?? undefined) !== domain) {
+      throw new DomainError("changed", "The site's domain isn't the one named any more.");
+    }
+  }
+
   return {
     // GitHub Pages serves a site on one domain, and its www., so it can't have an admin address.
     severalDomains: false,
@@ -91,11 +103,13 @@ export function githubPages(api: () => ApiOptions, repo: string): PagesDomains {
         primary: found.cname === domain,
       };
     },
-    async secure() {
+    async secure(domain) {
+      await mustBeTheDomain(domain);
       // GitHub already sends the github.io address to the custom domain.
       await update({ https_enforced: true });
     },
-    async disconnect() {
+    async disconnect(domain) {
+      await mustBeTheDomain(domain);
       await update({ cname: null });
     },
   };

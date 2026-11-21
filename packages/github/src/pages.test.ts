@@ -68,6 +68,17 @@ describe("GitHub Pages domains", () => {
     expect(await pages.site()).toEqual({ url: "https://someone.github.io/parish/", domain: undefined });
   });
 
+  it("secures and removes only the domain it's told, which is the one GitHub has", async () => {
+    const { fake, pages } = await signIn();
+    await pages.connect("b.example.org", { apex: false });
+    if (fake.pages.current) fake.pages.current.certificate = "approved";
+    // Approved for a.example.org, while the site's domain has become b.example.org meanwhile.
+    await expect(pages.secure("a.example.org")).rejects.toMatchObject({ problem: "changed" });
+    await expect(pages.disconnect("a.example.org")).rejects.toMatchObject({ problem: "changed" });
+    expect(await pages.status("b.example.org")).toMatchObject({ httpsOnly: false });
+    expect((await pages.site())?.domain).toBe("b.example.org");
+  });
+
   it("says when the sign-in can't change Pages, or the domain is taken", async () => {
     const { pages } = await signIn({ tokens: { "test-token": { login: "editor", pages: false } } });
     await expect(pages.connect("example.org", { apex: true })).rejects.toMatchObject({ problem: "not-allowed" });
