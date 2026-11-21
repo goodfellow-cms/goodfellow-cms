@@ -1,7 +1,10 @@
-import { mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pluginId } from "@goodfellow-cms/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildPluginFrame } from "./plugins.js";
+
+const PLUGIN = { name: "goodfellow-plugin-x", title: "X", admin: "./admin.ts" };
 
 describe("buildPluginFrame while watching", () => {
   let root: string;
@@ -13,24 +16,21 @@ describe("buildPluginFrame while watching", () => {
 
   it("takes out what an earlier build left, keeping the page and stylesheet it writes itself", async () => {
     await writeFile(join(root, "admin.ts"), "export default { mount() {} };\n");
-    const dir = join(root, "frame");
+    const dir = join(root, pluginId(PLUGIN.name));
     const builds: (Error | undefined)[] = [];
     let built: () => void = () => {};
     const next = () => new Promise<void>((done) => (built = done));
     let waiting = next();
-    const close = await buildPluginFrame(
-      { name: "goodfellow-plugin-x", title: "X", admin: "./admin.ts" },
-      {
-        root,
-        dir,
-        watch: {
-          onBuilt(error) {
-            builds.push(error);
-            built();
-          },
+    const close = await buildPluginFrame(PLUGIN, {
+      root,
+      dir,
+      watch: {
+        onBuilt(error) {
+          builds.push(error);
+          built();
         },
       },
-    );
+    });
     try {
       await waiting;
       expect(builds[0]).toBeUndefined();
@@ -49,4 +49,17 @@ describe("buildPluginFrame while watching", () => {
       await close();
     }
   }, 120_000);
+
+  it("refuses a folder that isn't the frame's own, such as public/, leaving its files as they were", async () => {
+    await writeFile(join(root, "admin.ts"), "export default { mount() {} };\n");
+    const dir = join(root, "public");
+    await mkdir(dir);
+    await writeFile(join(dir, "favicon.ico"), "icon");
+    const earlier = new Date(Date.now() - 60_000);
+    await utimes(join(dir, "favicon.ico"), earlier, earlier);
+    await expect(buildPluginFrame(PLUGIN, { root, dir, watch: { onBuilt() {} } })).rejects.toThrow(
+      "a folder of its own",
+    );
+    expect(await readdir(dir)).toEqual(["favicon.ico"]);
+  });
 });

@@ -2048,8 +2048,9 @@ Content files are the product's data format; treat changes to them like API chan
   `checkFrameFolder()` stops each frame's build otherwise (`buildEditor()`, `buildPluginFrame()`, and
   `goodfellow-next`'s `bundleEditorFrames()` and plugin frames); rebuilds while watching give it the build just written
   (`FrameBuild`), so it first takes out files that build didn't write and that are older than it, and folders left
-  empty, and each builder checks one build at a time, and `guardBuiltSite()` checks them the same way. Hosts that take
-  headers sandbox both folders as the admin panel frames them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the
+  empty, which is why a watching `buildPluginFrame()` refuses a folder not named by the plugin's id, such as `public/`,
+  and each builder checks one build at a time, and `guardBuiltSite()` checks them the same way. Hosts that take headers
+  sandbox both folders as the admin panel frames them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the
   starters' `vercel.ts` and `withGoodfellow()`'s frames' rule likewise), so a file there opened on its own has no
   address of the admin panel's.
 - **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add

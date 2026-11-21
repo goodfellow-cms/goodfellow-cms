@@ -229,7 +229,8 @@ const STALE_MARGIN_MS = 2000;
  *
  * Builds that rebuild into the same folder as code changes give `stale`, the
  * build just written, and files it didn't write that are older than it are
- * taken out first, with folders left empty, so a file an import no longer
+ * taken out first (so `dir` must then be the frame's own, never one shared
+ * with other files, such as `public/`), with folders left empty, so a file an import no longer
  * brings doesn't stop every later build. Files written since it started are
  * kept, since a newer build may be writing them, and callers check one build
  * at a time.

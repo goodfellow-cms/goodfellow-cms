@@ -7,7 +7,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   type CollectionSource,
@@ -324,7 +324,11 @@ export interface PluginFrameBuild {
    * stylesheet relative to itself, so it works under any base path.
    */
   dir: string;
-  /** Development builds, rebuilt as the plugin's code changes, calling `onBuilt` after each. */
+  /**
+   * Development builds, rebuilt as the plugin's code changes, calling `onBuilt` after each. Each rebuild takes out
+   * what it didn't write of the files in `dir` older than it, so `dir` must then be the frame's own, named by the
+   * plugin's id (`pluginId()`), never a folder shared with other files such as `public/`.
+   */
   watch?: { onBuilt: (error?: Error) => void };
 }
 
@@ -340,6 +344,11 @@ export async function buildPluginFrame(
   { root, dir, watch }: PluginFrameBuild,
 ): Promise<() => Promise<void>> {
   if (!plugin.admin) throw new Error(`${plugin.name} has no admin module.`);
+  if (watch && basename(resolve(dir)) !== pluginId(plugin.name)) {
+    throw new Error(
+      `${plugin.title}'s admin frame can be rebuilt only into a folder of its own, named ${pluginId(plugin.name)}, since each rebuild takes out files it didn't write: ${dir} isn't one.`,
+    );
+  }
   const rolldown = await import("rolldown");
   await mkdir(dir, { recursive: true });
   const stylesheets = new Set<string>();
