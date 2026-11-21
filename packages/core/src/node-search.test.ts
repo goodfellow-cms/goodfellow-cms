@@ -378,6 +378,16 @@ describe("searchPageText", () => {
       '<main data-pagefind-body=""><p>Text</p><math><title>Sum</title></math></main>' +
       "<footer><svg><title>Facebook</title></svg></footer></body></html>";
     expect(searchPageText(html, "/about/")?.document.title).toBe("About – St Anne");
+    // Before the page's own, outside the body too: a template's, an SVG's, and a formula's are never the title.
+    const head = (before: string) =>
+      `<html><head>${before}<title>Real</title></head><body><main data-pagefind-body="">Text</main></body></html>`;
+    for (const before of [
+      "<template><title>Hidden</title></template>",
+      "<svg><title>Logo</title></svg>",
+      "<math><title>Sum</title></math>",
+    ]) {
+      expect(searchPageText(head(before), "/a")?.document.title, before).toBe("Real");
+    }
   });
 
   it("takes the first heading search reads as the title, past one left out of it", () => {
