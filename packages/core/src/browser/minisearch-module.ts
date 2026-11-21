@@ -4,7 +4,8 @@
  * `destroy()`, `debouncedSearch()`, and results whose `data()` gives the
  * page's `url`, `meta.title`, and `excerpt`), so the script loads either the
  * same way. It searches with `siteSearch()`, as apps do, from the index in the
- * page's language (`<html lang>`), loaded the first time it's asked.
+ * page's language, loaded the first time it's asked. Core has no DOM, so the
+ * module that builds write beside it reads `<html lang>` and passes it in.
  * `minisearch/minisearch.js`, which builds write beside it, names the files.
  */
 import { excerptHtml, isSearchFile, SEARCH_FILE_VERSION, type SiteSearch, siteSearch } from "../site-search.js";
@@ -23,21 +24,19 @@ export interface PagefindLike {
 
 /** Just what this module uses of the browser, since core has no DOM types. */
 interface Browser {
-  document?: { documentElement?: { lang?: string } };
   fetch(address: string): Promise<{ ok: boolean; json(): Promise<unknown> }>;
-}
-
-/** The page's language, as `<html lang>` says it. */
-function pageLanguage(): string {
-  return (globalThis as unknown as Browser).document?.documentElement?.lang ?? "";
 }
 
 /**
  * Searches the index files in `files` (by language code, each relative to
  * `from`, the address of the module that names them), as the Search box asks
- * Pagefind to.
+ * Pagefind to, in the language `pageLanguage()` gives each time it's asked.
  */
-export function pagefindLike(files: Readonly<Record<string, string>>, from: string): PagefindLike {
+export function pagefindLike(
+  files: Readonly<Record<string, string>>,
+  from: string,
+  pageLanguage: () => string,
+): PagefindLike {
   const folder = from.slice(0, from.lastIndexOf("/") + 1);
   let loaded: { language: string; search: Promise<SiteSearch> } | undefined;
   const load = (): Promise<SiteSearch> => {

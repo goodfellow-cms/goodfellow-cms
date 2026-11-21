@@ -321,6 +321,15 @@ describe("searchPageText", () => {
     expect(searchPageText("<html><body><main>Text</main></body></html>", "/a")).toBeUndefined();
   });
 
+  it("takes the first heading search reads as the title, past one left out of it", () => {
+    const found = searchPageText(
+      '<html><body><main data-pagefind-body=""><h1 data-pagefind-ignore="">Skip</h1><h1>Welcome</h1></main></body></html>',
+      "/a",
+    );
+    expect(found?.document.title).toBe("Welcome");
+    expect(found?.document.text).toBe("Welcome");
+  });
+
   it("ends the heading's words where its elements meet, as in the text", () => {
     const found = searchPageText(
       '<html><body><main data-pagefind-body=""><h1>Our<br>Parish<span>es</span><div>Today</div></h1><p>Mass</p></main></body></html>',

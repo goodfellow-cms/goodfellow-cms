@@ -241,7 +241,13 @@ export function searchPageText(html: string, path: string): SearchPageText | und
         if (name === "html" && attributes.lang) language = attributes.lang;
         const body = Object.hasOwn(attributes, "data-pagefind-body");
         if (body) found = true;
-        const firstHeading = name === "h1" && heading === undefined && (body || inBody()) && !ignored();
+        // An `<h1>` left out of search, itself or by what holds it, is never the title.
+        const firstHeading =
+          name === "h1" &&
+          heading === undefined &&
+          (body || inBody()) &&
+          !ignored() &&
+          !Object.hasOwn(attributes, "data-pagefind-ignore");
         if (firstHeading) heading = "";
         open.push({
           name,
@@ -376,7 +382,7 @@ async function writeMiniSearch(
       [
         "// Written by Goodfellow's build: the site's search, whose files are named by their content.",
         `import { pagefindLike } from "./${assetsFolder}/${moduleName}";`,
-        `const search = pagefindLike(${JSON.stringify(named)}, import.meta.url);`,
+        `const search = pagefindLike(${JSON.stringify(named)}, import.meta.url, () => document.documentElement.lang || "");`,
         "export const options = search.options;",
         "export const destroy = search.destroy;",
         "export const debouncedSearch = search.debouncedSearch;",
