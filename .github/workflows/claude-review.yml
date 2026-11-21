@@ -429,7 +429,7 @@ jobs:
         if: steps.base.outcome == 'success' && steps.git.outcome == 'success' && steps.sandbox.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 35
-        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        uses: anthropics/claude-code-action@469588f42e6b1e94cd14ad09dccfeaec772ce0fd # v1.0.280
         # The commands Claude Code runs get its environment without the Claude token, which they could otherwise print
         # in some form the step that withholds tokens doesn't know.
         env:
