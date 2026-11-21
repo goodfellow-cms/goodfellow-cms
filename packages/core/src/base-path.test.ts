@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyBasePath, normalizeBase, withBase } from "./base-path.js";
+import { applyBasePath, cssUrl, hasControlCharacter, normalizeBase, withBase } from "./base-path.js";
 
 describe("normalizeBase", () => {
   it.each([
@@ -70,5 +70,22 @@ describe("withBase", () => {
     expect(withBase("//cdn.example.org/x", "/repo/")).toBe("//cdn.example.org/x");
     expect(withBase("#top", "/repo/")).toBe("#top");
     expect(withBase("/about", undefined)).toBe("/about");
+  });
+});
+
+describe("cssUrl", () => {
+  it("writes an address as a CSS string that reads back as the same address", () => {
+    expect(cssUrl("/media/sea.jpg")).toBe('url("/media/sea.jpg")');
+    expect(cssUrl('/media/a"b\\c).jpg')).toBe('url("/media/a\\"b\\\\c).jpg")');
+    expect(cssUrl("https://example.org/é.jpg")).toBe('url("https://example.org/é.jpg")');
+  });
+
+  it("gives nothing for an address with a control character, which CSS and the URL parser read differently", () => {
+    for (const code of [0, 8, 9, 10, 12, 13, 31, 127]) {
+      const address = `https://fonts.gst${String.fromCharCode(code)}atic.com/p.png`;
+      expect(hasControlCharacter(address)).toBe(true);
+      expect(cssUrl(address), String(code)).toBeUndefined();
+    }
+    expect(hasControlCharacter("https://example.org/ ~é")).toBe(false);
   });
 });

@@ -371,6 +371,15 @@ describe("searchPageText", () => {
     expect(searchPageText("<html><body><main>Text</main></body></html>", "/a")).toBeUndefined();
   });
 
+  it("takes only the page's own title, never an SVG's in the header or footer, or a second one", () => {
+    const html =
+      "<html><head><title>About – St Anne</title><title>Again</title></head><body>" +
+      '<header><svg viewBox="0 0 1 1"><title>Home</title><path d="M0 0"/></svg></header>' +
+      '<main data-pagefind-body=""><p>Text</p><math><title>Sum</title></math></main>' +
+      "<footer><svg><title>Facebook</title></svg></footer></body></html>";
+    expect(searchPageText(html, "/about/")?.document.title).toBe("About – St Anne");
+  });
+
   it("takes the first heading search reads as the title, past one left out of it", () => {
     const found = searchPageText(
       '<html><body><main data-pagefind-body=""><h1 data-pagefind-ignore="">Skip</h1><h1>Welcome</h1></main></body></html>',

@@ -231,6 +231,47 @@ describe("what a theme's header and footer may do", () => {
     expect(themeLoads(withLayout([button, words, linked, section("/media/sea.jpg")]))).toEqual([]);
   });
 
+  it("refuses a theme whose header loads an address with a control character in it", async () => {
+    // CSS reads a backspace, a carriage return, and a line feed as something else than the URL parser does, so the
+    // install screen would list another address than the one loaded, or none.
+    for (const address of [
+      "https://x\ba.tracker.example/p",
+      "https://fonts.gst\ratic.com/p.png",
+      "https://cd\nn.example/p.png",
+      "/media/sea\t.jpg",
+    ]) {
+      const files = sampleThemeFiles({ header: true });
+      files["header.json"] = (files["header.json"] ?? "").replace(
+        '"backgroundImage": ""',
+        `"backgroundImage": ${JSON.stringify(address)}`,
+      );
+      const fake = fakeThemes({
+        now: NOW,
+        themes: [{ name: "goodfellow-theme-bad", releases: [{ version: "1.0.0", files }] }],
+      });
+      const [first] = await themeReleases("goodfellow-theme-bad", { fetch: fake.fetch });
+      await expect(
+        fetchTheme({ name: "goodfellow-theme-bad", ...(first as ThemeRelease) }, { fetch: fake.fetch }),
+      ).rejects.toMatchObject({ code: "bad-file" });
+    }
+    // The same header with an address that has none is taken.
+    const files = sampleThemeFiles({ header: true });
+    files["header.json"] = (files["header.json"] ?? "").replace(
+      '"backgroundImage": ""',
+      '"backgroundImage": "https://images.example/sea.jpg"',
+    );
+    const fake = fakeThemes({
+      now: NOW,
+      themes: [{ name: "goodfellow-theme-fine", releases: [{ version: "1.0.0", files }] }],
+    });
+    const [first] = await themeReleases("goodfellow-theme-fine", { fetch: fake.fetch });
+    const theme = await fetchTheme(
+      { name: "goodfellow-theme-fine", ...(first as ThemeRelease) },
+      { fetch: fake.fetch },
+    );
+    expect(themeLoads(theme)).toContain("https://images.example/sea.jpg");
+  });
+
   it("refuses a theme whose header holds an address that would run code", async () => {
     const files = sampleThemeFiles({ header: true });
     files["header.json"] = (files["header.json"] ?? "").replace('"menu": "main"', '"menu": "javascript:alert(1)"');

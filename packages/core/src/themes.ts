@@ -4,6 +4,7 @@
  * read from npm's registry and their files from jsDelivr, both of which answer
  * browsers. Nothing here runs a theme's code: a theme has none.
  */
+import { hasControlCharacter } from "./base-path.js";
 import { ContentError } from "./content/errors.js";
 import { FOOTER_FILE, HEADER_FILE } from "./content/paths.js";
 import {
@@ -215,14 +216,22 @@ function unsafeAddress(text: string): boolean {
   return /^\s*(?:javascript|vbscript|data):/i.test(text);
 }
 
-/** Throws when a theme's header or footer holds an address that would run code, such as a `javascript:` link. */
+/**
+ * Throws when a theme's header or footer holds an address that would run code,
+ * such as a `javascript:` link, or a setting whose address the page loads with
+ * a control character in it, which CSS and the URL parser read differently, so
+ * the install screen could list another address than the one loaded.
+ */
 function checkLayoutAddresses(theme: ThemePackage): void {
   visitLayouts(
     theme,
     () => undefined,
-    (text) => {
+    (text, key) => {
       if (unsafeAddress(text)) {
         throw new ThemeError("bad-file", "The theme's header or footer has an address that would run code.");
+      }
+      if (THEME_LOADED_PROPS.includes(key) && hasControlCharacter(text)) {
+        throw new ThemeError("bad-file", "The theme's header or footer has an address with a control character in it.");
       }
     },
   );
