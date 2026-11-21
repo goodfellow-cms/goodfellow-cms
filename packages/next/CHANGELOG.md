@@ -1,5 +1,34 @@
 # @goodfellow-cms/next
 
+## 0.15.0
+
+### Minor Changes
+
+- 76e37ae: Sites can choose what searches them, on Site Settings' General tab (`content/site.json`'s `search.engine`): Pagefind on the website, as before and still the default; MiniSearch on the website and in apps, from one index, so both find the same pages for the same words; or Pagefind on the website and MiniSearch in apps. With MiniSearch, the Search block in Expo apps searches every page's words, offline too, where before it found pages by their titles only. MiniSearch's index is written for each language into `minisearch/` and, for apps, into the content API (each language's `search` in the manifest), with every file named by its hash, so the header rules builds write for Cloudflare Pages, Netlify, and Vercel let browsers keep them for a year. Sites with their own `vercel.ts` from the starter can copy its two new header rules, for `/minisearch/assets/` and `/api/search/`.
+
+### Patch Changes
+
+- f026d10: Security and correctness fixes:
+  
+  - In Custom HTML used exactly as written, an item's value no longer goes into an address the page design itself starts with `javascript:` or `data:`, where the browser would run it.
+  - The full-stack example's deploy job downloads what the build made into a folder of its own, and takes only `dist/` and the build's config from it, so a file of the build's own, such as a `.env` that sends wrangler's requests elsewhere, never reaches the job that holds the Cloudflare token. Sites made before this keep their `.github/workflows/deploy.yml`: copy the example's download step, with its `path`, its **Check what the build handed over** step, and `scripts/check-build.ts`.
+  - With an admin address, builds stop at a file that starts as a page does under a name that doesn't say so, such as a `.txt` that starts `<html>`, which GitLab Pages would serve as a page, and guard more kinds of XML file. The media library refuses such files, a site import leaves them out, and the token broker asks before publishing one.
+  - A Bluesky post's address with a stray `%` no longer stops its page, or a static site's build.
+  - A theme's install screen lists every address its header and footer would load, whatever it ends in, and in `srcset` (read as browsers read it, commas and character references included) or unquoted attributes, and no longer counts links or words that are an address.
+  - Plugins' build steps and tasks can't be given `.env` files, `.git`, `.npmrc`, or `.netrc` in another letter case or a Windows short name, a link to one, outside the site, or to nowhere, or a folder holding one, a link out of it, or a folder that can't be read, and a plugin can't keep the site's media unless that was approved.
+  - A site import says when pages come in with blocks set as only owners would, such as Custom HTML used exactly as written, or with a visit counter's script.
+  - A publish that would leave a content file the site can't read is stopped, naming the file in the admin panel's language, with the technical reason behind Details, unless someone else's change had already left it so.
+- a316f44: The editor's and plugins' frames' folders hold only their pages, scripts, styles, fonts, and pictures that aren't SVGs: a build stops, naming the file, where a block's or plugin's code brings a page or an SVG as a file (such as `import help from "./help.html?url"`), which could open as a page at the admin panel's address, and the header rules builds write for Cloudflare Pages, Netlify, and Vercel sandbox both folders (`sandbox allow-scripts`), as the admin panel frames them. `goodfellow dev` and `next dev` don't serve what a stopped build left there. Sites with their own `vercel.ts` from the starter can copy its frames' rule. A build with an admin address also stops at a file that starts as markup in UTF-16 or UTF-32, and a theme's install screen lists a header's or footer's picture from another site however its address is spelled, such as `\\tracker.example/p`.
+- Updated dependencies [f026d10]
+- Updated dependencies [a316f44]
+- Updated dependencies [638710d]
+- Updated dependencies [6f369f4]
+- Updated dependencies [76e37ae]
+  - @goodfellow-cms/core@0.15.0
+  - @goodfellow-cms/react@0.15.0
+  - @goodfellow-cms/admin@0.15.0
+  - @goodfellow-cms/ai@0.15.0
+
 ## 0.14.1
 
 ### Patch Changes

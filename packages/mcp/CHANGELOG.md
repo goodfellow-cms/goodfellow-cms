@@ -1,5 +1,20 @@
 # @goodfellow-cms/mcp
 
+## 0.15.0
+
+### Patch Changes
+
+- Updated dependencies [f026d10]
+- Updated dependencies [a316f44]
+- Updated dependencies [638710d]
+- Updated dependencies [6f369f4]
+- Updated dependencies [76e37ae]
+  - @goodfellow-cms/core@0.15.0
+  - @goodfellow-cms/github@0.15.0
+  - @goodfellow-cms/ai@0.15.0
+  - @goodfellow-cms/bitbucket@0.15.0
+  - @goodfellow-cms/gitlab@0.15.0
+
 ## 0.14.1
 
 ### Patch Changes
