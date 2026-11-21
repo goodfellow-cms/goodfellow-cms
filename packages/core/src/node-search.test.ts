@@ -295,6 +295,25 @@ describe("MiniSearch's index", () => {
     expect(existsSync(indexDir)).toBe(false);
     expect(existsSync(join(dir, "public/minisearch/minisearch.js"))).toBe(true);
   });
+
+  it("goes to a server's apps beside Pagefind's index with both", async () => {
+    const indexDir = join(dir, "public/pagefind");
+    const file = { file: "x.json", hash: "0" };
+    await mkdir(join(dir, "public/api"), { recursive: true });
+    await writeFile(
+      join(dir, "public/api/manifest.json"),
+      JSON.stringify({ version: 1, languages: { en: { site: file, collections: file, header: file, footer: file } } }),
+    );
+    const pages = [
+      { url: "/", html: page('<h1>Home</h1><div data-goodfellow-search=""></div>') },
+      { url: "/about/", html: page("<h1>About us</h1>") },
+    ];
+    expect(await writePagesSearchIndex(pages, indexDir, { engine: "both" })).toBe(2);
+    expect(existsSync(join(indexDir, "pagefind.js"))).toBe(true);
+    const manifest = await read("public/api/manifest.json");
+    expect(manifest.languages.en.search.file).toMatch(/^search\/en\.[0-9a-f]{16}\.json$/);
+    expect(existsSync(join(dir, "public/api", manifest.languages.en.search.file))).toBe(true);
+  }, 60_000);
 });
 
 describe("searchPageText", () => {

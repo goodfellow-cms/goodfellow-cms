@@ -160,7 +160,11 @@ export async function writePagesSearchIndex(
     });
   }
   const mini = miniSearchFor(engine);
-  if (mini.web || mini.apps) indexed ??= await writeMiniSearch(outDir, marked, mini);
+  if (mini.web || mini.apps) {
+    // Written whatever Pagefind indexed, as the apps' index is with `both`; `??=` alone would skip the call.
+    const documents = await writeMiniSearch(outDir, marked, mini);
+    indexed ??= documents;
+  }
   return indexed;
 }
 

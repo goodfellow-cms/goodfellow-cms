@@ -43,6 +43,7 @@ The cost is a second repository to set up. Blocks and plugins are then added by 
    ```text
    public/calendars/
    public/pagefind/
+   public/minisearch/
    public/admin/editor/frames/
    ```
 
