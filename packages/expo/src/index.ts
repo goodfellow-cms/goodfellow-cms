@@ -41,6 +41,7 @@ export {
   loadPage,
   type ManifestPage,
   memoryStorage,
+  readSearchFile,
   readsContent,
   type SyncOptions,
   type SyncResult,

@@ -31,6 +31,7 @@ import {
   type SelfHostedResult,
   SITE_DESCRIPTION_PATH,
   type SiteProblem,
+  searchEngine,
   shownContent,
   siteCopyFrom,
   sitemapPages,
@@ -438,7 +439,7 @@ async function buildSite(options: BuildOptions): Promise<BuildResult> {
     const record = await writeBuildRecord(outDir, { root, content: loaded, now });
 
     // Last, once every page is written: the index is made from the finished HTML.
-    const searchIndexed = await writeSearchIndex(outDir);
+    const searchIndexed = await writeSearchIndex(outDir, { engine: searchEngine(content.settings) });
     // Then, for a site with an admin address, every page starts with the script that keeps site pages off it.
     if (site.admin) {
       await guardBuiltSite(outDir, { admin: site.admin, siteUrl: content.settings.url, base, broker: config.broker });

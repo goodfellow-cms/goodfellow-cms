@@ -18,10 +18,13 @@ import {
   parseHeadCode,
   type Redirect,
   redirectProblems,
+  SEARCH_ENGINES,
+  type SearchEngine,
   type SiteCode,
   type SiteContent,
   type SiteProblem,
   type SiteSettings,
+  searchEngine,
   serializeContent,
   siteSettingsSchema,
   storedRedirects,
@@ -108,6 +111,8 @@ function cleanSettings(draft: SiteSettings): unknown {
     url: optional(draft.url),
     externalLinksInNewTab: draft.externalLinksInNewTab || undefined,
     noAiTraining: draft.noAiTraining || undefined,
+    // Pagefind, the default, isn't written down.
+    search: draft.search && draft.search.engine !== "pagefind" ? draft.search : undefined,
     timeZone: optional(draft.timeZone),
     favicon: optional(draft.favicon),
     socialImage: optional(draft.socialImage),
@@ -192,6 +197,29 @@ function formsProblem(t: ReturnType<typeof useStrings>, forms: FormSettings | un
 const FORM_SERVICES: Array<FormSettings["service"]> = ["web3forms", "formspree", "other"];
 
 /** Where forms' answers go: the service, and its key or address. */
+/** What searches the site: each of `SEARCH_ENGINES`, with what it's good for. */
+function SearchSettings({ engine, onChange }: { engine: SearchEngine; onChange: (engine: SearchEngine) => void }) {
+  const t = useStrings();
+  return (
+    <>
+      <h2 className="gfa-section-title">{t("general.search")}</h2>
+      <p className="gfa-hint">{t("general.searchHint")}</p>
+      <fieldset className="gfa-choice-group">
+        <legend className="gfa-visually-hidden">{t("general.search")}</legend>
+        {SEARCH_ENGINES.map((choice) => (
+          <div key={choice}>
+            <label className="gfa-checkbox">
+              <input type="radio" name="search-engine" checked={engine === choice} onChange={() => onChange(choice)} />
+              {t(`general.search.${choice}`)}
+            </label>
+            <p className="gfa-hint">{t(`general.search.${choice}Hint`)}</p>
+          </div>
+        ))}
+      </fieldset>
+    </>
+  );
+}
+
 function FormsSettings({
   forms,
   error,
@@ -393,6 +421,8 @@ function GeneralTab({
         {t("general.aiTraining")}
       </label>
       <p className="gfa-hint">{t("general.aiTrainingHint")}</p>
+
+      <SearchSettings engine={searchEngine(draft)} onChange={(engine) => onChange({ ...draft, search: { engine } })} />
 
       <h2 id={sectionId("contact")} className="gfa-section-title" tabIndex={-1}>
         {t("general.contact")}

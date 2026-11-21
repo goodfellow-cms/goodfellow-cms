@@ -2,6 +2,7 @@
 import { resolve } from "node:path";
 import { defineConfig, loadSiteContent, shownContent, sitePages, todayIn } from "@goodfellow-cms/core";
 import { fileSystemSource } from "@goodfellow-cms/core/node";
+import { type SearchFile, siteSearch } from "@goodfellow-cms/core/site-search";
 import { classStyle, GoodfellowPage, GoodfellowSite, memoryStorage, nativeTheme } from "@goodfellow-cms/expo";
 import { contentApi } from "@goodfellow-cms/react/server";
 import { act } from "react";
@@ -98,6 +99,79 @@ function withClasses(fetcher: typeof fetch, classes: Record<string, string>): ty
     return new Response(JSON.stringify(restyle(await response.json())));
   }) as typeof fetch;
 }
+
+/** The starter's content API with a Search block first on the home page, and, with `index`, a search index for apps. */
+function withSearch(fetcher: typeof fetch, index?: SearchFile): typeof fetch {
+  return (async (input: RequestInfo | URL) => {
+    const address = String(input);
+    if (index && address.endsWith("/api/search/en.0123456789abcdef.json")) return new Response(JSON.stringify(index));
+    const response = await fetcher(input);
+    if (address.endsWith("/api/manifest.json") && index) {
+      const manifest = await response.json();
+      manifest.languages.en.search = { file: "search/en.0123456789abcdef.json", hash: "index" };
+      return new Response(JSON.stringify(manifest));
+    }
+    if (!address.endsWith("/api/pages/index.json")) return response;
+    const page = await response.json();
+    page.data.content.unshift({
+      type: "Search",
+      props: {
+        id: "Search-1",
+        label: "Search this site",
+        placeholder: "Search",
+        noResults: "Nothing matches {query}.",
+        unavailable: "",
+        className: "",
+      },
+    });
+    return new Response(JSON.stringify(page));
+  }) as typeof fetch;
+}
+
+/** Types `query` into the page's search box, and gives the box's text once it has settled. */
+async function typed(page: HTMLElement, query: string): Promise<string> {
+  const input = page.querySelector("input") as HTMLInputElement;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  await act(async () => {
+    setValue?.call(input, query);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+  return input.parentElement?.textContent ?? "";
+}
+
+describe("the Search block in apps", () => {
+  const index: SearchFile = {
+    version: 1,
+    language: "en",
+    documents: [
+      { path: "/", title: "Welcome to my site", text: "Everything in one place. Build pages from blocks." },
+      { path: "/about/", title: "About us", text: "We are a small team that grows apples." },
+    ],
+  };
+
+  it("searches the site's index for apps as the website does, words in pages' text included", async () => {
+    const page = await shown("/", withSearch(await starterApi(), index));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const found = await typed(page, "apples");
+    expect(found).toContain("About us");
+    expect(found).toContain("We are a small team that grows apples");
+    // The same results the website's MiniSearch gives, from the same function.
+    expect(
+      siteSearch(index)
+        .search("apples")
+        .map((result) => result.title),
+    ).toEqual(["About us"]);
+    expect(await typed(page, "pears")).toContain("Nothing matches pears.");
+  });
+
+  it("finds pages by their titles where the site has no index for apps, as before", async () => {
+    const page = await shown("/", withSearch(await starterApi()));
+    expect(await typed(page, "about")).toContain("About us");
+    // A word of a page's text, which only an index has.
+    expect(await typed(page, "everything")).toContain("Nothing matches everything.");
+  });
+});
 
 describe("blocks' Style in apps", () => {
   const settings = { theme: { colors: { primary: "#1d4ed8" }, fonts: {}, radius: "0.5rem", darkMode: true } };

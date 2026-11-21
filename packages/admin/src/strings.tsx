@@ -2342,6 +2342,17 @@ export const defaultStrings = {
   "general.aiTraining": "Let AI companies use the site's pages to train their models",
   "general.aiTrainingHint":
     "Turned off, the site asks the crawlers AI companies train their models with, such as OpenAI's GPTBot, Anthropic's ClaudeBot, and Google-Extended, to leave it alone. Search engines still list it, and assistants can still read a page someone asks them about. Well-behaved crawlers follow the request, but it isn't a lock: anyone can still read the site's pages.",
+  "general.search": "Site search",
+  "general.searchHint": "How the Search block finds pages, on the website and in apps made from the site.",
+  "general.search.pagefind": "Best for websites",
+  "general.search.pagefindHint":
+    "Pagefind searches every page's words on the website, downloading only what each search needs, so it stays quick on large sites. Apps find pages by their titles only.",
+  "general.search.minisearch": "The same on the website and in apps",
+  "general.search.minisearchHint":
+    "MiniSearch searches every page's words, on the website and in apps, and both find the same pages for the same words. The website downloads the whole index before the first search, so it suits sites of up to a few hundred pages.",
+  "general.search.both": "Best on each",
+  "general.search.bothHint":
+    "Pagefind on the website and MiniSearch in apps. Both search every page's words, but for the same words they can find different pages, or show them in a different order.",
   "general.contact": "Contact details",
   "general.contactHint": "Shown wherever a Contact details block is placed, such as the footer.",
   "general.address": "Address",

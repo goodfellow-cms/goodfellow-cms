@@ -71,7 +71,7 @@ import {
   writeAdminText,
   writeTaskDescription,
 } from "@goodfellow-cms/core/node";
-import { writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
+import { readSearchEngine, writePagesSearchIndex, writeSearchIndex } from "@goodfellow-cms/core/search-index";
 import { addShadcnBlock, blockWorks, formatShadcnBlock, ShadcnBlockError } from "@goodfellow-cms/core/shadcn";
 import { WordPressReadError } from "@goodfellow-cms/core/wordpress";
 import {
@@ -163,11 +163,11 @@ if (command === "finish" && dir === "--server") {
   // Rendered from the content and the config, so the index needs nothing next build writes, and this step can run
   // before the build as well as after it.
   const pages = await renderedPages();
-  const indexed = await writePagesSearchIndex(pages, "public/pagefind");
+  const indexed = await writePagesSearchIndex(pages, "public/pagefind", { engine: await readSearchEngine() });
   console.log(
     indexed === undefined
       ? "No page has a search block, so there's nothing to index"
-      : `Indexed ${indexed} pages for search, in public/pagefind`,
+      : `Indexed ${indexed} pages for search, in public/`,
   );
   for (const line of reportSiteProblems(await checkPages(pages))) console.log(line);
   process.exit(0);
@@ -494,7 +494,7 @@ if (command !== "finish" && command !== "index") {
       "        for search, and lists what automated accessibility checks",
       "        find on its pages. With --server, for a full-stack site, writes the calendar files",
       "        and feeds into public/calendars and public/feeds and indexes and checks the pages",
-      "        next build rendered, with the index in public/pagefind, instead.",
+      "        next build rendered, with the index in public/, instead.",
       "index   Only indexes the exported site for its search block.",
       "update  Updates Goodfellow, if the site still builds. --blocks updates blocks from its",
       "        registry too; --publish pushes it to the main branch; --commit only commits it,",
@@ -582,7 +582,7 @@ if (command === "finish") {
     console.log(`What the site shows by today's date changes at ${currentUntil}, when it needs building again`);
   }
 }
-const indexed = await writeSearchIndex(dir);
+const indexed = await writeSearchIndex(dir, { engine: await readSearchEngine() });
 console.log(
   indexed === undefined
     ? `No page in ${dir} has a search block, so there's nothing to index`

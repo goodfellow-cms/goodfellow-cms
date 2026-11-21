@@ -8,6 +8,7 @@ import {
   mediaAddresses,
   memoryStorage,
   readManifest,
+  readSearchFile,
   readSiteFiles,
   readsContent,
   redirectFor,
@@ -229,6 +230,54 @@ describe("syncSite", () => {
     site.files.delete("manifest.json");
     const result = await syncSite({ site: SITE, storage: memoryStorage(), fetch: site.fetch });
     expect(result.problem).toBe("no-api");
+  });
+});
+
+describe("search indexes", () => {
+  /** A manifest naming `name` as English's search index. */
+  const withIndex = (site: ReturnType<typeof fakeSite>, name: string) => {
+    site.manifest();
+    const manifest = JSON.parse(site.files.get("manifest.json") ?? "{}") as ApiManifest;
+    const english = manifest.languages.en;
+    if (english) english.search = { file: name, hash: `${name}#${site.files.get(name)?.length ?? 0}` };
+    site.files.set("manifest.json", JSON.stringify(manifest));
+  };
+  const index = (text: string, title = "Home") => ({
+    version: 1,
+    language: "en",
+    documents: [{ path: "/", title, text }],
+  });
+
+  it("are kept and read back, a changed one replacing the one before by its new name", async () => {
+    const site = fakeSite();
+    const storage = storageWithMedia();
+    // A page titled with a picture's address, which the index holds as words.
+    site.put("search/en.aaaaaaaaaaaaaaaa.json", index("We grow apples.", "/media/never.jpg"));
+    withIndex(site, "search/en.aaaaaaaaaaaaaaaa.json");
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    const manifest = (await readManifest(storage)) as ApiManifest;
+    expect((await readSearchFile(storage, manifest, "en"))?.documents[0]?.text).toContain("apples");
+    // An index holds pages' words, never pictures to download.
+    expect(storage.downloaded).not.toContain("https://parish.example/media/never.jpg");
+
+    site.files.delete("search/en.aaaaaaaaaaaaaaaa.json");
+    site.put("search/en.bbbbbbbbbbbbbbbb.json", index("We grow pears."));
+    withIndex(site, "search/en.bbbbbbbbbbbbbbbb.json");
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(storage.files.has("search/en.aaaaaaaaaaaaaaaa.json")).toBe(false);
+    const next = (await readManifest(storage)) as ApiManifest;
+    expect((await readSearchFile(storage, next, "en"))?.documents[0]?.text).toBe("We grow pears.");
+  });
+
+  it("aren't read where the site has none, or one of a version the app doesn't know", async () => {
+    const site = fakeSite();
+    const storage = memoryStorage();
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(await readSearchFile(storage, (await readManifest(storage)) as ApiManifest, "en")).toBeUndefined();
+    site.put("search/en.cccccccccccccccc.json", { ...index("Later"), version: 2 });
+    withIndex(site, "search/en.cccccccccccccccc.json");
+    await syncSite({ site: SITE, storage, fetch: site.fetch });
+    expect(await readSearchFile(storage, (await readManifest(storage)) as ApiManifest, "en")).toBeUndefined();
   });
 });
 

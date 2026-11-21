@@ -28,7 +28,7 @@ export function pageAddressPath(path: string, trailingSlash = true): string {
 }
 
 /** Addresses on the site that aren't pages or media, which links aren't checked or moved. */
-const NOT_PAGES = ["/calendars/", "/pagefind/", "/__goodfellow/"];
+const NOT_PAGES = ["/calendars/", "/pagefind/", "/minisearch/", "/__goodfellow/"];
 
 /** Where a link goes on the site, or `undefined` for a link elsewhere, or to a file only the build knows about. */
 export function linkTarget(link: string): { kind: "page" | "media"; path: string } | undefined {

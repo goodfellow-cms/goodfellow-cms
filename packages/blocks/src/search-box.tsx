@@ -1,4 +1,10 @@
-import { SEARCH_BOX_ATTRIBUTE, withBase } from "@goodfellow-cms/core";
+import {
+  SEARCH_BOX_ATTRIBUTE,
+  SEARCH_ENGINE_ATTRIBUTE,
+  searchEngine,
+  webSearchEngine,
+  withBase,
+} from "@goodfellow-cms/core";
 import { useParts, useSite } from "@goodfellow-cms/react";
 
 export interface SearchBoxProps {
@@ -9,14 +15,18 @@ export interface SearchBoxProps {
 }
 
 /**
- * A search box with results as you type, from the site's Pagefind index,
- * which `searchScript()` from `@goodfellow-cms/core` makes work. What it
- * needs is in the HTML: its words, the site's address (`data-gf-base`,
- * which builds give the base path) and the classes of the results it adds.
+ * A search box with results as you type, from the site's Pagefind index, or
+ * MiniSearch's where the site searches with it on the website
+ * (`webSearchEngine()`, which the box names with `SEARCH_ENGINE_ATTRIBUTE`,
+ * only then, so other sites' pages stay as they were), which
+ * `searchScript()` from `@goodfellow-cms/core` makes work. What it needs is in
+ * the HTML: its words, the site's address (`data-gf-base`, which builds give
+ * the base path) and the classes of the results it adds.
  */
 export function SearchBox({ label, placeholder, noResults, unavailable }: SearchBoxProps) {
-  const { base } = useSite();
+  const { base, settings } = useSite();
   const part = useParts();
+  const miniSearch = webSearchEngine(searchEngine(settings)) === "minisearch";
   return (
     <search
       className={part("gf-search-box", "relative block")}
@@ -24,6 +34,7 @@ export function SearchBox({ label, placeholder, noResults, unavailable }: Search
       data-gf-no-results={noResults}
       data-gf-unavailable={unavailable}
       {...{ [SEARCH_BOX_ATTRIBUTE]: "" }}
+      {...(miniSearch && { [SEARCH_ENGINE_ATTRIBUTE]: "minisearch" })}
     >
       <input
         type="search"

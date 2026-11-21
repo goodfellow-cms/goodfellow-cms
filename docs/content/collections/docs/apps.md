@@ -83,7 +83,7 @@ Expo SDK 58's command line checks those settings the same way with either.
 
 Most blocks look and work as they do on the website. A few can't:
 
-- **Search** finds pages and items by their titles and fields, which the app keeps; the website's search reads every page's text, which the app doesn't keep for every page.
+- **Search** searches every page's words where the site's [search](/docs/search#choosing-what-searches-the-site) is MiniSearch's in apps, from the index the build writes into the content API, with the same code as the website's MiniSearch. Otherwise it finds pages by their titles and items by their fields, which the app keeps.
 - **Form** sends the answers to the form service itself, as the website's form does, and then opens the thank-you page, or says what the form's "In the site's app" message says. A form with Web3Forms' hCaptcha opens on the website instead, since the captcha only works there.
 - **Video** plays uploads with the phone's own player, and YouTube's, Vimeo's, and other sites' players in a frame of their own.
 - **Code** shows the colors the site's build gave it, and can be selected to copy.

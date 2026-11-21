@@ -160,9 +160,12 @@ function headers() {
       }),
     },
     { source: "/media/(.*)\\.([sS][vV][gG])", headers: list({ "Content-Security-Policy": "sandbox" }) },
-    // Files named by what's in them, kept a year: the Google Fonts the build copies in, and its CSS
-    // and JavaScript, unless the site keeps an assets folder of its own, whose files aren't.
+    // Files named by what's in them, kept a year: the Google Fonts the build copies in, the search index
+    // and its module where the site searches with MiniSearch, and its CSS and JavaScript, unless the site
+    // keeps an assets folder of its own, whose files aren't.
     { source: "/fonts/google/(.*)", headers: cached },
+    { source: "/minisearch/assets/(.*)", headers: cached },
+    { source: "/api/search/(.*)", headers: cached },
     ...(existsSync("public/assets") ? [] : [{ source: "/assets/(.*)", headers: cached }]),
   ];
   if (!url) {

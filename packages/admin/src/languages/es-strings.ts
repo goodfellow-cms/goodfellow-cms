@@ -2251,6 +2251,17 @@ export const strings: Strings = {
   "general.aiTraining": "Permitir que las empresas de IA usen las páginas del sitio para entrenar sus modelos",
   "general.aiTrainingHint":
     "Desactivado, el sitio pide a los rastreadores con los que las empresas de IA entrenan sus modelos, como GPTBot de OpenAI, ClaudeBot de Anthropic y Google-Extended, que no lo visiten. Los buscadores lo siguen mostrando, y los asistentes pueden leer una página sobre la que alguien les pregunta. Los rastreadores respetuosos atienden la petición, pero no es un candado: cualquiera puede seguir leyendo las páginas del sitio.",
+  "general.search": "Búsqueda en el sitio",
+  "general.searchHint": "Cómo encuentra páginas el bloque Buscar, en el sitio web y en las apps hechas con el sitio.",
+  "general.search.pagefind": "Lo mejor para sitios web",
+  "general.search.pagefindHint":
+    "Pagefind busca en todas las palabras de cada página del sitio web y descarga solo lo que necesita cada búsqueda, así que sigue siendo rápido en sitios grandes. Las apps encuentran las páginas solo por sus títulos.",
+  "general.search.minisearch": "Lo mismo en el sitio web y en las apps",
+  "general.search.minisearchHint":
+    "MiniSearch busca en todas las palabras de cada página, en el sitio web y en las apps, y los dos encuentran las mismas páginas con las mismas palabras. El sitio web descarga el índice entero antes de la primera búsqueda, así que es adecuado para sitios de hasta unos cientos de páginas.",
+  "general.search.both": "Lo mejor en cada uno",
+  "general.search.bothHint":
+    "Pagefind en el sitio web y MiniSearch en las apps. Los dos buscan en todas las palabras de cada página, pero con las mismas palabras pueden encontrar páginas distintas o mostrarlas en otro orden.",
   "general.contact": "Datos de contacto",
   "general.contactHint": "Se muestran donde haya un bloque Datos de contacto, como en el pie de página.",
   "general.address": "Dirección",

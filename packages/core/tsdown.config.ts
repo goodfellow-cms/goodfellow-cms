@@ -5,13 +5,24 @@ const { version } = JSON.parse(readFileSync(new URL("./package.json", import.met
 
 export default defineConfig([
   {
-    entry: ["src/index.ts", "src/testing.ts", "src/wordpress.ts", "src/content-api.ts"],
+    entry: ["src/index.ts", "src/testing.ts", "src/wordpress.ts", "src/content-api.ts", "src/site-search.ts"],
     format: "esm",
     dts: true,
     platform: "neutral",
     // One file per module, so bundles for the browser only include what they use, such as `withBase()` without the content schemas.
     unbundle: true,
     define: { __GOODFELLOW_VERSION__: JSON.stringify(version) },
+  },
+  {
+    // The website's MiniSearch, one file with MiniSearch in it, which builds copy into `minisearch/assets/`
+    // (`writeMiniSearch()`) for the Search box to load.
+    entry: { "browser/minisearch": "src/browser/minisearch-module.ts" },
+    format: "esm",
+    dts: false,
+    platform: "browser",
+    minify: true,
+    clean: false,
+    deps: { alwaysBundle: [/^minisearch$/] },
   },
   {
     // Full-stack sites' servers, on any runtime with Web Request and Response, Cloudflare Workers included: no Node.
@@ -34,6 +45,14 @@ export default defineConfig([
     clean: false,
     tsconfig: "tsconfig.node.json",
     // Shares the main entry rather than bundling a second copy, so `instanceof ConflictError` works across both.
-    deps: { neverBundle: [/^\.\/index\.js$/, /^\.\/server\.js$/, /^\.\/wordpress\.js$/, /^\.\/content-api\.js$/] },
+    deps: {
+      neverBundle: [
+        /^\.\/index\.js$/,
+        /^\.\/server\.js$/,
+        /^\.\/wordpress\.js$/,
+        /^\.\/content-api\.js$/,
+        /^\.\/site-search\.js$/,
+      ],
+    },
   },
 ]);

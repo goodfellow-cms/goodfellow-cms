@@ -10,6 +10,7 @@ import {
   type SiteSettings,
 } from "@goodfellow-cms/core";
 import type { ApiCollectionsFile, ApiManifest, ApiPageFile, RichTextBlock } from "@goodfellow-cms/core/content-api";
+import type { SearchFile } from "@goodfellow-cms/core/site-search";
 import {
   type ComponentType,
   createContext,
@@ -29,6 +30,7 @@ import {
   type ManifestPage,
   MEDIA_FOLDER,
   readManifest,
+  readSearchFile,
   readSiteFiles,
   redirectFor,
   type SiteFiles,
@@ -94,6 +96,13 @@ export interface NativeSite {
   /** Shows the site light or dark, or like the phone (`undefined`), as its Dark mode switch block does. */
   setColorScheme(scheme: "light" | "dark" | undefined): void;
   colorScheme?: "light" | "dark";
+  /**
+   * The search index of the language shown, where the site searches with
+   * MiniSearch in apps: `key` names the file, which changes whenever it does,
+   * and `read()` reads it from the app's copy, for `siteSearch()` from
+   * `@goodfellow-cms/core/site-search`, as the website's Search box uses it.
+   */
+  searchIndex?: { key: string; read(): Promise<SearchFile | undefined> };
 }
 
 const SiteContext = createContext<NativeSite | undefined>(undefined);
@@ -133,7 +142,7 @@ export function nativeCollections(file: ApiCollectionsFile | undefined): NativeC
 export function isPageAddress(href: string): boolean {
   if (!href.startsWith("/") || href.startsWith("//")) return false;
   const path = href.split(/[?#]/)[0] ?? "";
-  if (/^\/(media|calendars|feeds|api|admin|pagefind)(\/|$)/.test(path)) return false;
+  if (/^\/(media|calendars|feeds|api|admin|pagefind|minisearch)(\/|$)/.test(path)) return false;
   return !/\.[a-z0-9]{2,5}$/i.test(path);
 }
 
@@ -339,6 +348,7 @@ export function useNativeSiteValue(
   const collections = useMemo(() => nativeCollections(files?.collections), [files?.collections]);
   if (!files) return undefined;
   const settings = files.site.settings;
+  const search = manifest?.languages[settings.language]?.search;
   const scheme = root.colorScheme ?? (system === "dark" ? "dark" : "light");
   const entryPage = page?.entry;
   const collection = entryPage && collections.find((candidate) => candidate.id === entryPage.collection);
@@ -388,6 +398,10 @@ export function useNativeSiteValue(
     setLanguage: root.setLanguage,
     setColorScheme: root.setColorScheme,
     ...(root.colorScheme && { colorScheme: root.colorScheme }),
+    ...(search &&
+      manifest && {
+        searchIndex: { key: search.file, read: () => readSearchFile(root.storage, manifest, settings.language) },
+      }),
   };
 }
 

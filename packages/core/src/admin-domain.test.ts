@@ -22,6 +22,7 @@ import {
   withVercelAdminAddress,
 } from "./admin-domain.js";
 import { FONTS_DIR } from "./fonts.js";
+import { MINISEARCH_ASSETS_DIR } from "./search.js";
 
 const admin = { url: "https://admin.example.org" };
 const script = siteGuard("https://admin.example.org", "https://example.org");
@@ -278,7 +279,11 @@ describe("host rules", () => {
     expect(rules).toContain(`/site/assets/*\n${immutable}`);
     expect(rules).toContain(`/site/_next/static/*\n${immutable}`);
     expect(rules).toContain(`/site/fonts/google/*\n${immutable}`);
-    expect(rules.match(/Cache-Control/g)).toHaveLength(3);
+    // MiniSearch's index and module, named by their hash, for the website and for apps.
+    expect(rules).toContain(`/site/minisearch/assets/*\n${immutable}`);
+    expect(rules).toContain(`/site/api/search/*\n${immutable}`);
+    expect(rules.match(/Cache-Control/g)).toHaveLength(5);
+    expect(CACHED_FOLDERS).toContain(`${MINISEARCH_ASSETS_DIR}/`);
     // The folder builds copy Google Fonts into, written out in this file.
     expect(CACHED_FOLDERS).toContain(`${FONTS_DIR}/`);
     // A build leaves out folders it finds files not named by their content in.
@@ -286,8 +291,17 @@ describe("host rules", () => {
     // Vercel caches Next.js's own files itself, and assets/ only where the starters' vercel.ts asks.
     const cached = (rules: ReturnType<typeof vercelHeaders>) =>
       rules.filter((rule) => rule.headers.some((header) => header.key === "Cache-Control")).map((rule) => rule.source);
-    expect(cached(vercelHeaders({ base: "/site/" }))).toEqual(["/site/fonts/google/(.*)"]);
-    expect(cached(vercelHeaders({ assets: true }))).toEqual(["/fonts/google/(.*)", "/assets/(.*)"]);
+    expect(cached(vercelHeaders({ base: "/site/" }))).toEqual([
+      "/site/fonts/google/(.*)",
+      "/site/minisearch/assets/(.*)",
+      "/site/api/search/(.*)",
+    ]);
+    expect(cached(vercelHeaders({ assets: true }))).toEqual([
+      "/fonts/google/(.*)",
+      "/minisearch/assets/(.*)",
+      "/api/search/(.*)",
+      "/assets/(.*)",
+    ]);
   });
 
   it("does the same on Vercel, then adds an admin address's rules", () => {
@@ -295,6 +309,8 @@ describe("host rules", () => {
       "/(.*)",
       "/media/(.*)\\.([sS][vV][gG])",
       "/fonts/google/(.*)",
+      "/minisearch/assets/(.*)",
+      "/api/search/(.*)",
       "/admin/((?!editor/|editor$|plugins/).*)",
       "/admin/editor/:path*",
       "/admin/plugins/:path*",
@@ -302,7 +318,7 @@ describe("host rules", () => {
     expect(vercelHeaders().every((rule) => rule.has === undefined)).toBe(true);
     expect(vercelHeaders({ base: "/site/" })[1]?.source).toBe("/site/media/(.*)\\.([sS][vV][gG])");
     expect(vercelHeaders({ admin })).toEqual([...vercelSiteHeaders("/", { admin }), ...vercelAdminHeaders(admin)]);
-    expect(vercelSiteHeaders("/", { admin })).toHaveLength(3);
+    expect(vercelSiteHeaders("/", { admin })).toHaveLength(5);
   });
 });
 
