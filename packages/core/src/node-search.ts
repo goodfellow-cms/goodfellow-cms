@@ -9,6 +9,7 @@ import {
   MINISEARCH_MODULE,
   miniSearchFor,
   SEARCH_ATTRIBUTE,
+  SEARCH_ENGINE_ATTRIBUTE,
   SEARCH_ENGINES,
   SEARCH_INDEX_DIR,
   type SearchEngine,
@@ -34,6 +35,33 @@ export function marksSearchContent(html: string): boolean {
   });
   parser.end(html);
   return marked;
+}
+
+/**
+ * Whether a page has a block that searches with Pagefind itself: an element marked `SEARCH_ATTRIBUTE` that neither
+ * says nor holds an element saying it searches with MiniSearch (`SEARCH_ENGINE_ATTRIBUTE`, as the Search box does),
+ * as another's block that loads `/pagefind/pagefind.js` would. Such a site keeps Pagefind's index whatever its setting,
+ * so the block goes on working.
+ */
+export function searchesWithPagefind(html: string): boolean {
+  let found = false;
+  const open: Array<{ marked: boolean; mini: boolean }> = [];
+  const parser = new Parser({
+    onopentag(_name, attributes) {
+      const mini = attributes[SEARCH_ENGINE_ATTRIBUTE] === "minisearch";
+      if (mini) for (const element of open) element.mini = true;
+      open.push({ marked: Object.hasOwn(attributes, SEARCH_ATTRIBUTE), mini });
+    },
+    onclosetag() {
+      const element = open.pop();
+      if (element?.marked && !element.mini) {
+        found = true;
+        parser.pause();
+      }
+    },
+  });
+  parser.end(html);
+  return found;
 }
 
 /** A built page to index: its address on the site, and its HTML. */
@@ -73,7 +101,7 @@ export async function writeSearchIndex(
   if (!read.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
   const marked = read.filter((page) => marksSearchContent(page.html));
   let indexed: number | undefined;
-  if (webSearchEngine(engine) === "pagefind") {
+  if (webSearchEngine(engine) === "pagefind" || read.some((page) => searchesWithPagefind(page.html))) {
     // Each page is given by its path in the site, from which Pagefind works out its address as it would indexing
     // the folder; a glob of their names would read characters such as `[` and `{` in them as patterns.
     indexed = await indexWith(indexDir, async (index) => {
@@ -116,7 +144,7 @@ export async function writePagesSearchIndex(
   if (!pages.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
   const marked = pages.filter((candidate) => marksSearchContent(candidate.html));
   let indexed: number | undefined;
-  if (webSearchEngine(engine) === "pagefind") {
+  if (webSearchEngine(engine) === "pagefind" || pages.some((page) => searchesWithPagefind(page.html))) {
     indexed = await indexWith(indexDir, async (index) => {
       const errors: string[] = [];
       for (const page of marked) {
@@ -246,10 +274,25 @@ const FILE_LANGUAGE = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
 /** The folder the content API keeps each language's search index in, from its manifest's. */
 const API_SEARCH_DIR = "search";
 
-/** Takes out MiniSearch's files of a build before, so none is left over from another index or engine. */
+/**
+ * Takes out MiniSearch's files of a build before, so none is left over from another index or engine, and the content
+ * API manifest's names for them, so apps are never sent to a file that's gone.
+ */
 async function removeMiniSearch(outDir: string): Promise<void> {
   await rm(join(outDir, MINISEARCH_DIR), { recursive: true, force: true });
   await rm(join(outDir, CONTENT_API_DIR, API_SEARCH_DIR), { recursive: true, force: true });
+  const manifestPath = join(outDir, CONTENT_API_MANIFEST.slice(1));
+  const manifest = await readManifest(manifestPath);
+  if (!manifest || !Object.values(manifest.languages).some((language) => language.search)) return;
+  for (const language of Object.values(manifest.languages)) delete language.search;
+  await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
+}
+
+/** The content API's manifest a build wrote, or `undefined` where it wrote none. */
+function readManifest(path: string): Promise<ApiManifest | undefined> {
+  return readFile(path, "utf8")
+    .then((text) => JSON.parse(text) as ApiManifest)
+    .catch(() => undefined);
 }
 
 /** The website's MiniSearch, bundled with core (`src/browser/minisearch-module.ts`). */
@@ -290,7 +333,8 @@ export async function writeMiniSearch(
   const byLanguage = new Map<string, SearchDocument[]>();
   for (const page of pages) {
     const found = searchPageText(page.html, page.url);
-    if (!found || !FILE_LANGUAGE.test(found.language)) continue;
+    // A page whose `<html lang>` is missing or odd is still found, as Pagefind finds it, from pages saying the same.
+    if (!found) continue;
     byLanguage.set(found.language, [...(byLanguage.get(found.language) ?? []), found.document]);
   }
   const files = await Promise.all(
@@ -301,7 +345,9 @@ export async function writeMiniSearch(
         documents: documents.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
       };
       const text = `${JSON.stringify(file)}\n`;
-      return { language, text, name: await hashedName(language, "json", text), count: documents.length };
+      // Files are named by the language only where it's a code a file's name can hold.
+      const stem = FILE_LANGUAGE.test(language) ? language : "pages";
+      return { language, text, name: await hashedName(stem, "json", text), count: documents.length };
     }),
   );
   if (web) {
@@ -328,9 +374,7 @@ export async function writeMiniSearch(
   }
   if (apps) {
     const manifestPath = join(outDir, CONTENT_API_MANIFEST.slice(1));
-    const manifest = await readFile(manifestPath, "utf8")
-      .then((text) => JSON.parse(text) as ApiManifest)
-      .catch(() => undefined);
+    const manifest = await readManifest(manifestPath);
     if (manifest) {
       const folder = join(outDir, CONTENT_API_DIR, API_SEARCH_DIR);
       await mkdir(folder, { recursive: true });

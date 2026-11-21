@@ -8,6 +8,7 @@ import {
   builtPagePath,
   marksSearchContent,
   readSearchEngine,
+  searchesWithPagefind,
   searchPageText,
   writePagesSearchIndex,
   writeSearchIndex,
@@ -137,12 +138,16 @@ describe("MiniSearch's index", () => {
   });
   afterEach(() => rm(dir, { recursive: true, force: true }));
 
+  /** The Search block as it's built on a site that searches with MiniSearch on the website. */
+  const box =
+    '<div data-goodfellow-search=""><div data-gf-search-box="" data-gf-search-engine="minisearch"></div></div>';
+
   /** A built site with a Search block, a page in Spanish, "Page not found", and a content API. */
   const site = async () => {
     await mkdir(join(dir, "about"));
     await mkdir(join(dir, "es"));
     await mkdir(join(dir, "api"));
-    await writeFile(join(dir, "index.html"), page('<h1>Home</h1><div data-goodfellow-search=""></div>'));
+    await writeFile(join(dir, "index.html"), page(`<h1>Home</h1>${box}`));
     await writeFile(join(dir, "about/index.html"), page("<h1>About us</h1><p>We grow apples.</p>"));
     await writeFile(join(dir, "es/index.html"), page("<h1>Inicio</h1><p>Cultivamos manzanas.</p>", true, "es"));
     await writeFile(join(dir, "404.html"), page("<h1>Page not found</h1>", false));
@@ -210,10 +215,57 @@ describe("MiniSearch's index", () => {
     expect(after.slice(1)).toEqual(before.slice(1));
   });
 
+  it("leaves Pagefind's index to a block that loads Pagefind itself, beside a Search box set to MiniSearch", async () => {
+    await site();
+    await writeSearchIndex(dir, { engine: "minisearch" });
+    expect(existsSync(join(dir, "pagefind"))).toBe(false);
+    // Another's block, which marks the page for indexing and imports /pagefind/pagefind.js.
+    await writeFile(join(dir, "about/index.html"), page('<h1>About us</h1><div data-goodfellow-search=""></div>'));
+    await writeSearchIndex(dir, { engine: "minisearch" });
+    expect(existsSync(join(dir, "pagefind/pagefind.js"))).toBe(true);
+    expect(existsSync(join(dir, "minisearch/minisearch.js"))).toBe(true);
+    expect(searchesWithPagefind(page(box))).toBe(false);
+    expect(searchesWithPagefind(page('<div data-goodfellow-search="" />'))).toBe(true);
+    expect(searchesWithPagefind(page('<div data-goodfellow-search=""><div data-gf-search-box=""></div></div>'))).toBe(
+      true,
+    );
+    // A block of a site's own that loads MiniSearch says so, as the Search box does.
+    expect(searchesWithPagefind(page('<div data-goodfellow-search="" data-gf-search-engine="minisearch"></div>'))).toBe(
+      false,
+    );
+  }, 60_000);
+
+  it("takes the manifest's names for apps' files out with the files, so none names a file that's gone", async () => {
+    await site();
+    await writeSearchIndex(dir, { engine: "both" });
+    expect((await read("api/manifest.json")).languages.en.search).toBeDefined();
+    // The site no longer has a Search block, so nothing is written again.
+    await writeFile(join(dir, "index.html"), page("<h1>Home</h1>"));
+    expect(await writeSearchIndex(dir, { engine: "both" })).toBeUndefined();
+    expect(existsSync(join(dir, "api/search"))).toBe(false);
+    const manifest = await read("api/manifest.json");
+    expect(manifest.languages.en.search).toBeUndefined();
+    expect(manifest.languages.es.search).toBeUndefined();
+    expect(manifest.languages.en.site).toEqual({ file: "x.json", hash: "0" });
+  }, 60_000);
+
+  it("finds pages whose language is missing or can't name a file, as Pagefind does", async () => {
+    await site();
+    await mkdir(join(dir, "old"));
+    await writeFile(join(dir, "about/index.html"), page("<h1>About us</h1>", true, ""));
+    await writeFile(join(dir, "old/index.html"), page("<h1>Old page</h1>", true, "en_US"));
+    expect(await writeSearchIndex(dir, { engine: "minisearch" })).toBe(4);
+    const files = readdirSync(join(dir, "minisearch/assets")).filter((file) => file.startsWith("pages."));
+    expect(files).toHaveLength(2);
+    const module = await readFile(join(dir, "minisearch/minisearch.js"), "utf8");
+    expect(module).toMatch(/"":"assets\/pages\.[0-9a-f]{16}\.json"/);
+    expect(module).toMatch(/"en_US":"assets\/pages\.[0-9a-f]{16}\.json"/);
+  }, 60_000);
+
   it("goes beside the folder given for a server's pages", async () => {
     const indexDir = join(dir, "public/pagefind");
     const pages = [
-      { url: "/", html: page('<h1>Home</h1><div data-goodfellow-search=""></div>') },
+      { url: "/", html: page(`<h1>Home</h1>${box}`) },
       { url: "/about", html: page("<h1>About us</h1>") },
     ];
     expect(await writePagesSearchIndex(pages, indexDir, { engine: "minisearch" })).toBe(2);
