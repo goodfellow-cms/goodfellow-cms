@@ -26,6 +26,7 @@ import {
 } from "@goodfellow-cms/core";
 import {
   builtSiteSource,
+  checkFrameFolder,
   LICENSES_FILE,
   licensesPlugin,
   loadSourceModules,
@@ -356,6 +357,8 @@ export async function buildPluginFrame(
         ...(plugin.editor && { media: await mediaStorageOrigins(root) }),
       }),
     );
+    // Nothing else the bundle wrote there may open as a page at the admin panel's address.
+    await checkFrameFolder(dir);
   };
   const options = {
     input: { plugin: FRAME_ENTRY },

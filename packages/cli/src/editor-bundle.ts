@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { EDITOR_PRELUDE, editorPage } from "@goodfellow-cms/core";
+import { checkFrameFolder } from "@goodfellow-cms/core/node";
 import { type InlineConfig, type Plugin, type Rolldown, build as viteBuild } from "vite";
 import { EDITOR_ENTRY, EDITOR_PATH } from "./admin-entry.js";
 import { findEntry, type Manifest } from "./manifest.js";
@@ -53,6 +54,9 @@ export async function buildEditor(
     });
     await mkdir(join(outDir, EDITOR_PATH), { recursive: true });
     await writeFile(join(outDir, EDITOR_PATH, "index.html"), html);
+    // Nothing else the bundle wrote there, such as a block's file imported as an address, may open as a page at
+    // the admin panel's address.
+    await checkFrameFolder(join(outDir, EDITOR_PATH));
   };
 
   const output = await viteBuild({

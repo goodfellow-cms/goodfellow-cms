@@ -17,7 +17,7 @@ import {
 } from "@goodfellow-cms/core";
 import { useEffect, useState } from "react";
 import { useAdmin, useSiteContent } from "./admin-context.js";
-import { fileName, mediaUrl } from "./media.js";
+import { mediaUrl } from "./media.js";
 import { type Failure, PublishFailure } from "./publish-failure.js";
 import { registryFetchJson } from "./registry-fetch.js";
 import { type DownloadProgress, downloadName, siteCopyArchive } from "./site-download.js";

@@ -61,11 +61,12 @@ jobs:
             exit 1
           fi
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      # No package cache: what's published is installed from the lockfile here, never from what another job saved.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           check-latest: true
-          cache: pnpm
+          package-manager-cache: false
       # Staged publishing needs npm 11.15.0 or later; Node 22 comes with npm 10. An exact release, checked against its
       # digest, so what publishes doesn't change between releases by itself; Dependabot can't see it here, so move it
       # on by hand.

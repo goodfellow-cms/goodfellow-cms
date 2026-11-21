@@ -31,7 +31,7 @@ describe("Netlify's header rules", () => {
     const adminPaths = [...found].filter(([, lines]) => lines.some((line) => line.includes("frame-ancestors 'none'")));
     expect(adminPaths.map(([path]) => path)).toEqual(["/admin", "/admin/", "/admin/index.html", "/admin.html"]);
     expect(found.get("/admin/editor/*")).toEqual([
-      "Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
+      "Content-Security-Policy: object-src 'none'; base-uri 'self'; sandbox allow-scripts; frame-ancestors 'self'",
       "Origin-Agent-Cluster: ?1",
     ]);
     // Every rule's policy keeps what every page's has, so it's right whether rules are joined or one wins.

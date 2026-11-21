@@ -9,7 +9,9 @@ import {
   CLOUDFLARE_HEADERS_PATH,
   cloudflareAdminHeaders,
   cloudflareSiteHeaders,
+  FRAME_FOLDERS,
   headersHost,
+  isFrameFileName,
   netlifySiteHeaders,
   pageFileKind,
   SITE_HEADERS_MARK,
@@ -115,14 +117,19 @@ export async function guardBuiltSite(
   // Files whose names don't say what they are, which a host could open as a page by what they hold, read once the
   // pages are guarded, many at a time.
   const untyped: { file: string; path: string }[] = [];
+  // Files in the frames' folders besides their pages, which must be what a frame needs and nothing a host could
+  // open as a page.
+  const framed: { file: string; path: string }[] = [];
   for (const entry of await readdir(outDir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const file = join(entry.parentPath, entry.name);
     const path = relative(outDir, file).split("\\").join("/");
     const kind = pageFileKind(path);
     // The editor's frames, and plugins', refuse to run anywhere but in the admin panel's sandboxed frames
-    // (`EDITOR_PRELUDE`).
-    if (path.startsWith("admin/editor/") || path === "admin/editor.html" || path.startsWith("admin/plugins/")) {
+    // (`EDITOR_PRELUDE`); anything else in their folders is held to what a frame needs (`notFrameFiles()`).
+    if (path === "admin/editor.html" || isFramePage(path)) continue;
+    if (FRAME_FOLDERS.some((folder) => path.startsWith(folder))) {
+      framed.push({ file, path });
       continue;
     }
     if (!kind) {
@@ -146,6 +153,8 @@ export async function guardBuiltSite(
       if (starts[index]) markup.push(path);
     });
   }
+  const notFrames = await notFrameFiles(framed);
+  if (notFrames.length > 0) throw new Error(notFramesMessage(notFrames));
   if (unguarded.length > 0) {
     throw new Error(
       `The admin address needs every page to start with its guard, and ${unguarded.length === 1 ? "this one can't" : "these can't"}: ${unguarded.join(", ")}. A page can't have a script, an event handler, or a frame before it, or an XML stylesheet, and a compressed SVG can't be changed: remove or change ${unguarded.length === 1 ? "it" : "them"}.`,
@@ -166,6 +175,52 @@ export async function guardBuiltSite(
     await writeFile(headersFile, `${own}${separator}${cloudflareAdminHeaders(admin, base, framer)}`);
   }
   return guarded;
+}
+
+/** Whether a file is a frame's own page, which the build writes: the editor's `index.html`, or a plugin's. */
+function isFramePage(path: string): boolean {
+  return /^admin\/editor\/(frames\/)?index\.html$/.test(path) || /^admin\/plugins\/[^/]+\/index\.html$/.test(path);
+}
+
+/** Of `files`, those a frame's folder mustn't hold: a name outside `isFrameFileName()`, or a start as a page's. */
+async function notFrameFiles(files: { file: string; path: string }[]): Promise<string[]> {
+  const found: string[] = [];
+  for (let start = 0; start < files.length; start += FILES_AT_ONCE) {
+    const batch = files.slice(start, start + FILES_AT_ONCE);
+    const bad = await Promise.all(
+      batch.map(async ({ file, path }) => !isFrameFileName(path) || startsAsMarkup(await firstBytes(file))),
+    );
+    batch.forEach(({ path }, index) => {
+      if (bad[index]) found.push(path);
+    });
+  }
+  return found;
+}
+
+function notFramesMessage(files: string[]): string {
+  const one = files.length === 1;
+  return `The admin panel's frames can hold only their pages, scripts, styles, fonts, and pictures that aren't SVGs, since anything else in their folders could open as a page at the admin panel's address, and ${one ? "this file isn't one" : "these files aren't"}: ${files.join(", ")}. A block's or plugin's code put ${one ? "it" : "them"} there by importing ${one ? "it" : "them"} as an address (such as an .html or .svg with ?url): import ${one ? "it" : "them"} as text or a data: address instead, or leave ${one ? "it" : "them"} out.`;
+}
+
+/**
+ * Stops a build at any file in a frame's folder, `dir` (the editor's, or a
+ * plugin's), that a frame doesn't need and a browser could open as a page at
+ * the admin panel's address, naming them: anything but its `index.html` whose
+ * name isn't `isFrameFileName()`'s, or that starts as a page does. As
+ * `goodfellow build`, `goodfellow dev`, and `goodfellow-next` check each
+ * frame's bundle once it's written, whatever the site's address.
+ */
+export async function checkFrameFolder(dir: string): Promise<void> {
+  const files: { file: string; path: string }[] = [];
+  for (const entry of await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => [])) {
+    if (!entry.isFile()) continue;
+    const file = join(entry.parentPath, entry.name);
+    const path = relative(dir, file).split("\\").join("/");
+    if (path === "index.html") continue;
+    files.push({ file, path });
+  }
+  const found = await notFrameFiles(files);
+  if (found.length > 0) throw new Error(notFramesMessage(found));
 }
 
 /** How many files' first bytes are read at once: enough to keep the disk busy, few enough for any open-file limit. */

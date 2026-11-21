@@ -187,7 +187,14 @@ describe("what a theme's header and footer may do", () => {
     for (const [block, address] of [
       [section("https://tracker.example/pixel"), "https://tracker.example/pixel"],
       [section("https://tracker.example/p.png/x"), "https://tracker.example/p.png/x"],
-      [section("//tracker.example/a)b"), "//tracker.example/a)b"],
+      [section("//tracker.example/a)b"), "https://tracker.example/a)b"],
+      // Every spelling a browser reads as another site's address, from one of the site's pages.
+      [section("\\\\tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("/\\tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("\\/tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("https:\\\\tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("\u0001//tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section(" HTTPS://TRACKER.example/pixel"), "https://tracker.example/pixel"],
       [text("<img src=https://tracker.example/pixel>"), "https://tracker.example/pixel"],
       [text('<img srcset="/media/a.png 1x, https://tracker.example/pixel 2x">'), "https://tracker.example/pixel"],
       // A srcset's address may hold commas, and descriptors' parentheses too, as browsers read them.

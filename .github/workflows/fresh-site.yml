@@ -49,11 +49,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      # No package cache: the site's tests and build run the newest releases npm has, which nobody here chose, and
+      # a cache this job saved would be the one master's other workflows, the release's among them, install from.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           check-latest: true
-          cache: pnpm
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       # create-goodfellow as this commit has it, with the company example bundled from this commit.
       - run: pnpm turbo run build --filter=create-goodfellow

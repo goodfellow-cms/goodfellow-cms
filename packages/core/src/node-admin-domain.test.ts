@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { startsWithGuard } from "./admin-domain.js";
-import { cachedFolders, guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
+import { cloudflareAdminHeaders, cloudflareSiteHeaders, startsWithGuard } from "./admin-domain.js";
+import { cachedFolders, checkFrameFolder, guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
 
 let dir: string;
 beforeEach(async () => {
@@ -61,7 +61,7 @@ describe("guardBuiltSite", () => {
     await writeSiteHeaders(dir, { host: "netlify" });
     const site = await read("_headers");
     expect(site).toContain(
-      "/admin/editor/*\n  Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
+      "/admin/editor/*\n  Content-Security-Policy: object-src 'none'; base-uri 'self'; sandbox allow-scripts; frame-ancestors 'self'",
     );
     expect(site).not.toMatch(/^\s*!/m);
     expect(await guardBuiltSite(dir, { ...options, host: "netlify" })).toBe(1);
@@ -135,5 +135,68 @@ describe("guardBuiltSite", () => {
     await expect(guardBuiltSite(dir, { ...options, admin: { url: "https://example.org" } })).rejects.toThrow(
       /is the Site address/,
     );
+  });
+});
+
+describe("the admin panel's frames' folders", () => {
+  /** A frame's folder as a build writes it: its page, script, styles, licenses, a font, and a picture. */
+  const frame = async (folder: string) => {
+    await write(`${folder}index.html`, '<!DOCTYPE html><html><head><meta charset="utf-8" /></head></html>');
+    await write(`${folder}plugin-Ab12Cd34.js`, "(function(){})();");
+    await write(`${folder}plugin-Ab12Cd34.css`, "body{}");
+    await write(`${folder}LICENSES.txt`, "MIT");
+    await write(`${folder}inter-Ab12Cd34.woff2`, "wOF2");
+    await write(`${folder}logo-Ab12Cd34.PNG`, "\u0089PNG");
+  };
+
+  it("take what a frame needs", async () => {
+    await frame("admin/plugins/goodfellow-plugin-x/");
+    await expect(checkFrameFolder(join(dir, "admin/plugins/goodfellow-plugin-x"))).resolves.toBeUndefined();
+    await frame("admin/editor/");
+    await write("index.html", "<!DOCTYPE html><html><head></head></html>");
+    await expect(guardBuiltSite(dir, options)).resolves.toBe(1);
+    // Its own pages stay as they were: they refuse to run outside the admin panel's frames.
+    expect(await read("admin/editor/index.html")).not.toContain("<script");
+  });
+
+  it("stop the build at anything else, which could open as a page at the admin panel's address", async () => {
+    const folder = "admin/plugins/goodfellow-plugin-x/";
+    await frame(folder);
+    for (const [name, text] of [
+      ["help-Ab12Cd34.html", "<script>steal()</script>"],
+      ["pic-Ab12Cd34.svg", '<svg xmlns="http://www.w3.org/2000/svg"><script>steal()</script></svg>'],
+      ["notes-Ab12Cd34", "plain"],
+      ["data-Ab12Cd34.xml", "<?xml version='1.0'?><a/>"],
+      ["script-Ab12Cd34.js", "<html><script>steal()</script>"],
+      ["sub/index.html", "<script>steal()</script>"],
+    ] as const) {
+      await write(`${folder}${name}`, text);
+      await expect(checkFrameFolder(join(dir, folder)), name).rejects.toThrow(name);
+      await expect(guardBuiltSite(dir, options), name).rejects.toThrow(`${folder}${name}`);
+      await rm(join(dir, folder, name));
+    }
+    await write("admin/editor/pic-Ab12Cd34.svg", "<svg/>");
+    await expect(guardBuiltSite(dir, options)).rejects.toThrow("admin/editor/pic-Ab12Cd34.svg");
+  });
+
+  it("are sandboxed on hosts that take headers, as the admin panel frames them", () => {
+    expect(cloudflareSiteHeaders("/")).toContain(
+      "/admin/plugins/*\n  ! Content-Security-Policy\n  ! Cross-Origin-Opener-Policy\n  ! Origin-Agent-Cluster\n  Content-Security-Policy: sandbox allow-scripts; frame-ancestors 'self'",
+    );
+    expect(cloudflareAdminHeaders({ url: "https://admin.example.org" })).toContain(
+      "https://admin.example.org/admin/editor/*\n  ! Content-Security-Policy\n  Content-Security-Policy: sandbox allow-scripts;",
+    );
+  });
+});
+
+describe("files in UTF-16", () => {
+  it("stop the build where they start as a page does, though their names don't say so", async () => {
+    const page =
+      '<?xml version="1.0" encoding="UTF-16"?><x xmlns:h="http://www.w3.org/1999/xhtml"><h:script>steal()</h:script></x>';
+    const units = ["﻿", ...page].map((char) => char.charCodeAt(0));
+    await write("index.html", "<!DOCTYPE html><html><head></head></html>");
+    await mkdir(join(dir, "media"), { recursive: true });
+    await writeFile(join(dir, "media/a.gml"), new Uint8Array(units.flatMap((unit) => [unit & 255, unit >> 8])));
+    await expect(guardBuiltSite(dir, options)).rejects.toThrow("media/a.gml");
   });
 });

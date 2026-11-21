@@ -7,7 +7,13 @@ export {
   setAdminAddress,
   syncContentHeaders,
 } from "./node-admin.js";
-export { cachedFolders, type GuardOptions, guardBuiltSite, writeSiteHeaders } from "./node-admin-domain.js";
+export {
+  cachedFolders,
+  checkFrameFolder,
+  type GuardOptions,
+  guardBuiltSite,
+  writeSiteHeaders,
+} from "./node-admin-domain.js";
 export { formatAdminText, type WrittenAdminText, writeAdminText } from "./node-admin-text.js";
 export { appApi } from "./node-app-api.js";
 export {

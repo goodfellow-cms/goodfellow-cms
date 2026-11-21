@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { EDITOR_PRELUDE, editorPage } from "@goodfellow-cms/core";
+import { checkFrameFolder } from "@goodfellow-cms/core/node";
 import type { BuildOptions } from "rolldown";
 import { EDITOR_FRAMES_PATH } from "./editor-frames-path.js";
 
@@ -135,5 +136,7 @@ export async function bundleEditorFrames(
   const { build } = await import("rolldown");
   await build(editorFramesOptions(site, dir, { development: false, stylesheets, env: browserEnv(false, env) }));
   await writeEditorFramesPage(dir, stylesheets);
+  // Nothing else the bundle wrote there may open as a page at the admin panel's address.
+  await checkFrameFolder(dir);
   return dir;
 }

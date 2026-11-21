@@ -8,7 +8,7 @@ import {
   pluginFramePage,
   pluginId,
 } from "@goodfellow-cms/core";
-import { LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
+import { checkFrameFolder, LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
 import { type Plugin, type Rolldown, build as viteBuild } from "vite";
 import { findEntry, type Manifest } from "./manifest.js";
 
@@ -72,6 +72,8 @@ export async function buildPluginFrame(
         ...(plugin.editor && { media: await mediaStorageOrigins(root) }),
       }),
     );
+    // Nothing else the bundle wrote there may open as a page at the admin panel's address.
+    await checkFrameFolder(join(outDir, dir));
   };
 
   const output = await viteBuild({

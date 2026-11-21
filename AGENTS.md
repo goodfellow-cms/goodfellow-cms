@@ -2029,19 +2029,27 @@ Content files are the product's data format; treat changes to them like API chan
 - **Guards:** `goodfellow build` and `goodfellow-next finish` (`guardExport()`) end with `guardBuiltSite()`
   (`node-admin-domain.ts`), which puts `siteGuard()` first in every file a browser opens as a page (`pageFileKind()`:
   HTML, SVG, and XML, `404.html`, redirect pages, and media included; `adminGuard()` in `admin/`, nothing in the
-  editor's frames or plugins', whose `EDITOR_PRELUDE` refuses to run outside a sandboxed frame), checks each with
+  editor's frames' or plugins' pages, whose `EDITOR_PRELUDE` refuses to run outside a sandboxed frame), checks each with
   `startsWithGuard()`, which refuses anything that could run first (a script, an `on…` attribute, a frame, an XML
   stylesheet, a comment browsers end sooner than it seems to, `<!-->`, `<!--->` or `--!>`), and fails the build, naming
   them, if any can't. Every other file whose name a host may have no type for (`typedByContent()`: any but
   `TYPED_BY_NAME`'s) that starts as a page does (`startsAsMarkup()`, a `<` and a tag's first character past a byte order
-  mark and whitespace, or whitespace to the end of its first 1,024 bytes) fails it too, since GitLab Pages types such a
-  file by its first bytes; `safeMediaChanges()` and `unsafeMediaChanges()` refuse such uploads (`UploadError` `markup`),
+  mark and whitespace, or whitespace to the end of its first 1,024 bytes, read in UTF-16 or UTF-32 where a byte order
+  mark or zero bytes say so, as browsers read XML) fails it too, since GitLab Pages types such a file by its first bytes; `safeMediaChanges()` and `unsafeMediaChanges()` refuse such uploads (`UploadError` `markup`),
   and the broker asks before them (`media-code`). The site's guard writes `<plaintext hidden>`, stops the page, and goes
   to the same page at the Site address; the admin page's refuses to draw itself in a frame. Guards hold no `<` or `&`,
   so XML can hold them in CDATA, and name their script's namespace, since a root element with a prefix (`<svg:svg>`)
   leaves none by default; an empty root element (`<svg …/>`) is opened and closed around the guard.
   `admin-domain.spec.ts` tries every way a script could run before them (`e2e/fixtures/admin-domain`) in Chromium,
   Firefox, and WebKit, which with `preact.spec.ts` are the only specs the Firefox and WebKit projects run.
+- **Frames' folders:** a bundler writes what a module imports as an address (`./help.html?url`) beside the frame's
+  script, with no prelude, so `admin/editor/` and `admin/plugins/<id>/` (`FRAME_FOLDERS`) may hold only their pages and
+  `isFrameFileName()`'s kinds (scripts, styles, maps, fonts, pictures but SVGs, text) that don't start as markup:
+  `checkFrameFolder()` stops each frame's build otherwise (`buildEditor()`, `buildPluginFrame()`, and `goodfellow-next`'s
+  `bundleEditorFrames()` and plugin frames), and `guardBuiltSite()` checks them the same way. Hosts that take headers
+  sandbox both folders as the admin panel frames them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the
+  starters' `vercel.ts` and `withGoodfellow()`'s frames' rule likewise), so a file there opened on its own has no
+  address of the admin panel's.
 - **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add
   `cloudflareSiteHeaders()` to `_headers` with `writeSiteHeaders()` (after the site's own, once, by
   `SITE_HEADERS_MARK`): `SITE_HEADERS` everywhere, `SVG_MEDIA_HEADERS` (`sandbox`) on the media library's SVGs, never
@@ -3014,7 +3022,9 @@ pnpm test:e2e
   change what such a site is made from (the company example, create-goodfellow, and core's `server-setup.ts`,
   `site-setup.ts`, and `updates.ts`). Its Goodfellow packages come from npm at the workspace's versions, as new sites'
   do, so a pull request is tested against the published release's code, and it fails between a release's version bump
-  being merged and the release being published.
+  being merged and the release being published. It saves and restores no package cache (`package-manager-cache:
+  false`), since the code it runs is nobody's choice and master's workflows share the cache; the release's publish job
+  and the docs' build restore none either, so what's published and deployed is installed from the lockfile alone.
 - **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It
   reads this file (and `CLAUDE.md`) as its guidelines by itself, so rules belong here, not there; the config only keeps
   its reviews short, leaves out files written by tools (lockfiles, changelogs, `google-fonts.ts`, `icons.ts`, the shadcn
