@@ -135,7 +135,12 @@ describe("the Review status workflow's jobs", () => {
     };
     // A pull request's events start only a job in no group, which GitHub never cancels; one in the status job's group
     // could be cancelled while another run waits, and would stay failing among the pull request's checks.
-    expect(jobs.ask?.if).toBe("github.event_name == 'pull_request_target'");
+    // On pull_request, which GitHub keeps allowing in public repositories, never pull_request_target, and only for
+    // the repository's own branches, whose token can ask for a run.
+    expect(parse(readFileSync(workflow, "utf8")).on).not.toHaveProperty("pull_request_target");
+    expect(jobs.ask?.if).toBe(
+      "github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository",
+    );
     expect(jobs.ask?.concurrency).toBeUndefined();
     // On the default branch, named rather than left to gh, and tried again; a request that still fails never fails
     // the job, which would stay among the pull request's checks.
@@ -146,7 +151,7 @@ describe("the Review status workflow's jobs", () => {
     expect(jobs.ask?.steps[0]?.["continue-on-error"]).toBe(true);
     // The run it asks for, and every other, checks the pull requests one at a time.
     expect(jobs.status?.if).toBe(
-      "github.event_name != 'pull_request_target' && (github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai')",
+      "github.event_name != 'pull_request' && (github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai')",
     );
     expect(jobs.status?.concurrency?.group).toBe("review-status");
   });
