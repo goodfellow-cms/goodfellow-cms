@@ -80,6 +80,54 @@ export interface CreatedApp {
   client_secret: string;
   pem: string;
   html_url?: string;
+  /** The account or organization it belongs to. */
+  owner?: { login: string };
+}
+
+/**
+ * What to show the person about an app GitHub created, before its keys are saved, so an app made in someone else's
+ * account (by a page that sent this computer's setup page a code of its own) isn't saved unnoticed.
+ */
+export function createdAppSummary(app: CreatedApp): string {
+  const address = app.html_url ?? app.slug;
+  return app.owner?.login ? `${address}, owned by ${app.owner.login}` : `${address}, whose owner GitHub didn't say`;
+}
+
+/** The cookie the setup page sets, which GitHub's way back to it must carry. */
+export const SETUP_COOKIE = "goodfellow_setup";
+
+/** The `Set-Cookie` header giving the setup page's browser its value. */
+export function setupCookie(value: string): string {
+  return `${SETUP_COOKIE}=${value}; HttpOnly; SameSite=Lax; Path=/`;
+}
+
+/** Whether a request's `Cookie` header holds the setup page's value. */
+export function hasSetupCookie(header: string | undefined, value: string): boolean {
+  for (const pair of (header ?? "").split(";")) {
+    const at = pair.indexOf("=");
+    if (at > 0 && pair.slice(0, at).trim() === SETUP_COOKIE && pair.slice(at + 1).trim() === value) return true;
+  }
+  return false;
+}
+
+/** What the setup page on this computer does with a request. */
+export type SetupRequestAnswer = "serve" | "to-ip" | "refuse";
+
+/**
+ * Checks a request to the setup page `pnpm run setup` serves on 127.0.0.1. A website can point a name of its own at
+ * this computer (DNS rebinding), and its pages are then same-origin with this one, so they could read the page, its
+ * state among it, and send codes of apps made in their own account: the page answers only under the name it's opened
+ * at (`127.0.0.1:<port>`, or `localhost:<port>`, which it sends there, since the cookie belongs to one name), and
+ * GitHub's way back (`/created…`) only with the cookie the page set, so only the browser that opened it.
+ */
+export function setupRequest(
+  request: { host?: string; cookie?: string; path: string },
+  { port, cookie }: { port: number; cookie: string },
+): SetupRequestAnswer {
+  if (request.host === `localhost:${port}`) return "to-ip";
+  if (request.host !== `127.0.0.1:${port}`) return "refuse";
+  if (request.path.startsWith("/created") && !hasSetupCookie(request.cookie, cookie)) return "refuse";
+  return "serve";
 }
 
 /** Turns the code GitHub came back with into the app's details. Each code works once, within an hour. */

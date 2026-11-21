@@ -1017,10 +1017,13 @@ Content files are the product's data format; treat changes to them like API chan
   `sign-in-template.test.ts` checks the copy, and `self-setup.test.ts` goes through the page against a fake Cloudflare.
 - **Setting it up from a computer:** `pnpm run setup` in `packages/worker` (`scripts/setup.mjs`) deploys it to learn its
   address, creates both apps through GitHub's app manifest flow from a page it serves on 127.0.0.1 (`appManifest()` in
-  `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for), writes their slugs and `SETUP_ORIGINS` into
-  `wrangler.jsonc` (`withVars()`), sets the secrets with `wrangler secret bulk` through standard input, never in
-  arguments or files, keeps an existing `SESSION_KEY`, deploys again, and checks `/health`. Its testable parts are in
-  `src/setup.ts`; `GITHUB_WEB` and `GITHUB_API` point it at a fake GitHub.
+  `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for; the page answers only at `127.0.0.1:<port>`,
+  sending `localhost` there, and GitHub's way back only with the cookie it set, `setupRequest()`, since a website can
+  point a name of its own at this computer and read the page; then it shows each app's address and owner,
+  `createdAppSummary()`, and saves nothing unless the person answers yes, as the connector's setup does too), writes
+  their slugs and `SETUP_ORIGINS` into `wrangler.jsonc` (`withVars()`), sets the secrets with `wrangler secret bulk`
+  through standard input, never in arguments or files, keeps an existing `SESSION_KEY`, deploys again, and checks
+  `/health`. Its testable parts are in `src/setup.ts`; `GITHUB_WEB` and `GITHUB_API` point it at a fake GitHub.
 - **Flow** (`worker.ts`): `/github/check`, then `/github/start` to GitHub, and `/github/callback` back to the admin
   panel with a grant in `goodfellow_sign_in` (or a problem in `goodfellow_sign_in_error`), after the address's `#`, in
   the screen's own query (`#/settings/editors?goodfellow_sign_in=…`), so hosts' logs never see it, where `start` was
@@ -1200,20 +1203,21 @@ Content files are the product's data format; treat changes to them like API chan
   cookie set by `/authorize` makes sure the browser that started is the one that finishes.
 - **Signing in to sites from the connector:** GitHub through its own GitHub App, Goodfellow for Claude (`PERMISSIONS` in
   `permissions.ts`: Contents and Pull requests write), separate from the sign-in worker's: the person's own token only
-  lists the repositories they can push to that it's installed on, then it's revoked; each `/mcp` request mints an
-  installation token for one repository, checks `collaborators/{login}/permission`, and revokes it after answering
-  (`waitUntil`). GitLab and Bitbucket have no such tokens, so the person's tokens are sealed in Claude's (`HostTokens`,
-  as `token` in access and refresh tokens; GitLab's sealed before Bitbucket was added carry `gitlab`), the access token
-  never outliving the host's, and renewed when Claude renews its own. Bitbucket signs in through a private OAuth
-  consumer (`bitbucket.ts`), whose secret allows the code grant and refresh tokens, which the admin panel's implicit
-  grant doesn't give; its sites are the repositories the person can write to in their first workspaces
-  (`/user/workspaces/{ws}/permissions/repositories`), and each backend reads the repository's main branch. Never log
-  tokens or put them in a URL or error, here as in the sign-in worker. `/mcp` is stateless
-  (`WebStandardStreamableHTTPServerTransport` with JSON answers), with a new server for each request. Screenshots use
-  Browser Rendering (`browserScreenshots()`, `@cloudflare/puppeteer`, which needs `nodejs_compat`), and the tool isn't
-  offered without the binding. Screenshots of media library images (`image: true`, addresses checked by `mediaImage()`)
-  show them on `imagePage()`, sized to the width asked for, in both setups, since browsers can't screenshot an SVG
-  opened on its own.
+  lists the repositories they can push to that it's installed on, then it's revoked (where GitHub comes back from
+  changing an installation without signing the person in, `/connect/github/callback` sends them to sign in with the same
+  request, as the worker's callback does); each `/mcp` request mints an installation token for one repository, checks
+  `collaborators/{login}/permission`, and revokes it after answering (`waitUntil`). GitLab and Bitbucket have no such
+  tokens, so the person's tokens are sealed in Claude's (`HostTokens`, as `token` in access and refresh tokens; GitLab's
+  sealed before Bitbucket was added carry `gitlab`), the access token never outliving the host's, and renewed when
+  Claude renews its own. Bitbucket signs in through a private OAuth consumer (`bitbucket.ts`), whose secret allows the
+  code grant and refresh tokens, which the admin panel's implicit grant doesn't give; its sites are the repositories the
+  person can write to in their first workspaces (`/user/workspaces/{ws}/permissions/repositories`), and each backend
+  reads the repository's main branch. Never log tokens or put them in a URL or error, here as in the sign-in worker.
+  `/mcp` is stateless (`WebStandardStreamableHTTPServerTransport` with JSON answers), with a new server for each
+  request. Screenshots use Browser Rendering (`browserScreenshots()`, `@cloudflare/puppeteer`, which needs
+  `nodejs_compat`), and the tool isn't offered without the binding. Screenshots of media library images (`image: true`,
+  addresses checked by `mediaImage()`) show them on `imagePage()`, sized to the width asked for, in both setups, since
+  browsers can't screenshot an SVG opened on its own.
 - **Tests:** `@goodfellow-cms/mcp`'s tests call the tools through `InMemoryTransport` against the fakes. The connector's
   tests (`connector.test.ts`) go through Claude's whole flow, as a browser and as Claude, against `fakeGitHub({ apps })`
   and `fakeGitLab({ oauth })`, with `memoryGrants()`. `site-preview.spec.ts` checks the preview page and

@@ -25,7 +25,15 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { convertManifest, deployedAddress, manifestAction, newSessionKey } from "@goodfellow-cms/worker/setup";
+import {
+  convertManifest,
+  createdAppSummary,
+  deployedAddress,
+  manifestAction,
+  newSessionKey,
+  setupCookie,
+  setupRequest,
+} from "@goodfellow-cms/worker/setup";
 import {
   connectorManifest,
   connectorSecrets,
@@ -148,12 +156,28 @@ async function secretNames() {
 /** Creates the app through a page on this computer, and gives what GitHub said about it. */
 function createApp({ connector, organization, isPublic }) {
   const state = randomBytes(16).toString("hex");
+  // Only the browser that opened the page has it, so only it can bring GitHub's code back.
+  const cookie = randomBytes(16).toString("hex");
   let created;
   let problem;
   return new Promise((resolve, reject) => {
     const server = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      const origin = `http://127.0.0.1:${server.address().port}`;
+      const port = server.address().port;
+      const answer = setupRequest(
+        { host: request.headers.host, cookie: request.headers.cookie, path: url.pathname },
+        { port, cookie },
+      );
+      if (answer === "to-ip") {
+        response.writeHead(303, { location: `http://127.0.0.1:${port}/`, "cache-control": "no-store" }).end();
+        return;
+      }
+      if (answer === "refuse") {
+        // Another name for this computer, as a website pointing its own name here would send, or no cookie.
+        response.writeHead(403, { "cache-control": "no-store" }).end();
+        return;
+      }
+      const origin = `http://127.0.0.1:${port}`;
       if (url.pathname === "/created") {
         const code = url.searchParams.get("code");
         if (url.searchParams.get("state") !== state || !code) {
@@ -189,6 +213,7 @@ function createApp({ connector, organization, isPublic }) {
         .writeHead(200, {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
+          "set-cookie": setupCookie(cookie),
           connection: "close",
         })
         .end(page);
@@ -245,7 +270,12 @@ async function main() {
       "Can sites owned by anyone use it? Answer no if only sites owned by the app's owner will.",
       true,
     );
-    Object.assign(values, connectorSecrets(await createApp({ connector, organization, isPublic })));
+    const app = await createApp({ connector, organization, isPublic });
+    console.log(`\nGitHub created ${createdAppSummary(app)}.`);
+    if (!(await yesNo("Is this the app you just created? Its keys are saved only if so.", false))) {
+      throw new Error("Nothing was saved. Delete the app above if you didn't mean to create it, then run this again.");
+    }
+    Object.assign(values, connectorSecrets(app));
   }
 
   const haveGitLab = secrets.includes("GITLAB_CLIENT_ID");

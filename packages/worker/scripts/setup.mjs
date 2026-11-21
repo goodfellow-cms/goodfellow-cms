@@ -26,12 +26,15 @@ import {
   appManifest,
   appSecrets,
   convertManifest,
+  createdAppSummary,
   deployedAddress,
   hasAppSecrets,
   manifestAction,
   newSessionKey,
   readVar,
+  setupCookie,
   setupPage,
+  setupRequest,
   slugVar,
   withVars,
 } from "../dist/setup.js";
@@ -117,12 +120,28 @@ async function secretNames() {
 /** Creates both apps through a page on this computer, and gives what GitHub said about each. */
 function createApps({ worker, organization, isPublic }) {
   const state = randomBytes(16).toString("hex");
+  // Only the browser that opened the page has it, so only it can bring GitHub's code back.
+  const cookie = randomBytes(16).toString("hex");
   const created = {};
   let problem;
   return new Promise((resolve, reject) => {
     const server = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      const origin = `http://127.0.0.1:${server.address().port}`;
+      const port = server.address().port;
+      const answer = setupRequest(
+        { host: request.headers.host, cookie: request.headers.cookie, path: url.pathname },
+        { port, cookie },
+      );
+      if (answer === "to-ip") {
+        response.writeHead(303, { location: `http://127.0.0.1:${port}/`, "cache-control": "no-store" }).end();
+        return;
+      }
+      if (answer === "refuse") {
+        // Another name for this computer, as a website pointing its own name here would send, or no cookie.
+        response.writeHead(403, { "cache-control": "no-store" }).end();
+        return;
+      }
+      const origin = `http://127.0.0.1:${port}`;
       const back = url.pathname.match(/^\/created\/(edit|owner)$/);
       if (back) {
         const kind = back[1];
@@ -165,6 +184,7 @@ function createApps({ worker, organization, isPublic }) {
         .writeHead(200, {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
+          "set-cookie": setupCookie(cookie),
           connection: "close",
         })
         .end(page);
@@ -246,6 +266,13 @@ async function main() {
       true,
     );
     created = await createApps({ worker, organization, isPublic });
+    console.log("\nGitHub created:");
+    for (const kind of APP_KINDS) {
+      console.log(`- ${kind === "edit" ? "The editors' app" : "The owners' app"}: ${createdAppSummary(created[kind])}`);
+    }
+    if (!(await yesNo("Are these the apps you just created? Their keys are saved only if so.", false))) {
+      throw new Error("Nothing was saved. Delete any app above that you didn't mean to create, then run this again.");
+    }
   }
 
   const config = await readFile(configPath, "utf8");

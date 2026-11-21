@@ -4,12 +4,16 @@ import {
   appPermissions,
   appSecrets,
   convertManifest,
+  createdAppSummary,
   deployedAddress,
   hasAppSecrets,
   manifestAction,
   newSessionKey,
   readVar,
+  SETUP_COOKIE,
+  setupCookie,
   setupPage,
+  setupRequest,
   withVars,
 } from "./setup.js";
 import { LATER_PERMISSIONS, PERMISSIONS } from "./worker.js";
@@ -135,6 +139,46 @@ describe("convertManifest", () => {
     await expect(convertManifest("odd", async () => Response.json({ id: 7 }, { status: 201 }))).rejects.toThrow(
       "didn't include the app's keys",
     );
+  });
+});
+
+describe("createdAppSummary", () => {
+  const app = { id: 7, slug: "goodfellow-cms", client_id: "Iv1.a", client_secret: "secret", pem: "-----BEGIN RSA…" };
+
+  it("names where the app is and whose it is, so someone else's isn't saved unnoticed", () => {
+    expect(
+      createdAppSummary({ ...app, html_url: "https://github.com/apps/goodfellow-cms", owner: { login: "parish" } }),
+    ).toBe("https://github.com/apps/goodfellow-cms, owned by parish");
+    expect(createdAppSummary(app)).toBe("goodfellow-cms, whose owner GitHub didn't say");
+  });
+});
+
+describe("setupRequest", () => {
+  const cookie = "a1b2c3";
+  const options = { port: 4321, cookie };
+
+  it("serves the page only under the name it's opened at", () => {
+    expect(setupRequest({ host: "127.0.0.1:4321", path: "/" }, options)).toBe("serve");
+    expect(setupRequest({ host: "localhost:4321", path: "/" }, options)).toBe("to-ip");
+    // A website that points its own name at this computer sends that name.
+    for (const host of ["attacker.example:4321", "127.0.0.1.attacker.example:4321", "127.0.0.1:80", "127.0.0.1", ""]) {
+      expect(setupRequest({ host, path: "/" }, options)).toBe("refuse");
+    }
+    expect(setupRequest({ path: "/" }, options)).toBe("refuse");
+  });
+
+  it("takes GitHub's way back only from the browser the page gave its cookie to", () => {
+    const [pair = ""] = setupCookie(cookie).split(";");
+    expect(setupCookie(cookie)).toContain("HttpOnly");
+    expect(setupCookie(cookie)).toContain("SameSite=Lax");
+    for (const path of ["/created", "/created/edit", "/created/owner?code=x&state=y"]) {
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `other=1; ${pair}` }, options)).toBe("serve");
+      expect(setupRequest({ host: "127.0.0.1:4321", path }, options)).toBe("refuse");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `${SETUP_COOKIE}=wrong` }, options)).toBe("refuse");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `x${SETUP_COOKIE}=${cookie}` }, options)).toBe(
+        "refuse",
+      );
+    }
   });
 });
 
