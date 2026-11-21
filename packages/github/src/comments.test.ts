@@ -64,6 +64,12 @@ describe("GitHub comments", () => {
     fake.addRepo("maria/talk");
     // Finding a repository changes nothing: Discussions are turned on only when asked.
     await expect(comments.find("maria/talk")).rejects.toMatchObject({ problem: "no-discussions" });
+    // Nor does anything but an exact true, which is what the broker asks about.
+    for (const turnOn of [1, "yes", {}]) {
+      await expect(comments.find("maria/talk", { turnOn } as unknown as { turnOn: boolean })).rejects.toMatchObject({
+        problem: "no-discussions",
+      });
+    }
     expect(fake.created.get("maria/talk")?.discussions).toBeFalsy();
     expect(await comments.find("https://github.com/maria/talk/", { turnOn: true })).toMatchObject({
       repo: "maria/talk",

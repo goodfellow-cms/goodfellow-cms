@@ -288,7 +288,8 @@ export function githubComments(base: ApiOptions, siteRepo: string, tokenLink: To
       });
       if (found.private)
         throw new CommentsError("not-public", "The repository is private.", `${found.html_url}/settings`);
-      if (!found.has_discussions && !options?.turnOn) {
+      // Only an exact `true` turns them on: it's what the broker asks about, so nothing else may stand in for it.
+      if (!found.has_discussions && options?.turnOn !== true) {
         throw new CommentsError("no-discussions", "Discussions are off.", `${found.html_url}/settings`);
       }
       return placeOf(await withDiscussions(found));

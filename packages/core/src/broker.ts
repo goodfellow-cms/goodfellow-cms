@@ -193,7 +193,12 @@ export function brokerAiFetch(
     switch (answer.type) {
       case "ai":
         waiting.delete(answer.id);
-        entry.resolve(new Response(answer.body, { status: answer.status, headers: answer.headers }));
+        entry.resolve(
+          new Response(NULL_BODY_STATUSES.has(answer.status) ? null : answer.body, {
+            status: answer.status,
+            headers: answer.headers,
+          }),
+        );
         break;
       case "ai-start": {
         const id = answer.id;

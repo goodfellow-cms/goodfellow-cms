@@ -2156,21 +2156,21 @@ Content files are the product's data format; treat changes to them like API chan
   `serveBackend()`'s `check` returns, `reason: "editor"` where it gives none), changing domains (`pages.connect`,
   `secure`, `disconnect`: only a domain as `normalizeDomain()` writes it, and, on a host with one domain, GitHub Pages,
   whose `secure()` and `disconnect()` change the site's own whatever they're told, only the one `site()` gives, `reason:
-  "domain"` otherwise, saying where securing makes the domain the one visitors are sent to, `primary`), turning on
-  Discussions in a comments repository (`comments.find` with `turnOn`), setting up updates, throwing away a draft, or
-  running a plugin's task (`tasks.run`, asked once per task while the page is open). It makes unasked only the calls in
-  `UNASKED`, each with what its arguments must be, and no more of them than it lists, so none moves another out of a
-  checked place (`ArgKind`: plain paths, `isPlainPath()`, commits' ids, `isCommitId()`, both in core's
-  `content/store.ts`, domains as `normalizeDomain()` writes them, repositories' `owner/name`, or a `value` only a body
-  or query holds), since backends put them in the host's addresses (`reason: "read"`), and refuses the rest (`reason:
-  "unknown"`), so a method added to `BACKEND` later is refused until it's listed or given a question; `policy.test.ts`
-  checks every one of `brokerCalls()` has a decision. `comments.threads` lists the site's own comments, from
-  `content/site.json` as the backend reads it, whatever place the admin panel names (the decision's `args`, which
-  `allow` carries too), and GitHub's `comments` moderates only ids its `threads()` listed, so nothing in another
-  repository can be hidden or locked. Owner tokens are asked for in the broker's own dialog (`ownerAccess.requestToken`,
-  which it offers instead of `applyToken()`), so the admin panel never holds one. A question's answering buttons work
-  only `ANSWER_DELAY_MS` after it opens, and again after the window comes back (`holdAnswers()` in `hold.ts`), so a
-  click the frame timed for it does nothing.
+  "domain"` otherwise, and the GitHub backend's own go ahead only while it's still the site's domain, `DomainError`
+  `changed`, saying where securing makes the domain the one visitors are sent to, `primary`), turning on Discussions in
+  a comments repository (`comments.find` with `turnOn`), setting up updates, throwing away a draft, or running a
+  plugin's task (`tasks.run`, asked once per task while the page is open). It makes unasked only the calls in `UNASKED`,
+  each with what its arguments must be, and no more of them than it lists, so none moves another out of a checked place
+  (`ArgKind`: plain paths, `isPlainPath()`, commits' ids, `isCommitId()`, both in core's `content/store.ts`, domains as
+  `normalizeDomain()` writes them, repositories' `owner/name`, or a `value` only a body or query holds), since backends
+  put them in the host's addresses (`reason: "read"`), and refuses the rest (`reason: "unknown"`), so a method added to
+  `BACKEND` later is refused until it's listed or given a question; `policy.test.ts` checks every one of `brokerCalls()`
+  has a decision. `comments.threads` lists the site's own comments, from `content/site.json` as the backend reads it,
+  whatever place the admin panel names (the decision's `args`, which `allow` carries too), and GitHub's `comments`
+  moderates only ids its `threads()` listed, so nothing in another repository can be hidden or locked. Owner tokens are
+  asked for in the broker's own dialog (`ownerAccess.requestToken`, which it offers instead of `applyToken()`), so the
+  admin panel never holds one. A question's answering buttons work only `ANSWER_DELAY_MS` after it opens, and again
+  after the window comes back (`holdAnswers()` in `hold.ts`), so a click the frame timed for it does nothing.
 - **The admin panel:** with the config's `broker` (`BrokerAddress`, written by Site Settings' Security tab,
   `security-screen.tsx`, with `withBrokerConfig()`), `Admin` uses `BrokerGate` (`broker-gate.tsx`) in place of signing
   in: it waits for the broker, says where to sign in when it's opened anywhere else, and forgets any sign-in kept at its

@@ -1242,6 +1242,7 @@ export const defaultStrings = {
   "domain.error.taken": "Another site on {host} already uses this domain. If it's yours too, remove it there first.",
   "domain.error.invalid": "{host} doesn't accept this domain.",
   "domain.error.not-ready": "The HTTPS certificate isn't ready yet. Try again in a while.",
+  "domain.error.changed": "The site's domain on {host} changed meanwhile, so nothing was changed. Reload this screen.",
   "domain.error.other": "Something went wrong.",
   "owner.signIn.title": "Sign in as an owner",
   "owner.signIn.intro":

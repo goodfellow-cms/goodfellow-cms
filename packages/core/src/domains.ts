@@ -73,7 +73,10 @@ export interface PagesDomains {
    * site's other addresses, the host's own included.
    */
   secure(domain: string, options?: { primary?: boolean }): Promise<void>;
-  /** Stops serving the site on the domain. */
+  /**
+   * Stops serving the site on the domain. A host with one domain (`severalDomains` false) changes the site's own,
+   * so there `secure()` and `disconnect()` throw `DomainError` `changed`, changing nothing, where it isn't `domain`.
+   */
   disconnect(domain: string): Promise<void>;
 }
 
@@ -86,7 +89,9 @@ export type DomainProblem =
   /** The host doesn't accept it as a domain. */
   | "invalid"
   /** The certificate isn't ready yet, so HTTPS can't be required. */
-  | "not-ready";
+  | "not-ready"
+  /** The site's domain on the host isn't the one named any more, so nothing was changed. */
+  | "changed";
 
 export class DomainError extends Error {
   override name = "DomainError";

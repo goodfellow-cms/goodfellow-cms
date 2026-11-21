@@ -333,7 +333,12 @@ async function domainDecision(
   };
 }
 
-/** The site's own place for visitors' comments, from its settings as the backend reads them, if it has one on GitHub. */
+/**
+ * The site's own place for visitors' comments, from its settings as the backend reads them, if it has one on GitHub.
+ * Settings are content, which a publish can change unasked, so code in the admin panel's frame could point them at
+ * another public repository before listing it, and moderate comments there; an accepted trade-off, since the publish
+ * shows in the site's history, and the token broker's page says so.
+ */
 async function siteCommentsPlace(backend: GitBackend | undefined): Promise<CommentsPlace | undefined> {
   try {
     const settings = JSON.parse((await backend?.read(SITE_FILE)) ?? "null") as { comments?: Partial<CommentsPlace> };

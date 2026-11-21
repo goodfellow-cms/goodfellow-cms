@@ -154,4 +154,17 @@ describe("AI requests through the broker", () => {
     const response = await ask(brokerAiFetch(channel.port2));
     expect(await response.text()).toBe("done");
   });
+
+  it("take a whole answer with no body, such as a 204, from a broker from before streaming", async () => {
+    const channel = new MessageChannel();
+    channels.push(channel);
+    channel.port1.onmessage = (event: { data: unknown }) => {
+      const request = event.data as { id: number };
+      const body = new ArrayBuffer(0);
+      channel.port1.postMessage({ type: "ai", id: request.id, status: 204, headers: [], body } as unknown, [body]);
+    };
+    const response = await ask(brokerAiFetch(channel.port2));
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+  });
 });
