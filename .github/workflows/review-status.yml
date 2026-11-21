@@ -23,19 +23,27 @@
 # and it can be run by hand (Actions → Review status → Run workflow), as claude-review.yml does once a review ends.
 # It sets a status only when it changes.
 #
+# A pull request's own events (opened, pushed to, labelled) don't check anything themselves: they ask for a run, which
+# checks every pull request, so no run a pull request shows among its checks is ever cancelled (see the ask job). That
+# costs a second runner for a few seconds on each event, an accepted trade: the run it asks for is the one the event
+# started itself before, and a burst of events asks for runs GitHub mostly drops, keeping the newest waiting one.
+#
 # Every run, whatever started it, checks every open pull request, one run at a time: a run never reads while another
 # is about to write, and where GitHub drops a waiting run for a newer one, the newer one checks everything too.
 #
 # Where open pull requests share a head commit, each status says what the one furthest from passing needs.
 #
 # It runs none of the pull request's code: it only reads the pull request, its checks, comments, and review threads
-# through GitHub's API and sets the statuses, so it uses pull_request_target, which can set statuses on pull requests
-# from forks too. Like check_run and schedule, that runs the workflow as the default branch has it. Nothing from the
-# event reaches the script.
+# through GitHub's API and sets the statuses, which pull requests from forks get too. Statuses are set by the runs
+# workflow_dispatch, schedule, and check_run start, which run the workflow as the default branch has it. A pull
+# request's own events start only the ask job, with pull_request, never pull_request_target, which GitHub blocks in
+# public repositories from December 2, 2026: the ask job checks nothing out and runs none of the pull request's code,
+# and its token can start a run and nothing more. Pull requests from forks get a token that can't, so theirs are
+# skipped and the schedule checks them within ten minutes. Nothing from the event reaches the script.
 name: Review status
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
   check_run:
     types: [completed]
@@ -46,9 +54,45 @@ on:
 permissions: {}
 
 jobs:
+  # A pull request's own events only ask for a run, which checks every pull request as any run does. A run in the
+  # group below can be cancelled: while one runs, GitHub keeps only the newest waiting run and cancels the rest, and
+  # a pull request's events often come together (Dependabot opens one and labels it twice at once). A cancelled run
+  # of a pull request's event stays among its checks, failing, until its next push, which Dependabot's never get.
+  # This job joins no group, so it's never cancelled; the run it asks for belongs to the default branch, so a
+  # cancelled one is never the pull request's. Dependabot's runs get a read-only token unless the job asks for more, as
+  # this one does; a fork's can't have more, so its runs are skipped rather than left failing.
+  ask:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Ask for the statuses to be checked
+        # A request GitHub refuses three times leaves the statuses to the schedule's next run, within ten minutes, and
+        # never fails the job, whose failure would stay among the pull request's checks as a cancelled run's did.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        # On the default branch, as every run of this workflow is; a run the job's token asks for still starts.
+        run: |
+          for try in 1 2 3; do
+            gh workflow run review-status.yml --repo "$REPO" --ref "$DEFAULT_BRANCH" && exit 0
+            sleep $((try * 10))
+          done
+          echo "::warning::GitHub didn't start Review status; its schedule checks the statuses within ten minutes."
+          exit 1
+
   status:
-    # Every check run on the repository starts this workflow; only CodeRabbit's matter.
-    if: github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai'
+    # Every check run on the repository starts this workflow; only CodeRabbit's matter. A pull request's own events
+    # start the job above instead.
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai')
     # On the job, not the workflow: a workflow's group is joined before its jobs' conditions are read, so every other
     # app's check run would join it with a run that does nothing, and could replace a waiting one that would have.
     # A skipped job never joins its group.
