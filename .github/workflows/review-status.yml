@@ -23,6 +23,9 @@
 # and it can be run by hand (Actions → Review status → Run workflow), as claude-review.yml does once a review ends.
 # It sets a status only when it changes.
 #
+# A pull request's own events (opened, pushed to, labelled) don't check anything themselves: they ask for a run, which
+# checks every pull request, so no run a pull request shows among its checks is ever cancelled (see the ask job).
+#
 # Every run, whatever started it, checks every open pull request, one run at a time: a run never reads while another
 # is about to write, and where GitHub drops a waiting run for a newer one, the newer one checks everything too.
 #
@@ -46,9 +49,32 @@ on:
 permissions: {}
 
 jobs:
+  # A pull request's own events only ask for a run, which checks every pull request as any run does. A run in the
+  # group below can be cancelled: while one runs, GitHub keeps only the newest waiting run and cancels the rest, and
+  # a pull request's events often come together (Dependabot opens one and labels it twice at once). A cancelled run
+  # of a pull request's event stays among its checks, failing, until its next push, which Dependabot's never get.
+  # This job joins no group, so it's never cancelled; the run it asks for belongs to the default branch, so a
+  # cancelled one is never the pull request's.
+  ask:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Ask for the statuses to be checked
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        # On the default branch, as every run of this workflow is; a run the job's token asks for still starts.
+        run: gh workflow run review-status.yml --repo "$REPO"
+
   status:
-    # Every check run on the repository starts this workflow; only CodeRabbit's matter.
-    if: github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai'
+    # Every check run on the repository starts this workflow; only CodeRabbit's matter. A pull request's own events
+    # start the job above instead.
+    if: >-
+      github.event_name != 'pull_request_target' &&
+      (github.event_name != 'check_run' || github.event.check_run.app.slug == 'coderabbitai')
     # On the job, not the workflow: a workflow's group is joined before its jobs' conditions are read, so every other
     # app's check run would join it with a run that does nothing, and could replace a waiting one that would have.
     # A skipped job never joins its group.

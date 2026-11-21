@@ -125,6 +125,21 @@ const review = (body: string, commit = HEAD) => ({
   html_url: REVIEW,
 });
 
+describe("the Review status workflow's jobs", () => {
+  it("only asks for a run from a pull request's own events, so no run its checks show is ever cancelled", () => {
+    const { jobs } = parse(readFileSync(workflow, "utf8")) as {
+      jobs: Record<string, { if?: string; concurrency?: { group: string }; steps: { run?: string }[] }>;
+    };
+    // A pull request's events start a job that joins no group, which GitHub would cancel while another run waits.
+    expect(jobs.ask?.if).toBe("github.event_name == 'pull_request_target'");
+    expect(jobs.ask?.concurrency).toBeUndefined();
+    expect(jobs.ask?.steps[0]?.run).toBe('gh workflow run review-status.yml --repo "$REPO"');
+    // The run it asks for, and every other, checks the pull requests one at a time.
+    expect(jobs.status?.if).toContain("github.event_name != 'pull_request_target'");
+    expect(jobs.status?.concurrency?.group).toBe("review-status");
+  });
+});
+
 describe.skipIf(process.platform === "win32")("the Review status workflow", () => {
   it("fails CodeRabbit reviewed while its review of the head commit lists findings outside the diff", () => {
     const result = run([review("> **⚠️ Outside diff range comments (2)**\n> ...")]);
