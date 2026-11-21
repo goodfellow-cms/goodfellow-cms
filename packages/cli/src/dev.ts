@@ -40,6 +40,7 @@ import {
   EDITOR_REBUILT_EVENT,
 } from "./admin-entry.js";
 import { buildEditor } from "./editor-bundle.js";
+import { sendFrameFile } from "./frame-files.js";
 import { type ClientModules, ISLANDS_DEV_URL, slashes } from "./islands.js";
 import { devPluginFrames } from "./plugin-frames.js";
 import {
@@ -195,17 +196,6 @@ interface DevEditor {
   ready: Promise<void>;
 }
 
-const EDITOR_TYPES: Record<string, string> = {
-  html: "text/html; charset=utf-8",
-  js: "text/javascript; charset=utf-8",
-  css: "text/css; charset=utf-8",
-  map: "application/json",
-  svg: "image/svg+xml",
-  png: "image/png",
-  woff: "font/woff",
-  woff2: "font/woff2",
-};
-
 /**
  * Serves the editor's frames from their bundle, as `goodfellow build` writes
  * it: a classic script, which a frame sandboxed with `allow-scripts` alone can
@@ -228,14 +218,7 @@ function serveEditor(editor: DevEditor) {
       return next();
     }
     if (!file.startsWith(`${editor.outDir}${sep}`)) return next();
-    try {
-      const data = await readFile(file);
-      res.setHeader("Content-Type", EDITOR_TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.end(req.method === "HEAD" ? undefined : data);
-    } catch {
-      next();
-    }
+    if (!(await sendFrameFile(req, res, join(editor.outDir, EDITOR_PATH), file))) next();
   };
 }
 
@@ -259,14 +242,7 @@ function servePluginFrames(frames: DevPluginFrames) {
       return next();
     }
     if (!file.startsWith(`${frames.outDir}${sep}`) || !(await frames.ensure(id))) return next();
-    try {
-      const data = await readFile(file);
-      res.setHeader("Content-Type", EDITOR_TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.end(req.method === "HEAD" ? undefined : data);
-    } catch {
-      next();
-    }
+    if (!(await sendFrameFile(req, res, join(frames.outDir, PLUGINS_PATH, id), file))) next();
   };
 }
 

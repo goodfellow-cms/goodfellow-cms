@@ -13,6 +13,7 @@ export {
   type FrameBuild,
   type GuardOptions,
   guardBuiltSite,
+  isServedFrameFile,
   writeSiteHeaders,
 } from "./node-admin-domain.js";
 export { formatAdminText, type WrittenAdminText, writeAdminText } from "./node-admin-text.js";

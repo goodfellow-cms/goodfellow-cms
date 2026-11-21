@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { DEV_EDITOR_PREFIX, pluginId } from "@goodfellow-cms/core";
+import { isServedFrameFile } from "@goodfellow-cms/core/node";
 import { editorFramesOptions, siteConfigFile, writeEditorFramesPage } from "./editor-frames.js";
 import { buildPluginFrame, loadSiteConfig } from "./plugins.js";
 
@@ -28,6 +29,31 @@ const TYPES: Record<string, string> = {
   map: "application/json",
   json: "application/json",
 };
+
+/**
+ * Sends `file`, in the frame's folder `folder`, as `res`'s answer: 404 where it isn't there, or isn't a file the
+ * folder may hold (`isServedFrameFile()`), such as a page a module brought, which the build stopped at but leaves
+ * where it is until the module no longer brings it, so it never opens at this address.
+ */
+export async function sendFrameFile(
+  req: IncomingMessage,
+  res: ServerResponse,
+  folder: string,
+  file: string,
+): Promise<void> {
+  if (!(await isServedFrameFile(file, relative(folder, file).split(sep).join("/")))) {
+    res.writeHead(404).end();
+    return;
+  }
+  try {
+    const data = await readFile(file);
+    res.setHeader("Content-Type", TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
+    res.setHeader("Cache-Control", "no-store");
+    res.end(req.method === "HEAD" ? undefined : data);
+  } catch {
+    res.writeHead(404).end();
+  }
+}
 
 /**
  * The plugin and the file of its admin frame a path under the plugins' prefix
@@ -137,15 +163,7 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
       if (pathname.startsWith(pluginsPrefix) && (req.method === "GET" || req.method === "HEAD")) {
         const asked = pluginFrameFile(pathname.slice(pluginsPrefix.length), pluginsDir);
         if (!asked || !(await pluginFrame(asked.id))) return false;
-        const { file } = asked;
-        try {
-          const data = await readFile(file);
-          res.setHeader("Content-Type", TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
-          res.setHeader("Cache-Control", "no-store");
-          res.end(req.method === "HEAD" ? undefined : data);
-        } catch {
-          res.writeHead(404).end();
-        }
+        await sendFrameFile(req, res, join(pluginsDir, asked.id), asked.file);
         return true;
       }
       const page = pathname === DEV_EDITOR_PREFIX.slice(0, -1);
@@ -156,14 +174,7 @@ export async function startDevEditor(root: string): Promise<DevEditor> {
       const name = page ? "index.html" : pathname.slice(DEV_EDITOR_PREFIX.length) || "index.html";
       const file = resolve(outDir, name);
       if (!file.startsWith(`${outDir}${sep}`)) return false;
-      try {
-        const data = await readFile(file);
-        res.setHeader("Content-Type", TYPES[file.slice(file.lastIndexOf(".") + 1)] ?? "application/octet-stream");
-        res.setHeader("Cache-Control", "no-store");
-        res.end(req.method === "HEAD" ? undefined : data);
-      } catch {
-        res.writeHead(404).end();
-      }
+      await sendFrameFile(req, res, outDir, file);
       return true;
     },
   };

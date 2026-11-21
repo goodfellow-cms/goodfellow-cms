@@ -2049,10 +2049,12 @@ Content files are the product's data format; treat changes to them like API chan
   `goodfellow-next`'s `bundleEditorFrames()` and plugin frames); rebuilds while watching give it the build just written
   (`FrameBuild`), so it first takes out files that build didn't write and that are older than it, and folders left
   empty, which is why a watching `buildPluginFrame()` refuses a folder not named by the plugin's id, such as `public/`,
-  and each builder checks one build at a time, and `guardBuiltSite()` checks them the same way. Hosts that take headers
-  sandbox both folders as the admin panel frames them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the
-  starters' `vercel.ts` and `withGoodfellow()`'s frames' rule likewise), so a file there opened on its own has no
-  address of the admin panel's.
+  and each builder checks one build at a time, and `guardBuiltSite()` checks them the same way. A build its check
+  stopped leaves what it refused in place, so the development servers send a frame's folder only what
+  `isServedFrameFile()` allows (`sendFrameFile()` in the CLI's `frame-files.ts` and `@goodfellow-cms/next`'s
+  `dev-editor.ts`), answering 404 to the rest. Hosts that take headers sandbox both folders as the admin panel frames
+  them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the starters' `vercel.ts` and `withGoodfellow()`'s frames'
+  rule likewise), so a file there opened on its own has no address of the admin panel's.
 - **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add
   `cloudflareSiteHeaders()` to `_headers` with `writeSiteHeaders()` (after the site's own, once, by
   `SITE_HEADERS_MARK`): `SITE_HEADERS` everywhere, `SVG_MEDIA_HEADERS` (`sandbox`) on the media library's SVGs, never

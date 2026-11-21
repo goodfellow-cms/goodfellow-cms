@@ -264,6 +264,19 @@ export async function checkFrameFolder(dir: string, { stale }: { stale?: FrameBu
   if (found.length > 0) throw new Error(notFramesMessage(found));
 }
 
+/**
+ * Whether a development server may send the file at `path` in a frame's folder (relative to it, with forward
+ * slashes): the frame's own page, `index.html`, or a file `checkFrameFolder()` lets the folder hold. A rebuild whose
+ * check failed leaves the file it refused where it is, so the servers ask this of every file they send, whatever
+ * the latest build said. A file that isn't there is left to the server's own answer.
+ */
+export async function isServedFrameFile(file: string, path: string): Promise<boolean> {
+  if (path === "index.html") return true;
+  if (!isFrameFileName(path)) return false;
+  const start = await firstBytes(file).catch(() => undefined);
+  return start === undefined || !startsAsMarkup(start);
+}
+
 /** How many files' first bytes are read at once: enough to keep the disk busy, few enough for any open-file limit. */
 const FILES_AT_ONCE = 64;
 
