@@ -63,11 +63,21 @@ jobs:
       actions: write
     steps:
       - name: Ask for the statuses to be checked
+        # A request GitHub refuses three times leaves the statuses to the schedule's next run, within ten minutes, and
+        # never fails the job, whose failure would stay among the pull request's checks as a cancelled run's did.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         # On the default branch, as every run of this workflow is; a run the job's token asks for still starts.
-        run: gh workflow run review-status.yml --repo "$REPO"
+        run: |
+          for try in 1 2 3; do
+            gh workflow run review-status.yml --repo "$REPO" --ref "$DEFAULT_BRANCH" && exit 0
+            sleep $((try * 10))
+          done
+          echo "::warning::GitHub didn't start Review status; its schedule checks the statuses within ten minutes."
+          exit 1
 
   status:
     # Every check run on the repository starts this workflow; only CodeRabbit's matter. A pull request's own events

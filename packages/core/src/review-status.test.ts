@@ -128,12 +128,21 @@ const review = (body: string, commit = HEAD) => ({
 describe("the Review status workflow's jobs", () => {
   it("only asks for a run from a pull request's own events, so no run its checks show is ever cancelled", () => {
     const { jobs } = parse(readFileSync(workflow, "utf8")) as {
-      jobs: Record<string, { if?: string; concurrency?: { group: string }; steps: { run?: string }[] }>;
+      jobs: Record<
+        string,
+        { if?: string; concurrency?: { group: string }; steps: { run?: string; "continue-on-error"?: boolean }[] }
+      >;
     };
     // A pull request's events start a job that joins no group, which GitHub would cancel while another run waits.
     expect(jobs.ask?.if).toBe("github.event_name == 'pull_request_target'");
     expect(jobs.ask?.concurrency).toBeUndefined();
-    expect(jobs.ask?.steps[0]?.run).toBe('gh workflow run review-status.yml --repo "$REPO"');
+    // On the default branch, named rather than left to gh, and tried again; a request that still fails never fails
+    // the job, which would stay among the pull request's checks.
+    expect(jobs.ask?.steps[0]?.run).toContain(
+      'gh workflow run review-status.yml --repo "$REPO" --ref "$DEFAULT_BRANCH"',
+    );
+    expect(jobs.ask?.steps[0]?.run).toMatch(/for try in 1 2 3/);
+    expect(jobs.ask?.steps[0]?.["continue-on-error"]).toBe(true);
     // The run it asks for, and every other, checks the pull requests one at a time.
     expect(jobs.status?.if).toContain("github.event_name != 'pull_request_target'");
     expect(jobs.status?.concurrency?.group).toBe("review-status");
