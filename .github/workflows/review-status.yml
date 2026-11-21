@@ -24,7 +24,9 @@
 # It sets a status only when it changes.
 #
 # A pull request's own events (opened, pushed to, labelled) don't check anything themselves: they ask for a run, which
-# checks every pull request, so no run a pull request shows among its checks is ever cancelled (see the ask job).
+# checks every pull request, so no run a pull request shows among its checks is ever cancelled (see the ask job). That
+# costs a second runner for a few seconds on each event, an accepted trade: the run it asks for is the one the event
+# started itself before, and a burst of events asks for runs GitHub mostly drops, keeping the newest waiting one.
 #
 # Every run, whatever started it, checks every open pull request, one run at a time: a run never reads while another
 # is about to write, and where GitHub drops a waiting run for a newer one, the newer one checks everything too.
@@ -32,9 +34,10 @@
 # Where open pull requests share a head commit, each status says what the one furthest from passing needs.
 #
 # It runs none of the pull request's code: it only reads the pull request, its checks, comments, and review threads
-# through GitHub's API and sets the statuses, so it uses pull_request_target, which can set statuses on pull requests
-# from forks too. Like check_run and schedule, that runs the workflow as the default branch has it. Nothing from the
-# event reaches the script.
+# through GitHub's API and sets the statuses, which pull requests from forks get too. Statuses are set by the runs
+# workflow_dispatch, schedule, and check_run start, which run the workflow as the default branch has it;
+# pull_request_target, which does as well, only starts the ask job, whose token can start a run and nothing more.
+# Nothing from the event reaches the script.
 name: Review status
 
 on:

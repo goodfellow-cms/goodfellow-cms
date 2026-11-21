@@ -3036,9 +3036,11 @@ pnpm test:e2e
   events only ask for a run (its `ask` job, which starts one on the default branch with `workflow_dispatch`, trying
   three times and never failing, since the schedule's next run sets the statuses anyway), since GitHub cancels all but
   the newest run waiting in the status job's group, and a cancelled run of a pull request's event would stay failing
-  among its checks, as on Dependabot's, which it opens and labels at once. It reads the pull request through GitHub's
-  API and runs none of its code, so it uses `pull_request_target`, `check_run` and `schedule`, which run the workflow as
-  the default branch has it. It isn't a required check.
+  among its checks, as on Dependabot's, which it opens and labels at once. That costs a second runner for a few seconds
+  on each event, an accepted trade, since a burst asks for runs GitHub mostly drops. It reads the pull request through
+  GitHub's API and runs none of its code, so its statuses are set by runs that `workflow_dispatch`, `schedule`, and
+  `check_run` start, and `pull_request_target` only starts the `ask` job, all of which run the workflow as the default
+  branch has it. It isn't a required check.
 - **Claude's review:** Claude Code's `/code-review` reviews pull requests too, through Anthropic's Claude Code action
   (`.github/workflows/claude-review.yml`), on the subscription of whoever made the `CLAUDE_CODE_OAUTH_TOKEN` secret with
   `claude setup-token`; without the secret it does nothing. CI's `claude-review` job calls it once every other job has
