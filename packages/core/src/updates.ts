@@ -17,6 +17,9 @@ import type { ProvenanceSource } from "./provenance.js";
 /** npm's registry, which answers browsers too. */
 export const NPM_REGISTRY = "https://registry.npmjs.org";
 
+/** The release of Puck's command line that Puck 0.24.1 is installed with (see `SITE_OVERRIDES`). */
+export const PUCK_CLI = "0.25.0-canary.7c155274";
+
 /**
  * npm overrides every site's `package.json` has, by the package whose own
  * dependency they replace, as Goodfellow's workspace has them
@@ -26,13 +29,18 @@ export const NPM_REGISTRY = "https://registry.npmjs.org";
  * renders rich text itself, but sites still install it);
  * 21.0.4 and later fix GHSA-834v-8h66-3h79 and GHSA-c8p4-j97h-3vg8. Puck 0.24
  * asks for 21 itself, but a site going back to a release with Puck 0.23 is
- * installed with this release's overrides, so it keeps this one. Sigstore, which
+ * installed with this release's overrides, so it keeps this one. Puck 0.24.1
+ * depends on its command line, `@puckeditor/cli`, at `latest`, which moves
+ * whenever Puck publishes one (every release so far a canary), so a site
+ * installed without a lockfile would take whatever it was that day: it's pinned
+ * to the one that was `latest` when 0.24.1 was published, which no page, build
+ * or admin panel runs (it's only `npx @puckeditor/core`'s). Sigstore, which
  * checks plugins' early updates, brings cacache, which asks for glob 13 (14.0.2
  * fixes GHSA-3g3m-2fjr-6pw4), and `@tufjs/models`, which asks for minimatch 10
  * (11.0.1 fixes GHSA-g3hv-75wg-m249).
  */
 export const SITE_OVERRIDES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  "@puckeditor/core": { "happy-dom": "^21.0.4" },
+  "@puckeditor/core": { "happy-dom": "^21.0.4", "@puckeditor/cli": PUCK_CLI },
   cacache: { glob: "^14.0.2" },
   "@tufjs/models": { minimatch: "^11.0.1" },
 };

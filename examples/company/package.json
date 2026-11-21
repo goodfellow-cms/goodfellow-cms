@@ -24,7 +24,7 @@
     "@goodfellow-cms/gitlab": "workspace:*",
     "@goodfellow-cms/next": "workspace:*",
     "@goodfellow-cms/react": "workspace:*",
-    "@puckeditor/core": "0.24.0",
+    "@puckeditor/core": "0.24.1",
     "@upyo/core": "0.6.0",
     "@upyo/mailgun": "0.6.0",
     "@upyo/plunk": "0.6.0",

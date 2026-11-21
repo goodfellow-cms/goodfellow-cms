@@ -172,6 +172,7 @@ overrides:
   minimatch@<11.0.1: ^11.0.1
   fflate@<0.7.5: ^0.7.5
   '@expo/cli>zod': ^4.6.6
+  '@puckeditor/core>@puckeditor/cli': 0.25.0-canary.7c155274
 
 importers:
 
@@ -220,8 +221,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -284,8 +285,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/worker
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -360,8 +361,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@upyo/core':
         specifier: 0.6.0
         version: 0.6.0
@@ -505,8 +506,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -606,8 +607,8 @@ importers:
         specifier: workspace:*
         version: link:../broker
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -640,8 +641,8 @@ importers:
         specifier: workspace:*
         version: link:../react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -656,8 +657,8 @@ importers:
         version: link:../core
     devDependencies:
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
 
   packages/blocks:
     dependencies:
@@ -675,8 +676,8 @@ importers:
         specifier: workspace:*
         version: link:../expo
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -763,8 +764,8 @@ importers:
         specifier: workspace:*
         version: link:../react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -876,8 +877,8 @@ importers:
         version: 4.6.6
     devDependencies:
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/node':
         specifier: ^22.19.0
         version: 22.20.5
@@ -966,8 +967,8 @@ importers:
         version: 2.2.2
     devDependencies:
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
 
   packages/gitlab:
     dependencies:
@@ -976,8 +977,8 @@ importers:
         version: link:../core
     devDependencies:
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
 
   packages/mcp:
     dependencies:
@@ -1010,8 +1011,8 @@ importers:
         specifier: workspace:*
         version: link:../react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/node':
         specifier: ^22.19.0
         version: 22.20.5
@@ -1054,8 +1055,8 @@ importers:
         specifier: workspace:*
         version: link:../gitlab
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@tailwindcss/browser':
         specifier: 4.3.3
         version: 4.3.3
@@ -1085,8 +1086,8 @@ importers:
         version: 3.7.0
     devDependencies:
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -1109,8 +1110,8 @@ importers:
         specifier: workspace:*
         version: link:../react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -1179,8 +1180,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -1258,8 +1259,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/react
       '@puckeditor/core':
-        specifier: 0.24.0
-        version: 0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+        specifier: 0.24.1
+        version: 0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -2547,6 +2548,77 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@inquirer/ansi@1.0.2':
+    resolution: {integrity: sha512-S8qNSZiYzFd0wAcyG5AXCvUHC5Sr7xpZ9wZ2py9XR88jUz8wooStVx5M6dRzczbBWjic9NP7+rY0Xi7qqK/aMQ==}
+    engines: {node: '>=18'}
+
+  '@inquirer/checkbox@4.3.2':
+    resolution: {integrity: sha512-VXukHf0RR1doGe6Sm4F0Em7SWYLTHSsbGfJdS9Ja2bX5/D5uwVOEjr07cncLROdBvmnvCATYEWlHqYmXv2IlQA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@inquirer/confirm@5.1.21':
+    resolution: {integrity: sha512-KR8edRkIsUayMXV+o3Gv+q4jlhENF9nMYUZs9PA2HzrXeHI8M5uDag70U7RJn9yyiMZSbtF5/UexBtAVtZGSbQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@inquirer/core@10.3.2':
+    resolution: {integrity: sha512-43RTuEbfP8MbKzedNqBrlhhNKVwoK//vUFNW3Q3vZ88BLcrs4kYpGg+B2mm5p2K/HfygoCxuKwJJiv8PbGmE0A==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@inquirer/figures@1.0.15':
+    resolution: {integrity: sha512-t2IEY+unGHOzAaVM5Xx6DEWKeXlDDcNPeDyUpsRc6CUhBfU3VQOEl+Vssh7VNp1dR8MdUJBWhuObjXCsVpjN5g==}
+    engines: {node: '>=18'}
+
+  '@inquirer/input@4.3.1':
+    resolution: {integrity: sha512-kN0pAM4yPrLjJ1XJBjDxyfDduXOuQHrBB8aLDMueuwUGn+vNpF7Gq7TvyVxx8u4SHlFFj4trmj+a2cbpG4Jn1g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@inquirer/password@4.0.23':
+    resolution: {integrity: sha512-zREJHjhT5vJBMZX/IUbyI9zVtVfOLiTO66MrF/3GFZYZ7T4YILW5MSkEYHceSii/KtRk+4i3RE7E1CUXA2jHcA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@inquirer/select@4.4.2':
+    resolution: {integrity: sha512-l4xMuJo55MAe+N7Qr4rX90vypFwCajSakx59qe/tMaC1aEHWLyw68wF4o0A4SLAY4E0nd+Vt+EyskeDIqu1M6w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@inquirer/type@3.0.10':
+    resolution: {integrity: sha512-BvziSRxfz5Ov8ch0z/n3oijRSEcEsHnhggm4xFZe93DHcUCTlutlq9Ox4SVENAfcRD22UQq7T/atg9Wr3k09eA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
   '@isaacs/nonrecursive-glob-match@1.0.3':
     resolution: {integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==}
 
@@ -2831,9 +2903,15 @@ packages:
   '@preact/signals-core@1.14.4':
     resolution: {integrity: sha512-HNB6HYeYKhQbJ1aKl+YRjrS4+QWHLKX6qKoUsfS/m0vqzsVaEBiZiaKbG/e+NKk2ch5ALQr/ihWaMHxiCuuWHA==}
 
-  '@puckeditor/core@0.24.0':
-    resolution: {integrity: sha512-NxEYoGG9guV+oIiyf0lCf87yPvPlpErfsReojkIdpptDI/7Y8wusrPzHmWH3itW/tkIM0yShCR2Ctnc+T2Go7Q==}
+  '@puckeditor/cli@0.25.0-canary.7c155274':
+    resolution: {integrity: sha512-lOMacxL4tk9LWiGHZC3ESZJgyABWyCorzD3LTabNCS3M2I+0cvKTu1SHFjjtcN35Mhdbebh2eg6E+NBiMuzj/A==}
     engines: {node: '>=20.0.0'}
+    hasBin: true
+
+  '@puckeditor/core@0.24.1':
+    resolution: {integrity: sha512-H9U03fU6RPJaMePvfy82+89Kv85+3Jw1Q9iwCTbvYsQtJmKrzMTRNC8teYy5UdwcnuWWD2UrZcYkp3MP3y5JjA==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
@@ -4277,6 +4355,10 @@ packages:
     peerDependencies:
       '@upyo/core': 0.6.0
 
+  '@vercel/detect-agent@1.2.7':
+    resolution: {integrity: sha512-5tWaC9V+u4SHcSMKBz9FQb3Dhl/1A2lQ6QqHovu8uQeb8dTyjEevpJMANm/uQEn/usYB63fpdjWYjkJ8/bGtjA==}
+    engines: {node: '>=14'}
+
   '@vercel/og@1.0.3':
     resolution: {integrity: sha512-/iYJ34PDu4lty1TXdL86qHEw8viveHTllG1PWLuJX8tSFfqKL7kyVJeUORJmQ250bHB0h+alcalXUlza3c/NSA==}
     engines: {node: '>=22'}
@@ -4936,6 +5018,10 @@ packages:
     resolution: {integrity: sha512-ywqV+5MmyL4E7ybXgKys4DugZbX0FC6LnwrhjuykIjnK9k8OQacQ7axGKnjDXWNhns0xot3bZI5h55H8yo9cJg==}
     engines: {node: '>=6'}
 
+  cli-width@4.1.0:
+    resolution: {integrity: sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ==}
+    engines: {node: '>= 12'}
+
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
@@ -5106,10 +5192,6 @@ packages:
     peerDependenciesMeta:
       supports-color:
         optional: true
-
-  deep-diff@1.0.2:
-    resolution: {integrity: sha512-aWS3UIVH+NPGCD1kki+DCU9Dua032iSsO43LqQpcs4R3+dVv7tX0qBGjiVHJHjplsoUM2XRO/KB92glqc68awg==}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   deepmerge@4.3.1:
     resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
@@ -6375,6 +6457,10 @@ packages:
   multitars@1.0.2:
     resolution: {integrity: sha512-6GwVw5eLi9sThdtlS4PKwC7yRLaf45pYhIEzKBHdKxi+YOXGKFX8acIniH+Uh/+k9mS2lQOupTccjoe5r0/1IQ==}
 
+  mute-stream@2.0.0:
+    resolution: {integrity: sha512-WWdIxpyjEn+FhQJQQv9aQAYlHoNVdzIzUySNV1gHUPDSdZJ3yZn7pAAbQcV7B56Mvu881q9FZV+0Vx2xC44VWA==}
+    engines: {node: ^18.17.0 || >=20.5.0}
+
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
 
@@ -7142,6 +7228,10 @@ packages:
   signal-exit@3.0.7:
     resolution: {integrity: sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ==}
 
+  signal-exit@4.1.0:
+    resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
+    engines: {node: '>=14'}
+
   sigstore@5.0.0:
     resolution: {integrity: sha512-hJqJfoG/e4qFQaauQL00c6J6FrHLBGKtkFvW3JbTSIEFOhLrSjdSM/gWd/yUOfYo/gsERehTXGC1VZWX+9X4Dg==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
@@ -7871,6 +7961,10 @@ packages:
       '@cloudflare/workers-types':
         optional: true
 
+  wrap-ansi@6.2.0:
+    resolution: {integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==}
+    engines: {node: '>=8'}
+
   wrap-ansi@7.0.0:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
     engines: {node: '>=10'}
@@ -7961,6 +8055,10 @@ packages:
   yargs@17.7.3:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
+
+  yoctocolors-cjs@2.1.3:
+    resolution: {integrity: sha512-U/PBtDf35ff0D8X8D0jfdzHYEPFxAI7jJlxZXwCSez5M3190m+QobIfh+sWDWSHMCWWJN2AWamkegn6vr6YBTw==}
+    engines: {node: '>=18'}
 
   yoga-layout@3.2.1:
     resolution: {integrity: sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ==}
@@ -9464,6 +9562,69 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
+  '@inquirer/ansi@1.0.2': {}
+
+  '@inquirer/checkbox@4.3.2(@types/node@22.20.5)':
+    dependencies:
+      '@inquirer/ansi': 1.0.2
+      '@inquirer/core': 10.3.2(@types/node@22.20.5)
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@22.20.5)
+      yoctocolors-cjs: 2.1.3
+    optionalDependencies:
+      '@types/node': 22.20.5
+
+  '@inquirer/confirm@5.1.21(@types/node@22.20.5)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@22.20.5)
+      '@inquirer/type': 3.0.10(@types/node@22.20.5)
+    optionalDependencies:
+      '@types/node': 22.20.5
+
+  '@inquirer/core@10.3.2(@types/node@22.20.5)':
+    dependencies:
+      '@inquirer/ansi': 1.0.2
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@22.20.5)
+      cli-width: 4.1.0
+      mute-stream: 2.0.0
+      signal-exit: 4.1.0
+      wrap-ansi: 6.2.0
+      yoctocolors-cjs: 2.1.3
+    optionalDependencies:
+      '@types/node': 22.20.5
+
+  '@inquirer/figures@1.0.15': {}
+
+  '@inquirer/input@4.3.1(@types/node@22.20.5)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@22.20.5)
+      '@inquirer/type': 3.0.10(@types/node@22.20.5)
+    optionalDependencies:
+      '@types/node': 22.20.5
+
+  '@inquirer/password@4.0.23(@types/node@22.20.5)':
+    dependencies:
+      '@inquirer/ansi': 1.0.2
+      '@inquirer/core': 10.3.2(@types/node@22.20.5)
+      '@inquirer/type': 3.0.10(@types/node@22.20.5)
+    optionalDependencies:
+      '@types/node': 22.20.5
+
+  '@inquirer/select@4.4.2(@types/node@22.20.5)':
+    dependencies:
+      '@inquirer/ansi': 1.0.2
+      '@inquirer/core': 10.3.2(@types/node@22.20.5)
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@22.20.5)
+      yoctocolors-cjs: 2.1.3
+    optionalDependencies:
+      '@types/node': 22.20.5
+
+  '@inquirer/type@3.0.10(@types/node@22.20.5)':
+    optionalDependencies:
+      '@types/node': 22.20.5
+
   '@isaacs/nonrecursive-glob-match@1.0.3': {}
 
   '@isaacs/ttlcache@1.4.1': {}
@@ -9707,7 +9868,21 @@ snapshots:
 
   '@preact/signals-core@1.14.4': {}
 
-  '@puckeditor/core@0.24.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))':
+  '@puckeditor/cli@0.25.0-canary.7c155274(@types/node@22.20.5)':
+    dependencies:
+      '@babel/parser': 7.29.11
+      '@inquirer/checkbox': 4.3.2(@types/node@22.20.5)
+      '@inquirer/confirm': 5.1.21(@types/node@22.20.5)
+      '@inquirer/input': 4.3.1(@types/node@22.20.5)
+      '@inquirer/password': 4.0.23(@types/node@22.20.5)
+      '@inquirer/select': 4.4.2(@types/node@22.20.5)
+      picocolors: 1.1.1
+      tinyglobby: 0.2.17
+      yaml: 2.9.1
+    transitivePeerDependencies:
+      - '@types/node'
+
+  '@puckeditor/core@0.24.1(@floating-ui/dom@1.8.0)(@types/node@22.20.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))':
     dependencies:
       '@dnd-kit/abstract': 0.4.0
       '@dnd-kit/dom': 0.4.0
@@ -9715,6 +9890,7 @@ snapshots:
       '@dnd-kit/helpers': 0.4.0
       '@dnd-kit/react': 0.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@dnd-kit/state': 0.4.0
+      '@puckeditor/cli': 0.25.0-canary.7c155274(@types/node@22.20.5)
       '@radix-ui/react-popover': 1.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-virtual': 3.14.13(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tiptap/core': 3.31.4(@tiptap/pm@3.31.4)
@@ -9737,7 +9913,7 @@ snapshots:
       '@tiptap/html': 3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(happy-dom@21.0.4)
       '@tiptap/pm': 3.31.4
       '@tiptap/react': 3.31.4(@floating-ui/dom@1.8.0)(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      deep-diff: 1.0.2
+      '@vercel/detect-agent': 1.2.7
       fast-equals: 5.2.2
       flat: 5.0.2
       happy-dom: 21.0.4
@@ -9748,6 +9924,7 @@ snapshots:
       zustand: 5.0.15(@types/react@19.3.0)(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
     transitivePeerDependencies:
       - '@floating-ui/dom'
+      - '@types/node'
       - '@types/react'
       - '@types/react-dom'
       - bufferutil
@@ -11129,6 +11306,8 @@ snapshots:
     dependencies:
       '@upyo/core': 0.6.0
 
+  '@vercel/detect-agent@1.2.7': {}
+
   '@vercel/og@1.0.3(@types/node@22.20.5)':
     dependencies:
       '@resvg/resvg-wasm': 2.4.1
@@ -11713,6 +11892,8 @@ snapshots:
 
   cli-spinners@2.9.2: {}
 
+  cli-width@4.1.0: {}
+
   client-only@0.0.1: {}
 
   cliui@8.0.1:
@@ -11868,8 +12049,6 @@ snapshots:
       ms: 2.1.3
     optionalDependencies:
       supports-color: 8.1.1
-
-  deep-diff@1.0.2: {}
 
   deepmerge@4.3.1: {}
 
@@ -13289,6 +13468,8 @@ snapshots:
 
   multitars@1.0.2: {}
 
+  mute-stream@2.0.0: {}
+
   mz@2.7.0:
     dependencies:
       any-promise: 1.3.0
@@ -14207,6 +14388,8 @@ snapshots:
 
   signal-exit@3.0.7: {}
 
+  signal-exit@4.1.0: {}
+
   sigstore@5.0.0:
     dependencies:
       '@sigstore/bundle': 5.0.0
@@ -14864,6 +15047,12 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  wrap-ansi@6.2.0:
+    dependencies:
+      ansi-styles: 4.3.0
+      string-width: 4.2.3
+      strip-ansi: 6.0.1
+
   wrap-ansi@7.0.0:
     dependencies:
       ansi-styles: 4.3.0
@@ -14917,6 +15106,8 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yoctocolors-cjs@2.1.3: {}
 
   yoga-layout@3.2.1: {}
 

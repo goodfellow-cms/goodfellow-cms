@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { ContentError } from "./content/errors.js";
 import {
@@ -6,6 +7,7 @@ import {
   DEFAULT_UPDATE_SETTINGS,
   findUpdateResult,
   formatUpdateResult,
+  PUCK_CLI,
   parseUpdateSettings,
   releaseVersions,
   SITE_OVERRIDES,
@@ -62,21 +64,22 @@ describe("sites' overrides", () => {
       overrides: SITE_OVERRIDES,
       added: [
         ["@puckeditor/core", "happy-dom"],
+        ["@puckeditor/core", "@puckeditor/cli"],
         ["cacache", "glob"],
         ["@tufjs/models", "minimatch"],
       ],
     });
     const own = {
       react: "19.3.0",
-      "@puckeditor/core": { "happy-dom": "^22.0.0", tslib: "2.8.0" },
+      "@puckeditor/core": { "happy-dom": "^22.0.0", "@puckeditor/cli": "0.25.0", tslib: "2.8.0" },
       cacache: { glob: "^15.0.0" },
       "@tufjs/models": { minimatch: "^12.0.0" },
     };
     expect(withSiteOverrides(own)).toEqual({ overrides: own, added: [] });
     // A site that overrides Puck itself chose its own.
-    expect(withSiteOverrides({ "@puckeditor/core": "0.24.0" })).toEqual({
+    expect(withSiteOverrides({ "@puckeditor/core": "0.24.1" })).toEqual({
       overrides: {
-        "@puckeditor/core": "0.24.0",
+        "@puckeditor/core": "0.24.1",
         cacache: { glob: "^14.0.2" },
         "@tufjs/models": { minimatch: "^11.0.1" },
       },
@@ -86,6 +89,13 @@ describe("sites' overrides", () => {
       ],
     });
     expect(withSiteOverrides({ react: "19.3.0" }).overrides).toEqual({ react: "19.3.0", ...SITE_OVERRIDES });
+  });
+
+  it("pins Puck's command line to the release the workspace has, never its moving `latest`", async () => {
+    const workspace = await readFile(new URL("../../../pnpm-workspace.yaml", import.meta.url), "utf8");
+    expect(workspace).toContain(`"@puckeditor/core>@puckeditor/cli": "${PUCK_CLI}"`);
+    expect(SITE_OVERRIDES["@puckeditor/core"]?.["@puckeditor/cli"]).toBe(PUCK_CLI);
+    expect(PUCK_CLI).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
   });
 });
 

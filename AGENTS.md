@@ -1596,7 +1596,7 @@ Content files are the product's data format; treat changes to them like API chan
 
 - Use `@puckeditor/core`. `@measured/puck` is the old package name; don't import it.
 - Puck is pre-1.0 and its minor versions have breaking changes. Pin an exact version in every package, and upgrade it in
-  one dedicated change across the workspace.
+  one dedicated change across the workspace, checking what its new release depends on (see Tooling's Overrides).
 - Prefer Puck's own APIs (slots, the `metadata` API, `richtext` fields, plugins, overrides, the dictionary,
   `FieldGroup`) over reimplementing them.
 - **Field types:** everything that reads blocks' fields without rendering them knows each of Puck's types: the
@@ -3051,7 +3051,10 @@ pnpm test:e2e
   with Puck 0.23 needs), which `sitePackageJson()` adds to new sites and `update()` to older ones
   (`withSiteOverrides()`), leaving out the lockfile's copies of what an added override replaces, since npm keeps them
   otherwise. The Claude Desktop extension is zipped with `fflate` rather than Anthropic's `mcpb` tool for the same
-  reason. Check `pnpm audit` before adding a dependency.
+  reason. They also pin what a dependency names by a dist-tag, which moves: Puck 0.24.1's `@puckeditor/cli` at `latest`,
+  which no page, build, or admin panel runs, is the release that was `latest` when 0.24.1 was published, in both
+  (`PUCK_CLI`, which a test keeps the same), and a Puck upgrade checks it again. Check `pnpm audit` before adding a
+  dependency.
 - **Install scripts:** pnpm runs no package's install script unless `pnpm-workspace.yaml`'s `allowBuilds` names it
   `true`. esbuild and workerd, which wrangler brings, are named `false`, since their programs come as packages for each
   platform; a package added later whose install script is needed goes there as `true`, with why.
