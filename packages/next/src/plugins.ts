@@ -7,7 +7,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   type CollectionSource,
@@ -26,6 +26,8 @@ import {
 } from "@goodfellow-cms/core";
 import {
   builtSiteSource,
+  checkFrameFolder,
+  type FrameBuild,
   LICENSES_FILE,
   licensesPlugin,
   loadSourceModules,
@@ -322,7 +324,11 @@ export interface PluginFrameBuild {
    * stylesheet relative to itself, so it works under any base path.
    */
   dir: string;
-  /** Development builds, rebuilt as the plugin's code changes, calling `onBuilt` after each. */
+  /**
+   * Development builds, rebuilt as the plugin's code changes, calling `onBuilt` after each. Each rebuild takes out
+   * what it didn't write of the files in `dir` older than it, so `dir` must then be the frame's own, named by the
+   * plugin's id (`pluginId()`), never a folder shared with other files such as `public/`.
+   */
   watch?: { onBuilt: (error?: Error) => void };
 }
 
@@ -338,9 +344,18 @@ export async function buildPluginFrame(
   { root, dir, watch }: PluginFrameBuild,
 ): Promise<() => Promise<void>> {
   if (!plugin.admin) throw new Error(`${plugin.name} has no admin module.`);
+  if (watch && basename(resolve(dir)) !== pluginId(plugin.name)) {
+    throw new Error(
+      `${plugin.title}'s admin frame can be rebuilt only into a folder of its own, named ${pluginId(plugin.name)}, since each rebuild takes out files it didn't write: ${dir} isn't one.`,
+    );
+  }
   const rolldown = await import("rolldown");
   await mkdir(dir, { recursive: true });
   const stylesheets = new Set<string>();
+  // Rebuilding while watching keeps the folder, so each build's check takes out what an earlier build left: what
+  // the bundle wrote, and the page and stylesheet written here.
+  let built: FrameBuild | undefined;
+  let started = 0;
   const writePage = async () => {
     const css = await Promise.all([...stylesheets].map((file) => readFile(file, "utf8")));
     await writeFile(join(dir, "plugin.css"), css.join("\n"));
@@ -356,6 +371,8 @@ export async function buildPluginFrame(
         ...(plugin.editor && { media: await mediaStorageOrigins(root) }),
       }),
     );
+    // Nothing else the bundle wrote there may open as a page at the admin panel's address.
+    await checkFrameFolder(dir, { ...(watch && built && { stale: built }) });
   };
   const options = {
     input: { plugin: FRAME_ENTRY },
@@ -380,6 +397,15 @@ export async function buildPluginFrame(
         },
       },
       licensesPlugin(plugin.title, LICENSES_FILE),
+      {
+        name: "goodfellow:plugin-frame-written",
+        buildStart() {
+          started = Date.now();
+        },
+        writeBundle(_options: unknown, bundle: Record<string, unknown>) {
+          built = { written: new Set([...Object.keys(bundle), "plugin.css"]), since: started };
+        },
+      },
     ],
     onLog(level: string, log: { code?: string }, handler: (level: never, log: never) => void) {
       if (log.code === "MODULE_LEVEL_DIRECTIVE") return;
@@ -400,12 +426,16 @@ export async function buildPluginFrame(
     return async () => {};
   }
   const watcher = rolldown.watch(options);
+  // One build's page and check at a time, so none reads the folder while another takes files out of it.
+  let queue = Promise.resolve();
   watcher.on("event", (event) => {
     if (event.code === "BUNDLE_END") {
       void event.result.close();
-      writePage().then(
-        () => watch.onBuilt(),
-        (error: Error) => watch.onBuilt(error),
+      queue = queue.then(() =>
+        writePage().then(
+          () => watch.onBuilt(),
+          (error: Error) => watch.onBuilt(error),
+        ),
       );
     } else if (event.code === "ERROR") {
       void event.result?.close();

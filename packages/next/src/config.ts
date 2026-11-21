@@ -98,7 +98,10 @@ function editorFramesHeaders(): Headers {
   return [
     {
       source: `/${EDITOR_FRAMES_PATH}:path*`,
-      headers: [{ key: "Content-Security-Policy", value: `${editorPolicy()}; frame-ancestors 'self'` }],
+      // Sandboxed as the admin panel frames them, so a file there opened on its own has no address of the site's.
+      headers: [
+        { key: "Content-Security-Policy", value: `${editorPolicy()}; sandbox allow-scripts; frame-ancestors 'self'` },
+      ],
     },
   ];
 }

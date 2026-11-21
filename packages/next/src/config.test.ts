@@ -70,7 +70,9 @@ describe("withGoodfellow", () => {
       ...vercelHeaders(),
       {
         source: "/admin/editor/frames/:path*",
-        headers: [{ key: "Content-Security-Policy", value: `${editorPolicy()}; frame-ancestors 'self'` }],
+        headers: [
+          { key: "Content-Security-Policy", value: `${editorPolicy()}; sandbox allow-scripts; frame-ancestors 'self'` },
+        ],
       },
     ]);
   });

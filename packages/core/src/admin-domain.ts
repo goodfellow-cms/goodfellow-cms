@@ -166,17 +166,48 @@ function extensionIn(path: string): string {
 }
 
 /**
+ * A file's first bytes as text, in the encoding a browser reading it as XML would take: UTF-16 or UTF-32 by a byte
+ * order mark, or without one by the zero bytes beside the first character (as `<?xml` in UTF-16 has), else UTF-8.
+ */
+function firstText(bytes: Uint8Array): string {
+  const [a, b, c, d] = [bytes[0], bytes[1], bytes[2], bytes[3]];
+  const utf32 = (little: boolean, from: number) => {
+    let text = "";
+    for (let at = from; at + 4 <= bytes.length; at += 4) {
+      const point = little
+        ? (bytes[at] ?? 0) | ((bytes[at + 1] ?? 0) << 8) | ((bytes[at + 2] ?? 0) << 16) | ((bytes[at + 3] ?? 0) << 24)
+        : ((bytes[at] ?? 0) << 24) | ((bytes[at + 1] ?? 0) << 16) | ((bytes[at + 2] ?? 0) << 8) | (bytes[at + 3] ?? 0);
+      text += point >= 0 && point <= 0x10ffff ? String.fromCodePoint(point) : "\ufffd";
+    }
+    return text;
+  };
+  if (a === 0xff && b === 0xfe && c === 0 && d === 0) return utf32(true, 4);
+  if (a === 0 && b === 0 && c === 0xfe && d === 0xff) return utf32(false, 4);
+  if (a === 0xff && b === 0xfe) return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+  if (a === 0xfe && b === 0xff) return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  if (a !== 0 && b === 0 && c === 0 && d === 0) return utf32(true, 0);
+  if (a === 0 && b === 0 && c === 0 && d !== 0) return utf32(false, 0);
+  if (a !== 0 && b === 0) return new TextDecoder("utf-16le").decode(bytes);
+  if (a === 0 && b !== 0) return new TextDecoder("utf-16be").decode(bytes);
+  // Decoding drops a UTF-8 byte order mark, which a string keeps.
+  return new TextDecoder().decode(bytes);
+}
+
+/**
  * Whether a file's first bytes read as markup, as a browser's or a server's sniffing would take for an HTML or XML
  * page (`<html`, `<script`, `<!--`, `<?xml`, and every other tag): a `<` and a letter, `!`, `?`, or `/`, past a byte
- * order mark and whitespace, or whitespace to the end of the first 1,024 bytes, which a tag could follow.
+ * order mark and whitespace, or whitespace to the end of the first 1,024 bytes, which a tag could follow. Bytes are
+ * read in UTF-8, or UTF-16 or UTF-32 where they say so (`firstText()`), since browsers read XML in those too.
  */
 export function startsAsMarkup(start: string | Uint8Array): boolean {
-  // Decoding drops a UTF-8 byte order mark, which a string keeps.
-  const text = typeof start === "string" ? start.slice(0, 1024) : new TextDecoder().decode(start.subarray(0, 1024));
+  // A string's character after the first 1,024 is kept, so a "<" ending them is settled by what follows it.
+  const text = typeof start === "string" ? start.slice(0, 1025) : firstText(start.subarray(0, 1024));
   let at = text.startsWith("\ufeff") ? 1 : 0;
   while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
   // Whitespace to the end of what's read could be followed by a tag, which a reader looking further would find.
   if (at === text.length) return start.length >= 1024;
+  // So could a "<" that ends it, whose next character is past what's read.
+  if (at === text.length - 1 && text[at] === "<") return start.length >= 1024;
   return text[at] === "<" && /[A-Za-z!?/]/.test(text[at + 1] ?? "");
 }
 
@@ -380,11 +411,53 @@ export function adminPageHeaders(broker?: string): Readonly<Record<string, strin
     : ADMIN_PAGE_HEADERS;
 }
 
-/** The editor's frames, and plugins', are the admin panel's own, so they may be framed by it, and only by it. */
-const EDITOR_FRAME_HEADERS: Readonly<Record<string, string>> = {
-  "Content-Security-Policy": "frame-ancestors 'self'",
+/**
+ * The editor's frames, and plugins', are the admin panel's own, so they may be
+ * framed by it, and only by it. They're sandboxed as the admin panel frames
+ * them (`allow-scripts` alone), so a file under them opened on its own, in a
+ * tab, has no address of the admin panel's either.
+ */
+export const EDITOR_FRAME_HEADERS: Readonly<Record<string, string>> = {
+  "Content-Security-Policy": "sandbox allow-scripts; frame-ancestors 'self'",
   "Origin-Agent-Cluster": "?1",
 };
+
+/** The folders of the admin panel's frames, the editor's and plugins', relative to the site's base path. */
+export const FRAME_FOLDERS: readonly string[] = ["admin/editor/", "admin/plugins/"];
+
+/**
+ * What a frame's folder may hold besides the pages the build writes there, by
+ * extension: its script, stylesheets, source maps, fonts, pictures no browser
+ * runs (never SVGs), and text, such as its licenses and Next.js's payloads.
+ * Anything else a bundler wrote there, such as an `.html` or `.svg` a module
+ * imported as an address, could open as a page at the admin panel's address.
+ */
+const FRAME_FILE_TYPES: ReadonlySet<string> = new Set([
+  "js",
+  "mjs",
+  "css",
+  "map",
+  "woff2",
+  "woff",
+  "ttf",
+  "otf",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "avif",
+  "ico",
+  "txt",
+  "json",
+]);
+
+/** Whether a file's name is one a frame's folder may hold (`FRAME_FILE_TYPES`), whatever its letters' case. */
+export function isFrameFileName(name: string): boolean {
+  const last = name.slice(name.lastIndexOf("/") + 1);
+  const dot = last.lastIndexOf(".");
+  return dot > 0 && FRAME_FILE_TYPES.has(last.slice(dot + 1).toLowerCase());
+}
 
 /** Where Cloudflare Pages reads header rules from, in the built site. */
 export const CLOUDFLARE_HEADERS_PATH = "_headers";

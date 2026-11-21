@@ -148,7 +148,11 @@ function headers() {
     "Content-Security-Policy": `frame-ancestors ${broker ? new URL(broker).origin : "'none'"}`,
     "Origin-Agent-Cluster": "?1",
   });
-  const frames = list({ "Content-Security-Policy": "frame-ancestors 'self'", "Origin-Agent-Cluster": "?1" });
+  // The admin panel's frames, sandboxed as it frames them, so a file there opened on its own has no address of it.
+  const frames = list({
+    "Content-Security-Policy": "sandbox allow-scripts; frame-ancestors 'self'",
+    "Origin-Agent-Cluster": "?1",
+  });
   const cached = list({ "Cache-Control": "public, max-age=31536000, immutable" });
   const site = [
     {

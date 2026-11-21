@@ -179,6 +179,8 @@ Other plugins' blocks can ask a plugin's services too, so a service should offer
 
 `goodfellow build` and `goodfellow-next finish` bundle each plugin's admin module into its frame, at `admin/plugins/<id>/`, and run its build steps once the site's pages are written, before the search index and the [admin address's](/docs/custom-domains#an-admin-address) guards, which then cover what the steps wrote.
 
+A frame's folder holds only its page, script, styles, fonts, and pictures that aren't SVGs. An admin module can't bring pages or SVGs of its own as files, such as `import help from "./help.html?url"`, since a file there opened in a tab of its own would run at the admin panel's address: the build stops and names it. Import such a file as text, or as a `data:` address, instead. Hosts that take headers (Cloudflare Pages, Netlify, and Vercel) also sandbox the frames' folders wherever the admin panel runs, at its admin address where it has one, as the admin panel frames them.
+
 Serving a frame hands its code to whoever opens it, so every build, the development servers' included, writes `admin/plugins/<id>/LICENSES.txt` beside it, and its page links to it. It lists every package the frame bundles, the plugin's own and the ones it needs, with its version, its license, and where its source is (its repository, or else its page on npm), then each license text once, after the packages it covers.
 
 ```js

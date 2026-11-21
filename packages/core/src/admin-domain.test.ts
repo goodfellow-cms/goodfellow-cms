@@ -72,6 +72,12 @@ describe("admin addresses", () => {
     // Whitespace to the end of what's read could hide a tag after it.
     expect(startsAsMarkup(`${" ".repeat(1024)}<script>`)).toBe(true);
     expect(startsAsMarkup(bytes(`\ufeff${"\n".repeat(1100)}<html>`))).toBe(true);
+    // So could a "<" that ends it, whose next character is past it.
+    expect(startsAsMarkup(`${" ".repeat(1023)}<svg>`)).toBe(true);
+    // A string has what follows, which settles it.
+    expect(startsAsMarkup(`${" ".repeat(1023)}< 3 is less`)).toBe(false);
+    expect(startsAsMarkup(bytes(`${" ".repeat(1023)}<svg>`))).toBe(true);
+    expect(startsAsMarkup(bytes(`\ufeff${" ".repeat(1020)}<svg>`))).toBe(true);
     expect(pageFileKind("chrome/bindings.xbl")).toBe("xml");
     for (const start of ["", "   ", "WEBVTT", "a,b,c", "< not a tag", "<3", '{"x":1}', "x <html>"]) {
       expect(startsAsMarkup(start), start).toBe(false);
@@ -80,6 +86,40 @@ describe("admin addresses", () => {
     expect(typedByContent("media/notes.txt")).toBe(true);
     expect(typedByContent("CNAME")).toBe(true);
     expect(typedByContent("assets/app.JS")).toBe(false);
+  });
+
+  it("knows markup in UTF-16 and UTF-32, with a byte order mark or without one, as browsers read XML", () => {
+    const utf16 = (text: string, little: boolean, mark: boolean) => {
+      const units = [...(mark ? "\ufeff" : ""), ...text].map((char) => char.charCodeAt(0));
+      return new Uint8Array(units.flatMap((unit) => (little ? [unit & 255, unit >> 8] : [unit >> 8, unit & 255])));
+    };
+    const utf32 = (text: string, little: boolean, mark: boolean) => {
+      const points = [...(mark ? "\ufeff" : ""), ...text].map((char) => char.codePointAt(0) ?? 0);
+      return new Uint8Array(
+        points.flatMap((point) => {
+          const be = [point >>> 24, (point >>> 16) & 255, (point >>> 8) & 255, point & 255];
+          return little ? be.reverse() : be;
+        }),
+      );
+    };
+    const page = '<?xml version="1.0" encoding="UTF-16"?><a/>';
+    for (const encode of [utf16, utf32]) {
+      for (const little of [true, false]) {
+        for (const mark of [true, false]) {
+          const name = `${encode.name} ${little ? "LE" : "BE"}${mark ? " with a mark" : ""}`;
+          expect(startsAsMarkup(encode(page, little, mark)), name).toBe(true);
+          expect(startsAsMarkup(encode("  <html>", little, mark)), name).toBe(true);
+          expect(startsAsMarkup(encode("plain text, then <b>", little, mark)), name).toBe(false);
+          // A "<" that ends the 1,024 bytes read.
+          const width = encode === utf16 ? 2 : 4;
+          const spaces = " ".repeat(1024 / width - 1 - (mark ? 1 : 0));
+          expect(startsAsMarkup(encode(`${spaces}<svg>`, little, mark)), `${name} at the end`).toBe(true);
+        }
+      }
+    }
+    // A picture's first bytes stay a picture's.
+    expect(startsAsMarkup(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe(false);
+    expect(startsAsMarkup(new Uint8Array([0x42, 0x4d, 0x3c, 0x00, 0x00, 0x00]))).toBe(false);
   });
 });
 
@@ -191,12 +231,12 @@ describe("host rules", () => {
         "",
         "https://admin.example.org/admin/editor/*",
         "  ! Content-Security-Policy",
-        "  Content-Security-Policy: frame-ancestors 'self'",
+        "  Content-Security-Policy: sandbox allow-scripts; frame-ancestors 'self'",
         "  Origin-Agent-Cluster: ?1",
         "",
         "https://admin.example.org/admin/plugins/*",
         "  ! Content-Security-Policy",
-        "  Content-Security-Policy: frame-ancestors 'self'",
+        "  Content-Security-Policy: sandbox allow-scripts; frame-ancestors 'self'",
         "  Origin-Agent-Cluster: ?1",
         "",
       ].join("\n"),
@@ -261,7 +301,7 @@ describe("host rules", () => {
     );
     // The frames' paths are under the admin panel's too, whose headers Cloudflare would join with theirs.
     expect(rules).toContain(
-      "/site/admin/editor/*\n  ! Content-Security-Policy\n  ! Cross-Origin-Opener-Policy\n  ! Origin-Agent-Cluster\n  Content-Security-Policy: frame-ancestors 'self'\n",
+      "/site/admin/editor/*\n  ! Content-Security-Policy\n  ! Cross-Origin-Opener-Policy\n  ! Origin-Agent-Cluster\n  Content-Security-Policy: sandbox allow-scripts; frame-ancestors 'self'\n",
     );
     // A token broker frames the admin panel.
     expect(cloudflareSiteHeaders("/", { broker: "https://signin.example.org" })).toContain(

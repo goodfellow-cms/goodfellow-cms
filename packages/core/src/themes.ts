@@ -310,6 +310,26 @@ function srcsetAddresses(value: string): string[] {
 /** A `src`, `poster`, or `srcset` attribute in HTML, its value quoted either way or not at all. */
 const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
 
+/** A made-up address for one of the site's pages, which a setting's address is read from as a browser would. */
+const SITE_PAGE = "https://site.invalid/page/";
+
+/**
+ * Another site's address a setting holds, as a browser reads it from one of
+ * the site's pages (`\\tracker.example`, `/\\tracker.example`, `https:\\…`,
+ * and `//…` after a control character all go to another site), in full, or
+ * `undefined` for an address on the site, a `data:` one, or one that isn't one.
+ */
+function otherSiteAddress(text: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(text, SITE_PAGE);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol === "data:") return undefined;
+  return url.origin === new URL(SITE_PAGE).origin ? undefined : url.href;
+}
+
 /**
  * What installing a theme would have visitors' browsers load besides Google
  * Fonts and the site's own media: from its CSS, from classes it gives parts
@@ -332,7 +352,10 @@ export function themeLoads(theme: ThemePackage): string[] {
         else pictures.push(value.trim());
       }
       // Links' addresses are only followed when someone chooses them, and words are only shown.
-      if (THEME_LOADED_PROPS.includes(key) && /^(?:https?:)?\/\//i.test(text.trim())) pictures.push(text.trim());
+      if (THEME_LOADED_PROPS.includes(key)) {
+        const elsewhere = otherSiteAddress(text);
+        if (elsewhere) pictures.push(elsewhere);
+      }
     },
   );
   const found = new Set([
