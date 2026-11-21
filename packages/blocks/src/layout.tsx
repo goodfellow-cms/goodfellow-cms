@@ -1,4 +1,4 @@
-import { withBase } from "@goodfellow-cms/core";
+import { cssUrl, withBase } from "@goodfellow-cms/core";
 import { classNameField, mediaField, useParts, useSite, withParts } from "@goodfellow-cms/react";
 import type { ComponentConfig, Slot, SlotComponent } from "@puckeditor/core";
 import { type Gap, gapClasses, gapLabels, options, yesNo } from "./options.js";
@@ -92,7 +92,10 @@ function SectionView({
 }: Omit<SectionProps, "content"> & { content: SlotComponent }) {
   const { base, focus: focalPoints } = useSite();
   const part = useParts();
-  const image = backgroundImage && withBase(backgroundImage, base);
+  // As CSS reads it back, so the picture loaded is the one the setting names; an address with a control character
+  // in it is left out, since CSS and the URL parser read it differently (cssUrl()).
+  const url = backgroundImage ? cssUrl(withBase(backgroundImage, base)) : undefined;
+  const image = url && backgroundImage;
   // The media library's focal point, where the Section's own "Keep in view" is left in the middle.
   const position = image && focus === "center" ? focalPoints?.[backgroundImage] : undefined;
   const tinted = overlay !== "none";
@@ -106,11 +109,7 @@ function SectionView({
         tinted && overlayTextClasses[overlay],
         className,
       )}
-      style={
-        image
-          ? { backgroundImage: `url(${JSON.stringify(image)})`, ...(position && { backgroundPosition: position }) }
-          : undefined
-      }
+      style={image ? { backgroundImage: url, ...(position && { backgroundPosition: position }) } : undefined}
     >
       {tinted && (
         <span

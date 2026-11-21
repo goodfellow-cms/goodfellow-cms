@@ -155,6 +155,23 @@ describe("built-in blocks", () => {
     expect(html).not.toContain('<div class="hero"');
   });
 
+  it("writes a section's background as CSS reads it back, and leaves out one with a control character", async () => {
+    const section = (backgroundImage: string) => ({
+      type: "Section",
+      props: { id: "s", width: "wide", padding: "md", background: "none", backgroundImage, className: "", content: [] },
+    });
+    const html = await render([section('/media/a"b\\c.jpg')]);
+    // A quote and a backslash escaped as CSS reads them, which React writes into the attribute as &quot;.
+    expect(html).toContain("background-image:url(&quot;/media/a\\&quot;b\\\\c.jpg&quot;)");
+    // CSS reads JSON's \r as the letter r, and \b and \f as hexadecimal numbers, and the URL parser drops tabs and
+    // line breaks, so an address holding one shows no picture rather than another than the one it names.
+    for (const address of ["https://fonts.gst\ratic.com/p.png", "https://x\ba.tracker.example/p", "/media/a\tb.jpg"]) {
+      const shown = await render([section(address)]);
+      expect(shown, JSON.stringify(address)).not.toContain("background-image");
+      expect(shown).not.toContain("bg-cover");
+    }
+  });
+
   it("renders a menu from site data and marks the current page", async () => {
     const html = await render([
       { type: "Menu", props: { id: "m", menu: "main", orientation: "horizontal", className: "" } },

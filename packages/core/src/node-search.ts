@@ -222,12 +222,15 @@ export interface SearchPageText {
   document: SearchDocument;
 }
 
+/** Elements no title inside of is the page's own. */
+const NOT_PAGE_TITLE = new Set(["body", "svg", "math", "template"]);
+
 /**
  * What MiniSearch's index has of a built page, read as Pagefind reads it: the
  * text of what's marked `data-pagefind-body`, leaving out what's marked
  * `data-pagefind-ignore` (photo credits, consent placeholders), scripts,
  * styles, and templates, and its title from the first `<h1>` in it, else the
- * page's `<title>`. `undefined` for a page with nothing marked.
+ * page's own `<title>` (the first outside the body, never an SVG's or a template's). `undefined` for a page with nothing marked.
  */
 export function searchPageText(html: string, path: string): SearchPageText | undefined {
   let language = "";
@@ -236,6 +239,8 @@ export function searchPageText(html: string, path: string): SearchPageText | und
   let heading: string | undefined;
   let headingDone = false;
   let title = "";
+  /** Whether the page's own `<title>` has been read, after which no other is. */
+  let titleDone = false;
   /** Whether an element has just ended, with no text since. */
   let touching = false;
   const open: Array<{ name: string; body: boolean; ignore: boolean; heading: boolean }> = [];
@@ -246,6 +251,9 @@ export function searchPageText(html: string, path: string): SearchPageText | und
     if (heading !== undefined && !headingDone) heading += " ";
   };
   const ignored = () => open.some((element) => element.ignore);
+  // The page's own `<title>`: never one in the body, an SVG's or MathML's, which names a picture or a formula, or a
+  // template's, which isn't part of the page until a script puts it there.
+  const pageTitle = () => open.at(-1)?.name === "title" && !open.some((element) => NOT_PAGE_TITLE.has(element.name));
   const parser = new Parser(
     {
       onopentag(name, attributes) {
@@ -272,12 +280,13 @@ export function searchPageText(html: string, path: string): SearchPageText | und
       },
       ontext(chunk) {
         touching = false;
-        if (open.at(-1)?.name === "title" && !inBody()) title += chunk;
+        if (!titleDone && pageTitle()) title += chunk;
         if (!inBody() || ignored()) return;
         text += chunk;
         if (heading !== undefined && !headingDone) heading += chunk;
       },
       onclosetag(name) {
+        if (name === "title" && pageTitle()) titleDone = true;
         const element = open.pop();
         if (element?.heading) headingDone = true;
         if (!INLINE.has(name)) space();

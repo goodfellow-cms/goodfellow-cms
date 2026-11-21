@@ -47,7 +47,7 @@ export {
   type AppSession,
   isSettingsPath,
 } from "./app-api.js";
-export { applyBasePath, normalizeBase, withBase } from "./base-path.js";
+export { applyBasePath, cssUrl, hasControlCharacter, normalizeBase, withBase } from "./base-path.js";
 export {
   BITBUCKET_PIPELINE_NAMES,
   BITBUCKET_PIPELINES,
