@@ -12,8 +12,8 @@ import {
   BROKER_READY_MESSAGE,
   type BrokerAccount,
   BrokerRefusedError,
-  type BrokerServiceAnswer,
   type BrokerServiceRequest,
+  brokerAiAnswers,
   configAdmin,
   type GitBackend,
   type GitHost,
@@ -22,6 +22,7 @@ import {
   serveBackend,
 } from "@goodfellow-cms/core";
 import { brokerAi } from "./ai.js";
+import { holdAnswers } from "./hold.js";
 import { type BrokerDecision, type BrokerQuestion, decide } from "./policy.js";
 import { adminRoute } from "./route.js";
 import { type StringKey, t } from "./strings.js";
@@ -35,6 +36,7 @@ const REFUSALS: Record<
   unknown: ["not-here", "refusedUnknown"],
   editor: ["not-here", "refusedEditor"],
   read: ["not-here", "refusedRead"],
+  domain: ["not-here", "refusedDomain"],
   workflow: ["workflow", "refusedWorkflow"],
 };
 
@@ -379,7 +381,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
             const [problem, key] = REFUSALS[decision.reason];
             throw new BrokerRefusedError(problem, t(key, { paths: decision.paths.join(", ") }));
           }
-          if (decision.action !== "ask") return;
+          if (decision.action !== "ask") return decision.args ? { args: decision.args } : undefined;
           // A plugin's task, once allowed, runs again unasked while this page is open, as uploads to storage do.
           const questions = decision.questions.filter(
             (question) => question.kind !== "task" || !allowedTasks.has(taskKey(question)),
@@ -397,7 +399,8 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
           "comments.access.requestToken": () => askCommentsToken(signedIn),
         },
       });
-      services.port1.onmessage = (serviceEvent) => void answerService(services.port1, serviceEvent.data);
+      const answer = serviceAnswers(services.port1);
+      services.port1.onmessage = (serviceEvent) => answer(serviceEvent.data);
       const account: BrokerAccount = {
         hostName: host.name,
         redirectAddressesListed: host.canRedirect && host.redirectAddressesListed === true,
@@ -411,30 +414,17 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
     window.addEventListener("message", onMessage);
   }
 
-  async function answerService(port: MessagePort, request: BrokerServiceRequest | undefined) {
-    if (request?.type === "route" && typeof request.hash === "string") {
-      const route = adminRoute(request.hash);
-      if (route) sessionStorage.setItem(ROUTE_KEY, route);
-      return;
-    }
-    if (request?.type !== "ai") return;
-    const [service = "", ...rest] = request.path.split("?")[0]?.split("/") ?? [];
-    const query = request.path.includes("?") ? request.path.slice(request.path.indexOf("?")) : "";
-    const forwarded = new Request(`https://broker.invalid/${rest.join("/")}${query}`, {
-      method: request.method,
-      headers: request.headers,
-      ...(request.body && request.method !== "GET" && { body: request.body }),
-    });
-    const response = await brokerAi(loadKeys()).forward(forwarded, service, rest.join("/"));
-    const body = await response.arrayBuffer();
-    const answer: BrokerServiceAnswer = {
-      type: "ai",
-      id: request.id,
-      status: response.status,
-      headers: [...response.headers.entries()],
-      body,
+  /** Answers the admin panel's second port: AI requests, sent on with this page's keys, and the screen it shows. */
+  function serviceAnswers(port: MessagePort): (request: BrokerServiceRequest | undefined) => void {
+    const ai = brokerAiAnswers(port, (request, service, path) => brokerAi(loadKeys()).forward(request, service, path));
+    return (request) => {
+      if (request?.type === "route" && typeof request.hash === "string") {
+        const route = adminRoute(request.hash);
+        if (route) sessionStorage.setItem(ROUTE_KEY, route);
+        return;
+      }
+      void ai(request);
     };
-    port.postMessage(answer, [body]);
   }
 
   /** Shows a dialog in the broker's own part of the page, resolving with what the editor chose. */
@@ -446,6 +436,7 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
     return new Promise<boolean>((resolve) => {
       const box = element("dialog", { class: "broker-dialog" }, element("h2", {}, title), ...body);
       const buttons = element("div", { class: "broker-actions" });
+      const answers: HTMLButtonElement[] = [];
       for (const action of actions) {
         const button = element(
           "button",
@@ -454,14 +445,18 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
         );
         button.addEventListener("click", () => box.close(action.value ? "yes" : "no"));
         buttons.append(button);
+        if (action.value) answers.push(button);
       }
       box.append(buttons);
+      document.body.append(box);
+      box.showModal();
+      // Saying yes waits a moment, so a click the admin panel's frame timed for when the question opened does nothing.
+      const stopHolding = holdAnswers(answers, window);
       box.addEventListener("close", () => {
+        stopHolding();
         box.remove();
         resolve(box.returnValue === "yes");
       });
-      document.body.append(box);
-      box.showModal();
     });
   }
 
@@ -547,9 +542,13 @@ export async function startBroker({ root, config, hosts }: StartOptions): Promis
           question.change === "connect"
             ? "confirmDomainConnect"
             : question.change === "secure"
-              ? "confirmDomainSecure"
+              ? question.primary
+                ? "confirmDomainSecurePrimary"
+                : "confirmDomainSecure"
               : "confirmDomainDisconnect";
         body.push(element("p", {}, t(key, { domain: question.domain })));
+      } else if (question.kind === "comments-discussions") {
+        body.push(element("p", {}, t("confirmCommentsDiscussions", { name: question.name })));
       } else if (question.kind === "task") {
         body.push(element("p", {}, t("confirmTask", { plugin: question.plugin, task: question.task })));
       } else if (question.kind === "updates-setup") {

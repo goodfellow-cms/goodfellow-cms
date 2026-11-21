@@ -194,21 +194,20 @@ function firstText(bytes: Uint8Array): string {
 }
 
 /**
- * Whether a file's first bytes read as markup, as a browser's or a server's sniffing would take for an HTML or XML
- * page (`<html`, `<script`, `<!--`, `<?xml`, and every other tag): a `<` and a letter, `!`, `?`, or `/`, past a byte
- * order mark and whitespace, or whitespace to the end of the first 1,024 bytes, which a tag could follow. Bytes are
- * read in UTF-8, or UTF-16 or UTF-32 where they say so (`firstText()`), since browsers read XML in those too.
+ * Whether a file's first bytes could read as markup, as a browser's or a server's sniffing would take for an HTML or
+ * XML page (`<html`, `<script`, `<!--`, `<?xml`, and every other tag): a `<`, past a byte order mark and whitespace,
+ * whatever follows it, since XML lets an element's name start with `_`, `:`, or a letter outside ASCII (`<_x>`,
+ * `<él>`), or whitespace to the end of the first 1,024 bytes, which a tag could follow. Bytes are read in UTF-8, or
+ * UTF-16 or UTF-32 where they say so (`firstText()`), since browsers read XML in those too. Text that starts with a
+ * `<` is rare in the files this is asked about, which are neither pages nor of `TYPED_BY_NAME`'s kinds.
  */
 export function startsAsMarkup(start: string | Uint8Array): boolean {
-  // A string's character after the first 1,024 is kept, so a "<" ending them is settled by what follows it.
-  const text = typeof start === "string" ? start.slice(0, 1025) : firstText(start.subarray(0, 1024));
+  const text = typeof start === "string" ? start.slice(0, 1024) : firstText(start.subarray(0, 1024));
   let at = text.startsWith("\ufeff") ? 1 : 0;
   while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
   // Whitespace to the end of what's read could be followed by a tag, which a reader looking further would find.
   if (at === text.length) return start.length >= 1024;
-  // So could a "<" that ends it, whose next character is past what's read.
-  if (at === text.length - 1 && text[at] === "<") return start.length >= 1024;
-  return text[at] === "<" && /[A-Za-z!?/]/.test(text[at + 1] ?? "");
+  return text[at] === "<";
 }
 
 /** What kind of page a file is, from its name, or `undefined` for files browsers don't run, such as images and scripts. */

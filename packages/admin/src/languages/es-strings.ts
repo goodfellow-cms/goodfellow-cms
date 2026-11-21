@@ -1109,6 +1109,8 @@ export const strings: Strings = {
   "domain.error.taken": "Otro sitio de {host} ya usa este dominio. Si también es tuyo, quítalo allí primero.",
   "domain.error.invalid": "{host} no acepta este dominio.",
   "domain.error.not-ready": "El certificado HTTPS todavía no está listo. Inténtalo de nuevo dentro de un rato.",
+  "domain.error.changed":
+    "El dominio del sitio en {host} cambió mientras tanto, así que no se cambió nada. Vuelve a cargar esta pantalla.",
   "domain.error.other": "Algo salió mal.",
   "owner.signIn.title": "Iniciar sesión como propietario",
   "owner.signIn.intro":

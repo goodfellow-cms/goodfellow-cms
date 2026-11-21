@@ -310,24 +310,32 @@ function srcsetAddresses(value: string): string[] {
 /** A `src`, `poster`, or `srcset` attribute in HTML, its value quoted either way or not at all. */
 const LOADED_ATTRIBUTE = /\b(src|poster|srcset)[ \t\n\f\r]*=[ \t\n\f\r]*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
 
-/** A made-up address for one of the site's pages, which a setting's address is read from as a browser would. */
-const SITE_PAGE = "https://site.invalid/page/";
+/**
+ * Made-up addresses for one of the site's pages, at `https://` and at `http://`, which a setting's address is read
+ * from as a browser would: an address that names its scheme without the slashes (`https:tracker.example/pixel`) is
+ * read by the scheme of the page it's on, so it stays on the site at one and goes elsewhere at the other.
+ */
+const SITE_PAGES = ["https://site.invalid/page/", "http://site.invalid/page/"];
 
 /**
  * Another site's address a setting holds, as a browser reads it from one of
  * the site's pages (`\\tracker.example`, `/\\tracker.example`, `https:\\…`,
- * and `//…` after a control character all go to another site), in full, or
- * `undefined` for an address on the site, a `data:` one, or one that isn't one.
+ * `//…` after a control character, and `https:tracker.example` from a page
+ * at `http://` all go to another site), in full, or `undefined` for an address
+ * on the site, a `data:` one, or one that isn't one, from a page at either.
  */
 function otherSiteAddress(text: string): string | undefined {
-  let url: URL;
-  try {
-    url = new URL(text, SITE_PAGE);
-  } catch {
-    return undefined;
+  for (const page of SITE_PAGES) {
+    let url: URL;
+    try {
+      url = new URL(text, page);
+    } catch {
+      continue;
+    }
+    if (url.protocol === "data:") return undefined;
+    if (url.host !== new URL(page).host) return url.href;
   }
-  if (url.protocol === "data:") return undefined;
-  return url.origin === new URL(SITE_PAGE).origin ? undefined : url.href;
+  return undefined;
 }
 
 /**

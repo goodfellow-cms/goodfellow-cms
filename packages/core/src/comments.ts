@@ -199,10 +199,17 @@ export interface SiteComments {
    * only Giscus and the repository's owners can start discussions in.
    */
   create(name: string, description: string): Promise<CommentsRepository>;
-  /** An existing public repository, `owner/name`, with Discussions turned on where the sign-in may. */
-  find(repo: string): Promise<CommentsRepository>;
+  /**
+   * An existing public repository, `owner/name`. Where its Discussions are off, `turnOn` turns them on where the
+   * sign-in may, and without it `find()` throws `no-discussions`, so finding a repository changes nothing.
+   */
+  find(repo: string, options?: { turnOn?: boolean }): Promise<CommentsRepository>;
   /** Pages' discussions in the place's category, those changed most recently first. */
   threads(place: CommentsPlace, next?: string): Promise<CommentThreads>;
+  /**
+   * Moderating: each takes only an id `threads()` has listed, a comment's or a page's discussion's, and throws
+   * `not-found` for any other, since GitHub takes other repositories' ids for the same changes.
+   */
   hide(commentId: string, reason: HideReason): Promise<void>;
   show(commentId: string): Promise<void>;
   remove(commentId: string): Promise<void>;

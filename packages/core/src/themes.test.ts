@@ -195,6 +195,10 @@ describe("what a theme's header and footer may do", () => {
       [section("https:\\\\tracker.example/pixel"), "https://tracker.example/pixel"],
       [section("\u0001//tracker.example/pixel"), "https://tracker.example/pixel"],
       [section(" HTTPS://TRACKER.example/pixel"), "https://tracker.example/pixel"],
+      // A scheme without its slashes is read by the page's, so it leaves a page at http://.
+      [section("https:tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("HTTPS:/tracker.example/pixel"), "https://tracker.example/pixel"],
+      [section("http:tracker.example/pixel"), "http://tracker.example/pixel"],
       [text("<img src=https://tracker.example/pixel>"), "https://tracker.example/pixel"],
       [text('<img srcset="/media/a.png 1x, https://tracker.example/pixel 2x">'), "https://tracker.example/pixel"],
       // A srcset's address may hold commas, and descriptors' parentheses too, as browsers read them.
