@@ -64,6 +64,11 @@ export function searchesWithPagefind(html: string): boolean {
   return found;
 }
 
+/** `searchesWithPagefind()`, read only for pages whose text has `SEARCH_ATTRIBUTE` at all. */
+function usesPagefind(html: string): boolean {
+  return html.includes(SEARCH_ATTRIBUTE) && searchesWithPagefind(html);
+}
+
 /** A built page to index: its address on the site, and its HTML. */
 export interface SearchPage {
   url: string;
@@ -101,7 +106,7 @@ export async function writeSearchIndex(
   if (!read.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
   const marked = read.filter((page) => marksSearchContent(page.html));
   let indexed: number | undefined;
-  if (webSearchEngine(engine) === "pagefind" || read.some((page) => searchesWithPagefind(page.html))) {
+  if (webSearchEngine(engine) === "pagefind" || read.some((page) => usesPagefind(page.html))) {
     // Each page is given by its path in the site, from which Pagefind works out its address as it would indexing
     // the folder; a glob of their names would read characters such as `[` and `{` in them as patterns.
     indexed = await indexWith(indexDir, async (index) => {
@@ -144,7 +149,7 @@ export async function writePagesSearchIndex(
   if (!pages.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
   const marked = pages.filter((candidate) => marksSearchContent(candidate.html));
   let indexed: number | undefined;
-  if (webSearchEngine(engine) === "pagefind" || pages.some((page) => searchesWithPagefind(page.html))) {
+  if (webSearchEngine(engine) === "pagefind" || pages.some((page) => usesPagefind(page.html))) {
     indexed = await indexWith(indexDir, async (index) => {
       const errors: string[] = [];
       for (const page of marked) {
@@ -224,6 +229,11 @@ export function searchPageText(html: string, path: string): SearchPageText | und
   let touching = false;
   const open: Array<{ name: string; body: boolean; ignore: boolean; heading: boolean }> = [];
   const inBody = () => open.some((element) => element.body);
+  // Where words end, in the text and in the heading being read, so `<h1>Our<br>Parish</h1>` is two words in both.
+  const space = () => {
+    text += " ";
+    if (heading !== undefined && !headingDone) heading += " ";
+  };
   const ignored = () => open.some((element) => element.ignore);
   const parser = new Parser(
     {
@@ -231,7 +241,7 @@ export function searchPageText(html: string, path: string): SearchPageText | und
         if (name === "html" && attributes.lang) language = attributes.lang;
         const body = Object.hasOwn(attributes, "data-pagefind-body");
         if (body) found = true;
-        const firstHeading = name === "h1" && !headingDone && heading === undefined && (body || inBody()) && !ignored();
+        const firstHeading = name === "h1" && heading === undefined && (body || inBody()) && !ignored();
         if (firstHeading) heading = "";
         open.push({
           name,
@@ -240,7 +250,7 @@ export function searchPageText(html: string, path: string): SearchPageText | und
           heading: firstHeading,
         });
         // Words end where elements meet, as two links side by side do, though not where one starts after a word.
-        if (!INLINE.has(name) || touching) text += " ";
+        if (!INLINE.has(name) || touching) space();
         touching = false;
       },
       ontext(chunk) {
@@ -253,7 +263,7 @@ export function searchPageText(html: string, path: string): SearchPageText | und
       onclosetag(name) {
         const element = open.pop();
         if (element?.heading) headingDone = true;
-        if (!INLINE.has(name)) text += " ";
+        if (!INLINE.has(name)) space();
         touching = true;
       },
     },

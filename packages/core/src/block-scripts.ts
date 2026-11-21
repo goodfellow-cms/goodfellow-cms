@@ -122,13 +122,16 @@ sync()})();`;
  * starts again when a visitor moves to a page in another one without
  * loading a new page, as Next.js sites do. Pagefind's excerpts are escaped
  * text with the matches in `<mark>`; any other `<` or `>` is shown as text.
+ * Where the module the box names can't be loaded, the other engine's is tried,
+ * since a full-stack site that renders pages from its repository shows a new
+ * setting before its next build has written that engine's files.
  */
 export function searchScript(): string {
   return `(function(){if(window.__gfSearch)return;window.__gfSearch=1;var d=document,B=${q(SEARCH_BOX_ATTRIBUTE)},E=${q(SEARCH_ENGINE_ATTRIBUTE)},I=${q(`${SEARCH_INDEX_DIR}/pagefind.js`)},M=${q(MINISEARCH_MODULE)},L=null,U,G;
 function base(s){return (s.getAttribute("data-gf-base")||"/").replace(/\\/?$/,"/")}
 function module(s){return base(s)+(s.getAttribute(E)==="minisearch"?M:I)}
 function ready(f){return f.options({baseUrl:"/"}).then(function(){return f})}
-function load(u){var g=d.documentElement.lang;if(U!==u)L=null;U=u;if(L&&G!==g)L=L.then(function(f){return f.destroy().then(function(){return ready(f)})});G=g;if(!L){L=import(u).then(ready);L.catch(function(){if(U===u)L=null})}return L}
+function load(u){var g=d.documentElement.lang;if(U!==u)L=null;U=u;if(L&&G!==g)L=L.then(function(f){return f.destroy().then(function(){return ready(f)})});G=g;if(!L){L=import(u).catch(function(e){var a=u.slice(-M.length)===M?u.slice(0,-M.length)+I:u.slice(0,-I.length)+M;return import(a).catch(function(){throw e})}).then(ready);L.catch(function(){if(U===u)L=null})}return L}
 function marks(t){return String(t||"").split(/(<\\/?mark>)/).map(function(x){return /^<\\/?mark>$/.test(x)?x:x.replace(/</g,"&lt;").replace(/>/g,"&gt;")}).join("")}
 function box(t){return t&&t.closest?t.closest("["+B+"]"):null}
 function part(s,n){return s.querySelector("[data-gf-search-"+n+"]")}

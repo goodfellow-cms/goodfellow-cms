@@ -321,6 +321,15 @@ describe("searchPageText", () => {
     expect(searchPageText("<html><body><main>Text</main></body></html>", "/a")).toBeUndefined();
   });
 
+  it("ends the heading's words where its elements meet, as in the text", () => {
+    const found = searchPageText(
+      '<html><body><main data-pagefind-body=""><h1>Our<br>Parish<span>es</span><div>Today</div></h1><p>Mass</p></main></body></html>',
+      "/a",
+    );
+    expect(found?.document.title).toBe("Our Parishes Today");
+    expect(found?.document.text).toBe("Our Parishes Today Mass");
+  });
+
   it("gives built pages their addresses from their files", () => {
     expect(builtPagePath("index.html")).toBe("/");
     expect(builtPagePath("about/index.html")).toBe("/about/");

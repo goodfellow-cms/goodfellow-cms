@@ -9,6 +9,7 @@
         ".wrangler/deploy/**",
         "public/api/**",
         "public/pagefind/**",
+        "public/minisearch/**",
         "public/calendars/**",
         "public/feeds/**",
         "public/fonts/google/**",
