@@ -173,7 +173,8 @@ function version() {
 Every package is now ${next}. Next:
   1. Read the new CHANGELOG.md files and the version changes (git diff).
   2. Commit them on a branch, such as "Release ${next}", and open a pull request
-     labelled no-coderabbit, since it changes only versions and changelogs.
+     labelled no-coderabbit, since it changes only versions and changelogs, and
+     no-fresh-site, since the new version isn't on npm until it's merged.
   3. Once CI passes, merge it. The release workflow then publishes ${next} to npm
      and updates the docs site.`);
 }

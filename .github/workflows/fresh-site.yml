@@ -8,12 +8,20 @@ name: Fresh site
 # from npm at the workspace's versions, as create-goodfellow's bundled versions name them, since that's what new sites
 # get: so a pull request is tested against the published release's code, and the job fails between a release's version
 # bump being merged and that release being published.
+#
+# Where that's expected (release pull requests, and ones such as a Puck upgrade that the published release's exact peer
+# ranges refuse until it's released), the `no-fresh-site` label skips it: adding it runs the jobs again with their steps
+# skipped, so `company (22)` and `company (24)` pass in place of their failures (a job skipped whole would report as
+# one `company` check and leave theirs red), and taking it off runs them for real. Other labels' events start no run of
+# their own, beyond a skipped one that cancels nothing.
 
 on:
   schedule:
     - cron: "41 4 * * *"
   workflow_dispatch:
   pull_request:
+    # GitHub's default three, and labels, for no-fresh-site.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     # What a new full-stack site is made from: the example, create-goodfellow, and how core plans it and its
     # package.json (its versions and overrides).
     paths:
@@ -28,12 +36,18 @@ permissions:
   contents: read
 
 # A newer push to a pull request replaces its run; the nightly run and one started by hand never cancel each other.
+# Another label's event gets a group of its own, so its skipped run never cancels a real one.
 concurrency:
-  group: fresh-site-${{ github.event.pull_request.number || github.run_id }}
+  group: >-
+    fresh-site-${{ (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && github.event.label.name !=
+    'no-fresh-site') && github.run_id || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   company:
+    # A label's event runs it only for no-fresh-site, added or taken off.
+    if: >-
+      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || github.event.label.name == 'no-fresh-site'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -44,36 +58,51 @@ jobs:
         node: [22, 24]
     env:
       NEXT_TELEMETRY_DISABLED: 1
+      SKIPPED: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'no-fresh-site') }}
     steps:
+      - name: Skipped, since the pull request is labelled no-fresh-site
+        if: env.SKIPPED == 'true'
+        run: |
+          echo "Skipped: this pull request is labelled no-fresh-site. Take the label off to make the site." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.SKIPPED != 'true'
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: env.SKIPPED != 'true'
       # No package cache: the site's tests and build run the newest releases npm has, which nobody here chose, and
       # a cache this job saved would be the one master's other workflows, the release's among them, install from.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.SKIPPED != 'true'
         with:
           node-version: ${{ matrix.node }}
           check-latest: true
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
+        if: env.SKIPPED != 'true'
       # create-goodfellow as this commit has it, with the company example bundled from this commit.
       - run: pnpm turbo run build --filter=create-goodfellow
+        if: env.SKIPPED != 'true'
       # CI is set, so create-goodfellow asks nothing and offers no Cloudflare setup. It only says so where npm install
       # fails, so the install is a step of its own, as create-goodfellow runs it: npm install, with no lockfile.
       - name: Make the site
+        if: env.SKIPPED != 'true'
         working-directory: ${{ runner.temp }}
         run: |
           node "$GITHUB_WORKSPACE/packages/create-goodfellow/bin/create-goodfellow.js" site \
             --server cloudflare --github acme/site --content acme/site-content --no-install --no-git --yes
       - name: Install the site's packages
+        if: env.SKIPPED != 'true'
         working-directory: ${{ runner.temp }}/site
         run: |
           npm install
           npm ls vitest --depth=0
       - run: npm test
+        if: env.SKIPPED != 'true'
         working-directory: ${{ runner.temp }}/site
       - run: npm run typecheck
+        if: env.SKIPPED != 'true'
         working-directory: ${{ runner.temp }}/site
       - run: npm run build
+        if: env.SKIPPED != 'true'
         working-directory: ${{ runner.temp }}/site
