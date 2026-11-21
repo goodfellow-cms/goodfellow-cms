@@ -10,6 +10,7 @@ export {
 export {
   cachedFolders,
   checkFrameFolder,
+  type FrameBuild,
   type GuardOptions,
   guardBuiltSite,
   writeSiteHeaders,

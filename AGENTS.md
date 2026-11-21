@@ -2045,9 +2045,11 @@ Content files are the product's data format; treat changes to them like API chan
 - **Frames' folders:** a bundler writes what a module imports as an address (`./help.html?url`) beside the frame's
   script, with no prelude, so `admin/editor/` and `admin/plugins/<id>/` (`FRAME_FOLDERS`) may hold only their pages and
   `isFrameFileName()`'s kinds (scripts, styles, maps, fonts, pictures but SVGs, text) that don't start as markup:
-  `checkFrameFolder()` stops each frame's build otherwise (`buildEditor()`, `buildPluginFrame()`, and `goodfellow-next`'s
-  `bundleEditorFrames()` and plugin frames), and `guardBuiltSite()` checks them the same way. Hosts that take headers
-  sandbox both folders as the admin panel frames them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the
+  `checkFrameFolder()` stops each frame's build otherwise (`buildEditor()`, `buildPluginFrame()`, and
+  `goodfellow-next`'s `bundleEditorFrames()` and plugin frames); rebuilds while watching give it the build just written
+  (`FrameBuild`), so it first takes out files that build didn't write and that are older than it, and folders left
+  empty, and each builder checks one build at a time, and `guardBuiltSite()` checks them the same way. Hosts that take
+  headers sandbox both folders as the admin panel frames them (`EDITOR_FRAME_HEADERS`, `sandbox allow-scripts`, and the
   starters' `vercel.ts` and `withGoodfellow()`'s frames' rule likewise), so a file there opened on its own has no
   address of the admin panel's.
 - **Every site's headers:** `goodfellow build` and `goodfellow-next finish` (`writeExportHeaders()`) add

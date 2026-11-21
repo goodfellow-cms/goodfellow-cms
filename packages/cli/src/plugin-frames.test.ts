@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildPluginFrame } from "./plugin-frames.js";
@@ -59,6 +59,10 @@ describe("buildPluginFrame", () => {
     try {
       await first;
       expect(builds[0]?.message).toMatch(/help-[\w-]+\.html/);
+      // The first build's files, as they'd be once the author has fixed the import, seconds later.
+      const folder = join(root, "dist/admin/plugins/goodfellow-plugin-x");
+      const earlier = new Date(Date.now() - 60_000);
+      for (const file of await readdir(folder)) await utimes(join(folder, file), earlier, earlier);
       first = next();
       await writeFile(join(root, "admin.ts"), "export default { mount() {} };\n");
       await first;
@@ -67,6 +71,8 @@ describe("buildPluginFrame", () => {
       expect(files).toContain("index.html");
       expect(files.some((file) => file.endsWith(".html") && file !== "index.html")).toBe(false);
       expect(files.some((file) => file.endsWith(".js"))).toBe(true);
+      // The bundle's source maps are among what it wrote, so they stay.
+      expect(files.some((file) => file.endsWith(".js.map"))).toBe(true);
     } finally {
       await frame.close();
     }

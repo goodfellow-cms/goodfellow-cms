@@ -73,6 +73,8 @@ describe("admin addresses", () => {
     expect(startsAsMarkup(bytes(`\ufeff${"\n".repeat(1100)}<html>`))).toBe(true);
     // So could a "<" that ends it, whose next character is past it.
     expect(startsAsMarkup(`${" ".repeat(1023)}<svg>`)).toBe(true);
+    // A string has what follows, which settles it.
+    expect(startsAsMarkup(`${" ".repeat(1023)}< 3 is less`)).toBe(false);
     expect(startsAsMarkup(bytes(`${" ".repeat(1023)}<svg>`))).toBe(true);
     expect(startsAsMarkup(bytes(`\ufeff${" ".repeat(1020)}<svg>`))).toBe(true);
     expect(pageFileKind("chrome/bindings.xbl")).toBe("xml");

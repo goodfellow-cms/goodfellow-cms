@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -177,6 +177,38 @@ describe("the admin panel's frames' folders", () => {
     }
     await write("admin/editor/pic-Ab12Cd34.svg", "<svg/>");
     await expect(guardBuiltSite(dir, options)).rejects.toThrow("admin/editor/pic-Ab12Cd34.svg");
+  });
+
+  it("lose what an earlier build left, in a rebuild into the same folder, and keep a newer build's", async () => {
+    const folder = "admin/plugins/goodfellow-plugin-x/";
+    await frame(folder);
+    // An earlier build's page an import brought, in a folder of its own, its script's source map, and a stray file.
+    await write(`${folder}nested/help-Ab12Cd34.html`, "<script>steal()</script>");
+    await write(`${folder}plugin-Ab12Cd34.js.map`, "{}");
+    await write(`${folder}old-Ab12Cd34.js`, "(function(){})();");
+    const since = Date.now();
+    const earlier = new Date(since - 60_000);
+    for (const name of ["nested/help-Ab12Cd34.html", "plugin-Ab12Cd34.js.map", "old-Ab12Cd34.js"]) {
+      await utimes(join(dir, folder, name), earlier, earlier);
+    }
+    // A newer build's file, written while this one's check runs, which nothing may take out.
+    await write(`${folder}plugin-Ef56Gh78.js`, "(function(){})();");
+    const written = new Set(["plugin-Ab12Cd34.js", "plugin-Ab12Cd34.css", "LICENSES.txt", "inter-Ab12Cd34.woff2"]);
+    written.add("logo-Ab12Cd34.PNG");
+    await expect(checkFrameFolder(join(dir, folder), { stale: { written, since } })).resolves.toBeUndefined();
+    expect((await readdir(join(dir, folder))).sort()).toEqual([
+      "LICENSES.txt",
+      "index.html",
+      "inter-Ab12Cd34.woff2",
+      "logo-Ab12Cd34.PNG",
+      "plugin-Ab12Cd34.css",
+      "plugin-Ab12Cd34.js",
+      "plugin-Ef56Gh78.js",
+    ]);
+    // Without a build to compare with, as in a build that doesn't rebuild, nothing is taken out.
+    await write(`${folder}help-Ab12Cd34.html`, "<script>steal()</script>");
+    await utimes(join(dir, folder, "help-Ab12Cd34.html"), earlier, earlier);
+    await expect(checkFrameFolder(join(dir, folder))).rejects.toThrow("help-Ab12Cd34.html");
   });
 
   it("are sandboxed on hosts that take headers, as the admin panel frames them", () => {

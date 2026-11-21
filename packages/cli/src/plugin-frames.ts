@@ -1,5 +1,5 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import {
   EDITOR_PRELUDE,
   type GoodfellowPlugin,
@@ -8,7 +8,13 @@ import {
   pluginFramePage,
   pluginId,
 } from "@goodfellow-cms/core";
-import { checkFrameFolder, LICENSES_FILE, licensesPlugin, mediaStorageOrigins } from "@goodfellow-cms/core/node";
+import {
+  checkFrameFolder,
+  type FrameBuild,
+  LICENSES_FILE,
+  licensesPlugin,
+  mediaStorageOrigins,
+} from "@goodfellow-cms/core/node";
 import { type Plugin, type Rolldown, build as viteBuild } from "vite";
 import { findEntry, type Manifest } from "./manifest.js";
 
@@ -50,20 +56,19 @@ export async function buildPluginFrame(
     resolveId: (source) => (source === ENTRY ? RESOLVED_ENTRY : undefined),
     load: (source) => (source === RESOLVED_ENTRY ? pluginFrameEntry(adminModule(root, plugin.admin ?? "")) : undefined),
   };
-  // Rebuilding while watching keeps the folder, so a file an earlier build wrote, such as a page an import no
-  // longer brings, would stop every later check: each build removes what it didn't write.
-  const sweep: Plugin = {
-    name: "goodfellow:plugin-frame-sweep",
-    async writeBundle(_options, bundle) {
-      const written = new Set(Object.keys(bundle));
-      const folder = join(outDir, dir);
-      for (const found of await readdir(folder, { recursive: true, withFileTypes: true }).catch(() => [])) {
-        if (!found.isFile()) continue;
-        const file = join(found.parentPath, found.name);
-        const path = `${dir}${relative(folder, file).split("\\").join("/")}`;
-        if (path === `${dir}index.html` || written.has(path) || written.has(path.replace(/\.map$/, ""))) continue;
-        await rm(file, { force: true });
-      }
+  // Rebuilding while watching keeps the folder, so each build's check takes out what an earlier build left.
+  let built: FrameBuild | undefined;
+  let started = 0;
+  const record: Plugin = {
+    name: "goodfellow:plugin-frame-written",
+    buildStart() {
+      started = Date.now();
+    },
+    writeBundle(_options, bundle) {
+      const written = Object.keys(bundle)
+        .filter((file) => file.startsWith(dir))
+        .map((file) => file.slice(dir.length));
+      built = { written: new Set(written), since: started };
     },
   };
   const writePage = async () => {
@@ -89,14 +94,14 @@ export async function buildPluginFrame(
       }),
     );
     // Nothing else the bundle wrote there may open as a page at the admin panel's address.
-    await checkFrameFolder(join(outDir, dir));
+    await checkFrameFolder(join(outDir, dir), { ...(watch && built && { stale: built }) });
   };
 
   const output = await viteBuild({
     root,
     configFile: false,
     logLevel: "warn",
-    plugins: [entry, licensesPlugin(plugin.title, `${dir}${LICENSES_FILE}`), ...(watch ? [sweep] : [])],
+    plugins: [entry, licensesPlugin(plugin.title, `${dir}${LICENSES_FILE}`), ...(watch ? [record] : [])],
     base,
     ...(watch && { mode: "development" }),
     build: {
@@ -126,12 +131,16 @@ export async function buildPluginFrame(
     return { url, close: async () => {} };
   }
   const watcher = output as Rolldown.RolldownWatcher;
+  // One build's page and check at a time, so none reads the folder while another takes files out of it.
+  let queue = Promise.resolve();
   watcher.on("event", (event) => {
     if (event.code === "BUNDLE_END") {
       void event.result.close();
-      writePage().then(
-        () => watch.onBuilt(),
-        (error: Error) => watch.onBuilt(error),
+      queue = queue.then(() =>
+        writePage().then(
+          () => watch.onBuilt(),
+          (error: Error) => watch.onBuilt(error),
+        ),
       );
     } else if (event.code === "ERROR") {
       void event.result?.close();

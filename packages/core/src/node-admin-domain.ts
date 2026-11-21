@@ -1,4 +1,4 @@
-import { open, readdir, readFile, writeFile } from "node:fs/promises";
+import { open, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   type AdminAddress,
@@ -203,21 +203,61 @@ function notFramesMessage(files: string[]): string {
 }
 
 /**
+ * What a rebuild into a kept folder wrote, for `checkFrameFolder()` to take
+ * out what an earlier build left: the paths it wrote, relative to the folder,
+ * and when it started (`Date.now()`).
+ */
+export interface FrameBuild {
+  written: ReadonlySet<string>;
+  since: number;
+}
+
+/**
+ * How long before a build started a file left by another must be to count as
+ * an earlier build's, since some file systems keep times only to the second
+ * or two. A file written since is kept, as a newer build's may be.
+ */
+const STALE_MARGIN_MS = 2000;
+
+/**
  * Stops a build at any file in a frame's folder, `dir` (the editor's, or a
  * plugin's), that a frame doesn't need and a browser could open as a page at
  * the admin panel's address, naming them: anything but its `index.html` whose
  * name isn't `isFrameFileName()`'s, or that starts as a page does. As
  * `goodfellow build`, `goodfellow dev`, and `goodfellow-next` check each
  * frame's bundle once it's written, whatever the site's address.
+ *
+ * Builds that rebuild into the same folder as code changes give `stale`, the
+ * build just written, and files it didn't write that are older than it are
+ * taken out first, with folders left empty, so a file an import no longer
+ * brings doesn't stop every later build. Files written since it started are
+ * kept, since a newer build may be writing them, and callers check one build
+ * at a time.
  */
-export async function checkFrameFolder(dir: string): Promise<void> {
+export async function checkFrameFolder(dir: string, { stale }: { stale?: FrameBuild } = {}): Promise<void> {
   const files: { file: string; path: string }[] = [];
+  const folders: string[] = [];
   for (const entry of await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => [])) {
-    if (!entry.isFile()) continue;
     const file = join(entry.parentPath, entry.name);
+    if (entry.isDirectory()) folders.push(file);
+    if (!entry.isFile()) continue;
     const path = relative(dir, file).split("\\").join("/");
     if (path === "index.html") continue;
+    if (stale && !stale.written.has(path)) {
+      const changed = await stat(file).then(
+        (info) => info.mtimeMs,
+        () => undefined,
+      );
+      if (changed !== undefined && changed < stale.since - STALE_MARGIN_MS) {
+        await rm(file, { force: true });
+        continue;
+      }
+    }
     files.push({ file, path });
+  }
+  if (stale) {
+    // The deepest first, so a folder holding only emptied folders goes too; one that isn't empty stays.
+    for (const folder of folders.sort((a, b) => b.length - a.length)) await rmdir(folder).catch(() => undefined);
   }
   const found = await notFrameFiles(files);
   if (found.length > 0) throw new Error(notFramesMessage(found));

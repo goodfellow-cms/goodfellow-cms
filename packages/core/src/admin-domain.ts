@@ -200,7 +200,8 @@ function firstText(bytes: Uint8Array): string {
  * read in UTF-8, or UTF-16 or UTF-32 where they say so (`firstText()`), since browsers read XML in those too.
  */
 export function startsAsMarkup(start: string | Uint8Array): boolean {
-  const text = typeof start === "string" ? start.slice(0, 1024) : firstText(start.subarray(0, 1024));
+  // A string's character after the first 1,024 is kept, so a "<" ending them is settled by what follows it.
+  const text = typeof start === "string" ? start.slice(0, 1025) : firstText(start.subarray(0, 1024));
   let at = text.startsWith("\ufeff") ? 1 : 0;
   while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
   // Whitespace to the end of what's read could be followed by a tag, which a reader looking further would find.
