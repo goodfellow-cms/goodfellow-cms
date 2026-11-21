@@ -88,7 +88,7 @@ export async function writeSearchIndex(
   outDir: string,
   { engine = "pagefind" }: { engine?: SearchEngine } = {},
 ): Promise<number | undefined> {
-  const pages = (await readdir(outDir, { recursive: true }))
+  const files = (await readdir(outDir, { recursive: true }))
     .map((file) => file.split("\\").join("/"))
     .filter(
       (file) =>
@@ -97,37 +97,16 @@ export async function writeSearchIndex(
         !file.startsWith(`${SEARCH_INDEX_DIR}/`) &&
         !file.startsWith(`${MINISEARCH_DIR}/`),
     );
-  const indexDir = join(outDir, SEARCH_INDEX_DIR);
-  await rm(indexDir, { recursive: true, force: true });
-  await removeMiniSearch(outDir);
-  const read = await Promise.all(
-    pages.map(async (file) => ({ file, html: await readFile(join(outDir, file), "utf8") })),
+  const pages = await Promise.all(
+    files.map(async (file) => ({
+      url: builtPagePath(file),
+      html: await readFile(join(outDir, file), "utf8"),
+      // Pagefind is given each page by its path in the site, from which it works out its address as it would
+      // indexing the folder; a glob of their names would read characters such as `[` and `{` in them as patterns.
+      sourcePath: file,
+    })),
   );
-  if (!read.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
-  const marked = read.filter((page) => marksSearchContent(page.html));
-  let indexed: number | undefined;
-  if (webSearchEngine(engine) === "pagefind" || read.some((page) => usesPagefind(page.html))) {
-    // Each page is given by its path in the site, from which Pagefind works out its address as it would indexing
-    // the folder; a glob of their names would read characters such as `[` and `{` in them as patterns.
-    indexed = await indexWith(indexDir, async (index) => {
-      const errors: string[] = [];
-      for (const { file, html } of marked) {
-        const added = await index.addHTMLFile({ sourcePath: file, content: html });
-        errors.push(...added.errors);
-      }
-      return { errors };
-    });
-  }
-  const mini = miniSearchFor(engine);
-  if (mini.web || mini.apps) {
-    const documents = await writeMiniSearch(
-      outDir,
-      marked.map(({ file, html }) => ({ url: builtPagePath(file), html })),
-      mini,
-    );
-    indexed ??= documents;
-  }
-  return indexed;
+  return indexPages(outDir, join(outDir, SEARCH_INDEX_DIR), pages, engine);
 }
 
 /**
@@ -138,31 +117,59 @@ export async function writeSearchIndex(
  * files go beside `indexDir` (`public/minisearch/`, `public/api/`). Returns how
  * many pages were indexed, or `undefined` if the site has no search.
  */
-export async function writePagesSearchIndex(
+export function writePagesSearchIndex(
   pages: SearchPage[],
   indexDir: string,
   { engine = "pagefind" }: { engine?: SearchEngine } = {},
 ): Promise<number | undefined> {
-  const outDir = dirname(indexDir);
+  return indexPages(dirname(indexDir), indexDir, pages, engine);
+}
+
+/**
+ * What both of the above write, from the pages of the site in `outDir`, each
+ * given to Pagefind by its `sourcePath` where it has one, else by its address.
+ * Each page is read once, for MiniSearch's text where it's written, which says
+ * whether it marks content too, and only pages with a search block again, for
+ * a block that searches with Pagefind itself (`searchesWithPagefind()`).
+ */
+async function indexPages(
+  outDir: string,
+  indexDir: string,
+  pages: Array<SearchPage & { sourcePath?: string }>,
+  engine: SearchEngine,
+): Promise<number | undefined> {
+  // Nothing is left over from a build before, of either engine, whatever this one writes.
   await rm(indexDir, { recursive: true, force: true });
   await removeMiniSearch(outDir);
   if (!pages.some((page) => page.html.includes(SEARCH_ATTRIBUTE))) return undefined;
-  const marked = pages.filter((candidate) => marksSearchContent(candidate.html));
+  const mini = miniSearchFor(engine);
+  const withMini = mini.web || mini.apps;
+  const marked = pages.flatMap((page) => {
+    const text = withMini ? searchPageText(page.html, page.url) : undefined;
+    return (withMini ? text : marksSearchContent(page.html)) ? [{ page, text }] : [];
+  });
   let indexed: number | undefined;
   if (webSearchEngine(engine) === "pagefind" || pages.some((page) => usesPagefind(page.html))) {
     indexed = await indexWith(indexDir, async (index) => {
       const errors: string[] = [];
-      for (const page of marked) {
-        const added = await index.addHTMLFile({ url: page.url, content: page.html });
+      for (const { page } of marked) {
+        const added = await index.addHTMLFile(
+          page.sourcePath === undefined
+            ? { url: page.url, content: page.html }
+            : { sourcePath: page.sourcePath, content: page.html },
+        );
         errors.push(...added.errors);
       }
       return { errors };
     });
   }
-  const mini = miniSearchFor(engine);
-  if (mini.web || mini.apps) {
+  if (withMini) {
     // Written whatever Pagefind indexed, as the apps' index is with `both`; `??=` alone would skip the call.
-    const documents = await writeMiniSearch(outDir, marked, mini);
+    const documents = await writeMiniSearch(
+      outDir,
+      marked.flatMap(({ text }) => (text ? [text] : [])),
+      mini,
+    );
     indexed ??= documents;
   }
   return indexed;
@@ -331,7 +338,7 @@ function hashedName(stem: string, extension: string, hash: string): string {
 }
 
 /**
- * Writes MiniSearch's index of `pages` (`searchPageText()`), a `SearchFile` for
+ * Writes MiniSearch's index of `pages` (as `searchPageText()` reads them), a `SearchFile` for
  * each language, every file named by its hash so hosts can send it with long
  * caching (`CACHED_FOLDERS`):
  *
@@ -346,14 +353,12 @@ function hashedName(stem: string, extension: string, hash: string): string {
  */
 async function writeMiniSearch(
   outDir: string,
-  pages: SearchPage[],
+  pages: SearchPageText[],
   { web, apps }: { web: boolean; apps: boolean },
 ): Promise<number> {
   const byLanguage = new Map<string, SearchDocument[]>();
-  for (const page of pages) {
-    const found = searchPageText(page.html, page.url);
-    // A page whose `<html lang>` is missing or odd is still found, as Pagefind finds it, from pages saying the same.
-    if (!found) continue;
+  // A page whose `<html lang>` is missing or odd is still found, as Pagefind finds it, from pages saying the same.
+  for (const found of pages) {
     const documents = byLanguage.get(found.language);
     if (documents) documents.push(found.document);
     else byLanguage.set(found.language, [found.document]);

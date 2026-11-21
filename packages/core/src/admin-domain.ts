@@ -550,6 +550,9 @@ export const CACHED_FOLDERS: readonly string[] = [
   "api/search/",
 ];
 
+/** A file named by its hash as the content API's search indexes are (`en.3f2a9c01b4d7e6f0.json`), for Vercel's rules. */
+const HASHED_JSON = "([^/]+\\.[0-9a-f]{16}\\.json)";
+
 /** Every spelling of `svg`, since browsers open `x.Svg` as an SVG as they do `x.svg`. */
 const SVG_SPELLINGS = ["s", "S"].flatMap((s) => ["v", "V"].flatMap((v) => ["g", "G"].map((g) => `${s}${v}${g}`)));
 
@@ -647,9 +650,9 @@ export function netlifySiteHeaders(
 
 /**
  * Vercel's header rules for every site, the same as `cloudflareSiteHeaders()`'s,
- * but long caching only for the Google Fonts builds copy in: Vercel caches
- * Next.js's own files itself (and Next.js warns about rules for them), and
- * `assets/` only with `assets`, as the starters' `vercel.ts` asks where the
+ * but long caching only for the Google Fonts builds copy in and MiniSearch's
+ * files (the content API's by their names alone): Vercel caches Next.js's own
+ * files itself (and Next.js warns about rules for them), and `assets/` only with `assets`, as the starters' `vercel.ts` asks where the
  * site has no `public/assets/` of its own. `base` is the site's base path.
  */
 export function vercelSiteHeaders(
@@ -664,7 +667,9 @@ export function vercelSiteHeaders(
     { source: `${prefix}/media/(.*)\\.([sS][vV][gG])`, headers: list(SVG_MEDIA_HEADERS) },
     { source: `${prefix}/fonts/google/(.*)`, headers: list(CACHED_HEADERS) },
     { source: `${prefix}/minisearch/assets/(.*)`, headers: list(CACHED_HEADERS) },
-    { source: `${prefix}/api/search/(.*)`, headers: list(CACHED_HEADERS) },
+    // Only the index files, named by their hash: Next.js sends these rules for a full-stack site's own routes too,
+    // and `/api/search/…` is where a site may answer searches itself.
+    { source: `${prefix}/api/search/${HASHED_JSON}`, headers: list(CACHED_HEADERS) },
     ...(assets ? [{ source: `${prefix}/assets/(.*)`, headers: list(CACHED_HEADERS) }] : []),
   ];
   if (adminOrigin(admin)) return rules;

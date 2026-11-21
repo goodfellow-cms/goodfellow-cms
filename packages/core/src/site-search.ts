@@ -144,7 +144,8 @@ function excerpt(document: SearchDocument, result: SearchResult): ExcerptPart[] 
   const parts: ExcerptPart[] = [];
   const add = (text: string, match: boolean) => {
     if (!text) return;
-    const last = parts.at(-1);
+    // Not `at()`, which the website's MiniSearch would need browsers from 2022 for.
+    const last = parts[parts.length - 1];
     if (last && !last.match && !match) last.text += text;
     else parts.push(match ? { text, match: true } : { text });
   };

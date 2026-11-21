@@ -12,6 +12,12 @@ import { highlightedCode } from "./code-data.js";
 import { blocks, categories } from "./index.js";
 import { nativeBlocks } from "./native.js";
 
+// The same search, counted, so a test can say how often an index is built.
+vi.mock("@goodfellow-cms/core/site-search", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@goodfellow-cms/core/site-search")>();
+  return { ...actual, siteSearch: vi.fn(actual.siteSearch) };
+});
+
 // Tests run in the package's folder; happy-dom gives modules web addresses, not files.
 const STARTER = resolve(process.cwd(), "../../templates/starter");
 const SITE = "https://parish.example/";
@@ -101,14 +107,14 @@ function withClasses(fetcher: typeof fetch, classes: Record<string, string>): ty
 }
 
 /** The starter's content API with a Search block first on the home page, and, with `index`, a search index for apps. */
-function withSearch(fetcher: typeof fetch, index?: SearchFile): typeof fetch {
+function withSearch(fetcher: typeof fetch, index?: SearchFile, name = "en.0123456789abcdef.json"): typeof fetch {
   return (async (input: RequestInfo | URL) => {
     const address = String(input);
-    if (index && address.endsWith("/api/search/en.0123456789abcdef.json")) return new Response(JSON.stringify(index));
+    if (index && address.endsWith(`/api/search/${name}`)) return new Response(JSON.stringify(index));
     const response = await fetcher(input);
     if (address.endsWith("/api/manifest.json") && index) {
       const manifest = await response.json();
-      manifest.languages.en.search = { file: "search/en.0123456789abcdef.json", hash: "index" };
+      manifest.languages.en.search = { file: `search/${name}`, hash: "index" };
       return new Response(JSON.stringify(manifest));
     }
     if (!address.endsWith("/api/pages/index.json")) return response;
@@ -163,6 +169,18 @@ describe("the Search block in apps", () => {
         .map((result) => result.title),
     ).toEqual(["About us"]);
     expect(await typed(page, "pears")).toContain("Nothing matches pears.");
+  });
+
+  it("indexes the site once, however many pages show the block", async () => {
+    const fetcher = withSearch(await starterApi(), index, "en.fedcba9876543210.json");
+    vi.mocked(siteSearch).mockClear();
+    const first = await shown("/", fetcher);
+    expect(await typed(first, "apples")).toContain("About us");
+    act(() => root?.unmount());
+    // Another page with the block, as each page an app opens has its header's.
+    const next = await shown("/", fetcher);
+    expect(await typed(next, "apples")).toContain("About us");
+    expect(vi.mocked(siteSearch)).toHaveBeenCalledTimes(1);
   });
 
   it("finds pages by their titles where the site has no index for apps, as before", async () => {

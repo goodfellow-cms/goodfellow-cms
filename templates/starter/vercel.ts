@@ -165,7 +165,7 @@ function headers() {
     // keeps an assets folder of its own, whose files aren't.
     { source: "/fonts/google/(.*)", headers: cached },
     { source: "/minisearch/assets/(.*)", headers: cached },
-    { source: "/api/search/(.*)", headers: cached },
+    { source: "/api/search/([^/]+\\.[0-9a-f]{16}\\.json)", headers: cached },
     ...(existsSync("public/assets") ? [] : [{ source: "/assets/(.*)", headers: cached }]),
   ];
   if (!url) {

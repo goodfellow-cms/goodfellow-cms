@@ -294,14 +294,20 @@ describe("host rules", () => {
     expect(cached(vercelHeaders({ base: "/site/" }))).toEqual([
       "/site/fonts/google/(.*)",
       "/site/minisearch/assets/(.*)",
-      "/site/api/search/(.*)",
+      "/site/api/search/([^/]+\\.[0-9a-f]{16}\\.json)",
     ]);
     expect(cached(vercelHeaders({ assets: true }))).toEqual([
       "/fonts/google/(.*)",
       "/minisearch/assets/(.*)",
-      "/api/search/(.*)",
+      "/api/search/([^/]+\\.[0-9a-f]{16}\\.json)",
       "/assets/(.*)",
     ]);
+    // Next.js sends them for a full-stack site's own routes too, so only the index files, by their hashed names.
+    const search = vercelHeaders().find((rule) => rule.source.startsWith("/api/search/"))?.source ?? "";
+    expect(new RegExp(`^${search}$`).test("/api/search/en.3f2a9c01b4d7e6f0.json")).toBe(true);
+    expect(new RegExp(`^${search}$`).test("/api/search/pages.3f2a9c01b4d7e6f0.json")).toBe(true);
+    expect(new RegExp(`^${search}$`).test("/api/search/results")).toBe(false);
+    expect(new RegExp(`^${search}$`).test("/api/search/q/en.3f2a9c01b4d7e6f0.json")).toBe(false);
   });
 
   it("does the same on Vercel, then adds an admin address's rules", () => {
@@ -310,7 +316,7 @@ describe("host rules", () => {
       "/media/(.*)\\.([sS][vV][gG])",
       "/fonts/google/(.*)",
       "/minisearch/assets/(.*)",
-      "/api/search/(.*)",
+      "/api/search/([^/]+\\.[0-9a-f]{16}\\.json)",
       "/admin/((?!editor/|editor$|plugins/).*)",
       "/admin/editor/:path*",
       "/admin/plugins/:path*",

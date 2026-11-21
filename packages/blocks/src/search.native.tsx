@@ -1,5 +1,5 @@
 import { entryTitle } from "@goodfellow-cms/core";
-import { type SiteSearch, type SiteSearchResult, siteSearch } from "@goodfellow-cms/core/site-search";
+import { type SearchFile, type SiteSearch, type SiteSearchResult, siteSearch } from "@goodfellow-cms/core/site-search";
 import { NativeLink, SiteText, TEXT, useNativeSite } from "@goodfellow-cms/expo";
 import { useEffect, useMemo, useState } from "react";
 import { TextInput, View } from "react-native";
@@ -7,6 +7,26 @@ import type { SearchProps } from "./search.js";
 
 /** At most this many results show at once where the app searches titles alone. */
 const MAX_RESULTS = 20;
+
+/**
+ * The last index read, by its file's name, which has its hash: the Search block mounts again on every page an app
+ * opens (it's often in the header), and reading and indexing the file each time would hold up every page.
+ */
+let kept: { key: string; search: Promise<SiteSearch | undefined> } | undefined;
+
+/** The index `key` names, read once; a read that fails is tried again the next time. */
+function keptSearch(key: string, read: () => Promise<SearchFile | undefined>): Promise<SiteSearch | undefined> {
+  if (kept?.key === key) return kept.search;
+  const search = read()
+    .catch(() => undefined)
+    .then((file) => (file ? siteSearch(file) : undefined));
+  const entry = { key, search };
+  kept = entry;
+  search.then((found) => {
+    if (!found && kept === entry) kept = undefined;
+  });
+  return search;
+}
 
 /**
  * A search box for the site, which works offline too. Where the site searches
@@ -26,11 +46,9 @@ export function Search(props: SearchProps) {
   useEffect(() => {
     if (!key || !read) return;
     let current = true;
-    read()
-      .catch(() => undefined)
-      .then((file) => {
-        if (current) setLoaded(file ? { key, search: siteSearch(file) } : { key });
-      });
+    keptSearch(key, read).then((search) => {
+      if (current) setLoaded(search ? { key, search } : { key });
+    });
     return () => {
       current = false;
     };

@@ -271,16 +271,20 @@ describe("MiniSearch's index", () => {
     written.push(...readdirSync(join(dir, "api/search")).map((file) => `api/search/${file}`));
     const folders = [...new Set(written.map((file) => `${file.slice(0, file.lastIndexOf("/"))}/`))].sort();
     expect(folders).toEqual(["api/search/", "minisearch/assets/"]);
-    const vercel = vercelSiteHeaders().map((rule) => rule.source);
     const starters = await Promise.all(
       ["templates/starter/vercel.ts", "examples/parish/vercel.ts"].map((file) =>
         readFile(new URL(`../../../${file}`, import.meta.url), "utf8"),
       ),
     );
-    for (const folder of folders) {
-      expect(CACHED_FOLDERS).toContain(folder);
-      expect(vercel).toContain(`/${folder}(.*)`);
-      for (const starter of starters) expect(starter).toContain(`"/${folder}(.*)"`);
+    for (const folder of folders) expect(CACHED_FOLDERS).toContain(folder);
+    // Vercel's rules, and the starters' copies of them, each match every file written, as an address.
+    const cachedRule = vercelSiteHeaders().filter((rule) =>
+      rule.headers.some((header) => header.key === "Cache-Control"),
+    );
+    for (const file of written) {
+      const rule = cachedRule.find((candidate) => new RegExp(`^${candidate.source}$`).test(`/${file}`));
+      expect(rule, file).toBeDefined();
+      for (const starter of starters) expect(starter).toContain(JSON.stringify(rule?.source));
     }
     expect(CACHED_FOLDERS.some((folder) => MINISEARCH_MODULE.startsWith(folder))).toBe(false);
   }, 60_000);
@@ -418,5 +422,35 @@ describe("the website's MiniSearch module", () => {
     // A language with no pages to search finds nothing, as Pagefind does, rather than search being unavailable.
     lang.lang = "fr";
     expect((await search.debouncedSearch("pears")).results).toEqual([]);
+  });
+
+  it("works in browsers without Object.hasOwn() or Array's at(), as Safari before 15.4", async () => {
+    await mkdir(join(dir, "about"));
+    await writeFile(join(dir, "index.html"), page('<h1>Home</h1><div data-goodfellow-search=""></div>'));
+    await writeFile(join(dir, "about/index.html"), page("<h1>About us</h1><p>We grow apples &amp; pears.</p>"));
+    await writeSearchIndex(dir, { engine: "minisearch" });
+    vi.stubGlobal("document", { documentElement: { lang: "en" } });
+    vi.stubGlobal("fetch", async (address: string) => {
+      const text = await readFile(new URL(address), "utf8").catch(() => undefined);
+      return { ok: text !== undefined, json: async () => JSON.parse(text ?? "null") };
+    });
+    const search = await import(pathToFileURL(join(dir, "minisearch/minisearch.js")).href);
+    const hasOwn = Object.hasOwn;
+    const at = Array.prototype.at;
+    let found: unknown[];
+    try {
+      // @ts-expect-error: taken away, as older browsers don't have them.
+      delete Object.hasOwn;
+      // @ts-expect-error: the same.
+      delete Array.prototype.at;
+      const { results } = await search.debouncedSearch("pears");
+      found = await Promise.all(results.map((result: { data(): Promise<unknown> }) => result.data()));
+    } finally {
+      Object.hasOwn = hasOwn;
+      Array.prototype.at = at;
+    }
+    expect(found).toEqual([
+      { url: "/about/", meta: { title: "About us" }, excerpt: "About us We grow apples &amp; <mark>pears</mark>." },
+    ]);
   });
 });
