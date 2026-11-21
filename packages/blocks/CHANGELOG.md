@@ -1,5 +1,26 @@
 # @goodfellow-cms/blocks
 
+## 0.15.0
+
+### Minor Changes
+
+- 76e37ae: Sites can choose what searches them, on Site Settings' General tab (`content/site.json`'s `search.engine`): Pagefind on the website, as before and still the default; MiniSearch on the website and in apps, from one index, so both find the same pages for the same words; or Pagefind on the website and MiniSearch in apps. With MiniSearch, the Search block in Expo apps searches every page's words, offline too, where before it found pages by their titles only. MiniSearch's index is written for each language into `minisearch/` and, for apps, into the content API (each language's `search` in the manifest), with every file named by its hash, so the header rules builds write for Cloudflare Pages, Netlify, and Vercel let browsers keep them for a year. Sites with their own `vercel.ts` from the starter can copy its two new header rules, for `/minisearch/assets/` and `/api/search/`.
+
+### Patch Changes
+
+- 6f369f4: Security and correctness fixes:
+  
+  - The Section block writes its background picture's address as CSS reads it back, and leaves the picture out where the address has a tab, a line break, or another control character in it. Before, it wrote the address as a JavaScript string, whose escapes mean something else to CSS, so the picture loaded could be another than the one named. A theme whose header or footer has such an address is refused, so its install screen lists the addresses the theme would have a page load as the page would load them, besides Google Fonts, the site's own media, and `data:` addresses.
+  - MiniSearch's index still titles a page by the first heading in its content, and where there's none, now only by the page's own `<title>`. Before, on a page with no heading in its content, an SVG's title in the header or footer, such as a logo's, was added to the page's title in search results.
+- Updated dependencies [f026d10]
+- Updated dependencies [a316f44]
+- Updated dependencies [638710d]
+- Updated dependencies [6f369f4]
+- Updated dependencies [76e37ae]
+  - @goodfellow-cms/core@0.15.0
+  - @goodfellow-cms/react@0.15.0
+  - @goodfellow-cms/expo@0.15.0
+
 ## 0.14.1
 
 ### Patch Changes

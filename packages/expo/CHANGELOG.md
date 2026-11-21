@@ -1,5 +1,20 @@
 # @goodfellow-cms/expo
 
+## 0.15.0
+
+### Minor Changes
+
+- 76e37ae: Sites can choose what searches them, on Site Settings' General tab (`content/site.json`'s `search.engine`): Pagefind on the website, as before and still the default; MiniSearch on the website and in apps, from one index, so both find the same pages for the same words; or Pagefind on the website and MiniSearch in apps. With MiniSearch, the Search block in Expo apps searches every page's words, offline too, where before it found pages by their titles only. MiniSearch's index is written for each language into `minisearch/` and, for apps, into the content API (each language's `search` in the manifest), with every file named by its hash, so the header rules builds write for Cloudflare Pages, Netlify, and Vercel let browsers keep them for a year. Sites with their own `vercel.ts` from the starter can copy its two new header rules, for `/minisearch/assets/` and `/api/search/`.
+
+### Patch Changes
+
+- Updated dependencies [f026d10]
+- Updated dependencies [a316f44]
+- Updated dependencies [638710d]
+- Updated dependencies [6f369f4]
+- Updated dependencies [76e37ae]
+  - @goodfellow-cms/core@0.15.0
+
 ## 0.14.1
 
 ### Patch Changes
