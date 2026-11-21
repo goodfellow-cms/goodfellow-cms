@@ -1,5 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import {
   EDITOR_PRELUDE,
   type GoodfellowPlugin,
@@ -50,6 +50,22 @@ export async function buildPluginFrame(
     resolveId: (source) => (source === ENTRY ? RESOLVED_ENTRY : undefined),
     load: (source) => (source === RESOLVED_ENTRY ? pluginFrameEntry(adminModule(root, plugin.admin ?? "")) : undefined),
   };
+  // Rebuilding while watching keeps the folder, so a file an earlier build wrote, such as a page an import no
+  // longer brings, would stop every later check: each build removes what it didn't write.
+  const sweep: Plugin = {
+    name: "goodfellow:plugin-frame-sweep",
+    async writeBundle(_options, bundle) {
+      const written = new Set(Object.keys(bundle));
+      const folder = join(outDir, dir);
+      for (const found of await readdir(folder, { recursive: true, withFileTypes: true }).catch(() => [])) {
+        if (!found.isFile()) continue;
+        const file = join(found.parentPath, found.name);
+        const path = `${dir}${relative(folder, file).split("\\").join("/")}`;
+        if (path === `${dir}index.html` || written.has(path) || written.has(path.replace(/\.map$/, ""))) continue;
+        await rm(file, { force: true });
+      }
+    },
+  };
   const writePage = async () => {
     const manifestPath = join(outDir, manifestName);
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
@@ -80,7 +96,7 @@ export async function buildPluginFrame(
     root,
     configFile: false,
     logLevel: "warn",
-    plugins: [entry, licensesPlugin(plugin.title, `${dir}${LICENSES_FILE}`)],
+    plugins: [entry, licensesPlugin(plugin.title, `${dir}${LICENSES_FILE}`), ...(watch ? [sweep] : [])],
     base,
     ...(watch && { mode: "development" }),
     build: {

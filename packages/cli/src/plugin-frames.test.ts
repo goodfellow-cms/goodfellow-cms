@@ -34,4 +34,41 @@ describe("buildPluginFrame", () => {
     );
     expect(existsSync(join(root, "dist/admin/plugins/goodfellow-plugin-x/index.html"))).toBe(true);
   }, 120_000);
+
+  it("starts checking again once the admin module no longer brings a page, while watching", async () => {
+    await writeFile(join(root, "help.html"), "<!DOCTYPE html><script>steal()</script>\n");
+    await writeFile(
+      join(root, "admin.ts"),
+      'import help from "./help.html?url";\nexport default { help, mount() {} };\n',
+    );
+    const builds: (Error | undefined)[] = [];
+    let built: () => void = () => {};
+    const next = () => new Promise<void>((done) => (built = done));
+    let first = next();
+    const frame = await buildPluginFrame(plugin, {
+      root,
+      base: "/",
+      outDir: join(root, "dist"),
+      watch: {
+        onBuilt(error) {
+          builds.push(error);
+          built();
+        },
+      },
+    });
+    try {
+      await first;
+      expect(builds[0]?.message).toMatch(/help-[\w-]+\.html/);
+      first = next();
+      await writeFile(join(root, "admin.ts"), "export default { mount() {} };\n");
+      await first;
+      expect(builds[1]).toBeUndefined();
+      const files = await readdir(join(root, "dist/admin/plugins/goodfellow-plugin-x"));
+      expect(files).toContain("index.html");
+      expect(files.some((file) => file.endsWith(".html") && file !== "index.html")).toBe(false);
+      expect(files.some((file) => file.endsWith(".js"))).toBe(true);
+    } finally {
+      await frame.close();
+    }
+  }, 120_000);
 });

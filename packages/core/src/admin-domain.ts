@@ -205,6 +205,8 @@ export function startsAsMarkup(start: string | Uint8Array): boolean {
   while (at < text.length && " \t\n\f\r".includes(text[at] ?? "")) at++;
   // Whitespace to the end of what's read could be followed by a tag, which a reader looking further would find.
   if (at === text.length) return start.length >= 1024;
+  // So could a "<" that ends it, whose next character is past what's read.
+  if (at === text.length - 1 && text[at] === "<") return start.length >= 1024;
   return text[at] === "<" && /[A-Za-z!?/]/.test(text[at + 1] ?? "");
 }
 

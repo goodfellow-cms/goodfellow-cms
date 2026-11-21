@@ -71,6 +71,10 @@ describe("admin addresses", () => {
     // Whitespace to the end of what's read could hide a tag after it.
     expect(startsAsMarkup(`${" ".repeat(1024)}<script>`)).toBe(true);
     expect(startsAsMarkup(bytes(`\ufeff${"\n".repeat(1100)}<html>`))).toBe(true);
+    // So could a "<" that ends it, whose next character is past it.
+    expect(startsAsMarkup(`${" ".repeat(1023)}<svg>`)).toBe(true);
+    expect(startsAsMarkup(bytes(`${" ".repeat(1023)}<svg>`))).toBe(true);
+    expect(startsAsMarkup(bytes(`\ufeff${" ".repeat(1020)}<svg>`))).toBe(true);
     expect(pageFileKind("chrome/bindings.xbl")).toBe("xml");
     for (const start of ["", "   ", "WEBVTT", "a,b,c", "< not a tag", "<3", '{"x":1}', "x <html>"]) {
       expect(startsAsMarkup(start), start).toBe(false);
@@ -103,6 +107,10 @@ describe("admin addresses", () => {
           expect(startsAsMarkup(encode(page, little, mark)), name).toBe(true);
           expect(startsAsMarkup(encode("  <html>", little, mark)), name).toBe(true);
           expect(startsAsMarkup(encode("plain text, then <b>", little, mark)), name).toBe(false);
+          // A "<" that ends the 1,024 bytes read.
+          const width = encode === utf16 ? 2 : 4;
+          const spaces = " ".repeat(1024 / width - 1 - (mark ? 1 : 0));
+          expect(startsAsMarkup(encode(`${spaces}<svg>`, little, mark)), `${name} at the end`).toBe(true);
         }
       }
     }
