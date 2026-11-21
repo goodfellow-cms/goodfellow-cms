@@ -342,12 +342,13 @@ function hashedName(stem: string, extension: string, hash: string): string {
  * each language, every file named by its hash so hosts can send it with long
  * caching (`CACHED_FOLDERS`):
  *
- * - `web`: `minisearch/assets/<code>.<hash>.json` and `search.<hash>.js` (the
- *   website's MiniSearch), and `minisearch/minisearch.js`, which names them, for
- *   the Search box to load as it loads Pagefind.
  * - `apps`: `api/search/<code>.<hash>.json` for each language the content API
  *   has, which its manifest names as the language's `search`, where the build
  *   wrote a content API.
+ * - `web`: `minisearch/assets/search.<hash>.js` (the website's MiniSearch), and
+ *   `minisearch/minisearch.js`, which names it and each language's index, for
+ *   the Search box to load as it loads Pagefind: the apps' file where there is
+ *   one, so no index is written twice, else `minisearch/assets/<code>.<hash>.json`.
  *
  * Returns how many pages are in it. Its callers take out the files written before (`removeMiniSearch()`).
  */
@@ -377,15 +378,38 @@ async function writeMiniSearch(
       return { language, text, hash, name: hashedName(stem, "json", hash), count: documents.length };
     }),
   );
+  // The apps' copy first, so the website's module names it rather than a second file of the same text: each
+  // language's index is in the content API where the build wrote one with that language, else in `assets/`.
+  const shared = new Map<string, string>();
+  if (apps) {
+    const manifestPath = join(outDir, CONTENT_API_MANIFEST.slice(1));
+    const manifest = await readManifest(manifestPath);
+    if (manifest) {
+      const folder = join(outDir, CONTENT_API_DIR, API_SEARCH_DIR);
+      await mkdir(folder, { recursive: true });
+      for (const file of files) {
+        const language = manifest.languages[file.language];
+        if (!language) continue;
+        await writeFile(join(folder, file.name), file.text);
+        language.search = { file: `${API_SEARCH_DIR}/${file.name}`, hash: file.hash };
+        shared.set(file.language, `../${CONTENT_API_DIR}/${API_SEARCH_DIR}/${file.name}`);
+      }
+      await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
+    }
+  }
   if (web) {
     const assets = join(outDir, MINISEARCH_ASSETS_DIR);
     await mkdir(assets, { recursive: true });
-    for (const file of files) await writeFile(join(assets, file.name), file.text);
+    const assetsFolder = MINISEARCH_ASSETS_DIR.slice(MINISEARCH_DIR.length + 1);
+    const named: Record<string, string> = {};
+    for (const file of files) {
+      const kept = shared.get(file.language);
+      if (kept === undefined) await writeFile(join(assets, file.name), file.text);
+      named[file.language] = kept ?? `${assetsFolder}/${file.name}`;
+    }
     const module = await miniSearchModule();
     const moduleName = hashedName("search", "js", await hashText(module));
     await writeFile(join(assets, moduleName), module);
-    const assetsFolder = MINISEARCH_ASSETS_DIR.slice(MINISEARCH_DIR.length + 1);
-    const named = Object.fromEntries(files.map((file) => [file.language, `${assetsFolder}/${file.name}`]));
     await writeFile(
       join(outDir, MINISEARCH_MODULE),
       [
@@ -398,21 +422,6 @@ async function writeMiniSearch(
         "",
       ].join("\n"),
     );
-  }
-  if (apps) {
-    const manifestPath = join(outDir, CONTENT_API_MANIFEST.slice(1));
-    const manifest = await readManifest(manifestPath);
-    if (manifest) {
-      const folder = join(outDir, CONTENT_API_DIR, API_SEARCH_DIR);
-      await mkdir(folder, { recursive: true });
-      for (const file of files) {
-        const language = manifest.languages[file.language];
-        if (!language) continue;
-        await writeFile(join(folder, file.name), file.text);
-        language.search = { file: `${API_SEARCH_DIR}/${file.name}`, hash: file.hash };
-      }
-      await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
-    }
   }
   return files.reduce((total, file) => total + file.count, 0);
 }

@@ -2291,11 +2291,12 @@ of it.
   `writePagesSearchIndex()` take it (`readSearchEngine()` reads it for `goodfellow-next` and `goodfellow index`), and
   `writeMiniSearch()` reads each page as Pagefind does (`searchPageText()`: what's `data-pagefind-body`, without
   `data-pagefind-ignore`, scripts, or templates) into a `SearchFile` for each `<html lang>`, whatever it says (a file
-  named `pages.<hash>.json` where it's no code), each named by its hash: for the website
-  `minisearch/assets/<code>.<hash>.json` and the module (`search.<hash>.js`, core's `src/browser/minisearch-module.ts`,
-  bundled with MiniSearch by core's build), and `MINISEARCH_MODULE`, which names them and keeps its name; for apps
-  `api/search/<code>.<hash>.json`, which the content API's manifest names as the language's `search` (written after the
-  API, so it adds to the manifest, and taken out of it with the files, `removeMiniSearch()`). A page with
+  named `pages.<hash>.json` where it's no code), each named by its hash: for apps `api/search/<code>.<hash>.json`, which
+  the content API's manifest names as the language's `search` (written after the API, so it adds to the manifest, and
+  taken out of it with the files, `removeMiniSearch()`); for the website the module
+  (`minisearch/assets/search.<hash>.js`, core's `src/browser/minisearch-module.ts`, bundled with MiniSearch by core's
+  build), and `MINISEARCH_MODULE`, which names it and each language's index and keeps its name: the apps' file where
+  there is one, so no index is written twice, else `minisearch/assets/<code>.<hash>.json`. A page with
   `SEARCH_ATTRIBUTE` on an element that neither says nor holds `SEARCH_ENGINE_ATTRIBUTE`'s `minisearch`
   (`searchesWithPagefind()`) is another's block loading Pagefind, so Pagefind's index is written for it whatever the
   setting. Both hashed folders are `CACHED_FOLDERS`. Results must be the same on the website and in apps, so both search
