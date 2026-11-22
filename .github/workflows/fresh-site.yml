@@ -41,17 +41,16 @@ permissions:
 # Another label's event gets a group of its own, so its skipped run never cancels a real one.
 concurrency:
   group: >-
-    fresh-site-${{ (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && github.event.label.name !=
-    'no-fresh-site') && github.run_id || github.event.pull_request.number || github.run_id }}
+    fresh-site-${{ (github.event.label && github.event.label.name != 'no-fresh-site') && github.run_id ||
+    github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   company:
-    # A label's event runs it only for no-fresh-site, added or taken off, and only on an open pull request, since
-    # GitHub sends labels' events for closed and merged ones too.
+    # A label's event (the only one with `label`) runs it only for no-fresh-site, added or taken off, and only on an
+    # open pull request, since GitHub sends labels' events for closed and merged ones too.
     if: >-
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.label.name ==
-      'no-fresh-site' && github.event.pull_request.state == 'open')
+      !github.event.label || (github.event.label.name == 'no-fresh-site' && github.event.pull_request.state == 'open')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:

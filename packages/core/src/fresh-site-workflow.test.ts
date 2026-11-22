@@ -17,8 +17,9 @@ async function workflow(): Promise<Workflow> {
 }
 
 /**
- * Works out a GitHub Actions expression of the forms fresh-site.yml uses: `contains()`, `fromJSON()`, `==`, `!=`, `!`,
- * `&&`, `||`, brackets, strings, and property paths, with `&&` and `||` giving an operand as GitHub's do.
+ * Works out a GitHub Actions expression of the forms fresh-site.yml uses: `contains()`, `==`, `!=`, `!`, `&&`, `||`,
+ * brackets, strings, and property paths, with `&&` and `||` giving an operand, and strings compared without case in
+ * `==`, `!=`, and `contains()`, as GitHub's do.
  */
 function evaluate(expression: string, context: Record<string, unknown>): unknown {
   const tokens = expression.match(/'(?:[^']|'')*'|&&|\|\||==|!=|[!(),]|[\w.*-]+/g) ?? [];
@@ -29,6 +30,8 @@ function evaluate(expression: string, context: Record<string, unknown>): unknown
     if (token !== undefined && next !== token) throw new Error(`Expected ${token}, got ${next} in ${expression}`);
     return next;
   };
+  const folded = (value: unknown) => (typeof value === "string" ? value.toLowerCase() : value);
+  const same = (left: unknown, right: unknown) => folded(left) === folded(right);
   const truthy = (value: unknown) =>
     value !== undefined && value !== null && value !== false && value !== "" && value !== 0;
   const lookup = (path: string): unknown => {
@@ -53,17 +56,15 @@ function evaluate(expression: string, context: Record<string, unknown>): unknown
       return value;
     }
     if (token?.startsWith("'")) return token.slice(1, -1).replaceAll("''", "'");
-    if (token === "contains" || token === "fromJSON") {
+    if (token === "contains") {
       take("(");
       const first = or();
-      if (token === "fromJSON") {
-        take(")");
-        return JSON.parse(String(first));
-      }
       take(",");
       const second = or();
       take(")");
-      return Array.isArray(first) ? first.includes(second) : String(first).includes(String(second));
+      return Array.isArray(first)
+        ? first.some((item) => same(item, second))
+        : String(folded(first)).includes(String(folded(second)));
     }
     return lookup(token ?? "");
   }
@@ -71,7 +72,7 @@ function evaluate(expression: string, context: Record<string, unknown>): unknown
     const left = primary();
     if (peek() === "==" || peek() === "!=") {
       const equal = take() === "==";
-      return (left === primary()) === equal;
+      return same(left, primary()) === equal;
     }
     return left;
   }
@@ -154,6 +155,10 @@ describe("the fresh-site workflow's no-fresh-site label", () => {
       expect(run.steps.some((step) => step.name?.startsWith("Skipped"))).toBe(false);
     }
     expect((await outcome({ event: "pull_request", action: "synchronize" })).group).toBe("fresh-site-311");
+    // Taking the label off joins the pull request's group, so it replaces the skipped run in progress.
+    expect((await outcome({ event: "pull_request", action: "unlabeled", label: "no-fresh-site" })).group).toBe(
+      "fresh-site-311",
+    );
     expect((await outcome({ event: "schedule" })).group).toBe("fresh-site-900");
   });
 
@@ -161,6 +166,10 @@ describe("the fresh-site workflow's no-fresh-site label", () => {
     for (const run of [
       await outcome({ event: "pull_request", action: "labeled", label: "no-fresh-site", labels: ["no-fresh-site"] }),
       await outcome({ event: "pull_request", action: "synchronize", labels: ["no-fresh-site", "no-coderabbit"] }),
+      // Opened with the label on, as a release pull request can be, which sends `labeled` beside it.
+      await outcome({ event: "pull_request", action: "opened", labels: ["no-fresh-site"] }),
+      // GitHub compares labels' names without case.
+      await outcome({ event: "pull_request", action: "labeled", label: "No-Fresh-Site", labels: ["No-Fresh-Site"] }),
     ]) {
       // The jobs run, so `company (22)` and `company (24)` report: a job skipped whole reports as `company`.
       expect(run.runs).toBe(true);
