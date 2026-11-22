@@ -46,11 +46,28 @@ export const SITE_OVERRIDES: Readonly<Record<string, Readonly<Record<string, str
 };
 
 /**
- * A site's `package.json` overrides with `SITE_OVERRIDES` in them, keeping
- * every override of the site's own, and the packages it added overrides for,
- * as `[package, dependency]`.
+ * The values earlier releases wrote for the overrides in `SITE_OVERRIDES` that
+ * pin an exact release rather than give the lowest one, such as `PUCK_CLI`. An
+ * update keeps every override a site has, since it may be the site's own
+ * choice, but a value here is Goodfellow's, so it's replaced with today's:
+ * otherwise only new sites would ever get a newer pin. A release that changes
+ * such a pin adds the one before to its list (a test checks each exact pin has
+ * one).
  */
-export function withSiteOverrides(overrides: unknown): {
+export const EARLIER_SITE_OVERRIDES: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
+  "@puckeditor/core": { "@puckeditor/cli": [] },
+};
+
+/**
+ * A site's `package.json` overrides with `SITE_OVERRIDES` in them, keeping
+ * every override of the site's own, but replacing a pin an earlier release
+ * wrote (`EARLIER_SITE_OVERRIDES`), and the packages it added or changed
+ * overrides for, as `[package, dependency]`.
+ */
+export function withSiteOverrides(
+  overrides: unknown,
+  earlier: typeof EARLIER_SITE_OVERRIDES = EARLIER_SITE_OVERRIDES,
+): {
   overrides: Record<string, unknown>;
   added: [string, string][];
 } {
@@ -63,7 +80,9 @@ export function withSiteOverrides(overrides: unknown): {
     if (own !== undefined && (typeof own !== "object" || own === null || Array.isArray(own))) continue;
     const merged: Record<string, unknown> = { ...(own as Record<string, unknown> | undefined) };
     for (const [child, range] of Object.entries(children)) {
-      if (merged[child] !== undefined) continue;
+      const current = merged[child];
+      const ours = typeof current === "string" && current !== range && earlier[name]?.[child]?.includes(current);
+      if (current !== undefined && !ours) continue;
       merged[child] = range;
       added.push([name, child]);
     }

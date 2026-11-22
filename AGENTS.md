@@ -3053,8 +3053,11 @@ pnpm test:e2e
   otherwise. The Claude Desktop extension is zipped with `fflate` rather than Anthropic's `mcpb` tool for the same
   reason. They also pin what a dependency names by a dist-tag, which moves: Puck 0.24.1's `@puckeditor/cli` at `latest`,
   which no page, build, or admin panel runs, is the release that was `latest` when 0.24.1 was published, in both
-  (`PUCK_CLI`, which a test keeps the same), and a Puck upgrade checks it again. Check `pnpm audit` before adding a
-  dependency.
+  (`PUCK_CLI`, which a test keeps the same), and a Puck upgrade checks it again. `withSiteOverrides()` keeps every
+  override a site has, but replaces a pin an earlier release wrote (`EARLIER_SITE_OVERRIDES`, where a release that
+  changes a pin puts the one before, and which a test requires for every exact pin), and `update()` leaves out the
+  lockfile's copy of a pin at the top of `node_modules`, where npm hoists a package only one other needs, when it's at
+  another release. Check `pnpm audit` before adding a dependency.
 - **Install scripts:** pnpm runs no package's install script unless `pnpm-workspace.yaml`'s `allowBuilds` names it
   `true`. esbuild and workerd, which wrangler brings, are named `false`, since their programs come as packages for each
   platform; a package added later whose install script is needed goes there as `true`, with why.

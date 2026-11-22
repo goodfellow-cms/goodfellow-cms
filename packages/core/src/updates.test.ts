@@ -6,6 +6,7 @@ import {
   availableUpdates,
   chooseUpdate,
   DEFAULT_UPDATE_SETTINGS,
+  EARLIER_SITE_OVERRIDES,
   findUpdateResult,
   formatUpdateResult,
   PUCK_CLI,
@@ -90,6 +91,31 @@ describe("sites' overrides", () => {
       ],
     });
     expect(withSiteOverrides({ react: "19.3.0" }).overrides).toEqual({ react: "19.3.0", ...SITE_OVERRIDES });
+  });
+
+  it("moves a pin an earlier release wrote to today's, and leaves the site's own", () => {
+    const earlier = { "@puckeditor/core": { "@puckeditor/cli": ["0.24.0-canary.1", "0.24.0-canary.2"] } };
+    const site = { "@puckeditor/core": { "happy-dom": "^21.0.4", "@puckeditor/cli": "0.24.0-canary.2" } };
+    expect(withSiteOverrides(site, earlier)).toEqual({
+      overrides: SITE_OVERRIDES,
+      added: [
+        ["@puckeditor/core", "@puckeditor/cli"],
+        ["cacache", "glob"],
+        ["@tufjs/models", "minimatch"],
+      ],
+    });
+    const own = { "@puckeditor/core": { "happy-dom": "^21.0.4", "@puckeditor/cli": "0.30.0" } };
+    expect(withSiteOverrides(own, earlier).overrides["@puckeditor/core"]).toEqual(own["@puckeditor/core"]);
+  });
+
+  it("knows the earlier values of every override that pins an exact release", () => {
+    for (const [name, children] of Object.entries(SITE_OVERRIDES)) {
+      for (const [child, value] of Object.entries(children)) {
+        if (/^[\^~<>=]/.test(value)) continue;
+        expect(EARLIER_SITE_OVERRIDES[name]?.[child], `${name} > ${child}`).toBeDefined();
+        expect(EARLIER_SITE_OVERRIDES[name]?.[child]).not.toContain(value);
+      }
+    }
   });
 
   it("pins Puck's command line to the release the workspace has, never its moving `latest`", async () => {

@@ -659,10 +659,25 @@ async function updateSite(
   // of what an added override replaces are left out for npm to install again.
   const lockText = added.length > 0 ? await read("package-lock.json") : undefined;
   if (lockText) {
-    const lock = JSON.parse(lockText) as { packages?: Record<string, unknown> };
-    const replaced = Object.keys(lock.packages ?? {}).filter((path) =>
-      added.some(([name, child]) => path.startsWith(`node_modules/${name}/`) && path.endsWith(`node_modules/${child}`)),
-    );
+    const lock = JSON.parse(lockText) as { packages?: Record<string, { version?: unknown }> };
+    const pinOf = (name: string, child: string) => {
+      const value = (overrides[name] as Record<string, unknown> | undefined)?.[child];
+      // A release, not a range: the override pins it (see EARLIER_SITE_OVERRIDES).
+      return typeof value === "string" && /^\d/.test(value) ? value : undefined;
+    };
+    const replaced = Object.entries(lock.packages ?? {})
+      .filter(([path, entry]) =>
+        added.some(
+          ([name, child]) =>
+            (path.startsWith(`node_modules/${name}/`) && path.endsWith(`node_modules/${child}`)) ||
+            // npm hoists a package only one other needs, such as Puck's command line, so a pin's copy at the top, at
+            // another release, is installed again too.
+            (path === `node_modules/${child}` &&
+              pinOf(name, child) !== undefined &&
+              entry?.version !== pinOf(name, child)),
+        ),
+      )
+      .map(([path]) => path);
     for (const path of replaced) delete lock.packages?.[path];
     if (replaced.length > 0) await apply({ path: "package-lock.json", content: `${JSON.stringify(lock, null, 2)}\n` });
   }
