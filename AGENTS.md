@@ -1018,12 +1018,15 @@ Content files are the product's data format; treat changes to them like API chan
 - **Setting it up from a computer:** `pnpm run setup` in `packages/worker` (`scripts/setup.mjs`) deploys it to learn its
   address, creates both apps through GitHub's app manifest flow from a page it serves on 127.0.0.1 (`appManifest()` in
   `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for; the page answers only at `127.0.0.1:<port>`,
-  sending `localhost` there, and GitHub's way back only with the cookie it set, `setupRequest()`, since a website can
-  point a name of its own at this computer and read the page; then it shows each app's address and owner,
-  `createdAppSummary()`, and saves nothing unless the person answers yes, as the connector's setup does too), writes
-  their slugs and `SETUP_ORIGINS` into `wrangler.jsonc` (`withVars()`), sets the secrets with `wrangler secret bulk`
-  through standard input, never in arguments or files, keeps an existing `SESSION_KEY`, deploys again, and checks
-  `/health`. Its testable parts are in `src/setup.ts`; `GITHUB_WEB` and `GITHUB_API` point it at a fake GitHub.
+  sending `localhost` there, and GitHub's way back only with the cookie it set, its own name for each port
+  (`setupCookieName()`), since a website can point a name of its own at this computer and read the page, both scripts
+  answering through `setupRefusal()`, which says in the browser and the terminal what to do when GitHub comes back to
+  another browser; then it shows each app's address and owner, `createdAppSummary()`, and asks until the person answers
+  y or n, saving the keys only for y, since Enter pressed by habit would lose keys GitHub gives only once, as the
+  connector's setup does too), writes their slugs and `SETUP_ORIGINS` into `wrangler.jsonc` (`withVars()`), sets the
+  secrets with `wrangler secret bulk` through standard input, never in arguments or files, keeps an existing
+  `SESSION_KEY`, deploys again, and checks `/health`. Its testable parts are in `src/setup.ts`; `GITHUB_WEB` and
+  `GITHUB_API` point it at a fake GitHub.
 - **Flow** (`worker.ts`): `/github/check`, then `/github/start` to GitHub, and `/github/callback` back to the admin
   panel with a grant in `goodfellow_sign_in` (or a problem in `goodfellow_sign_in_error`), after the address's `#`, in
   the screen's own query (`#/settings/editors?goodfellow_sign_in=…`), so hosts' logs never see it, where `start` was

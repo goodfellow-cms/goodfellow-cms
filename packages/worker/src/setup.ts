@@ -118,7 +118,7 @@ export function hasSetupCookie(header: string | undefined, value: string, port: 
 }
 
 /** What the setup page on this computer does with a request. */
-export type SetupRequestAnswer = "serve" | "to-ip" | "refuse";
+export type SetupRequestAnswer = "serve" | "to-ip" | "wrong-host" | "no-cookie";
 
 /**
  * Checks a request to the setup page `pnpm run setup` serves on 127.0.0.1. A website can point a name of its own at
@@ -132,9 +132,38 @@ export function setupRequest(
   { port, cookie }: { port: number; cookie: string },
 ): SetupRequestAnswer {
   if (request.host === `localhost:${port}`) return "to-ip";
-  if (request.host !== `127.0.0.1:${port}`) return "refuse";
-  if (request.path.startsWith("/created") && !hasSetupCookie(request.cookie, cookie, port)) return "refuse";
+  if (request.host !== `127.0.0.1:${port}`) return "wrong-host";
+  if (request.path.startsWith("/created") && !hasSetupCookie(request.cookie, cookie, port)) return "no-cookie";
   return "serve";
+}
+
+/** What the setup page sends for a request it doesn't serve, and what the terminal says about it, if anything. */
+export interface SetupRefusal {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  /** For the terminal, since the person may be looking there rather than at the browser. */
+  problem?: string;
+}
+
+/**
+ * `setupRequest()`'s answer as the setup scripts send it, or `undefined` for a request the page serves, so both
+ * scripts answer the same. A request under another name says nothing in the terminal, since any website can send them.
+ */
+export function setupRefusal(
+  request: { host?: string; cookie?: string; path: string },
+  options: { port: number; cookie: string },
+): SetupRefusal | undefined {
+  const answer = setupRequest(request, options);
+  const address = `http://127.0.0.1:${options.port}/`;
+  const headers = { "cache-control": "no-store", "content-type": "text/plain; charset=utf-8" };
+  if (answer === "to-ip") return { status: 303, headers: { location: address, "cache-control": "no-store" }, body: "" };
+  if (answer === "wrong-host") return { status: 403, headers, body: `This page answers only at ${address}\n` };
+  if (answer === "no-cookie") {
+    const problem = `GitHub came back to a browser that didn't open ${address}, so the app's keys weren't taken. Delete the app GitHub just created (in its settings, under Advanced), then create it again from ${address} in the browser that opened it, with cookies allowed.`;
+    return { status: 403, headers, body: `${problem}\n`, problem };
+  }
+  return undefined;
 }
 
 /** Turns the code GitHub came back with into the app's details. Each code works once, within an hour. */

@@ -34,7 +34,7 @@ import {
   readVar,
   setupCookie,
   setupPage,
-  setupRequest,
+  setupRefusal,
   slugVar,
   withVars,
 } from "../dist/setup.js";
@@ -79,6 +79,15 @@ async function ask(question) {
 async function yesNo(question, yes) {
   const answer = (await ask(`${question} ${yes ? "(Y/n)" : "(y/N)"} `)).toLowerCase();
   return answer ? answer.startsWith("y") : yes;
+}
+
+/** Asks until the answer is yes or no, since Enter pressed by habit would throw away keys GitHub gives only once. */
+async function yesOrNo(question) {
+  for (;;) {
+    const answer = (await ask(`${question} (y/n) `)).toLowerCase();
+    if (answer.startsWith("y")) return true;
+    if (answer.startsWith("n")) return false;
+  }
 }
 
 function openBrowser(url) {
@@ -128,17 +137,14 @@ function createApps({ worker, organization, isPublic }) {
     const server = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
       const port = server.address().port;
-      const answer = setupRequest(
+      // Only this computer's name, and GitHub's way back only in the browser that opened the page (see setupRefusal()).
+      const refused = setupRefusal(
         { host: request.headers.host, cookie: request.headers.cookie, path: url.pathname },
         { port, cookie },
       );
-      if (answer === "to-ip") {
-        response.writeHead(303, { location: `http://127.0.0.1:${port}/`, "cache-control": "no-store" }).end();
-        return;
-      }
-      if (answer === "refuse") {
-        // Another name for this computer, as a website pointing its own name here would send, or no cookie.
-        response.writeHead(403, { "cache-control": "no-store" }).end();
+      if (refused) {
+        if (refused.problem) console.log(`\n${refused.problem}\n`);
+        response.writeHead(refused.status, refused.headers).end(refused.body);
         return;
       }
       const origin = `http://127.0.0.1:${port}`;
@@ -270,8 +276,10 @@ async function main() {
     for (const kind of APP_KINDS) {
       console.log(`- ${kind === "edit" ? "The editors' app" : "The owners' app"}: ${createdAppSummary(created[kind])}`);
     }
-    if (!(await yesNo("Are these the apps you just created? Their keys are saved only if so.", false))) {
-      throw new Error("Nothing was saved. Delete any app above that you didn't mean to create, then run this again.");
+    if (!(await yesOrNo("Are these the apps you just created? Their keys are saved only if so."))) {
+      throw new Error(
+        "Their keys weren't saved, so the service keeps the apps it had. Delete any app above that you didn't mean to create, then run this again.",
+      );
     }
   }
 
