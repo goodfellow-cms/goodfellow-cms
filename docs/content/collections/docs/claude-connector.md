@@ -49,7 +49,8 @@ An organization can run it, with its own GitHub App. The connector is `packages/
    - creates the connector's database on Cloudflare, `goodfellow-connector`. Wrangler, Cloudflare's tool, asks you to sign in to Cloudflare, and the first time, to choose your `workers.dev` address;
    - deploys the connector, to learn its address;
    - asks whether an organization should own the GitHub App, and whether anyone's sites can use it;
-   - opens a page in your browser that creates the app on GitHub with its settings filled in. Check its name, which editors see when they connect Claude, and choose **Create GitHub App**;
+   - opens a page in your browser that creates the app on GitHub with its settings filled in. Check its name, which editors see when they connect Claude, and choose **Create GitHub App**. The page is at `http://127.0.0.1:<port>/` on your computer, and answers only there, in the browser it opened in;
+   - shows the app's address on GitHub and the account that owns it, and saves its keys only once you answer yes. Check it's the app you just created; it asks until you answer y or n, and saves the keys only for y;
    - asks whether to work on sites on GitLab.com too. If so, add an application in GitLab (**Edit profile → Applications**) with the redirect URI it gives, **Confidential** on and the `api` scope, and give it the application's ID and secret, which isn't shown as you type;
    - asks whether to work on sites on Bitbucket too. If so, add an OAuth consumer in a Bitbucket workspace you own (the workspace's **Settings → OAuth consumers → Add consumer**) with the callback URL it gives, **This is a private consumer** ticked, and the permissions Account: Read, Workspace membership: Read, Repositories: Write and Pull requests: Write, and give it the consumer's key and secret. Editors in any workspace can sign in with it;
    - gives the connector its secrets and a key for sealing tokens, deploys it again, and checks it answers.

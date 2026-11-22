@@ -526,6 +526,23 @@ describe("connecting with GitHub", () => {
     expect(page).toContain(`https://github.com/apps/goodfellow-for-claude/installations/new?state=${state}`);
   });
 
+  it("signs the person in when GitHub comes back from changing an installation without doing so", async () => {
+    const { register, signInWithGitHub, visit } = setup({ installed: false });
+    const clientId = await register();
+    const { state } = await signInWithGitHub(clientId);
+    const back = await visit(
+      `/connect/github/callback?${new URLSearchParams({ installation_id: "1", setup_action: "update", state })}`,
+    );
+    expect(back.status).toBe(302);
+    const authorize = new URL(back.headers.get("location") ?? "");
+    expect(authorize.origin + authorize.pathname).toBe("https://github.com/login/oauth/authorize");
+    expect(authorize.searchParams.get("state")).toBe(state);
+    expect(authorize.searchParams.get("redirect_uri")).toBe(`${CONNECTOR}/connect/github/callback`);
+    // Without an installation, it's still the person saying no.
+    const neither = await visit(`/connect/github/callback?${new URLSearchParams({ state })}`);
+    expect(new URL(neither.headers.get("location") ?? "").searchParams.get("error")).toBe("access_denied");
+  });
+
   it("accepts clients that describe themselves in a document", async () => {
     const { documents, startAuthorize } = setup();
     const id = "https://client.example/oauth/client.json";

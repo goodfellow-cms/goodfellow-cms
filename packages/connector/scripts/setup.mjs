@@ -25,7 +25,15 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { convertManifest, deployedAddress, manifestAction, newSessionKey } from "@goodfellow-cms/worker/setup";
+import {
+  convertManifest,
+  createdAppSummary,
+  deployedAddress,
+  manifestAction,
+  newSessionKey,
+  setupCookie,
+  setupRefusal,
+} from "@goodfellow-cms/worker/setup";
 import {
   connectorManifest,
   connectorSecrets,
@@ -93,6 +101,15 @@ async function yesNo(question, yes) {
   return answer ? answer.startsWith("y") : yes;
 }
 
+/** Asks until the answer is yes or no, since Enter pressed by habit would throw away keys GitHub gives only once. */
+async function yesOrNo(question) {
+  for (;;) {
+    const answer = (await ask(`${question} (y/n) `)).toLowerCase();
+    if (answer.startsWith("y")) return true;
+    if (answer.startsWith("n")) return false;
+  }
+}
+
 function openBrowser(url) {
   const command = windows ? "explorer" : process.platform === "darwin" ? "open" : "xdg-open";
   try {
@@ -148,12 +165,25 @@ async function secretNames() {
 /** Creates the app through a page on this computer, and gives what GitHub said about it. */
 function createApp({ connector, organization, isPublic }) {
   const state = randomBytes(16).toString("hex");
+  // Only the browser that opened the page has it, so only it can bring GitHub's code back.
+  const cookie = randomBytes(16).toString("hex");
   let created;
   let problem;
   return new Promise((resolve, reject) => {
     const server = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      const origin = `http://127.0.0.1:${server.address().port}`;
+      const port = server.address().port;
+      // Only this computer's name, and GitHub's way back only in the browser that opened the page (see setupRefusal()).
+      const refused = setupRefusal(
+        { host: request.headers.host, cookie: request.headers.cookie, path: url.pathname },
+        { port, cookie },
+      );
+      if (refused) {
+        if (refused.problem) console.log(`\n${refused.problem}\n`);
+        response.writeHead(refused.status, refused.headers).end(refused.body);
+        return;
+      }
+      const origin = `http://127.0.0.1:${port}`;
       if (url.pathname === "/created") {
         const code = url.searchParams.get("code");
         if (url.searchParams.get("state") !== state || !code) {
@@ -189,6 +219,7 @@ function createApp({ connector, organization, isPublic }) {
         .writeHead(200, {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
+          "set-cookie": setupCookie(cookie, port),
           connection: "close",
         })
         .end(page);
@@ -245,7 +276,16 @@ async function main() {
       "Can sites owned by anyone use it? Answer no if only sites owned by the app's owner will.",
       true,
     );
-    Object.assign(values, connectorSecrets(await createApp({ connector, organization, isPublic })));
+    const app = await createApp({ connector, organization, isPublic });
+    console.log(`\nGitHub created ${createdAppSummary(app)}.`);
+    if (!(await yesOrNo("Is this the app you just created? Its keys are saved only if so."))) {
+      // The database is made and the connector deployed by now, so only the app's keys are left out.
+      if (changedConfig) console.log("\nKeep the change to wrangler.jsonc, which names the connector's database.");
+      throw new Error(
+        "The app's keys weren't saved, so the connector keeps the app it had. Delete the app above if you didn't mean to create it, then run this again.",
+      );
+    }
+    Object.assign(values, connectorSecrets(app));
   }
 
   const haveGitLab = secrets.includes("GITLAB_CLIENT_ID");
