@@ -1017,10 +1017,16 @@ Content files are the product's data format; treat changes to them like API chan
   `sign-in-template.test.ts` checks the copy, and `self-setup.test.ts` goes through the page against a fake Cloudflare.
 - **Setting it up from a computer:** `pnpm run setup` in `packages/worker` (`scripts/setup.mjs`) deploys it to learn its
   address, creates both apps through GitHub's app manifest flow from a page it serves on 127.0.0.1 (`appManifest()` in
-  `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for), writes their slugs and `SETUP_ORIGINS` into
-  `wrangler.jsonc` (`withVars()`), sets the secrets with `wrangler secret bulk` through standard input, never in
-  arguments or files, keeps an existing `SESSION_KEY`, deploys again, and checks `/health`. Its testable parts are in
-  `src/setup.ts`; `GITHUB_WEB` and `GITHUB_API` point it at a fake GitHub.
+  `src/setup.ts`, whose permissions are what `PERMISSIONS` asks for; the page answers only at `127.0.0.1:<port>`,
+  sending `localhost` there, and GitHub's way back only with the cookie it set, its own name for each port
+  (`setupCookieName()`), since a website can point a name of its own at this computer and read the page, both scripts
+  answering through `setupRefusal()`, which says in the browser and the terminal what to do when GitHub comes back to
+  another browser; then it shows each app's address and owner, `createdAppSummary()`, and asks until the person answers
+  y or n, saving the keys only for y, since Enter pressed by habit would lose keys GitHub gives only once, as the
+  connector's setup does too), writes their slugs and `SETUP_ORIGINS` into `wrangler.jsonc` (`withVars()`), sets the
+  secrets with `wrangler secret bulk` through standard input, never in arguments or files, keeps an existing
+  `SESSION_KEY`, deploys again, and checks `/health`. Its testable parts are in `src/setup.ts`; `GITHUB_WEB` and
+  `GITHUB_API` point it at a fake GitHub.
 - **Flow** (`worker.ts`): `/github/check`, then `/github/start` to GitHub, and `/github/callback` back to the admin
   panel with a grant in `goodfellow_sign_in` (or a problem in `goodfellow_sign_in_error`), after the address's `#`, in
   the screen's own query (`#/settings/editors?goodfellow_sign_in=…`), so hosts' logs never see it, where `start` was
@@ -1200,20 +1206,21 @@ Content files are the product's data format; treat changes to them like API chan
   cookie set by `/authorize` makes sure the browser that started is the one that finishes.
 - **Signing in to sites from the connector:** GitHub through its own GitHub App, Goodfellow for Claude (`PERMISSIONS` in
   `permissions.ts`: Contents and Pull requests write), separate from the sign-in worker's: the person's own token only
-  lists the repositories they can push to that it's installed on, then it's revoked; each `/mcp` request mints an
-  installation token for one repository, checks `collaborators/{login}/permission`, and revokes it after answering
-  (`waitUntil`). GitLab and Bitbucket have no such tokens, so the person's tokens are sealed in Claude's (`HostTokens`,
-  as `token` in access and refresh tokens; GitLab's sealed before Bitbucket was added carry `gitlab`), the access token
-  never outliving the host's, and renewed when Claude renews its own. Bitbucket signs in through a private OAuth
-  consumer (`bitbucket.ts`), whose secret allows the code grant and refresh tokens, which the admin panel's implicit
-  grant doesn't give; its sites are the repositories the person can write to in their first workspaces
-  (`/user/workspaces/{ws}/permissions/repositories`), and each backend reads the repository's main branch. Never log
-  tokens or put them in a URL or error, here as in the sign-in worker. `/mcp` is stateless
-  (`WebStandardStreamableHTTPServerTransport` with JSON answers), with a new server for each request. Screenshots use
-  Browser Rendering (`browserScreenshots()`, `@cloudflare/puppeteer`, which needs `nodejs_compat`), and the tool isn't
-  offered without the binding. Screenshots of media library images (`image: true`, addresses checked by `mediaImage()`)
-  show them on `imagePage()`, sized to the width asked for, in both setups, since browsers can't screenshot an SVG
-  opened on its own.
+  lists the repositories they can push to that it's installed on, then it's revoked (where GitHub comes back from
+  changing an installation without signing the person in, `/connect/github/callback` sends them to sign in with the same
+  request, as the worker's callback does); each `/mcp` request mints an installation token for one repository, checks
+  `collaborators/{login}/permission`, and revokes it after answering (`waitUntil`). GitLab and Bitbucket have no such
+  tokens, so the person's tokens are sealed in Claude's (`HostTokens`, as `token` in access and refresh tokens; GitLab's
+  sealed before Bitbucket was added carry `gitlab`), the access token never outliving the host's, and renewed when
+  Claude renews its own. Bitbucket signs in through a private OAuth consumer (`bitbucket.ts`), whose secret allows the
+  code grant and refresh tokens, which the admin panel's implicit grant doesn't give; its sites are the repositories the
+  person can write to in their first workspaces (`/user/workspaces/{ws}/permissions/repositories`), and each backend
+  reads the repository's main branch. Never log tokens or put them in a URL or error, here as in the sign-in worker.
+  `/mcp` is stateless (`WebStandardStreamableHTTPServerTransport` with JSON answers), with a new server for each
+  request. Screenshots use Browser Rendering (`browserScreenshots()`, `@cloudflare/puppeteer`, which needs
+  `nodejs_compat`), and the tool isn't offered without the binding. Screenshots of media library images (`image: true`,
+  addresses checked by `mediaImage()`) show them on `imagePage()`, sized to the width asked for, in both setups, since
+  browsers can't screenshot an SVG opened on its own.
 - **Tests:** `@goodfellow-cms/mcp`'s tests call the tools through `InMemoryTransport` against the fakes. The connector's
   tests (`connector.test.ts`) go through Claude's whole flow, as a browser and as Claude, against `fakeGitHub({ apps })`
   and `fakeGitLab({ oauth })`, with `memoryGrants()`. `site-preview.spec.ts` checks the preview page and
@@ -3072,7 +3079,13 @@ pnpm test:e2e
   change what such a site is made from (the company example, create-goodfellow, and core's `server-setup.ts`,
   `site-setup.ts`, and `updates.ts`). Its Goodfellow packages come from npm at the workspace's versions, as new sites'
   do, so a pull request is tested against the published release's code, and it fails between a release's version bump
-  being merged and the release being published. It saves and restores no package cache (`package-manager-cache:
+  being merged and the release being published, and on a Puck upgrade, which the release's exact peer ranges refuse
+  until it's out. The `no-fresh-site` label, which release pull requests get, skips it: its jobs run with every step
+  skipped, so `company (22)` and `company (24)` pass in place of their failures (a job skipped whole reports as
+  `company` and leaves theirs red), while other labels' events, and any label's on a closed pull request, run nothing
+  and cancel nothing; `fresh-site-workflow.test.ts` works out its conditions. While it's on, every push is skipped, an
+  accepted trade-off: a warning on the checks says so each time, the nightly run still makes the site, and the label
+  comes off once the release it waits for is out. It saves and restores no package cache (`package-manager-cache:
   false`), since the code it runs is nobody's choice and master's workflows share the cache; the release's publish job
   and the docs' build restore none either, so what's published and deployed is installed from the lockfile alone.
 - **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It
@@ -3440,13 +3453,14 @@ pnpm test:e2e
   `fixed` group, so they're released together with the same version; a new package goes in that group, and its first
   version is published from a maintainer's computer, since trusted publishing needs the package to exist on npm
   (RELEASING.md's "Adding a package"). Releases are made as RELEASING.md describes: `pnpm release:version` bumps the
-  versions in a pull request, labelled `no-coderabbit` since it changes only versions and changelogs, and once it's
-  merged and CI passes on `master`, `.github/workflows/release.yml` runs `scripts/release.mjs publish --ci`, which
-  stages what npm doesn't have yet, only from the commit that set the version (`releaseCommit()`), so a later commit's
-  run can't stage the release with code its tags don't describe (packed with `pnpm pack`, so `workspace:*` becomes the
-  version, then staged with `npm stage publish`, which its trusted publishers are limited to). A maintainer approves the
-  staged versions with two-factor authentication (`pnpm release:staged` and `pnpm release:approve`), while the workflow
-  waits for them (`release.mjs wait`), then tags the release (`release.mjs tag`) and deploys the docs.
+  versions in a pull request, labelled `no-coderabbit` since it changes only versions and changelogs and `no-fresh-site`
+  since its version isn't on npm yet, and once it's merged and CI passes on `master`, `.github/workflows/release.yml`
+  runs `scripts/release.mjs publish --ci`, which stages what npm doesn't have yet, only from the commit that set the
+  version (`releaseCommit()`), so a later commit's run can't stage the release with code its tags don't describe (packed
+  with `pnpm pack`, so `workspace:*` becomes the version, then staged with `npm stage publish`, which its trusted
+  publishers are limited to). A maintainer approves the staged versions with two-factor authentication (`pnpm
+  release:staged` and `pnpm release:approve`), while the workflow waits for them (`release.mjs wait`), then tags the
+  release (`release.mjs tag`) and deploys the docs.
 - **Issues and pull requests:** `.github/ISSUE_TEMPLATE/` has forms for bug reports and feature requests,
   `.github/pull_request_template.md` is the checklist pull requests start from, `SECURITY.md` says how to report
   security problems privately, and `CONTRIBUTING.md` sends contributors here; keep it short. When a new part of

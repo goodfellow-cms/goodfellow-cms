@@ -80,6 +80,90 @@ export interface CreatedApp {
   client_secret: string;
   pem: string;
   html_url?: string;
+  /** The account or organization it belongs to. */
+  owner?: { login: string };
+}
+
+/**
+ * What to show the person about an app GitHub created, before its keys are saved, so an app made in someone else's
+ * account (by a page that sent this computer's setup page a code of its own) isn't saved unnoticed.
+ */
+export function createdAppSummary(app: CreatedApp): string {
+  const address = app.html_url ?? app.slug;
+  return app.owner?.login ? `${address}, owned by ${app.owner.login}` : `${address}, whose owner GitHub didn't say`;
+}
+
+/**
+ * The name of the cookie the setup page on `port` sets, which GitHub's way back to it must carry. Browsers keep
+ * cookies by name, not port, so each page's has a name of its own, and the sign-in service's and the connector's
+ * setups can run at once in one browser.
+ */
+export function setupCookieName(port: number): string {
+  return `goodfellow_setup_${port}`;
+}
+
+/** The `Set-Cookie` header giving the setup page's browser its value. */
+export function setupCookie(value: string, port: number): string {
+  return `${setupCookieName(port)}=${value}; HttpOnly; SameSite=Lax; Path=/`;
+}
+
+/** Whether a request's `Cookie` header holds the setup page's value. */
+export function hasSetupCookie(header: string | undefined, value: string, port: number): boolean {
+  const name = setupCookieName(port);
+  for (const pair of (header ?? "").split(";")) {
+    const at = pair.indexOf("=");
+    if (at > 0 && pair.slice(0, at).trim() === name && pair.slice(at + 1).trim() === value) return true;
+  }
+  return false;
+}
+
+/** What the setup page on this computer does with a request. */
+export type SetupRequestAnswer = "serve" | "to-ip" | "wrong-host" | "no-cookie";
+
+/**
+ * Checks a request to the setup page `pnpm run setup` serves on 127.0.0.1. A website can point a name of its own at
+ * this computer (DNS rebinding), and its pages are then same-origin with this one, so they could read the page, its
+ * state among it, and send codes of apps made in their own account: the page answers only under the name it's opened
+ * at (`127.0.0.1:<port>`, or `localhost:<port>`, which it sends there, since the cookie belongs to one name), and
+ * GitHub's way back (`/created…`) only with the cookie the page set, so only the browser that opened it.
+ */
+export function setupRequest(
+  request: { host?: string; cookie?: string; path: string },
+  { port, cookie }: { port: number; cookie: string },
+): SetupRequestAnswer {
+  if (request.host === `localhost:${port}`) return "to-ip";
+  if (request.host !== `127.0.0.1:${port}`) return "wrong-host";
+  if (request.path.startsWith("/created") && !hasSetupCookie(request.cookie, cookie, port)) return "no-cookie";
+  return "serve";
+}
+
+/** What the setup page sends for a request it doesn't serve, and what the terminal says about it, if anything. */
+export interface SetupRefusal {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+  /** For the terminal, since the person may be looking there rather than at the browser. */
+  problem?: string;
+}
+
+/**
+ * `setupRequest()`'s answer as the setup scripts send it, or `undefined` for a request the page serves, so both
+ * scripts answer the same. A request under another name says nothing in the terminal, since any website can send them.
+ */
+export function setupRefusal(
+  request: { host?: string; cookie?: string; path: string },
+  options: { port: number; cookie: string },
+): SetupRefusal | undefined {
+  const answer = setupRequest(request, options);
+  const address = `http://127.0.0.1:${options.port}/`;
+  const headers = { "cache-control": "no-store", "content-type": "text/plain; charset=utf-8" };
+  if (answer === "to-ip") return { status: 303, headers: { location: address, "cache-control": "no-store" }, body: "" };
+  if (answer === "wrong-host") return { status: 403, headers, body: `This page answers only at ${address}\n` };
+  if (answer === "no-cookie") {
+    const problem = `GitHub came back to a browser that didn't open ${address}, so the app's keys weren't taken. Delete the app GitHub just created (in its settings, under Advanced), then create it again from ${address} in the browser that opened it, with cookies allowed.`;
+    return { status: 403, headers, body: `${problem}\n`, problem };
+  }
+  return undefined;
 }
 
 /** Turns the code GitHub came back with into the app's details. Each code works once, within an hour. */

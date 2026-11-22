@@ -350,6 +350,11 @@ export function createConnector(options: ConnectorOptions = {}) {
       const data = await openRequest(state);
       if (!data) return expired();
       const code = url.searchParams.get("code");
+      if (!code && url.searchParams.get("installation_id")) {
+        // GitHub comes back from changing an installation, rather than making one, without signing the person in:
+        // sign in now, with the same request, as the sign-in worker does.
+        return redirect(gh.authorizeUrl(github, app, githubCallback, state ?? ""));
+      }
       if (!code) return backWithError(data, "access_denied", "GitHub didn't sign the person in.");
       let found: Awaited<ReturnType<typeof gh.signedInSites>>;
       try {

@@ -4,12 +4,17 @@ import {
   appPermissions,
   appSecrets,
   convertManifest,
+  createdAppSummary,
   deployedAddress,
   hasAppSecrets,
   manifestAction,
   newSessionKey,
   readVar,
+  setupCookie,
+  setupCookieName,
   setupPage,
+  setupRefusal,
+  setupRequest,
   withVars,
 } from "./setup.js";
 import { LATER_PERMISSIONS, PERMISSIONS } from "./worker.js";
@@ -135,6 +140,87 @@ describe("convertManifest", () => {
     await expect(convertManifest("odd", async () => Response.json({ id: 7 }, { status: 201 }))).rejects.toThrow(
       "didn't include the app's keys",
     );
+  });
+});
+
+describe("createdAppSummary", () => {
+  const app = { id: 7, slug: "goodfellow-cms", client_id: "Iv1.a", client_secret: "secret", pem: "-----BEGIN RSA…" };
+
+  it("names where the app is and whose it is, so someone else's isn't saved unnoticed", () => {
+    expect(
+      createdAppSummary({ ...app, html_url: "https://github.com/apps/goodfellow-cms", owner: { login: "parish" } }),
+    ).toBe("https://github.com/apps/goodfellow-cms, owned by parish");
+    expect(createdAppSummary(app)).toBe("goodfellow-cms, whose owner GitHub didn't say");
+  });
+});
+
+describe("setupRequest", () => {
+  const cookie = "a1b2c3";
+  const options = { port: 4321, cookie };
+
+  it("serves the page only under the name it's opened at", () => {
+    expect(setupRequest({ host: "127.0.0.1:4321", path: "/" }, options)).toBe("serve");
+    expect(setupRequest({ host: "localhost:4321", path: "/" }, options)).toBe("to-ip");
+    // A website that points its own name at this computer sends that name.
+    for (const host of ["attacker.example:4321", "127.0.0.1.attacker.example:4321", "127.0.0.1:80", "127.0.0.1", ""]) {
+      expect(setupRequest({ host, path: "/" }, options)).toBe("wrong-host");
+    }
+    expect(setupRequest({ path: "/" }, options)).toBe("wrong-host");
+  });
+
+  it("takes GitHub's way back only from the browser the page gave its cookie to", () => {
+    const [pair = ""] = setupCookie(cookie, 4321).split(";");
+    expect(setupCookie(cookie, 4321)).toContain("HttpOnly");
+    expect(setupCookie(cookie, 4321)).toContain("SameSite=Lax");
+    // A browser keeps one cookie a name for 127.0.0.1, whatever the port: the other setup page's, set after this
+    // one's, must be another cookie, or GitHub's way back to this page is refused.
+    const jar = new Map<string, string>();
+    for (const header of [setupCookie(cookie, 4321), setupCookie("d4e5f6", 5432)]) {
+      const [name = "", value = ""] = (header.split(";")[0] ?? "").split("=");
+      jar.set(name, value);
+    }
+    const both = [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+    const otherPage = setupCookie("d4e5f6", 5432).split(";")[0] ?? "";
+    for (const path of ["/created", "/created/edit", "/created/owner?code=x&state=y"]) {
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `other=1; ${pair}` }, options)).toBe("serve");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: both }, options)).toBe("serve");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: otherPage }, options)).toBe("no-cookie");
+      expect(setupRequest({ host: "127.0.0.1:4321", path }, options)).toBe("no-cookie");
+      expect(setupRequest({ host: "127.0.0.1:4321", path, cookie: `${setupCookieName(4321)}=wrong` }, options)).toBe(
+        "no-cookie",
+      );
+      expect(
+        setupRequest({ host: "127.0.0.1:4321", path, cookie: `x${setupCookieName(4321)}=${cookie}` }, options),
+      ).toBe("no-cookie");
+    }
+  });
+});
+
+describe("setupRefusal", () => {
+  const options = { port: 4321, cookie: "a1b2c3" };
+
+  it("serves the page and GitHub's way back to the browser that opened it", () => {
+    expect(setupRefusal({ host: "127.0.0.1:4321", path: "/" }, options)).toBeUndefined();
+    const created = { host: "127.0.0.1:4321", path: "/created", cookie: `${setupCookieName(4321)}=a1b2c3` };
+    expect(setupRefusal(created, options)).toBeUndefined();
+  });
+
+  it("says what to do, in the browser and the terminal, when GitHub comes back to another browser", () => {
+    const refused = setupRefusal({ host: "127.0.0.1:4321", path: "/created/edit" }, options);
+    expect(refused?.status).toBe(403);
+    expect(refused?.problem).toContain("http://127.0.0.1:4321/");
+    expect(refused?.problem).toContain("Delete the app GitHub just created");
+    expect(refused?.body).toBe(`${refused?.problem}\n`);
+  });
+
+  it("sends localhost to 127.0.0.1, and tells the terminal nothing of other names", () => {
+    expect(setupRefusal({ host: "localhost:4321", path: "/" }, options)).toMatchObject({
+      status: 303,
+      headers: { location: "http://127.0.0.1:4321/" },
+    });
+    const elsewhere = setupRefusal({ host: "attacker.example:4321", path: "/created" }, options);
+    expect(elsewhere?.status).toBe(403);
+    expect(elsewhere?.problem).toBeUndefined();
   });
 });
 
