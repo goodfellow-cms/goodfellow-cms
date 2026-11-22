@@ -3073,7 +3073,13 @@ pnpm test:e2e
   change what such a site is made from (the company example, create-goodfellow, and core's `server-setup.ts`,
   `site-setup.ts`, and `updates.ts`). Its Goodfellow packages come from npm at the workspace's versions, as new sites'
   do, so a pull request is tested against the published release's code, and it fails between a release's version bump
-  being merged and the release being published. It saves and restores no package cache (`package-manager-cache:
+  being merged and the release being published, and on a Puck upgrade, which the release's exact peer ranges refuse
+  until it's out. The `no-fresh-site` label, which release pull requests get, skips it: its jobs run with every step
+  skipped, so `company (22)` and `company (24)` pass in place of their failures (a job skipped whole reports as
+  `company` and leaves theirs red), while other labels' events, and any label's on a closed pull request, run nothing
+  and cancel nothing; `fresh-site-workflow.test.ts` works out its conditions. While it's on, every push is skipped, an
+  accepted trade-off: a warning on the checks says so each time, the nightly run still makes the site, and the label
+  comes off once the release it waits for is out. It saves and restores no package cache (`package-manager-cache:
   false`), since the code it runs is nobody's choice and master's workflows share the cache; the release's publish job
   and the docs' build restore none either, so what's published and deployed is installed from the lockfile alone.
 - **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It
@@ -3441,13 +3447,14 @@ pnpm test:e2e
   `fixed` group, so they're released together with the same version; a new package goes in that group, and its first
   version is published from a maintainer's computer, since trusted publishing needs the package to exist on npm
   (RELEASING.md's "Adding a package"). Releases are made as RELEASING.md describes: `pnpm release:version` bumps the
-  versions in a pull request, labelled `no-coderabbit` since it changes only versions and changelogs, and once it's
-  merged and CI passes on `master`, `.github/workflows/release.yml` runs `scripts/release.mjs publish --ci`, which
-  stages what npm doesn't have yet, only from the commit that set the version (`releaseCommit()`), so a later commit's
-  run can't stage the release with code its tags don't describe (packed with `pnpm pack`, so `workspace:*` becomes the
-  version, then staged with `npm stage publish`, which its trusted publishers are limited to). A maintainer approves the
-  staged versions with two-factor authentication (`pnpm release:staged` and `pnpm release:approve`), while the workflow
-  waits for them (`release.mjs wait`), then tags the release (`release.mjs tag`) and deploys the docs.
+  versions in a pull request, labelled `no-coderabbit` since it changes only versions and changelogs and `no-fresh-site`
+  since its version isn't on npm yet, and once it's merged and CI passes on `master`, `.github/workflows/release.yml`
+  runs `scripts/release.mjs publish --ci`, which stages what npm doesn't have yet, only from the commit that set the
+  version (`releaseCommit()`), so a later commit's run can't stage the release with code its tags don't describe (packed
+  with `pnpm pack`, so `workspace:*` becomes the version, then staged with `npm stage publish`, which its trusted
+  publishers are limited to). A maintainer approves the staged versions with two-factor authentication (`pnpm
+  release:staged` and `pnpm release:approve`), while the workflow waits for them (`release.mjs wait`), then tags the
+  release (`release.mjs tag`) and deploys the docs.
 - **Issues and pull requests:** `.github/ISSUE_TEMPLATE/` has forms for bug reports and feature requests,
   `.github/pull_request_template.md` is the checklist pull requests start from, `SECURITY.md` says how to report
   security problems privately, and `CONTRIBUTING.md` sends contributors here; keep it short. When a new part of
