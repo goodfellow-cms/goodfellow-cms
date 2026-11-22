@@ -12,8 +12,10 @@ name: Fresh site
 # Where that's expected (release pull requests, and ones such as a Puck upgrade that the published release's exact peer
 # ranges refuse until it's released), the `no-fresh-site` label skips it: adding it runs the jobs again with their steps
 # skipped, so `company (22)` and `company (24)` pass in place of their failures (a job skipped whole would report as
-# one `company` check and leave theirs red), and taking it off runs them for real. Other labels' events start no run of
-# their own, beyond a skipped one that cancels nothing.
+# one `company` check and leave theirs red), and taking it off runs them for real. While it's on, every push is skipped,
+# with a warning on the checks saying so, and the nightly run still makes the site: take it off once the release it
+# waits for is out. Other labels' events, and any label's on a closed pull request, start no run of their own, beyond a
+# skipped one that cancels nothing.
 
 on:
   schedule:
@@ -45,9 +47,11 @@ concurrency:
 
 jobs:
   company:
-    # A label's event runs it only for no-fresh-site, added or taken off.
+    # A label's event runs it only for no-fresh-site, added or taken off, and only on an open pull request, since
+    # GitHub sends labels' events for closed and merged ones too.
     if: >-
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || github.event.label.name == 'no-fresh-site'
+      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.label.name ==
+      'no-fresh-site' && github.event.pull_request.state == 'open')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -60,9 +64,12 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
       SKIPPED: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'no-fresh-site') }}
     steps:
+      # The label skips every push while it's on, the trade-off it makes: a warning on the checks says so on each
+      # one, so nobody takes the pass for a site that was made, and the nightly run still makes it.
       - name: Skipped, since the pull request is labelled no-fresh-site
         if: env.SKIPPED == 'true'
         run: |
+          echo "::warning title=Fresh site skipped::This pull request is labelled no-fresh-site, so no site was made for this commit. Take the label off to make one."
           echo "Skipped: this pull request is labelled no-fresh-site. Take the label off to make the site." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: env.SKIPPED != 'true'

@@ -108,10 +108,11 @@ interface Case {
   action?: string;
   label?: string;
   labels?: string[];
+  state?: "open" | "closed";
 }
 
 /** What happens to one run: whether its jobs run, which steps, and the concurrency group it joins. */
-async function outcome({ event, action, label, labels = [] }: Case) {
+async function outcome({ event, action, label, labels = [], state = "open" }: Case) {
   const flow = await workflow();
   const context = {
     github: {
@@ -120,7 +121,9 @@ async function outcome({ event, action, label, labels = [] }: Case) {
       event: {
         ...(action && { action }),
         ...(label && { label: { name: label } }),
-        ...(event === "pull_request" && { pull_request: { number: 311, labels: labels.map((name) => ({ name })) } }),
+        ...(event === "pull_request" && {
+          pull_request: { number: 311, state, labels: labels.map((name) => ({ name })) },
+        }),
       },
     },
   };
@@ -163,6 +166,13 @@ describe("the fresh-site workflow's no-fresh-site label", () => {
       expect(run.runs).toBe(true);
       expect(run.steps.map((step) => step.name)).toEqual(["Skipped, since the pull request is labelled no-fresh-site"]);
       expect(run.group).toBe("fresh-site-311");
+    }
+  });
+
+  it("starts nothing when the label goes on or off a closed pull request", async () => {
+    for (const action of ["labeled", "unlabeled"]) {
+      const run = await outcome({ event: "pull_request", action, label: "no-fresh-site", state: "closed" });
+      expect(run.runs).toBe(false);
     }
   });
 

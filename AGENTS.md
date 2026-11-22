@@ -3069,11 +3069,12 @@ pnpm test:e2e
   being merged and the release being published, and on a Puck upgrade, which the release's exact peer ranges refuse
   until it's out. The `no-fresh-site` label, which release pull requests get, skips it: its jobs run with every step
   skipped, so `company (22)` and `company (24)` pass in place of their failures (a job skipped whole reports as
-  `company` and leaves theirs red), while other labels' events run nothing and cancel nothing;
-  `fresh-site-workflow.test.ts` works out its conditions. It saves and restores no package cache
-  (`package-manager-cache: false`), since the code it runs is nobody's choice and master's workflows share the cache;
-  the release's publish job and the docs' build restore none either, so what's published and deployed is installed from
-  the lockfile alone.
+  `company` and leaves theirs red), while other labels' events, and any label's on a closed pull request, run nothing
+  and cancel nothing; `fresh-site-workflow.test.ts` works out its conditions. While it's on, every push is skipped, an
+  accepted trade-off: a warning on the checks says so each time, the nightly run still makes the site, and the label
+  comes off once the release it waits for is out. It saves and restores no package cache (`package-manager-cache:
+  false`), since the code it runs is nobody's choice and master's workflows share the cache; the release's publish job
+  and the docs' build restore none either, so what's published and deployed is installed from the lockfile alone.
 - **Code review:** CodeRabbit reviews pull requests (free for public repositories), set up in `.coderabbit.yaml`. It
   reads this file (and `CLAUDE.md`) as its guidelines by itself, so rules belong here, not there; the config only keeps
   its reviews short, leaves out files written by tools (lockfiles, changelogs, `google-fonts.ts`, `icons.ts`, the shadcn
