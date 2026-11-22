@@ -6,7 +6,13 @@ import { formatBuildCause } from "./build-problems.js";
 import { serializeContent } from "./content/serialize.js";
 import { type ReleaseVerifier, type RunCommand, type SiteFile, update } from "./node-update.js";
 import { hashText } from "./registry.js";
-import { GOODFELLOW_RELEASE_SOURCE, parseUpdateSettings, SITE_OVERRIDES, updateSettingsFile } from "./updates.js";
+import {
+  GOODFELLOW_RELEASE_SOURCE,
+  PUCK_CLI,
+  parseUpdateSettings,
+  SITE_OVERRIDES,
+  updateSettingsFile,
+} from "./updates.js";
 
 const REGISTRY = "https://registry.example/{name}.json";
 const BLOCK = "blocks/installed/shadcn-faq/block.tsx";
@@ -141,6 +147,32 @@ describe("goodfellow update", () => {
       "git -c user.name=Goodfellow updates -c user.email=updates@goodfellow.invalid commit --message Update Goodfellow to 0.4.2",
       "git push origin HEAD:refs/heads/main",
     ]);
+  });
+
+  it("installs Puck's command line again where the lockfile has it at another release than its pin", async () => {
+    for (const [version, kept] of [
+      ["0.25.0-canary.8b6e0f33", false],
+      [PUCK_CLI, true],
+    ] as const) {
+      await site();
+      const lock = {
+        name: "parish",
+        lockfileVersion: 3,
+        packages: {
+          "": { name: "parish" },
+          "node_modules/@puckeditor/core": { version: "0.24.1" },
+          "node_modules/@puckeditor/cli": { version },
+        },
+      };
+      await writeFile(join(root, "package-lock.json"), `${JSON.stringify(lock, null, 2)}\n`);
+      const { run } = commands();
+      await update({ root, fetchJson, run, registry: REGISTRY, log: () => {}, env: {} });
+      expect(Object.keys(JSON.parse(await read("package-lock.json")).packages)).toEqual([
+        "",
+        "node_modules/@puckeditor/core",
+        ...(kept ? ["node_modules/@puckeditor/cli"] : []),
+      ]);
+    }
   });
 
   it("adds the overrides sites need, leaving out the lockfile's copies of what they replace for npm to install again", async () => {

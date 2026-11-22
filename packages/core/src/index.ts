@@ -1579,6 +1579,7 @@ export {
   chooseUpdate,
   compareReleases,
   DEFAULT_UPDATE_SETTINGS,
+  EARLIER_SITE_OVERRIDES,
   findUpdateResult,
   formatUpdateResult,
   GOODFELLOW_RELEASE_SOURCE,

@@ -38,6 +38,10 @@ overrides:
   # command line starts. Apps are installed with npm, which ignores this; the docs' Apps page gives them the same
   # override.
   "@expo/cli>zod": "^4.6.6"
+  # Puck 0.24.1 depends on its command line at `latest`, which moves with each release Puck publishes of it (all
+  # canaries so far). Nothing here runs it (it's only `npx @puckeditor/core`'s), so it's pinned to the release that
+  # was `latest` when 0.24.1 was published; core's SITE_OVERRIDES (PUCK_CLI) pins sites' to the same.
+  "@puckeditor/core>@puckeditor/cli": "0.25.0-canary.7c155274"
 
 auditConfig:
   ignoreGhsas:

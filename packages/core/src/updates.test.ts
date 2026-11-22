@@ -1,11 +1,15 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ContentError } from "./content/errors.js";
 import {
   availableUpdates,
   chooseUpdate,
   DEFAULT_UPDATE_SETTINGS,
+  EARLIER_SITE_OVERRIDES,
   findUpdateResult,
   formatUpdateResult,
+  PUCK_CLI,
   parseUpdateSettings,
   releaseVersions,
   SITE_OVERRIDES,
@@ -62,21 +66,22 @@ describe("sites' overrides", () => {
       overrides: SITE_OVERRIDES,
       added: [
         ["@puckeditor/core", "happy-dom"],
+        ["@puckeditor/core", "@puckeditor/cli"],
         ["cacache", "glob"],
         ["@tufjs/models", "minimatch"],
       ],
     });
     const own = {
       react: "19.3.0",
-      "@puckeditor/core": { "happy-dom": "^22.0.0", tslib: "2.8.0" },
+      "@puckeditor/core": { "happy-dom": "^22.0.0", "@puckeditor/cli": "0.25.0", tslib: "2.8.0" },
       cacache: { glob: "^15.0.0" },
       "@tufjs/models": { minimatch: "^12.0.0" },
     };
     expect(withSiteOverrides(own)).toEqual({ overrides: own, added: [] });
     // A site that overrides Puck itself chose its own.
-    expect(withSiteOverrides({ "@puckeditor/core": "0.24.0" })).toEqual({
+    expect(withSiteOverrides({ "@puckeditor/core": "0.24.1" })).toEqual({
       overrides: {
-        "@puckeditor/core": "0.24.0",
+        "@puckeditor/core": "0.24.1",
         cacache: { glob: "^14.0.2" },
         "@tufjs/models": { minimatch: "^11.0.1" },
       },
@@ -86,6 +91,38 @@ describe("sites' overrides", () => {
       ],
     });
     expect(withSiteOverrides({ react: "19.3.0" }).overrides).toEqual({ react: "19.3.0", ...SITE_OVERRIDES });
+  });
+
+  it("moves a pin an earlier release wrote to today's, and leaves the site's own", () => {
+    const earlier = { "@puckeditor/core": { "@puckeditor/cli": ["0.24.0-canary.1", "0.24.0-canary.2"] } };
+    const site = { "@puckeditor/core": { "happy-dom": "^21.0.4", "@puckeditor/cli": "0.24.0-canary.2" } };
+    expect(withSiteOverrides(site, earlier)).toEqual({
+      overrides: SITE_OVERRIDES,
+      added: [
+        ["@puckeditor/core", "@puckeditor/cli"],
+        ["cacache", "glob"],
+        ["@tufjs/models", "minimatch"],
+      ],
+    });
+    const own = { "@puckeditor/core": { "happy-dom": "^21.0.4", "@puckeditor/cli": "0.30.0" } };
+    expect(withSiteOverrides(own, earlier).overrides["@puckeditor/core"]).toEqual(own["@puckeditor/core"]);
+  });
+
+  it("knows the earlier values of every override that pins an exact release", () => {
+    for (const [name, children] of Object.entries(SITE_OVERRIDES)) {
+      for (const [child, value] of Object.entries(children)) {
+        if (/^[\^~<>=]/.test(value)) continue;
+        expect(EARLIER_SITE_OVERRIDES[name]?.[child], `${name} > ${child}`).toBeDefined();
+        expect(EARLIER_SITE_OVERRIDES[name]?.[child]).not.toContain(value);
+      }
+    }
+  });
+
+  it("pins Puck's command line to the release the workspace has, never its moving `latest`", async () => {
+    const workspace = await readFile(join(import.meta.dirname, "../../../pnpm-workspace.yaml"), "utf8");
+    expect(workspace).toContain(`"@puckeditor/core>@puckeditor/cli": "${PUCK_CLI}"`);
+    expect(SITE_OVERRIDES["@puckeditor/core"]?.["@puckeditor/cli"]).toBe(PUCK_CLI);
+    expect(PUCK_CLI).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
   });
 });
 
