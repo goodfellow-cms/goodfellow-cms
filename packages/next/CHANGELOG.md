@@ -1,5 +1,16 @@
 # @goodfellow-cms/next
 
+## 0.15.1
+
+### Patch Changes
+
+- 4ebfa16: Goodfellow uses Puck 0.24.1, which fixes a crash in the rich text editor, shows headings in Puck's heading outline as soon as a page opens, hides the sidebar's resize handle while the sidebar is closed, and removes resize listeners when the editor closes. Puck 0.24.1 depends on its own command line, `@puckeditor/cli`, at whatever release is newest, which so far is always a test release, so sites' `package.json` overrides pin it to the one that was newest when 0.24.1 was published (`PUCK_CLI`); `goodfellow update` adds the override to older sites, and moves it on when a later release pins another, leaving a pin a site chose itself alone. Nothing on a site's pages, its builds, or the admin panel runs it.
+- Updated dependencies [4ebfa16]
+  - @goodfellow-cms/admin@0.15.1
+  - @goodfellow-cms/ai@0.15.1
+  - @goodfellow-cms/core@0.15.1
+  - @goodfellow-cms/react@0.15.1
+
 ## 0.15.0
 
 ### Minor Changes

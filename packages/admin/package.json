@@ -1,6 +1,6 @@
 {
   "name": "@goodfellow-cms/admin",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "Goodfellow CMS's admin panel: a visual editor for a site's pages, layout, and settings.",
   "keywords": [
     "goodfellow",
